@@ -1,14 +1,35 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
-import { fieldDiffs, textDiff } from "@/changePackage/diff";
 import { ContentClassBadge, ProtectionBadge, RevisionBadge, StatusBadge } from "@/components/Badges";
-import { FieldDiffTable, TextDiff } from "@/components/DiffView";
-import { RECORD_TYPE_LABELS } from "@/domain/recordTypes";
+import type { RecordView } from "@/domain/records";
+import { isManuscriptType, RECORD_TYPE_LABELS } from "@/domain/recordTypes";
+import { PROOFREAD_INSTRUCTIONS } from "@/proofread/prompt";
+import { getAssistantConfig } from "@/server/assistantConfig";
 import { getDb } from "@/server/db";
+import { listPendingProposalsForRecord } from "@/server/services/assistantProposalService";
 import { NotFoundError } from "@/server/services/errors";
-import { getRecord, listRevisions } from "@/server/services/recordService";
-import { setProtectionAction } from "../../actions";
-import { RecordEditor, StatusForm } from "./RecordForms";
+import { listLinkedReferences, listLinkingRecords } from "@/server/services/linkService";
+import { listRecordImages } from "@/server/services/imageService";
+import { listImportedFilesForRecord } from "@/server/services/markdownImportService";
+import { PROOFREAD_SCHEMA_CHARS } from "@/server/services/proofreadService";
+import {
+  getRecord,
+  listNotes,
+  listRecordsInside,
+  listReferenceChoices,
+  listRevisions,
+  type RevisionWithSource,
+} from "@/server/services/recordService";
+import { listOpenReviewItemsForRecord } from "@/server/services/reviewService";
+import { manuscriptWordCounts, sumWordCounts } from "@/server/services/wordCountService";
+import { dictionaryWordsForProject } from "@/server/services/dictionaryService";
+import { getSpellChecker, getSpellingLanguage } from "@/server/spelling";
+import { loadCrossRefIndex } from "@/server/services/crossRefService";
+import { RECORD, XREF } from "@/ui/labels";
+import { crossRefsFor, type RecordCrossRefs } from "@/writing/crossRefs";
+import { CrossRefsPanel } from "@/components/CrossRefsPanel";
+import { CompareSection, HistorySection, ProtectionSection, StatusSection, TrashSection, type InsideRecord } from "./RecordSections";
+import { ReferenceView } from "./ReferenceView";
+import { WriteEditor } from "./WriteEditor";
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +38,7 @@ export default async function RecordPage({
   searchParams,
 }: {
   params: Promise<{ projectId: string; recordId: string }>;
-  searchParams: Promise<{ from?: string; to?: string }>;
+  searchParams: Promise<{ from?: string; to?: string; edit?: string; find?: string; case?: string }>;
 }) {
   const { projectId, recordId } = await params;
   const query = await searchParams;
@@ -27,173 +48,153 @@ export default async function RecordPage({
     if (e instanceof NotFoundError) notFound();
     throw e;
   });
-  const revisions = await listRevisions(db, record.id);
+  const manuscript = isManuscriptType(record.type);
+  const [revisions, bookWords, spellingLanguage, spellChecker, dictionaryWords, parent, inside, crossRefs] = await Promise.all([
+    listRevisions(db, record.id),
+    manuscript ? manuscriptWordCounts(db, projectId) : null,
+    getSpellingLanguage(),
+    getSpellChecker(),
+    dictionaryWordsForProject(db, projectId),
+    record.parentRecordId
+      ? db.record.findFirst({ where: { id: record.parentRecordId, projectId, trashedAt: null }, select: { id: true, title: true, type: true } })
+      : null,
+    listRecordsInside(db, projectId, record.id),
+    loadCrossRefIndex(db, projectId),
+  ]);
+  const { status: assistant } = getAssistantConfig();
+  /** Instructions, output format, source markers and labels; the client adds the text length. */
+  const proofreadFixedChars = PROOFREAD_INSTRUCTIONS.length + PROOFREAD_SCHEMA_CHARS + 300;
+  const proofread = {
+    configured: assistant.configured,
+    maxInputChars: assistant.limits.maxInputChars,
+    fixedChars: proofreadFixedChars,
+  };
 
-  const toNum = Number(query.to ?? record.currentRevision);
-  const fromNum = Number(query.from ?? Math.max(1, toNum - 1));
-  const fromRev = revisions.find((r) => r.revisionNumber === fromNum);
-  const toRev = revisions.find((r) => r.revisionNumber === toNum);
-  const base = `/projects/${projectId}/records/${record.id}`;
+  if (manuscript) {
+    const [notes, linked, choices] = await Promise.all([
+      listNotes(db, projectId, record.id),
+      listLinkedReferences(db, projectId, record.id),
+      listReferenceChoices(db, projectId),
+    ]);
+    return (
+      <WriteEditor
+        key={record.id}
+        projectId={projectId}
+        recordId={record.id}
+        kind={record.type === "manuscript_scene" ? "scene" : "chapter"}
+        revision={record.currentRevision}
+        title={record.title}
+        body={record.body}
+        fieldsJson={JSON.stringify(record.fields, null, 2)}
+        authorityStatus={record.authorityStatus}
+        isProtected={record.protected}
+        parent={parent ? { id: parent.id, title: parent.title } : null}
+        initialFind={query.find?.trim() ? { query: query.find.trim(), matchCase: query.case === "1" } : null}
+        otherChaptersWords={bookWords ? sumWordCounts(bookWords, record.id) : null}
+        spellingLanguage={spellingLanguage}
+        spellChecker={spellChecker}
+        dictionaryWords={dictionaryWords}
+        proofread={proofread}
+        notes={notes.map((n) => ({
+          id: n.id,
+          title: n.title,
+          body: n.body,
+          revision: n.currentRevision,
+          fieldsJson: JSON.stringify(n.fields, null, 2),
+          authorityStatus: n.authorityStatus,
+          isProtected: n.protected,
+        }))}
+        linked={linked.map((l) => ({ recordId: l.recordId, title: l.title, type: l.type, authorityStatus: l.authorityStatus }))}
+        choices={choices}
+        details={
+          <RecordDetails
+            projectId={projectId}
+            record={record}
+            revisions={revisions}
+            query={query}
+            inside={inside}
+            refs={crossRefsFor(crossRefs, record.id)}
+          />
+        }
+      />
+    );
+  }
+
+  const [linking, reviewItems, proposals, importedFiles, images, supersededBy] = await Promise.all([
+    listLinkingRecords(db, projectId, record.id),
+    listOpenReviewItemsForRecord(db, projectId, record.id),
+    listPendingProposalsForRecord(db, projectId, record.id),
+    listImportedFilesForRecord(db, projectId, record.id),
+    listRecordImages(db, projectId, record.id),
+    record.supersededByRecordId
+      ? db.record.findFirst({ where: { id: record.supersededByRecordId, projectId, trashedAt: null }, select: { id: true, title: true } })
+      : null,
+  ]);
+  const chapterIds = [...new Set(linking.flatMap((l) => (l.parentRecordId ? [l.parentRecordId] : [])))];
+  const chapters = chapterIds.length
+    ? await db.record.findMany({ where: { projectId, id: { in: chapterIds }, trashedAt: null }, select: { id: true, title: true } })
+    : [];
+  const chapterTitle = new Map(chapters.map((c) => [c.id, c.title]));
 
   return (
-    <>
-      <h1>{record.title}</h1>
-      <div className="row" style={{ marginBottom: "1rem" }}>
-        <span className="muted small">{RECORD_TYPE_LABELS[record.type]}</span>
-        <code className="small">{record.id}</code>
+    <ReferenceView
+      key={record.id}
+      projectId={projectId}
+      record={record}
+      editing={query.edit === "1"}
+      query={query}
+      revisions={revisions}
+      parent={parent}
+      supersededBy={supersededBy}
+      linking={linking.map((l) => ({ ...l, chapterTitle: l.parentRecordId ? (chapterTitle.get(l.parentRecordId) ?? null) : null }))}
+      reviewItems={reviewItems}
+      proposals={proposals}
+      importedFiles={importedFiles}
+      images={images}
+      inside={inside}
+      crossRefs={crossRefs}
+      editor={{ spellingLanguage, spellChecker, dictionaryWords, proofread }}
+    />
+  );
+}
+
+/** Status, protection, history and compare beneath the Write editor. */
+function RecordDetails({
+  projectId,
+  record,
+  revisions,
+  query,
+  inside,
+  refs,
+}: {
+  projectId: string;
+  record: RecordView;
+  revisions: RevisionWithSource[];
+  query: { from?: string; to?: string };
+  inside: InsideRecord[];
+  refs: RecordCrossRefs;
+}) {
+  return (
+    <section aria-label={RECORD.detailsLabel} className="record-details">
+      <div className="row small muted record-meta">
+        <span>{RECORD_TYPE_LABELS[record.type]}</span>
+        <code>{record.id}</code>
         <StatusBadge status={record.authorityStatus} />
         <RevisionBadge revision={record.currentRevision} />
         <ContentClassBadge contentClass={record.contentClass} />
         <ProtectionBadge isProtected={record.protected} />
-        {record.supersededByRecordId ? (
-          <span className="small">
-            superseded by <Link href={`/projects/${projectId}/records/${record.supersededByRecordId}`}>{record.supersededByRecordId}</Link>
-          </span>
-        ) : null}
       </div>
-
       <div className="grid2">
-        <section className="panel">
-          <h3>Edit</h3>
-          <RecordEditor
-            key={record.currentRevision}
-            projectId={projectId}
-            recordId={record.id}
-            revision={record.currentRevision}
-            title={record.title}
-            body={record.body}
-            fieldsJson={JSON.stringify(record.fields, null, 2)}
-            authorityStatus={record.authorityStatus}
-            isProtected={record.protected}
-          />
-        </section>
-
-        <div>
-          <section className="panel">
-            <h3>Canon / decision status</h3>
-            <StatusForm
-              key={record.currentRevision}
-              projectId={projectId}
-              recordId={record.id}
-              revision={record.currentRevision}
-              status={record.authorityStatus}
-              isProtected={record.protected}
-            />
-          </section>
-
-          <section className="panel">
-            <h3>Protection</h3>
-            <p className="small muted">
-              Protected records cannot be changed by change packages unless explicitly listed as overrides, and require an
-              explicit unlock to edit here. Manuscript chapters are protected by default.
-            </p>
-            <form action={setProtectionAction.bind(null, projectId, record.id)}>
-              <input type="hidden" name="protected" value={record.protected ? "false" : "true"} />
-              <button type="submit" className={record.protected ? "secondary" : "danger"}>
-                {record.protected ? "Remove protection" : "Protect this record"}
-              </button>
-            </form>
-          </section>
-
-          <section className="panel">
-            <h3>Revision history</h3>
-            <table>
-              <thead>
-                <tr>
-                  <th>Rev</th>
-                  <th>Status</th>
-                  <th>Source</th>
-                  <th>When</th>
-                </tr>
-              </thead>
-              <tbody>
-                {revisions.map((r) => (
-                  <tr key={r.id}>
-                    <td>
-                      <Link href={`${base}?from=${Math.max(1, r.revisionNumber - 1)}&to=${r.revisionNumber}`}>
-                        {r.revisionNumber}
-                      </Link>
-                    </td>
-                    <td>
-                      <StatusBadge status={r.authorityStatus} />
-                    </td>
-                    <td className="small">
-                      {r.source.kind === "change_package" ? (
-                        <>
-                          package <code>{r.source.packageId}</code>
-                          {r.source.conversationLabel ? <div className="muted">{r.source.conversationLabel}</div> : null}
-                          {r.source.url ? (
-                            <div>
-                              <a href={r.source.url} target="_blank" rel="noreferrer">
-                                conversation
-                              </a>
-                            </div>
-                          ) : null}
-                        </>
-                      ) : r.source.kind === "markdown_import" ? (
-                        <>
-                          Markdown import of <code>{r.source.originalFilename}</code>
-                          {r.source.conversationLabel ? <div className="muted">{r.source.conversationLabel}</div> : null}
-                        </>
-                      ) : (
-                        <>{r.source.kind} ({r.source.actor})</>
-                      )}
-                    </td>
-                    <td className="small muted">{r.createdAt.toLocaleString()}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </section>
-        </div>
+        <StatusSection projectId={projectId} record={record} />
+        <ProtectionSection projectId={projectId} record={record} />
       </div>
-
-      <section className="panel">
-        <h3>Compare revisions</h3>
-        <form className="row" method="get">
-          <label className="inline">
-            from
-            <select name="from" defaultValue={String(fromNum)}>
-              {revisions.map((r) => (
-                <option key={r.id} value={r.revisionNumber}>
-                  {r.revisionNumber}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="inline">
-            to
-            <select name="to" defaultValue={String(toNum)}>
-              {revisions.map((r) => (
-                <option key={r.id} value={r.revisionNumber}>
-                  {r.revisionNumber}
-                </option>
-              ))}
-            </select>
-          </label>
-          <button type="submit" className="secondary">
-            Compare
-          </button>
-        </form>
-        {fromRev && toRev ? (
-          <div className="stack" style={{ marginTop: "0.8rem" }}>
-            {fromRev.title !== toRev.title ? (
-              <div>
-                Title: <del>{fromRev.title}</del> &rarr; <ins>{toRev.title}</ins>
-              </div>
-            ) : null}
-            {fromRev.authorityStatus !== toRev.authorityStatus ? (
-              <div className="row">
-                Status: <StatusBadge status={fromRev.authorityStatus} /> &rarr; <StatusBadge status={toRev.authorityStatus} />
-              </div>
-            ) : null}
-            <TextDiff parts={textDiff(fromRev.body, toRev.body)} />
-            <FieldDiffTable diffs={fieldDiffs(fromRev.fields, toRev.fields)} />
-          </div>
-        ) : (
-          <p className="muted">Select two existing revisions.</p>
-        )}
+      <section className="panel xref-details" aria-labelledby="xref-heading">
+        <h2 id="xref-heading">{XREF.heading}</h2>
+        <CrossRefsPanel projectId={projectId} recordId={record.id} refs={refs} />
       </section>
-    </>
+      <HistorySection projectId={projectId} record={record} revisions={revisions} />
+      <CompareSection revisions={revisions} query={query} />
+      <TrashSection projectId={projectId} record={record} inside={inside} />
+    </section>
   );
 }

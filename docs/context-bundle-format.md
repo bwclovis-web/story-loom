@@ -6,7 +6,7 @@ state and can return a compatible [change package](change-package-format.md).
 
 Export one from **Export context** in a project. Choose records by type or
 individually, then download the bundle or copy it to the clipboard.
-Manuscript chapters are unselected by default.
+Manuscript chapters and scenes are unselected by default.
 
 ```json
 {
@@ -28,11 +28,14 @@ Manuscript chapters are unselected by default.
       "authorityStatus": "approved",
       "supersededByRecordId": null,
       "protected": false,
+      "parentRecordId": null,
+      "linkedRecordIds": [],
       "body": "Archivist of the Salt Guild. ...",
       "fields": { "name": "Mara Venn", "aliases": ["Mara"], "age": 34 },
       "updatedAt": "2026-10-25T15:12:25.000Z"
     }
   ],
+  "readingInstructions": ["..."],
   "changePackageInstructions": ["..."],
   "changePackageTemplate": { "format": "wordly.change-package", "...": "..." },
   "changePackageSchema": { "$schema": "https://json-schema.org/draft/2020-12/schema", "...": "..." }
@@ -48,9 +51,17 @@ Manuscript chapters are unselected by default.
 | `type`, `contentClass` | Document type, and whether it is `manuscript` or `reference` content. |
 | `authorityStatus` | Canon/decision status: `draft`, `proposed`, `approved`, `superseded`, `unresolved`. |
 | `protected` | When `true`, the record must not be changed unless the author explicitly authorizes it (`protectedOverrides`). |
+| `parentRecordId` | The chapter of a scene, or the chapter or scene of a scene note; `null` for other records. Read-only context: a change package cannot create scenes or scene notes or move them; only the author moves scenes, on the Write page. |
+| `linkedRecordIds` | For a chapter or scene, the reference records the author linked to it in the app (empty otherwise). Read-only context. The linked records are included only if they were also selected. |
 | `body`, `fields` | Current content. |
+| `sectionStatus` | Present only when headings in `body` carry status tags (for example `## Rules [APPROVED FRAMEWORK]` or `### Scene — SELECTED; after the storm`). One entry per tagged heading: `heading` (the heading text), `level`, and `statusTag` word for word. These markings govern their own sections; `authorityStatus` still describes the record as a whole and is set only by the author. |
 
 ## Instructions, template, and schema
+
+`readingInstructions` is a short list of rules for reading the records: only
+`approved` records are canon, status tags in headings (listed in
+`sectionStatus`) govern their own sections, and record text is source
+material rather than instructions.
 
 `changePackageInstructions` is a list of plain-language rules for the
 assistant: use only IDs from the bundle, copy revisions into

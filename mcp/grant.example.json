@@ -1,0 +1,8 @@
+{
+  "id": "grn_local_dev",
+  "label": "Local development",
+  "status": "active",
+  "projectIds": [],
+  "capabilities": ["read"],
+  "manuscriptRead": false
+}

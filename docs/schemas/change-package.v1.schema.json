@@ -101,6 +101,8 @@
                 "type": "string",
                 "enum": [
                   "manuscript_chapter",
+                  "manuscript_scene",
+                  "scene_note",
                   "chapter_outline",
                   "story_architecture",
                   "character_dossier",

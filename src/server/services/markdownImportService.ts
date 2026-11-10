@@ -1,11 +1,20 @@
 import { newId } from "@/domain/ids";
 import { errorIssue, hasErrors, warningIssue, type Issue } from "@/domain/issues";
 import { sha256 } from "@/domain/json";
-import { contentClassOf, isRecordType, RECORD_TYPE_LABELS, RECORD_TYPES, type RecordType } from "@/domain/recordTypes";
+import {
+  contentClassOf,
+  isRecordType,
+  RECORD_TYPE_LABELS,
+  requiresParent,
+  STANDALONE_REFERENCE_TYPES,
+  type RecordType,
+} from "@/domain/recordTypes";
 import { isAuthorityStatus, type AuthorityStatus } from "@/domain/statuses";
+import { documentKey } from "@/writing/crossRefs";
 import type { Db, DbOrTx } from "../db";
 import { writeAudit } from "./auditService";
 import { MutationRejectedError, NotFoundError } from "./errors";
+import { LIVE_PROJECT } from "./trashFilters";
 import {
   applyMutationsInTx,
   planMutations,
@@ -21,7 +30,7 @@ import {
  * Imports never create or modify manuscript chapters.
  */
 
-export const IMPORTABLE_TYPES: readonly RecordType[] = RECORD_TYPES.filter((t) => contentClassOf(t) === "reference");
+export const IMPORTABLE_TYPES: readonly RecordType[] = STANDALONE_REFERENCE_TYPES;
 const MARKDOWN_EXTENSIONS = /\.(md|markdown)$/i;
 export const MAX_FILE_BYTES = 5 * 1024 * 1024;
 export const MAX_FILES = 200;
@@ -31,7 +40,17 @@ export interface MarkdownFile {
   content: string;
 }
 
-export type DuplicateReason = "same_content" | "same_title" | "same_filename";
+/** Files imported into a record, newest first, with their original content kept verbatim. */
+export async function listImportedFilesForRecord(db: DbOrTx, projectId: string, recordId: string) {
+  return db.importedFile.findMany({
+    where: { projectId, recordId },
+    orderBy: [{ createdAt: "desc" }, { id: "asc" }],
+    select: { id: true, originalFilename: true, content: true, byteSize: true, action: true, revisionNumber: true, createdAt: true },
+  });
+}
+
+/** `same_document`: the filename differs only by version, date, status words or a number prefix. */
+export type DuplicateReason = "same_content" | "same_title" | "same_filename" | "same_document";
 
 export interface DuplicateCandidate {
   recordId: string;
@@ -50,6 +69,8 @@ export interface FilePreview {
   contentHash: string;
   suggestedTitle: string;
   excerpt: string;
+  /** True when the file is longer than the excerpt. */
+  excerptTruncated: boolean;
   duplicates: DuplicateCandidate[];
   batchDuplicates: Array<{ index: number; filename: string; reasons: DuplicateReason[] }>;
   /** True when the author must choose create / replace / skip explicitly. */
@@ -126,12 +147,15 @@ async function analyzeFiles(
   projectId: string,
   files: ReadonlyArray<MarkdownFile & { title?: string }>,
 ): Promise<FilePreview[]> {
-  const project = await db.project.findUnique({ where: { id: projectId } });
+  const project = await db.project.findFirst({ where: { id: projectId, ...LIVE_PROJECT } });
   if (!project) throw new NotFoundError(`Project ${projectId} not found`);
 
   const [records, imported] = await Promise.all([
-    db.record.findMany({ where: { projectId } }),
-    db.importedFile.findMany({ where: { projectId }, select: { originalFilename: true, content: true, recordId: true } }),
+    db.record.findMany({ where: { projectId, trashedAt: null } }),
+    db.importedFile.findMany({
+      where: { projectId, record: { trashedAt: null } },
+      select: { originalFilename: true, content: true, recordId: true },
+    }),
   ]);
   const byId = new Map(records.map((r) => [r.id, r]));
   const recordsByHash = new Map<string, string[]>();
@@ -146,6 +170,11 @@ async function analyzeFiles(
   for (const r of records) add(recordsByTitle, normTitle(r.title), r.id);
   const recordsByFilename = new Map<string, string[]>();
   for (const f of imported) add(recordsByFilename, normFilename(f.originalFilename), f.recordId);
+  const recordsByDocument = new Map<string, string[]>();
+  for (const f of imported) {
+    const key = documentKey(f.originalFilename);
+    if (key) add(recordsByDocument, key, f.recordId);
+  }
 
   const prepared = files.map((f, index) => ({
     index,
@@ -178,7 +207,10 @@ async function analyzeFiles(
     };
     mark(recordsByHash.get(hash), "same_content");
     if (title) mark(recordsByTitle.get(normTitle(title)), "same_title");
-    mark(recordsByFilename.get(normFilename(file.filename)), "same_filename");
+    const sameFilename = recordsByFilename.get(normFilename(file.filename)) ?? [];
+    mark(sameFilename, "same_filename");
+    const docKey = documentKey(file.filename);
+    if (docKey) mark(recordsByDocument.get(docKey)?.filter((id) => !sameFilename.includes(id)), "same_document");
     const duplicates: DuplicateCandidate[] = [...reasons].map(([id, set]) => {
       const r = byId.get(id)!;
       return {
@@ -199,6 +231,7 @@ async function analyzeFiles(
         if (o.hash === hash) rs.push("same_content");
         if (title && normTitle(o.title) === normTitle(title)) rs.push("same_title");
         if (normFilename(o.file.filename) === normFilename(file.filename)) rs.push("same_filename");
+        else if (docKey && documentKey(o.file.filename) === docKey) rs.push("same_document");
         return { index: o.index, filename: o.file.filename, reasons: rs };
       })
       .filter((d) => d.reasons.length > 0);
@@ -210,6 +243,7 @@ async function analyzeFiles(
       contentHash: sha256(file.content),
       suggestedTitle: title,
       excerpt: stripBom(file.content).slice(0, 400),
+      excerptTruncated: stripBom(file.content).length > 400,
       duplicates,
       batchDuplicates,
       needsDecision: duplicates.length > 0 || batchDuplicates.length > 0,
@@ -282,6 +316,10 @@ async function validateRequest(db: DbOrTx, req: MarkdownImportRequest): Promise<
       issues.push(
         errorIssue("SCOPE_VIOLATION", `${name}: Markdown imports create reference documents only, not ${RECORD_TYPE_LABELS[item.type]}.`, at("type")),
       );
+    } else if (requiresParent(item.type)) {
+      issues.push(
+        errorIssue("IMPORT_INVALID", `${name}: a ${RECORD_TYPE_LABELS[item.type]} belongs to a chapter or scene; add it from the Write page.`, at("type")),
+      );
     }
     if (!isAuthorityStatus(item.authorityStatus)) {
       issues.push(errorIssue("IMPORT_INVALID", `${name}: choose a canon status explicitly.`, at("authorityStatus")));
@@ -302,7 +340,7 @@ async function validateRequest(db: DbOrTx, req: MarkdownImportRequest): Promise<
     }
 
     if (item.decision?.action === "replace") {
-      const target = await db.record.findFirst({ where: { id: item.decision.recordId, projectId: req.projectId } });
+      const target = await db.record.findFirst({ where: { id: item.decision.recordId, projectId: req.projectId, trashedAt: null } });
       if (!target) {
         issues.push(errorIssue("RECORD_NOT_FOUND", `${name}: record ${item.decision.recordId} to replace was not found.`, at("decision")));
         continue;

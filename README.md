@@ -1,7 +1,7 @@
 # Wordly Editor
 
-A local, authoritative store for a novel's project state: manuscript chapters,
-outlines, character dossiers, worldbuilding, canon decisions, and continuity
+A local, authoritative store for a novel's project state: manuscript chapters
+and scenes, outlines, character dossiers, worldbuilding, canon decisions, and continuity
 notes. Each record is revisioned, and every revision carries provenance.
 
 Creative work happens in ChatGPT. Approved decisions come back as versioned
@@ -21,8 +21,133 @@ pnpm db:setup         # back up (if a DB exists), apply migrations, generate cli
 pnpm dev              # http://127.0.0.1:3000 (bound to localhost only)
 ```
 
+If port 3000 is taken, `pnpm dev` moves to the next free port (3001 to 3010,
+Next.js's own fallback) and prints the address it used. Setting `PORT` or
+passing `-p` fixes the port and turns the fallback off. `pnpm start` always
+uses 3000. Browser cookies (navigation and panel layout) are shared between
+ports on 127.0.0.1, so the layout carries over. The fallback does not help when
+the port is held by another `pnpm dev` for this same folder: Next.js allows one
+dev server per folder, prints that server's address and PID, and exits. Use
+the running server, or stop it (Ctrl+C in its terminal) and start again.
+
 `pnpm db:setup` is safe to re-run. It never deletes data, and the demo seed
 skips itself if the demo workspace already exists.
+
+### Optional assistant
+
+The **Assistant** page in each project discusses records or a manuscript
+passage you select with an OpenAI model. It is off by default. Discussion never
+changes records; on request it prepares a change proposal for reference
+records, which you review in the usual diff preview and apply yourself.
+The same setup enables **AI proofreading** (spelling, grammar, punctuation)
+on record pages: you accept or dismiss each suggestion in the text box and
+save as usual. To turn it on, set `WORDLY_OPENAI_API_KEY` and `OPENAI_MODEL` (a text model your API
+project can use with the Responses API) in `.env`, then restart `pnpm dev`.
+The app uses only its own key: a shared `OPENAI_API_KEY` (for example one set
+for the whole computer) is ignored, and the assistant stays off until
+`WORDLY_OPENAI_API_KEY` is set. If your `.env` has an `OPENAI_API_KEY=` line from
+an earlier version, rename it.
+Keep the key only in `.env`; never use a `NEXT_PUBLIC_` variable for it.
+Selected content is sent to OpenAI. Request settings, retention, limits, the
+usage cap and a manual connection test are in
+[docs/assistant.md](docs/assistant.md).
+
+### Spelling and the project dictionary
+
+Record text is spell-checked locally (no network, no AI) with Hunspell
+English word lists and the author's dictionary of invented names and terms,
+kept per project or per workspace (series). Manage it on each project's
+**Dictionary** page. Design, data format and the word-list licences are in
+[docs/spelling.md](docs/spelling.md).
+
+### Images and PDF export
+
+Reference documents (not chapters or scenes) can hold images: PNG, JPEG, GIF
+or WebP, up to 10 MB each and 100 per document. They are stored in the
+database, shown in a gallery on the document page, can be placed in the text
+with `![description](image:name)`, and are included in backups. Adding one
+creates no revision; every image change is in the audit log. After pulling
+this change, run `pnpm db:deploy` (it backs up first) to add the image table.
+
+**Export PDF** (in project tools and on the World page) and **Download PDF**
+(on a document's page) download a PDF made on this computer from saved versions: the whole
+manuscript, a selection or category of reference documents, or one document.
+PNG and JPEG images are embedded; other formats are listed by name. The PDF is
+not stored by the app.
+
+### Deleting and the Trash
+
+Documents, chapters, scenes, notes, projects and workspaces are never deleted
+in one step. **Move to Trash** (at the end of a document's page, and beside
+each project and workspace on the Workspaces page) hides the item everywhere:
+lists, search, exports, PDF, the assistant, change packages and the MCP
+adapter. Nothing is removed and the move is in the audit log. A chapter or
+scene takes everything inside it along, and protected chapters and scenes need
+the protection tick box.
+
+The **Trash** page (left navigation) restores items exactly as they were, or
+deletes them permanently. **Delete permanently** and **Empty Trash** first
+write a full backup to `backups/<timestamp>-before-permanent-delete/` (the
+same contents as `pnpm db:backup`) and delete nothing if that fails. A
+document another document's "superseded by" points to cannot be deleted until
+that link is changed. After pulling this change, run `pnpm db:deploy` (it
+backs up first) to add the Trash columns.
+
+### Series bibles, status tags and cross-references
+
+Reference documents written as a series bible work as they are:
+
+- **Status tags in headings** such as `## Rules [APPROVED FRAMEWORK]` or
+  `### Scene — SELECTED; after the storm` are shown word for word in the
+  document's Contents. The assistant, context exports and the MCP adapter are
+  told that these markings govern their own sections. The record's own canon
+  status is still set only by the author.
+- **Cross-references.** Backticked filenames such as
+  `Harbour_Guide_APPROVED_WORKING_v1.4.md` link to the document imported from
+  any version of that file. IDs such as `SA-WORLD-001` link to the heading,
+  bold list item or register-table row that defines them, or to a record
+  given that ID in its structured fields (`{"refIds": ["SA-B1-C01"]}`). A
+  **Cross-references** panel lists mentions and "mentioned by", and warns
+  when a link leads to a superseded or draft document (naming the
+  replacement). All of this is computed when a page opens; nothing is stored.
+- **Characters and places in chapters.** Character dossiers and
+  worldbuilding records are found by name in chapter and scene text (title
+  up to a dash, colon or bracket; without a leading "The"; `aliases` from
+  structured fields; a character's unambiguous first and last name). Chapters
+  list who and what they name; dossiers list the chapters that name them.
+- **Cross-reference check** (Project tools) lists, for the whole project,
+  IDs nothing defines, filenames never imported, IDs defined in more than
+  one document, mentions of superseded or draft documents, and how often
+  each character and place is named.
+- **New versions.** Importing `..._v1.5.md` after `..._v1.4.md` flags the
+  existing record as "same document, another version"; the author chooses
+  replace (a new revision), create, or skip.
+- **Long documents.** The assistant can send chosen sections by heading
+  instead of a whole document, and the MCP adapter has `list_sections` and
+  `get_section`. Sections are never shortened.
+- **Chapters from files.** On a chapter or scene, **More actions → Load text
+  from file...** fills the editor from a `.md`/`.txt` file. Nothing is saved
+  until **Save**.
+
+### Book order and manuscript search
+
+- **Book order** on the Write page moves chapters up and down, scenes within
+  a chapter, and a scene (with its notes) into another chapter. The manuscript
+  panel, Read the book and PDF export follow it. A move changes no text, makes
+  no revision and needs no protection tick; each one is in the audit log, and
+  backups keep the order (`Record.position`, migration
+  `20261026210000_book_order`).
+- **Manuscript search** (top of the Write page, or Enter in the manuscript
+  panel's search box) lists every literal match in chapter, scene and scene
+  note titles and saved text, in book order, with up to three highlighted
+  excerpts each. **Open with Find** opens a chapter or scene with Find filled
+  in and the first match selected. It only reads.
+
+### Help
+
+For step-by-step instructions written for authors, choose **How to use** in
+the app's left navigation (`/help`). Its text lives in `src/help/`; keep it in step
+with the interface (see [PROJECT_RULES.md](PROJECT_RULES.md)).
 
 ### Where the database lives
 
@@ -91,17 +216,35 @@ applies cleanly to a freshly seeded database. Import it on the project's
    select `.md` files. The preview writes nothing. For every file you choose
    the document type (reference types only), canon status, and protection;
    none are preselected or inferred from filenames. For each file that looks
-   like an existing record (same content, title, or previously imported
-   filename) you choose create new, replace (as a new revision), or skip. The
+   like an existing record (same content, title, previously imported
+   filename, or another version of a previously imported file) you choose
+   create new, replace (as a new revision), or skip. The
    batch applies in one transaction. Each file's original name and exact
    content are stored with its revision provenance.
+   Chapter files go through **Import chapters** instead: each `.md`,
+   `.markdown` or `.txt` file becomes a protected draft chapter, created in
+   the order of the number its filename starts with. A file matching an
+   existing chapter (same filename, another version, same title or same text)
+   needs a choice: new chapter, replace that chapter's text as a new revision
+   (with the protection confirmation), or skip. "Tidy the text as it is
+   imported" (on by default) cleans paragraph spacing, headings, scene breaks,
+   quotes, dashes and ellipses; the original file is kept unchanged. The same
+   **Tidy text** is in the writing page's More actions. **Read the book** shows
+   every chapter and scene in order on one page, with an Edit link on each.
+   The **Aa** button (writing page, Read the book, reference pages) sets the
+   font, size, line spacing and line width of text in this browser. The
+   theme button at the bottom of the left column switches between Light,
+   Dark and Match system.
 1. **Export context.** Select records and download a
    [context bundle](docs/context-bundle-format.md) containing IDs, current
    revisions, types, statuses, protection flags, and package instructions.
 2. **Work in ChatGPT** with that bundle. When decisions are settled, ask for a change package.
-3. **Import change package.** The app validates the whole package and shows
-   before/after diffs, stale or blocked operations, and potentially affected
-   records (which it lists but does not change). Then you apply it.
+3. **Import change package.** The app validates the whole package and opens
+   the review screen: the records in the package, a before/after comparison
+   for the selected record, and a summary of manuscript impact, protection,
+   revision checks and potentially affected records (listed, not changed).
+   Then you apply it; the package is applied as a whole or not at all.
+   Assistant proposals use the same screen.
 4. **History & review.** View the audit log, applied packages, and open
    review items for records that may need follow-up.
 
@@ -114,6 +257,7 @@ applies cleanly to a freshly seeded database. Import it on the project's
 | Revision history | Immutable `Revision` rows; `Record.currentRevision` |
 | Source/provenance | `Source` row per change batch (UI / change package / Markdown import / future API), with conversation label, URL, and original filename; `ImportedFile` keeps each imported file verbatim |
 | Manuscript protection | `Record.protected` flag plus the manuscript/reference content class |
+| Manuscript structure | `Record.parentRecordId` (scene in a chapter; scene note on a chapter or scene); `RecordLink` (chapter or scene to a reference record) |
 
 ## Architecture
 
@@ -121,12 +265,63 @@ applies cleanly to a freshly seeded database. Import it on the project's
 src/domain/            types, enums, IDs, issue codes (no I/O)
 src/changePackage/     v1 Zod schema, JSON Schema, parser, diff helpers
 src/backup/            wordly.workspace-backup v1 schema
+src/writing/           word counting, literal find/replace, spelling preferences,
+                       Markdown formatting commands for the toolbar, and a safe Markdown
+                       reader for display (markdownParse; no HTML passes through), sections by
+                       heading with status tags (sections), filename/ID cross-references
+                       (crossRefs), and the chapter tidy-up (tidy) (pure, shared)
+src/spelling/          spell-check tokens, author's dictionary matching, import/export format,
+                       browser worker (typo-js); see docs/spelling.md
+src/proofread/         proofreading prompt, output schema, suggestion anchoring and
+                       editor-side apply/stale/undo logic (pure, shared)
+src/assistant/         assistant config, prompt building and size checks, provider interface,
+                       proposal output schema, field/text checks, canon rules (pure)
+src/images/            image format detection from file bytes, names, limits, and the
+                       image:name text reference (pure, shared)
+src/server/openai/     OpenAI Responses API adapter (server-only; the only code that uses the key)
+src/server/pdf/        PDFKit drawing helpers for the Markdown blocks, tables and images in a PDF
+src/server/backupFiles.ts  full backup to backups/ (SQLite snapshot plus a JSON file per
+                       workspace), shared by the db:* scripts and permanent deletion
 src/server/services/   mutationService (the only writer of records/revisions),
                        protection guards, recordService (UI), changePackageService
                        (validate/preview/apply), markdownImportService (preview/apply),
+                       chapterImportService (chapter files to manuscript chapters; preview/apply),
+                       grantSettingsService (reads and writes the MCP grant file for Connections),
                        backupService (create/validate/restore), impactService,
-                       contextExportService, auditService, reviewService, projectService
-src/app/               Next.js pages and server actions (thin; call services only)
+                       contextExportService, auditService, reviewService, projectService,
+                       wordCountService, assistantService (conversations; never writes records),
+                       assistantProposalService (assembles proposals; applies via changePackageService),
+                       proofreadService (proofreading runs; never writes records),
+                       dictionaryService (author's dictionary; never writes records),
+                       linkService (chapter/scene reference links; audited, no revisions),
+                       imageService (images on reference documents; audited, no revisions),
+                       pdfExportService (manuscript and reference PDFs; read-only),
+                       trashService (projects and workspaces to and from the Trash, the Trash
+                       listing, and permanent deletion after a full backup; records move
+                       through mutationService), trashFilters (the "not in the Trash" filters
+                       every read uses),
+                       searchService (title, text and field search), crossRefService (builds the
+                       cross-reference index from live records; read-only); read-only lookups for
+                       the reference page: linking chapters, open review items, unapplied
+                       proposals, imported source files
+src/help/              in-app "How to use" content and outline
+src/ui/                labels, record groups for Write/Plan/World, active-route mapping,
+                       text appearance choices and their CSS variables (textAppearance.ts),
+                       colour theme preference (theme.ts; colours are light-dark() tokens in
+                       globals.css),
+                       manuscript tree (chapters with their scenes, title filter),
+                       World categories and counts (world.ts), and the review screen's
+                       record list, summary, diff segments and apply state (packageReview.ts)
+src/components/        shared client components, including the editor's writing tools,
+                       formatting toolbar and MarkdownView (renders markdownParse output);
+                       shell/ holds the global navigation, project menu, drawers, manuscript
+                       tree, World navigation, panel resizers and the unsaved-changes guard;
+                       review/ holds the change review screen used by package import and
+                       assistant proposals
+src/app/               Next.js pages and server actions (thin; call services only);
+                       (site)/ holds the pages outside a project (workspaces, backups, help);
+                       records/[recordId]/ReferenceView renders every non-manuscript record;
+                       assistant/proposals/[proposalId] reviews and applies one proposal
 scripts/               db:* scripts (info, backup, restore, deploy, reset) and schema export
 tests/acceptance/      end-to-end service tests, including the ChatGPT round trip
 tests/fixtures/        invented Markdown reference files
@@ -134,10 +329,13 @@ tests/fixtures/        invented Markdown reference files
 
 Backup restore is the one write path that does not use `mutationService`,
 because it copies stored history (revisions, provenance, audit) exactly as it was.
+Permanent deletion from the Trash is the only path that removes rows; it
+deletes each table's rows explicitly in one transaction after a full backup.
 
-The UI, the change-package importer, and any future API/MCP adapter all go
-through `mutationService.applyMutations`. That way they share the same
-revision checks, scope and protection guards, provenance, and audit.
+The UI and the change-package importer go through `mutationService.applyMutations`.
+The local MCP adapter is read-only and does not write. Any future write path
+must use the same function, so revision checks, scope and protection guards,
+provenance, and audit stay in one place.
 
 ## Scope
 
@@ -145,6 +343,10 @@ Status, check results, the first real-reference trial steps, and known gaps
 are in [PROGRESS.md](PROGRESS.md).
 
 - Local only. There is no authentication, no remote access, and no ChatGPT
-  connection. See [docs/future-chatgpt-connection.md](docs/future-chatgpt-connection.md)
-  for what a real connection would require.
+  connection. A read-only stdio adapter can list and read granted projects on
+  this computer; it does not save changes and ChatGPT cannot reach it. See
+  [docs/future-chatgpt-connection.md](docs/future-chatgpt-connection.md).
+  The optional assistant calls the OpenAI API with selected content only.
+  Its change proposals are applied only through the change-package pipeline
+  after the author's explicit Apply.
 - Prisma is pinned to 7.10.x (the stable driver-adapter setup); `latest` on npm is an 8.0 release candidate.

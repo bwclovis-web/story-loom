@@ -2,8 +2,9 @@
 
 import { useState, useTransition } from "react";
 import { ProtectionBadge, StatusBadge } from "@/components/Badges";
-import { RECORD_TYPE_LABELS, RECORD_TYPES, type RecordType } from "@/domain/recordTypes";
+import { isManuscriptType, RECORD_TYPE_LABELS, RECORD_TYPES, type RecordType } from "@/domain/recordTypes";
 import type { AuthorityStatus } from "@/domain/statuses";
+import { EXPORT } from "@/ui/labels";
 import { exportBundleAction } from "../actions";
 
 interface ExportableRecord {
@@ -15,8 +16,19 @@ interface ExportableRecord {
   protected: boolean;
 }
 
-export function ExportClient({ projectId, records }: { projectId: string; records: ExportableRecord[] }) {
-  const [selected, setSelected] = useState<Set<string>>(() => new Set(records.filter((r) => r.type !== "manuscript_chapter").map((r) => r.id)));
+export function ExportClient({
+  projectId,
+  records,
+  initialSelection,
+}: {
+  projectId: string;
+  records: ExportableRecord[];
+  /** Record IDs to tick first; by default every non-manuscript record. */
+  initialSelection: string[] | null;
+}) {
+  const [selected, setSelected] = useState<Set<string>>(
+    () => new Set(initialSelection ?? records.filter((r) => !isManuscriptType(r.type)).map((r) => r.id)),
+  );
   const [includeSchema, setIncludeSchema] = useState(true);
   const [bundle, setBundle] = useState("");
   const [copied, setCopied] = useState(false);
@@ -80,24 +92,24 @@ export function ExportClient({ projectId, records }: { projectId: string; record
       <div className="panel stack">
         <label className="inline">
           <input type="checkbox" checked={includeSchema} onChange={(e) => setIncludeSchema(e.target.checked)} />
-          Include the change-package JSON Schema
+          {EXPORT.includeSchema}
         </label>
         <div className="row">
           <button onClick={generate} disabled={pending || selected.size === 0}>
-            Generate bundle ({selected.size} record{selected.size === 1 ? "" : "s"})
+            {EXPORT.generate(selected.size)}
           </button>
           {bundle ? (
             <>
               <button className="secondary" onClick={download}>
-                Download JSON
+                {EXPORT.download}
               </button>
               <button className="secondary" onClick={copy}>
-                {copied ? "Copied" : "Copy to clipboard"}
+                {copied ? EXPORT.copied : EXPORT.copy}
               </button>
             </>
           ) : null}
         </div>
-        {bundle ? <textarea className="mono" readOnly value={bundle} style={{ minHeight: "20rem" }} /> : null}
+        {bundle ? <textarea className="mono" readOnly spellCheck={false} aria-label="Context bundle" value={bundle} style={{ minHeight: "20rem" }} /> : null}
       </div>
     </div>
   );

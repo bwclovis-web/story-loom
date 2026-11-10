@@ -1,10 +1,22 @@
 import type { JsonObject } from "@/domain/json";
 import { toRecordView, toRevisionView, type RecordView, type RevisionView } from "@/domain/records";
-import { RECORD_TYPE_LABELS, type RecordType } from "@/domain/recordTypes";
-import type { AuthorityStatus } from "@/domain/statuses";
+import { isLinkableReferenceType, isRecordType, RECORD_TYPE_LABELS, type RecordType } from "@/domain/recordTypes";
+import { isAuthorityStatus, type AuthorityStatus } from "@/domain/statuses";
+import type { RecordNavEntry } from "@/ui/navigation";
 import type { Db, DbOrTx } from "../db";
 import { NotFoundError } from "./errors";
-import { applyMutations, setRecordProtection, type AppliedBatch, type MutationContext } from "./mutationService";
+import {
+  applyMutations,
+  moveInBook,
+  restoreTrashBatch,
+  setRecordProtection,
+  trashRecord,
+  type AppliedBatch,
+  type MoveInBookResult,
+  type MutationContext,
+  type TrashedBatch,
+} from "./mutationService";
+import { LIVE_RECORD } from "./trashFilters";
 
 /*
  * Direct author edits from the UI. The author editing in the app may touch
@@ -33,6 +45,7 @@ export async function createRecord(
     fields?: JsonObject;
     authorityStatus: AuthorityStatus;
     recordId?: string;
+    parentRecordId?: string | null;
   },
 ): Promise<AppliedBatch> {
   return applyMutations(
@@ -47,6 +60,7 @@ export async function createRecord(
         body: input.body ?? "",
         fields: input.fields ?? {},
         authorityStatus: input.authorityStatus,
+        parentRecordId: input.parentRecordId ?? null,
       },
     ],
     { action: "record.create", summary: `Created ${RECORD_TYPE_LABELS[input.type]} "${input.title}"` },
@@ -120,13 +134,104 @@ export async function setProtection(db: Db, projectId: string, recordId: string,
   await setRecordProtection(db, { projectId, recordId, protected: isProtected, actor: UI_ACTOR });
 }
 
+/** Moves a chapter among chapters, or a scene within or between chapters. No text changes. */
+export async function moveRecordInBook(
+  db: Db,
+  projectId: string,
+  input: { recordId: string; parentRecordId: string | null; index: number },
+): Promise<MoveInBookResult> {
+  return moveInBook(db, { projectId, ...input, actor: UI_ACTOR });
+}
+
+export async function moveRecordToTrash(db: Db, projectId: string, recordId: string, unlockProtected: boolean): Promise<TrashedBatch> {
+  return trashRecord(db, { projectId, recordId, unlockProtected, actor: UI_ACTOR });
+}
+
+export async function restoreRecordsFromTrash(db: Db, projectId: string, batchId: string): Promise<TrashedBatch> {
+  return restoreTrashBatch(db, { projectId, batchId, actor: UI_ACTOR });
+}
+
+/** Scenes and notes that would move to the Trash with this record, for the confirmation. */
+export async function listRecordsInside(
+  db: DbOrTx,
+  projectId: string,
+  recordId: string,
+): Promise<Array<{ id: string; title: string; type: RecordType; protected: boolean }>> {
+  const found: Array<{ id: string; title: string; type: RecordType; protected: boolean }> = [];
+  let frontier = [recordId];
+  while (frontier.length > 0) {
+    const rows = await db.record.findMany({
+      where: { projectId, parentRecordId: { in: frontier }, trashedAt: null },
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+      select: { id: true, title: true, type: true, protected: true },
+    });
+    for (const r of rows) if (isRecordType(r.type)) found.push({ id: r.id, title: r.title, type: r.type, protected: r.protected });
+    frontier = rows.map((r) => r.id);
+  }
+  return found;
+}
+
 export async function listRecords(db: DbOrTx, projectId: string): Promise<RecordView[]> {
-  const rows = await db.record.findMany({ where: { projectId }, orderBy: [{ type: "asc" }, { title: "asc" }] });
+  const rows = await db.record.findMany({ where: { projectId, trashedAt: null }, orderBy: [{ type: "asc" }, { title: "asc" }] });
   return rows.map(toRecordView);
 }
 
+/** IDs, titles and types for navigation, without loading record text. All projects when no ID is given. */
+export async function listRecordNav(db: DbOrTx, projectId?: string): Promise<RecordNavEntry[]> {
+  const rows = await db.record.findMany({
+    where: projectId ? { projectId, trashedAt: null } : LIVE_RECORD,
+    orderBy: [{ type: "asc" }, { title: "asc" }],
+    select: { id: true, title: true, type: true, parentRecordId: true, position: true, createdAt: true },
+  });
+  return rows.flatMap((r) =>
+    isRecordType(r.type)
+      ? [
+          {
+            id: r.id,
+            title: r.title,
+            type: r.type,
+            parentRecordId: r.parentRecordId,
+            position: r.position,
+            createdAt: r.createdAt.toISOString(),
+          },
+        ]
+      : [],
+  );
+}
+
+/** Scene notes on a chapter or scene, oldest first. */
+export async function listNotes(db: DbOrTx, projectId: string, parentRecordId: string): Promise<RecordView[]> {
+  const rows = await db.record.findMany({
+    where: { projectId, parentRecordId, type: "scene_note", trashedAt: null },
+    orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+  });
+  return rows.map(toRecordView);
+}
+
+export interface ReferenceChoice {
+  id: string;
+  title: string;
+  type: RecordType;
+  authorityStatus: AuthorityStatus;
+}
+
+/** Reference records a chapter or scene can be linked to, by title. No record text is loaded. */
+export async function listReferenceChoices(db: DbOrTx, projectId: string): Promise<ReferenceChoice[]> {
+  const rows = await db.record.findMany({
+    where: { projectId, trashedAt: null },
+    orderBy: [{ title: "asc" }, { id: "asc" }],
+    select: { id: true, title: true, type: true, authorityStatus: true },
+  });
+  return rows.flatMap((r) =>
+    isRecordType(r.type) && isLinkableReferenceType(r.type) && isAuthorityStatus(r.authorityStatus)
+      ? [{ id: r.id, title: r.title, type: r.type, authorityStatus: r.authorityStatus }]
+      : [],
+  );
+}
+
+/** Records in the Trash are not found. */
 export async function getRecord(db: DbOrTx, projectId: string, recordId: string): Promise<RecordView> {
-  const row = await db.record.findFirst({ where: { id: recordId, projectId } });
+  const row = await db.record.findFirst({ where: { id: recordId, projectId, trashedAt: null } });
   if (!row) throw new NotFoundError(`Record ${recordId} not found`);
   return toRecordView(row);
 }

@@ -7,6 +7,7 @@ import { contentClassOf, type ContentClass, type RecordType } from "@/domain/rec
 import type { AuthorityStatus, ReviewOrigin } from "@/domain/statuses";
 import { isUniqueConstraintError, type Db, type DbOrTx, type Tx } from "../db";
 import { MutationRejectedError } from "./errors";
+import { LIVE_PROJECT } from "./trashFilters";
 import { detectPotentialEffects, type PotentialEffect } from "./impactService";
 import {
   applyMutationsInTx,
@@ -210,7 +211,7 @@ async function analyze(db: DbOrTx, input: string | unknown, target: PackageTarge
     );
   }
 
-  const project = await db.project.findUnique({ where: { id: target.projectId } });
+  const project = await db.project.findFirst({ where: { id: target.projectId, ...LIVE_PROJECT } });
   if (!project || pkg.projectId !== target.projectId) {
     issues.push(
       errorIssue("TARGET_MISMATCH", `Package targets project ${pkg.projectId}, but it is being imported into ${target.projectId}.`, {
@@ -257,7 +258,7 @@ async function analyze(db: DbOrTx, input: string | unknown, target: PackageTarge
 
   const relatedIds = pkg.relatedRecords.map((r) => r.recordId);
   const relatedRows = await db.record.findMany({
-    where: { id: { in: relatedIds }, projectId: pkg.projectId },
+    where: { id: { in: relatedIds }, projectId: pkg.projectId, trashedAt: null },
     select: { id: true, title: true },
   });
   const relatedTitles = new Map(relatedRows.map((r) => [r.id, r.title]));

@@ -18,6 +18,8 @@ export interface RecordView extends RecordSnapshot {
   type: RecordType;
   contentClass: ContentClass;
   protected: boolean;
+  /** Chapter of a scene, or chapter/scene of a scene note. Not revisioned. */
+  parentRecordId: string | null;
   currentRevision: number;
   createdAt: Date;
   updatedAt: Date;
@@ -59,6 +61,7 @@ export function toRecordView(row: RecordRow): RecordView {
     authorityStatus: asStatus(row.authorityStatus),
     supersededByRecordId: row.supersededByRecordId,
     protected: row.protected,
+    parentRecordId: row.parentRecordId,
     currentRevision: row.currentRevision,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,

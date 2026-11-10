@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { parseChangePackage } from "@/changePackage/parse";
 import { applyChangePackage } from "@/server/services/changePackageService";
 import { exportContextBundle } from "@/server/services/contextExportService";
+import { createRecord } from "@/server/services/recordService";
 import { createTestDb, IDS, seedProject, type TestDb } from "../helpers";
 
 describe("exported context includes the IDs and revisions needed for subsequent changes", () => {
@@ -33,6 +34,25 @@ describe("exported context includes the IDs and revisions needed for subsequent 
     expect(bundle.changePackageSchema).toHaveProperty("properties.operations");
     expect(bundle.changePackageTemplate).toMatchObject({ workspaceId: IDS.workspace, projectId: IDS.project });
     expect(bundle.changePackageInstructions.join(" ")).toContain("expectedRevision");
+  });
+
+  it("lists status tags from headings word for word, only for documents that have them", async () => {
+    await createRecord(t.db, IDS.project, {
+      recordId: "rec_test_tagged",
+      type: "story_architecture",
+      title: "Tagged guide",
+      body: "# Guide\n\n## Rules [APPROVED FRAMEWORK]\n\nText.\n\n### Harbour scene — SELECTED; after the storm\n\nMore.\n\n## Register [25 October 2026]\n",
+      authorityStatus: "draft",
+    });
+    const bundle = await exportContextBundle(t.db, IDS.project, { recordIds: ["rec_test_tagged", IDS.dossier] });
+    expect(bundle.records.find((r) => r.id === "rec_test_tagged")!.sectionStatus).toEqual([
+      { heading: "Rules [APPROVED FRAMEWORK]", level: 2, statusTag: "APPROVED FRAMEWORK" },
+      { heading: "Harbour scene — SELECTED; after the storm", level: 3, statusTag: "SELECTED; after the storm" },
+    ]);
+    expect(bundle.records.find((r) => r.id === IDS.dossier)).not.toHaveProperty("sectionStatus");
+    expect(bundle.readingInstructions.join(" ")).toContain("govern their own sections");
+    const tagged = await t.db.record.findUniqueOrThrow({ where: { id: "rec_test_tagged" } });
+    expect(tagged.authorityStatus).toBe("draft");
   });
 
   it("filters by type", async () => {

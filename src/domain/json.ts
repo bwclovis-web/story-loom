@@ -25,6 +25,10 @@ export function sha256(text: string): string {
   return createHash("sha256").update(text, "utf8").digest("hex");
 }
 
+export function sha256Bytes(bytes: Uint8Array): string {
+  return createHash("sha256").update(bytes).digest("hex");
+}
+
 export function parseJsonObject(text: string): JsonObject {
   const parsed: unknown = JSON.parse(text);
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {

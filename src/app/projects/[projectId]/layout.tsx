@@ -1,7 +1,9 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
+import { ProjectNav } from "@/components/shell/ProjectNav";
 import { getDb } from "@/server/db";
 import { findProject } from "@/server/services/projectService";
+import { listRecordNav } from "@/server/services/recordService";
+import { countOpenReviewItems } from "@/server/services/reviewService";
 
 export const dynamic = "force-dynamic";
 
@@ -13,23 +15,24 @@ export default async function ProjectLayout({
   params: Promise<{ projectId: string }>;
 }) {
   const { projectId } = await params;
-  const project = await findProject(getDb(), projectId);
+  const db = getDb();
+  const project = await findProject(db, projectId);
   if (!project) notFound();
-  const base = `/projects/${project.id}`;
+  const [records, openReviewItems] = await Promise.all([
+    listRecordNav(db, project.id),
+    countOpenReviewItems(db, project.id),
+  ]);
 
   return (
-    <>
-      <nav className="subnav">
-        <span className="title">
-          {project.title} <span className="muted small">{project.workspace.name}</span>
-        </span>
-        <Link href={base}>Records</Link>
-        <Link href={`${base}/import`}>Import change package</Link>
-        <Link href={`${base}/import-markdown`}>Import Markdown references</Link>
-        <Link href={`${base}/export`}>Export context</Link>
-        <Link href={`${base}/history`}>History &amp; review</Link>
-      </nav>
-      {children}
-    </>
+    <div className="project-frame">
+      <ProjectNav
+        project={{ id: project.id, title: project.title, workspaceName: project.workspace.name }}
+        records={records}
+        openReviewItems={openReviewItems}
+      />
+      <main id="main" tabIndex={-1} className="workspace">
+        {children}
+      </main>
+    </div>
   );
 }

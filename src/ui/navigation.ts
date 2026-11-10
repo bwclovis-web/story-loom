@@ -1,0 +1,77 @@
+import type { RecordType } from "@/domain/recordTypes";
+
+/** Record lists reached from the global navigation. Every record type belongs to exactly one. */
+export const RECORD_GROUPS = {
+  write: ["manuscript_chapter", "manuscript_scene", "scene_note"],
+  plan: ["chapter_outline", "story_architecture"],
+  world: ["character_dossier", "worldbuilding", "canon_decision", "continuity_note", "reference_note"],
+} as const satisfies Record<string, readonly RecordType[]>;
+
+export type RecordGroup = keyof typeof RECORD_GROUPS;
+export const RECORD_GROUP_IDS = Object.keys(RECORD_GROUPS) as RecordGroup[];
+
+export function groupOfType(type: RecordType): RecordGroup {
+  for (const group of RECORD_GROUP_IDS) {
+    if ((RECORD_GROUPS[group] as readonly RecordType[]).includes(type)) return group;
+  }
+  throw new Error(`Record type ${type} has no navigation group`);
+}
+
+export type GlobalNavId = RecordGroup | "assistant" | "backups" | "connections" | "trash" | "help";
+
+/** Shown in the project selector. Counts come from the database; nothing here is estimated. */
+export interface ProjectSummary {
+  id: string;
+  title: string;
+  workspaceId: string;
+  workspaceName: string;
+  recordCount: number;
+  chapterCount: number;
+  manuscriptWords: number;
+}
+
+/** Record ID and type, no text: enough to place a record page under Write, Plan or World. */
+export interface RecordNavEntry {
+  id: string;
+  title: string;
+  type: RecordType;
+  parentRecordId: string | null;
+  /** Book order (see src/domain/bookOrder.ts); null until the author moves something. */
+  position: number | null;
+  /** ISO time; orders records that have no position. */
+  createdAt: string;
+}
+
+const PROJECT_PATH = /^\/projects\/([^/]+)(?:\/(.*))?$/;
+
+export function parseProjectPath(pathname: string): { projectId: string; rest: string[] } | null {
+  const match = PROJECT_PATH.exec(pathname);
+  if (!match) return null;
+  return {
+    projectId: decodeURIComponent(match[1]),
+    rest: (match[2] ?? "").split("/").filter(Boolean).map(decodeURIComponent),
+  };
+}
+
+/** The record group a project page belongs to, or null for project-wide pages such as history. */
+export function groupForProjectPath(rest: readonly string[], recordType: (id: string) => RecordType | undefined): RecordGroup | null {
+  const [first, second] = rest;
+  if (first && (RECORD_GROUP_IDS as string[]).includes(first) && rest.length === 1) return first as RecordGroup;
+  if ((first === "read" || first === "import-chapters") && rest.length === 1) return "write";
+  if (first === "records" && second) {
+    const type = recordType(second);
+    return type ? groupOfType(type) : null;
+  }
+  return null;
+}
+
+export function activeGlobalItem(pathname: string, recordType: (id: string) => RecordType | undefined): GlobalNavId | null {
+  if (pathname === "/backup" || pathname.startsWith("/backup/")) return "backups";
+  if (pathname === "/connections" || pathname.startsWith("/connections/")) return "connections";
+  if (pathname === "/trash" || pathname.startsWith("/trash/")) return "trash";
+  if (pathname === "/help" || pathname.startsWith("/help/")) return "help";
+  const project = parseProjectPath(pathname);
+  if (!project) return null;
+  if (project.rest[0] === "assistant") return "assistant";
+  return groupForProjectPath(project.rest, recordType);
+}

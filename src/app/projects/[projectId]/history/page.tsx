@@ -1,8 +1,10 @@
 import Link from "next/link";
+import { HelpHint } from "@/components/HelpHint";
 import { getDb } from "@/server/db";
 import { listAudit } from "@/server/services/auditService";
 import { listChangePackages } from "@/server/services/changePackageService";
 import { listReviewItems } from "@/server/services/reviewService";
+import { HISTORY } from "@/ui/labels";
 import { resolveReviewItemAction } from "../actions";
 
 export const dynamic = "force-dynamic";
@@ -19,13 +21,19 @@ export default async function HistoryPage({ params }: { params: Promise<{ projec
 
   return (
     <>
-      <h1>History &amp; review</h1>
+      <h1>{HISTORY.heading}</h1>
 
       <section className="panel">
-        <h2 style={{ marginTop: 0 }}>Open review items ({reviewItems.length})</h2>
+        <h2 style={{ marginTop: 0 }}>
+          {HISTORY.openReviewItems} ({reviewItems.length})
+        </h2>
         <p className="small muted">
           Records that may need follow-up because a related record changed. They were not modified automatically.
         </p>
+        <HelpHint anchor="review-items" topic="review items">
+          {HISTORY.resolve} only removes the item from this list. Edit the related record yourself first if it needs a
+          change.
+        </HelpHint>
         {reviewItems.length === 0 ? <p className="muted">Nothing to review.</p> : null}
         <table>
           <tbody>
@@ -43,7 +51,7 @@ export default async function HistoryPage({ params }: { params: Promise<{ projec
                 <td>
                   <form action={resolveReviewItemAction.bind(null, projectId, item.id)}>
                     <button type="submit" className="secondary">
-                      Resolve
+                      {HISTORY.resolve}
                     </button>
                   </form>
                 </td>
@@ -54,7 +62,9 @@ export default async function HistoryPage({ params }: { params: Promise<{ projec
       </section>
 
       <section className="panel">
-        <h2 style={{ marginTop: 0 }}>Applied change packages ({packages.length})</h2>
+        <h2 style={{ marginTop: 0 }}>
+          {HISTORY.appliedPackages} ({packages.length})
+        </h2>
         <table>
           <thead>
             <tr>
@@ -87,7 +97,7 @@ export default async function HistoryPage({ params }: { params: Promise<{ projec
       </section>
 
       <section className="panel">
-        <h2 style={{ marginTop: 0 }}>Audit log</h2>
+        <h2 style={{ marginTop: 0 }}>{HISTORY.auditLog}</h2>
         <table>
           <thead>
             <tr>

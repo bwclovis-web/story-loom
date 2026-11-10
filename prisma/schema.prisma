@@ -12,52 +12,158 @@ datasource db {
 }
 
 model Workspace {
-  id        String    @id
-  name      String
-  createdAt DateTime  @default(now())
-  projects  Project[]
+  id                     String                  @id
+  name                   String
+  createdAt              DateTime                @default(now())
+  /// Set while the workspace is in the Trash (see src/server/services/trashService.ts).
+  trashedAt              DateTime?
+  projects               Project[]
+  assistantConversations AssistantConversation[]
+  dictionaryEntries      DictionaryEntry[]
 }
 
 model Project {
-  id             String          @id
-  workspaceId    String
-  workspace      Workspace       @relation(fields: [workspaceId], references: [id])
-  title          String
-  createdAt      DateTime        @default(now())
-  records        Record[]
-  sources        Source[]
-  changePackages ChangePackage[]
-  auditEntries   AuditEntry[]
-  reviewItems    ReviewItem[]
-  importedFiles  ImportedFile[]
+  id                     String                  @id
+  workspaceId            String
+  workspace              Workspace               @relation(fields: [workspaceId], references: [id])
+  title                  String
+  createdAt              DateTime                @default(now())
+  /// Set while the project is in the Trash.
+  trashedAt              DateTime?
+  records                Record[]
+  sources                Source[]
+  changePackages         ChangePackage[]
+  auditEntries           AuditEntry[]
+  reviewItems            ReviewItem[]
+  importedFiles          ImportedFile[]
+  assistantConversations AssistantConversation[]
+  proofreadRuns          ProofreadRun[]
+  dictionaryEntries      DictionaryEntry[]
+  recordLinks            RecordLink[]
+  recordImages           RecordImage[]
 
   @@index([workspaceId])
 }
 
+/// A word the author accepts as correctly spelled (see src/spelling/dictionary.ts).
+/// Applies to one project, or to every project in the workspace when projectId
+/// is null. It only stops spelling flags; it is not a record and has no revisions.
+model DictionaryEntry {
+  id            String    @id
+  workspaceId   String
+  workspace     Workspace @relation(fields: [workspaceId], references: [id])
+  projectId     String?
+  project       Project?  @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  word          String
+  /// Lower-cased word, for duplicate checks.
+  wordKey       String
+  caseSensitive Boolean
+  note          String    @default("")
+  /// manual | editor | import | reference
+  origin        String
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([workspaceId, projectId])
+  @@index([workspaceId, wordKey])
+}
+
 /// Current state of a record. Every state is also captured as an immutable Revision.
 model Record {
-  id                   String       @id
-  projectId            String
-  project              Project      @relation(fields: [projectId], references: [id])
+  id                    String                 @id
+  projectId             String
+  project               Project                @relation(fields: [projectId], references: [id])
   /// Document type (see src/domain/recordTypes.ts).
-  type                 String
-  title                String
-  body                 String
+  type                  String
+  title                 String
+  body                  String
   /// JSON object of structured fields.
-  fields               String       @default("{}")
+  fields                String                 @default("{}")
   /// Canon/decision status (see src/domain/statuses.ts).
-  authorityStatus      String
-  supersededByRecordId String?
+  authorityStatus       String
+  supersededByRecordId  String?
   /// Manuscript protection flag; independent of type and status.
-  protected            Boolean      @default(false)
-  currentRevision      Int
-  createdAt            DateTime     @default(now())
-  updatedAt            DateTime     @updatedAt
-  revisions            Revision[]
-  reviewItems          ReviewItem[]
-  importedFiles        ImportedFile[]
+  protected             Boolean                @default(false)
+  /// The chapter a scene belongs to, or the chapter or scene a scene note is on
+  /// (see PARENT_TYPES in src/domain/recordTypes.ts). Set when the record is
+  /// created; only moving a scene to another chapter changes it. Not part of
+  /// revisioned content.
+  parentRecordId        String?
+  /// Book order of a chapter among chapters, or a scene within its chapter
+  /// (see src/domain/bookOrder.ts). Null until the author first moves something;
+  /// unpositioned records follow positioned ones in creation order. Not part of
+  /// revisioned content.
+  position              Int?
+  currentRevision       Int
+  /// Set while the record is in the Trash. Not part of revisioned content.
+  trashedAt             DateTime?
+  /// Records moved to the Trash together (a chapter with its scenes and notes)
+  /// share this ID and are restored together.
+  trashBatchId          String?
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  revisions             Revision[]
+  reviewItems           ReviewItem[]
+  importedFiles         ImportedFile[]
+  assistantContextItems AssistantContextItem[]
+  proofreadRuns         ProofreadRun[]
+  linksFrom             RecordLink[]           @relation("LinkFrom")
+  linksTo               RecordLink[]           @relation("LinkTo")
+  images                RecordImage[]
 
   @@index([projectId, type])
+  @@index([parentRecordId])
+  @@index([trashBatchId])
+}
+
+/// A manuscript chapter or scene linked to a reference record it draws on.
+/// Links are not revisioned content: adding or removing one is audited and
+/// never changes either record.
+model RecordLink {
+  id           String   @id
+  projectId    String
+  project      Project  @relation(fields: [projectId], references: [id])
+  fromRecordId String
+  from         Record   @relation("LinkFrom", fields: [fromRecordId], references: [id])
+  toRecordId   String
+  to           Record   @relation("LinkTo", fields: [toRecordId], references: [id])
+  createdAt    DateTime @default(now())
+
+  @@unique([fromRecordId, toRecordId])
+  @@index([projectId])
+  @@index([toRecordId])
+}
+
+/// An image attached to a reference document (see src/images/imageFormat.ts).
+/// Like links, images are not revisioned content: adding, editing or removing
+/// one is audited and never changes the record. The text shows an image with
+/// `![alt](image:name)`, resolved by `name` within the same record, so text
+/// keeps working when a backup is restored with new IDs.
+model RecordImage {
+  id               String   @id
+  projectId        String
+  project          Project  @relation(fields: [projectId], references: [id])
+  recordId         String
+  record           Record   @relation(fields: [recordId], references: [id])
+  name             String
+  originalFilename String
+  /// Detected from the file's bytes: image/png | image/jpeg | image/gif | image/webp
+  mimeType         String
+  byteSize         Int
+  width            Int
+  height           Int
+  /// sha256 of `data`.
+  contentHash      String
+  data             Bytes
+  caption          String   @default("")
+  altText          String   @default("")
+  /// Gallery order within the record.
+  position         Int
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@unique([recordId, name])
+  @@index([projectId])
 }
 
 model Revision {
@@ -170,5 +276,142 @@ model ImportedFile {
   createdAt        DateTime @default(now())
 
   @@index([projectId, contentHash])
+  @@index([recordId])
+}
+
+/// A local discussion with the optional OpenAI assistant. It stores what was
+/// asked, answered and sent. It never writes records itself; prepared change
+/// proposals are applied only through the change-package pipeline.
+model AssistantConversation {
+  id          String             @id
+  workspaceId String
+  workspace   Workspace          @relation(fields: [workspaceId], references: [id])
+  projectId   String
+  project     Project            @relation(fields: [projectId], references: [id])
+  title       String
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  messages    AssistantMessage[]
+
+  @@index([workspaceId, projectId, updatedAt])
+}
+
+model AssistantMessage {
+  id                 String                 @id
+  conversationId     String
+  conversation       AssistantConversation  @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  /// user | assistant
+  role               String
+  /// chat (discussion) | proposal (asked to prepare a change proposal)
+  mode               String                 @default("chat")
+  content            String
+  /// For assistant messages: the user message answered.
+  replyToId          String?
+  /// user: complete. assistant: streaming | complete | incomplete | cancelled | failed
+  status             String
+  errorCode          String?
+  errorMessage       String?
+  model              String?
+  providerResponseId String?
+  inputTokens        Int?
+  outputTokens       Int?
+  totalTokens        Int?
+  /// True when the provider returned no usage and the counts are this app's estimate.
+  usageEstimated     Boolean                @default(false)
+  /// JSON array of earlier message IDs sent with this request.
+  includedMessageIds String                 @default("[]")
+  /// Characters sent (instructions + context + prior messages + question).
+  requestChars       Int?
+  createdAt          DateTime               @default(now())
+  completedAt        DateTime?
+  contextItems       AssistantContextItem[]
+  proposal           AssistantProposal?
+
+  @@index([conversationId, createdAt])
+  @@index([createdAt])
+}
+
+/// A change package prepared by the assistant and assembled by the server.
+/// `packageJson` is immutable and marked "proposed"; applying it goes through
+/// applyChangePackage with server-set approval.
+model AssistantProposal {
+  id             String           @id
+  messageId      String           @unique
+  message        AssistantMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  workspaceId    String
+  projectId      String
+  packageId      String
+  packageJson    String
+  /// Content hash of packageJson; the Apply action must name it.
+  contentHash    String
+  operationCount Int
+  /// proposed | applied
+  status         String           @default("proposed")
+  createdAt      DateTime         @default(now())
+  appliedAt      DateTime?
+
+  @@index([projectId, status])
+}
+
+/// One AI proofreading request on a record revision (whole text or a range).
+/// Counts toward the assistant's usage limits. Suggestions are returned to the
+/// editor and not stored; accepting one edits the text box only, and saving
+/// goes through the normal record save.
+model ProofreadRun {
+  id                  String    @id
+  workspaceId         String
+  projectId           String
+  project             Project   @relation(fields: [projectId], references: [id])
+  recordId            String
+  record              Record    @relation(fields: [recordId], references: [id])
+  revisionNumber      Int
+  /// proofread (the only mode implemented)
+  mode                String    @default("proofread")
+  /// document | selection
+  scope               String
+  /// Range sent, in the record text with line endings as "\n".
+  rangeStart          Int
+  rangeEnd            Int
+  /// sha256 of the exact text sent.
+  contentHash         String
+  /// running | complete | incomplete | cancelled | failed
+  status              String
+  errorCode           String?
+  errorMessage        String?
+  model               String?
+  providerResponseId  String?
+  inputTokens         Int?
+  outputTokens        Int?
+  totalTokens         Int?
+  usageEstimated      Boolean   @default(false)
+  requestChars        Int
+  /// Dictionary words sent with the request as accepted spellings.
+  dictionaryTermCount Int       @default(0)
+  suggestionCount     Int       @default(0)
+  rejectedCount       Int       @default(0)
+  createdAt           DateTime  @default(now())
+  completedAt         DateTime?
+
+  @@index([projectId, recordId, createdAt])
+  @@index([createdAt])
+}
+
+/// A record revision (or a passage of it) sent with an assistant request.
+model AssistantContextItem {
+  id             String           @id
+  messageId      String
+  message        AssistantMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  recordId       String
+  record         Record           @relation(fields: [recordId], references: [id])
+  revisionNumber Int
+  /// reference | manuscript | passage | section (passageStart/End hold the section's offsets)
+  kind           String
+  passageStart   Int?
+  passageEnd     Int?
+  charCount      Int
+  /// sha256 of the exact text sent for this item.
+  contentHash    String
+
+  @@index([messageId])
   @@index([recordId])
 }

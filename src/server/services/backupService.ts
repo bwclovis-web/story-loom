@@ -9,8 +9,12 @@ import {
 } from "@/backup/format.v1";
 import { newId, type IdPrefix } from "@/domain/ids";
 import { errorIssue, hasErrors, type Issue } from "@/domain/issues";
-import { parseJsonObject, sha256, stableStringify } from "@/domain/json";
+import { parseJsonObject, sha256, sha256Bytes, stableStringify } from "@/domain/json";
+import { sniffImage } from "@/images/imageFormat";
 import { snapshotHash, snapshotOf, type RecordSnapshot } from "@/domain/records";
+import { allowedParent, isLinkableReferenceType, isManuscriptType, requiresParent } from "@/domain/recordTypes";
+import { Prisma } from "@/generated/prisma/client";
+import { validateDictionaryWord, wordKey } from "@/spelling/dictionary";
 import type { Db, DbOrTx, Tx } from "../db";
 import { writeAudit } from "./auditService";
 import { NotFoundError } from "./errors";
@@ -40,24 +44,149 @@ function backupChecksum(backup: Omit<WorkspaceBackupV1, "checksum">): string {
   return sha256(stableStringify(backup));
 }
 
+function dictionaryEntriesOf(b: WorkspaceBackupV1) {
+  return b.dictionaryEntries ?? [];
+}
+
+function recordLinksOf(b: WorkspaceBackupV1) {
+  return b.recordLinks ?? [];
+}
+
+function recordImagesOf(b: WorkspaceBackupV1) {
+  return b.recordImages ?? [];
+}
+
+/** P2021: table missing. P2022: column missing. */
+function isMissingSchemaError(error: unknown, code: "P2021" | "P2022"): boolean {
+  return error instanceof Prisma.PrismaClientKnownRequestError && error.code === code;
+}
+
+/*
+ * `pnpm db:deploy` backs up with this code before migrating, so the newest
+ * tables and columns may not exist yet. Missing ones read as empty.
+ */
+async function dictionaryRows(db: DbOrTx, workspaceId: string) {
+  try {
+    return await db.dictionaryEntry.findMany({ where: { workspaceId }, orderBy: { id: "asc" } });
+  } catch (error) {
+    if (isMissingSchemaError(error, "P2021")) return [];
+    throw error;
+  }
+}
+
+async function recordLinkRows(db: DbOrTx, projectIds: string[]) {
+  try {
+    return await db.recordLink.findMany({ where: { projectId: { in: projectIds } }, orderBy: { id: "asc" } });
+  } catch (error) {
+    if (isMissingSchemaError(error, "P2021")) return [];
+    throw error;
+  }
+}
+
+async function recordImageRows(db: DbOrTx, projectIds: string[]) {
+  try {
+    return await db.recordImage.findMany({ where: { projectId: { in: projectIds } }, orderBy: { id: "asc" } });
+  } catch (error) {
+    if (isMissingSchemaError(error, "P2021")) return [];
+    throw error;
+  }
+}
+
+async function workspaceRow(db: DbOrTx, workspaceId: string) {
+  const where = { id: workspaceId };
+  try {
+    return await db.workspace.findUnique({ where, select: { id: true, name: true, createdAt: true, trashedAt: true } });
+  } catch (error) {
+    if (!isMissingSchemaError(error, "P2022")) throw error;
+    const row = await db.workspace.findUnique({ where, select: { id: true, name: true, createdAt: true } });
+    return row && { ...row, trashedAt: null };
+  }
+}
+
+async function projectRows(db: DbOrTx, workspaceId: string) {
+  const query = { where: { workspaceId }, orderBy: { id: "asc" as const } };
+  try {
+    return await db.project.findMany({
+      ...query,
+      select: { id: true, workspaceId: true, title: true, createdAt: true, trashedAt: true },
+    });
+  } catch (error) {
+    if (!isMissingSchemaError(error, "P2022")) throw error;
+    const rows = await db.project.findMany({ ...query, select: { id: true, workspaceId: true, title: true, createdAt: true } });
+    return rows.map((p) => ({ ...p, trashedAt: null }));
+  }
+}
+
+const RECORD_COLUMNS = {
+  id: true,
+  projectId: true,
+  type: true,
+  title: true,
+  body: true,
+  fields: true,
+  authorityStatus: true,
+  supersededByRecordId: true,
+  protected: true,
+  currentRevision: true,
+  createdAt: true,
+  updatedAt: true,
+} as const;
+
+async function recordRows(db: DbOrTx, projectIds: string[]) {
+  const query = { where: { projectId: { in: projectIds } }, orderBy: { id: "asc" as const } };
+  try {
+    return await db.record.findMany({
+      ...query,
+      select: { ...RECORD_COLUMNS, parentRecordId: true, trashedAt: true, trashBatchId: true, position: true },
+    });
+  } catch (error) {
+    if (!isMissingSchemaError(error, "P2022")) throw error;
+  }
+  try {
+    const rows = await db.record.findMany({
+      ...query,
+      select: { ...RECORD_COLUMNS, parentRecordId: true, trashedAt: true, trashBatchId: true },
+    });
+    return rows.map((r) => ({ ...r, position: null }));
+  } catch (error) {
+    if (!isMissingSchemaError(error, "P2022")) throw error;
+  }
+  const noTrash = { trashedAt: null, trashBatchId: null, position: null };
+  try {
+    const rows = await db.record.findMany({ ...query, select: { ...RECORD_COLUMNS, parentRecordId: true } });
+    return rows.map((r) => ({ ...r, ...noTrash }));
+  } catch (error) {
+    if (!isMissingSchemaError(error, "P2022")) throw error;
+  }
+  const rows = await db.record.findMany({ ...query, select: RECORD_COLUMNS });
+  return rows.map((r) => ({ ...r, parentRecordId: null, ...noTrash }));
+}
+
 const iso = (d: Date) => d.toISOString();
 const isoOrNull = (d: Date | null) => (d ? d.toISOString() : null);
+/** Written only for items in the Trash, so other backups keep their earlier shape. */
+const trashFields = (row: { trashedAt: Date | null }) => (row.trashedAt ? { trashedAt: iso(row.trashedAt) } : {});
+const dateOrNull = (s: string | undefined) => (s ? new Date(s) : null);
 
 export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Promise<WorkspaceBackupV1> {
-  const workspace = await db.workspace.findUnique({ where: { id: workspaceId } });
+  const workspace = await workspaceRow(db, workspaceId);
   if (!workspace) throw new NotFoundError(`Workspace ${workspaceId} not found`);
-  const projects = await db.project.findMany({ where: { workspaceId }, orderBy: { id: "asc" } });
+  const projects = await projectRows(db, workspaceId);
   const projectIds = projects.map((p) => p.id);
   const inProjects = { projectId: { in: projectIds } };
 
-  const [records, sources, changePackages, auditEntries, reviewItems, importedFiles] = await Promise.all([
-    db.record.findMany({ where: inProjects, orderBy: { id: "asc" } }),
-    db.source.findMany({ where: inProjects, orderBy: { id: "asc" } }),
-    db.changePackage.findMany({ where: inProjects, orderBy: [{ projectId: "asc" }, { packageId: "asc" }] }),
-    db.auditEntry.findMany({ where: inProjects, orderBy: { id: "asc" } }),
-    db.reviewItem.findMany({ where: inProjects, orderBy: { id: "asc" } }),
-    db.importedFile.findMany({ where: inProjects, orderBy: { id: "asc" } }),
-  ]);
+  const [records, sources, changePackages, auditEntries, reviewItems, importedFiles, dictionaryEntries, recordLinks, recordImages] =
+    await Promise.all([
+      recordRows(db, projectIds),
+      db.source.findMany({ where: inProjects, orderBy: { id: "asc" } }),
+      db.changePackage.findMany({ where: inProjects, orderBy: [{ projectId: "asc" }, { packageId: "asc" }] }),
+      db.auditEntry.findMany({ where: inProjects, orderBy: { id: "asc" } }),
+      db.reviewItem.findMany({ where: inProjects, orderBy: { id: "asc" } }),
+      db.importedFile.findMany({ where: inProjects, orderBy: { id: "asc" } }),
+      dictionaryRows(db, workspaceId),
+      recordLinkRows(db, projectIds),
+      recordImageRows(db, projectIds),
+    ]);
   const revisions = await db.revision.findMany({
     where: { recordId: { in: records.map((r) => r.id) } },
     orderBy: [{ recordId: "asc" }, { revisionNumber: "asc" }],
@@ -68,8 +197,14 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
     formatVersion: BACKUP_FORMAT_VERSION,
     createdAt: new Date().toISOString(),
     app: { name: "wordly-editor", migrations: knownMigrations() },
-    workspace: { id: workspace.id, name: workspace.name, createdAt: iso(workspace.createdAt) },
-    projects: projects.map((p) => ({ id: p.id, workspaceId: p.workspaceId, title: p.title, createdAt: iso(p.createdAt) })),
+    workspace: { id: workspace.id, name: workspace.name, createdAt: iso(workspace.createdAt), ...trashFields(workspace) },
+    projects: projects.map((p) => ({
+      id: p.id,
+      workspaceId: p.workspaceId,
+      title: p.title,
+      createdAt: iso(p.createdAt),
+      ...trashFields(p),
+    })),
     records: records.map((r) => ({
       id: r.id,
       projectId: r.projectId,
@@ -80,7 +215,11 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
       authorityStatus: r.authorityStatus as WorkspaceBackupV1["records"][number]["authorityStatus"],
       supersededByRecordId: r.supersededByRecordId,
       protected: r.protected,
+      parentRecordId: r.parentRecordId,
+      ...(r.position !== null ? { position: r.position } : {}),
       currentRevision: r.currentRevision,
+      ...trashFields(r),
+      ...(r.trashBatchId ? { trashBatchId: r.trashBatchId } : {}),
       createdAt: iso(r.createdAt),
       updatedAt: iso(r.updatedAt),
     })),
@@ -156,6 +295,42 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
       sourceId: f.sourceId,
       createdAt: iso(f.createdAt),
     })),
+    dictionaryEntries: dictionaryEntries.map((d) => ({
+      id: d.id,
+      workspaceId: d.workspaceId,
+      projectId: d.projectId,
+      word: d.word,
+      caseSensitive: d.caseSensitive,
+      note: d.note,
+      origin: d.origin,
+      createdAt: iso(d.createdAt),
+      updatedAt: iso(d.updatedAt),
+    })),
+    recordLinks: recordLinks.map((l) => ({
+      id: l.id,
+      projectId: l.projectId,
+      fromRecordId: l.fromRecordId,
+      toRecordId: l.toRecordId,
+      createdAt: iso(l.createdAt),
+    })),
+    recordImages: recordImages.map((img) => ({
+      id: img.id,
+      projectId: img.projectId,
+      recordId: img.recordId,
+      name: img.name,
+      originalFilename: img.originalFilename,
+      mimeType: img.mimeType as NonNullable<WorkspaceBackupV1["recordImages"]>[number]["mimeType"],
+      byteSize: img.byteSize,
+      width: img.width,
+      height: img.height,
+      contentHash: img.contentHash,
+      dataBase64: Buffer.from(img.data).toString("base64"),
+      caption: img.caption,
+      altText: img.altText,
+      position: img.position,
+      createdAt: iso(img.createdAt),
+      updatedAt: iso(img.updatedAt),
+    })),
     counts: {
       projects: projects.length,
       records: records.length,
@@ -165,6 +340,9 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
       auditEntries: auditEntries.length,
       reviewItems: reviewItems.length,
       importedFiles: importedFiles.length,
+      dictionaryEntries: dictionaryEntries.length,
+      recordLinks: recordLinks.length,
+      recordImages: recordImages.length,
     },
   };
   return { ...body, checksum: backupChecksum(body) };
@@ -213,9 +391,12 @@ function checkInternalConsistency(b: WorkspaceBackupV1): Issue[] {
     auditEntries: b.auditEntries.length,
     reviewItems: b.reviewItems.length,
     importedFiles: b.importedFiles.length,
+    dictionaryEntries: dictionaryEntriesOf(b).length,
+    recordLinks: recordLinksOf(b).length,
+    recordImages: recordImagesOf(b).length,
   };
   for (const key of Object.keys(actualCounts) as (keyof BackupCounts)[]) {
-    if (actualCounts[key] !== b.counts[key]) {
+    if (actualCounts[key] !== (b.counts[key] ?? 0)) {
       issues.push(errorIssue("BACKUP_COUNT_MISMATCH", `counts.${key} is ${b.counts[key]} but the backup contains ${actualCounts[key]}.`));
     }
   }
@@ -233,6 +414,11 @@ function checkInternalConsistency(b: WorkspaceBackupV1): Issue[] {
   checkUnique(b.reviewItems.map((r) => r.id), "review item", issues);
   checkUnique(b.importedFiles.map((f) => f.id), "imported file", issues);
   checkUnique(b.changePackages.map((p) => `${p.projectId}/${p.packageId}`), "change package", issues);
+  checkUnique(dictionaryEntriesOf(b).map((d) => d.id), "dictionary entry", issues);
+  checkUnique(recordLinksOf(b).map((l) => l.id), "reference link", issues);
+  checkUnique(recordLinksOf(b).map((l) => `${l.fromRecordId}/${l.toRecordId}`), "reference link pair", issues);
+  checkUnique(recordImagesOf(b).map((img) => img.id), "image", issues);
+  checkUnique(recordImagesOf(b).map((img) => `${img.recordId}/${img.name}`), "image name", issues);
 
   const projectIds = new Set(b.projects.map((p) => p.id));
   const recordIds = new Set(b.records.map((r) => r.id));
@@ -245,10 +431,48 @@ function checkInternalConsistency(b: WorkspaceBackupV1): Issue[] {
   const needProject = (pid: string, what: string) => {
     if (!projectIds.has(pid)) issues.push(integrity(`${what} references missing project ${pid}.`));
   };
+  const recordType = new Map(b.records.map((r) => [r.id, r.type]));
   b.records.forEach((r) => {
     needProject(r.projectId, `Record ${r.id}`);
     if (r.supersededByRecordId && !recordIds.has(r.supersededByRecordId)) {
       issues.push(integrity(`Record ${r.id} is superseded by missing record ${r.supersededByRecordId}.`));
+    }
+    if (r.trashBatchId && !r.trashedAt) issues.push(integrity(`Record ${r.id} has a Trash batch but is not in the Trash.`));
+    const parentId = r.parentRecordId ?? null;
+    if (parentId === null) {
+      if (requiresParent(r.type)) issues.push(integrity(`Record ${r.id} (${r.type}) has no parent record.`));
+    } else if (!recordIds.has(parentId) || recordProject.get(parentId) !== r.projectId) {
+      issues.push(integrity(`Record ${r.id} belongs to missing record ${parentId}.`));
+    } else if (!allowedParent(r.type, recordType.get(parentId)!)) {
+      issues.push(integrity(`Record ${r.id} (${r.type}) cannot belong to a ${recordType.get(parentId)}.`));
+    }
+  });
+  recordLinksOf(b).forEach((l) => {
+    needProject(l.projectId, `Reference link ${l.id}`);
+    for (const end of [l.fromRecordId, l.toRecordId]) {
+      if (!recordIds.has(end) || recordProject.get(end) !== l.projectId) {
+        issues.push(integrity(`Reference link ${l.id} references missing record ${end}.`));
+      }
+    }
+    const fromType = recordType.get(l.fromRecordId);
+    const toType = recordType.get(l.toRecordId);
+    if (fromType && toType && (!isManuscriptType(fromType) || !isLinkableReferenceType(toType))) {
+      issues.push(integrity(`Reference link ${l.id} must go from a chapter or scene to a reference record.`));
+    }
+  });
+  recordImagesOf(b).forEach((img) => {
+    needProject(img.projectId, `Image ${img.id}`);
+    if (!recordIds.has(img.recordId) || recordProject.get(img.recordId) !== img.projectId) {
+      issues.push(integrity(`Image ${img.id} references missing record ${img.recordId}.`));
+    }
+    const type = recordType.get(img.recordId);
+    if (type && isManuscriptType(type)) issues.push(integrity(`Image ${img.id} is attached to a chapter or scene.`));
+    const bytes = Buffer.from(img.dataBase64, "base64");
+    const info = sniffImage(bytes);
+    if (bytes.byteLength !== img.byteSize || sha256Bytes(bytes) !== img.contentHash) {
+      issues.push(integrity(`Image ${img.id} data does not match its size and hash.`));
+    } else if (!info || info.mimeType !== img.mimeType) {
+      issues.push(integrity(`Image ${img.id} is not the ${img.mimeType} image it claims to be.`));
     }
   });
   b.sources.forEach((s) => needProject(s.projectId, `Source ${s.id}`));
@@ -266,6 +490,11 @@ function checkInternalConsistency(b: WorkspaceBackupV1): Issue[] {
     if (!recordIds.has(f.recordId)) issues.push(integrity(`Imported file ${f.id} references missing record ${f.recordId}.`));
     if (!sourceIds.has(f.sourceId)) issues.push(integrity(`Imported file ${f.id} references missing source ${f.sourceId}.`));
     if (sha256(f.content) !== f.contentHash) issues.push(integrity(`Imported file ${f.id} content does not match its hash.`));
+  });
+  dictionaryEntriesOf(b).forEach((d) => {
+    if (d.workspaceId !== b.workspace.id) issues.push(integrity(`Dictionary entry ${d.id} belongs to another workspace.`));
+    if (d.projectId !== null) needProject(d.projectId, `Dictionary entry ${d.id}`);
+    if (!validateDictionaryWord(d.word).ok) issues.push(integrity(`Dictionary entry ${d.id} is not a single word.`));
   });
 
   const revisionsByRecord = new Map<string, WorkspaceBackupV1["revisions"]>();
@@ -344,6 +573,11 @@ async function findCollisions(db: DbOrTx, b: WorkspaceBackupV1): Promise<Issue[]
   await check("audit entry", db.auditEntry.count({ where: { id: { in: b.auditEntries.map((a) => a.id) } } }));
   await check("review item", db.reviewItem.count({ where: { id: { in: b.reviewItems.map((r) => r.id) } } }));
   await check("imported file", db.importedFile.count({ where: { id: { in: b.importedFiles.map((f) => f.id) } } }));
+  await check("dictionary entry", db.dictionaryEntry.count({ where: { id: { in: dictionaryEntriesOf(b).map((d) => d.id) } } }));
+  await check("reference link", db.recordLink.count({ where: { id: { in: recordLinksOf(b).map((l) => l.id) } } }));
+  if (recordImagesOf(b).length) {
+    await check("image", db.recordImage.count({ where: { id: { in: recordImagesOf(b).map((img) => img.id) } } }));
+  }
   return issues;
 }
 
@@ -459,6 +693,9 @@ export async function restoreWorkspaceBackup(db: Db, input: string | unknown, op
   b.auditEntries.forEach((a) => assign(a.id, "aud"));
   b.reviewItems.forEach((r) => assign(r.id, "rvw"));
   b.importedFiles.forEach((f) => assign(f.id, "imp"));
+  dictionaryEntriesOf(b).forEach((d) => assign(d.id, "dic"));
+  recordLinksOf(b).forEach((l) => assign(l.id, "lnk"));
+  recordImagesOf(b).forEach((img) => assign(img.id, "img"));
 
   const workspaceName =
     options.workspaceName?.trim() || (remap ? `${b.workspace.name} (restored ${b.createdAt.slice(0, 10)})` : b.workspace.name);
@@ -471,9 +708,23 @@ export async function restoreWorkspaceBackup(db: Db, input: string | unknown, op
           const collisions = await findCollisions(tx, b);
           if (collisions.length) throw new RestoreRejected(collisions);
         }
-        await tx.workspace.create({ data: { id: workspaceId, name: workspaceName, createdAt: new Date(b.workspace.createdAt) } });
+        await tx.workspace.create({
+          data: {
+            id: workspaceId,
+            name: workspaceName,
+            createdAt: new Date(b.workspace.createdAt),
+            // Restoring a copy is a request to see it, so a new workspace never starts in the Trash.
+            trashedAt: remap ? null : dateOrNull(b.workspace.trashedAt),
+          },
+        });
         await tx.project.createMany({
-          data: b.projects.map((p) => ({ id: m(p.id), workspaceId, title: p.title, createdAt: new Date(p.createdAt) })),
+          data: b.projects.map((p) => ({
+            id: m(p.id),
+            workspaceId,
+            title: p.title,
+            createdAt: new Date(p.createdAt),
+            trashedAt: dateOrNull(p.trashedAt),
+          })),
         });
         await tx.source.createMany({
           data: b.sources.map((s) => ({
@@ -499,7 +750,11 @@ export async function restoreWorkspaceBackup(db: Db, input: string | unknown, op
             authorityStatus: r.authorityStatus,
             supersededByRecordId: mn(r.supersededByRecordId),
             protected: r.protected,
+            parentRecordId: mn(r.parentRecordId ?? null),
+            position: r.position ?? null,
             currentRevision: r.currentRevision,
+            trashedAt: dateOrNull(r.trashedAt),
+            trashBatchId: r.trashBatchId ?? null,
             createdAt: new Date(r.createdAt),
             updatedAt: new Date(r.updatedAt),
           })),
@@ -585,6 +840,52 @@ export async function restoreWorkspaceBackup(db: Db, input: string | unknown, op
             createdAt: new Date(f.createdAt),
           })),
         });
+        await tx.dictionaryEntry.createMany({
+          data: dictionaryEntriesOf(b).map((d) => ({
+            id: m(d.id),
+            workspaceId,
+            projectId: mn(d.projectId),
+            word: d.word,
+            wordKey: wordKey(d.word),
+            caseSensitive: d.caseSensitive,
+            note: d.note,
+            origin: d.origin,
+            createdAt: new Date(d.createdAt),
+            updatedAt: new Date(d.updatedAt),
+          })),
+        });
+        await tx.recordLink.createMany({
+          data: recordLinksOf(b).map((l) => ({
+            id: m(l.id),
+            projectId: m(l.projectId),
+            fromRecordId: m(l.fromRecordId),
+            toRecordId: m(l.toRecordId),
+            createdAt: new Date(l.createdAt),
+          })),
+        });
+        // One at a time: a batch of large images would be one very large statement.
+        for (const img of recordImagesOf(b)) {
+          await tx.recordImage.create({
+            data: {
+              id: m(img.id),
+              projectId: m(img.projectId),
+              recordId: m(img.recordId),
+              name: img.name,
+              originalFilename: img.originalFilename,
+              mimeType: img.mimeType,
+              byteSize: img.byteSize,
+              width: img.width,
+              height: img.height,
+              contentHash: img.contentHash,
+              data: Buffer.from(img.dataBase64, "base64"),
+              caption: img.caption,
+              altText: img.altText,
+              position: img.position,
+              createdAt: new Date(img.createdAt),
+              updatedAt: new Date(img.updatedAt),
+            },
+          });
+        }
         for (const p of b.projects) {
           await writeAudit(tx, {
             projectId: m(p.id),

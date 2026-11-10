@@ -10,8 +10,14 @@ rewritten automatically, so do not put project rules inside it.
 - The author's database (`prisma/dev.db` by default; run `pnpm db:info` to see
   the resolved path) is authoritative project state. Never delete, reset, or
   overwrite it. Use `pnpm db:backup` before anything risky.
-- Only `pnpm db:reset --confirm-delete-all-data` deletes data, and it backs up
-  first. Do not run it, or `prisma migrate reset`, on the author's database.
+- Only two things delete data, and both write a full backup first:
+  `pnpm db:reset --confirm-delete-all-data` (do not run it, or
+  `prisma migrate reset`, on the author's database), and the author's own
+  "Delete permanently" / "Empty Trash" on the Trash page (`trashService`).
+  Everything else that removes something from view moves it to the Trash
+  (`trashedAt`), which hides it and keeps its history. New reads must filter
+  trashed rows (`src/server/services/trashFilters.ts`); never delete rows
+  outside `trashService` or rely on SQLite cascades.
 - Apply schema changes with `pnpm db:deploy` (backs up first). If
   `pnpm db:migrate:dev` offers to reset, answer no.
 - Never commit databases, manuscripts, imported references, context exports,
@@ -27,15 +33,108 @@ rewritten automatically, so do not put project rules inside it.
   provenance and audit stay uniform.
 - Canon status is never inferred: not from filenames, imports, or package
   inclusion. Approval is an explicit author choice.
-- Protected records (manuscript chapters by default) change only through an
-  explicit unlock or a manuscript-scope package with override + confirmation.
-  Reference updates list potential manuscript effects; they never propagate.
-- Markdown imports create reference documents only, never manuscript chapters.
+- Protected records (manuscript chapters and scenes by default) change only
+  through an explicit unlock or a manuscript-scope package with override +
+  confirmation. Reference updates list potential manuscript effects; they never
+  propagate.
+- Markdown reference imports create reference documents only, never
+  manuscript chapters or scenes. Chapters come from files only on the
+  separate Import chapters page, where the author picks the files
+  (`chapterImportService`): manuscript scope, protected drafts, an explicit
+  create / replace / skip for every match, a confirmation for replacing
+  protected chapters, all or nothing. It never creates scenes. "Load text
+  from file" on a chapter or scene only fills the editor's text box, and
+  saving goes through the normal record save (protection tick required).
+- The Connections page may write the MCP grant file, and only with
+  `capabilities: ["read"]`; it refuses to overwrite a grant file it cannot
+  parse (`grantSettingsService`).
+- Status tags in headings (`[APPROVED FRAMEWORK]`, `— SELECTED`, ...) are
+  the author's markings: show them word for word (`src/writing/sections.ts`),
+  tell the assistant, context export and MCP adapter that they govern their
+  own sections, and never derive or change `authorityStatus` from them.
+- Cross-references (filenames, `SA-…`-style IDs, `fields.refIds`) are
+  computed from saved text on read (`src/writing/crossRefs.ts`). Never store
+  them or edit text because of them. Document keys ignore version, date,
+  status words and number prefixes only to suggest a duplicate on import;
+  the author still chooses create, replace or skip.
+- Scenes belong to a chapter; scene notes belong to a chapter or scene
+  (`Record.parentRecordId`, set at creation, same project). Only the author
+  creates them in the app; imports and change packages cannot.
+- Book order (`Record.position`) and a scene's chapter change only through
+  `moveInBook` in `mutationService`, from the author's Book order panel. A move
+  is not content: no revision, no protection unlock, always audited
+  (`record.move`). Only scenes change parent, only into a live chapter of the
+  same project; notes stay on what they are on. Imports, change packages, the
+  assistant and the MCP adapter never move records. Unpositioned records follow
+  positioned ones in creation order (`src/domain/bookOrder.ts`).
+- Reference links (`RecordLink`) go from a chapter or scene to a standalone
+  reference record. They are not content: no revision, no protection unlock,
+  but every add/remove is audited, and they travel in backups and context
+  exports.
 - Change-package idempotency is per project: (projectId, packageId) + content hash.
+
+## In-app help
+
+- The "How to use" page (`/help`) documents implemented behavior only. Its text
+  is in `src/help/HelpContent.tsx`, its sections and anchors in
+  `src/help/outline.ts`, and the interface labels it quotes in `src/ui/labels.ts`.
+- Any change to a documented workflow, route, button, form, message, or
+  command must update the help in the same change. Rename labels in
+  `src/ui/labels.ts` rather than inline so the page and the help stay in step.
+- Do not document planned features as available. Keep destructive database
+  commands out of the help, and never suggest deleting the database as a fix.
+- `tests/unit/help.test.ts` checks that the documented routes and `pnpm`
+  scripts exist; extend `HELP_ROUTES` / `HELP_SCRIPTS` when the help cites new ones.
 
 ## Scope
 
 - Local-only (`127.0.0.1`). No remote access, authentication, AI calls,
   publishing layouts or hosted services without an explicit request.
+- The local MCP adapter (`pnpm mcp:stdio`) is stdio-only and read-only. It
+  stays off without an active grant file, manuscript access stays off unless
+  that grant allows it, and it must not listen on a port. Reaching it from
+  ChatGPT (a tunnel or any other path) needs a separate explicit request.
+- The one requested exception is the optional assistant
+  (`docs/assistant.md`). It must send only the context the author selects and
+  keep working-app behavior intact when it is not configured. Discussion never
+  writes. Change proposals are applied only by the author's explicit Apply on
+  a shown proposal, and only through `applyChangePackage` (no second write
+  path, no SQL, filesystem or code execution for the model).
+- AI proofreading (record pages) uses the same assistant connection and
+  limits. It only reads; accepted suggestions change the editor's text box,
+  and saving goes through the normal record save. Never auto-apply
+  suggestions, never let proofreading unlock a protected record, and locate
+  suggestions only on the Markdown source text (offsets in the text box's
+  terms), never on rendered text.
+- The author's dictionary (`docs/spelling.md`) is scoped to one project or to
+  its workspace, never shared across workspaces. Entries only suppress
+  spelling flags for exact words; never accept or auto-correct similar
+  words, never add words without the author's explicit choice (imports and
+  reference-name suggestions start unselected), and keep entries in
+  workspace backups. Spell checking runs locally; proofreading sends only the
+  entries that occur in the text being proofread.
+- Trusted server code, never the model, sets a proposal's package ID,
+  workspace, project, scope (always `reference`), expected revisions,
+  approval and protected overrides (always none). Changes that create or
+  alter canon need the author's canon confirmation. Related records get
+  review notes, never automatic edits.
+
+## Assistant and secrets
+
+- The app uses only its own key, `WORDLY_OPENAI_API_KEY`. Never fall back to the
+  shared `OPENAI_API_KEY` or other shared `OPENAI_*` settings; keep every
+  OpenAI client option explicit.
+- `WORDLY_OPENAI_API_KEY` is read only in server modules (`import "server-only"`).
+  Never use a `NEXT_PUBLIC_` variable for it, and never put the key, raw
+  provider error bodies, prompts or manuscript text into responses, UI,
+  logs, tests, fixtures or commits.
+- The model comes from `OPENAI_MODEL`; do not hard-code a model ID.
+- Never truncate selected records to fit a limit; refuse with a size
+  breakdown instead. Sending chosen sections (whole, by heading) is the
+  author's selection, not truncation. A record sent only as sections must
+  never get a whole-body replacement in a proposal. Never retry provider
+  requests automatically.
+- Automated tests mock the provider. Do not make paid live requests unless
+  the author explicitly asks; `docs/assistant.md` has the manual test.
 - Do not upgrade dependency versions merely to modernize them. Prisma is
   pinned to 7.10.x deliberately.

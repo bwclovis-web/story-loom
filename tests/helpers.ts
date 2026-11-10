@@ -19,19 +19,22 @@ function migrationSql(): string[] {
 
 export interface TestDb {
   db: Db;
+  /** Absolute path of the isolated SQLite file. */
+  file: string;
   cleanup: () => Promise<void>;
 }
 
 /** Fresh SQLite file with all migrations applied. */
 export async function createTestDb(): Promise<TestDb> {
   const dir = mkdtempSync(path.join(tmpdir(), "wordly-test-"));
-  const file = path.join(dir, "test.db").replace(/\\/g, "/");
+  const file = path.join(dir, "test.db");
   const sqlite = new Database(file);
   for (const sql of migrationSql()) sqlite.exec(sql);
   sqlite.close();
-  const db = createDb(`file:${file}`);
+  const db = createDb(`file:${file.replace(/\\/g, "/")}`);
   return {
     db,
+    file,
     cleanup: async () => {
       await db.$disconnect();
       rmSync(dir, { recursive: true, force: true });

@@ -181,6 +181,48 @@ describe("Markdown reference import", () => {
     expect(await t.db.importedFile.count({ where: { recordId } })).toBe(2);
   });
 
+  it("recognises a new version of an imported file as the same document and still waits for the author", async () => {
+    const guide = fixture("Saltmarsh_Annals_Series_Guide_CURRENT.md");
+    const first = await applyMarkdownImport(t.db, {
+      projectId: IDS.project,
+      items: [{ ...guide, title: "Series Guide", type: "story_architecture", authorityStatus: "draft", protected: false }],
+    });
+    expect(first.status).toBe("applied");
+    const recordId = first.status === "applied" ? first.results[0].recordId! : "";
+
+    const next = {
+      filename: "04-Saltmarsh_Annals_Series_Guide_APPROVED_WORKING_v1.9.md",
+      content: guide.content.replace("Bells ring at slack water.", "Bells ring twice at slack water."),
+    };
+    const other = { filename: "Saltmarsh_Annals_Harbour_Notes_CURRENT.md", content: "# Harbour notes\n\nNew text.\n" };
+    const before = await snapshotState(t.db);
+    const preview = await previewMarkdownImport(t.db, IDS.project, [next, other]);
+    expect(preview.files[0].duplicates).toEqual([expect.objectContaining({ recordId, reasons: ["same_document"] })]);
+    expect(preview.files[0].needsDecision).toBe(true);
+    expect(preview.files[1].needsDecision).toBe(false);
+    expect(await snapshotState(t.db)).toEqual(before);
+
+    const batch = await previewMarkdownImport(t.db, IDS.project, [other, { ...other, filename: "Saltmarsh_Annals_Harbour_Notes_v2.md" }]);
+    expect(batch.files[0].batchDuplicates[0].reasons).toEqual(["same_content", "same_title", "same_document"]);
+
+    const replaced = await applyMarkdownImport(t.db, {
+      projectId: IDS.project,
+      items: [
+        {
+          ...next,
+          title: "Series Guide",
+          type: "story_architecture",
+          authorityStatus: "draft",
+          protected: false,
+          decision: { action: "replace", recordId, expectedRevision: 1 },
+        },
+      ],
+    });
+    expect(replaced.status).toBe("applied");
+    const record = await getRecord(t.db, IDS.project, recordId);
+    expect([record.currentRevision, record.authorityStatus]).toEqual([2, "draft"]);
+  });
+
   it("rejects the whole batch when any file is invalid", async () => {
     const before = await snapshotState(t.db);
     const outcome = await applyMarkdownImport(t.db, {

@@ -65,7 +65,7 @@ export async function detectPotentialEffects(
   if (prepared.length === 0) return [];
 
   const candidates = await db.record.findMany({
-    where: { projectId, id: { notIn: [...excludeRecordIds] } },
+    where: { projectId, id: { notIn: [...excludeRecordIds] }, trashedAt: null },
     select: { id: true, title: true, type: true, body: true, protected: true },
   });
 

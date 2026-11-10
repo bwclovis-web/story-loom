@@ -1,8 +1,16 @@
+import { compareBookOrder, orderAfterMove } from "@/domain/bookOrder";
 import { newId } from "@/domain/ids";
 import { errorIssue, warningIssue, type Issue } from "@/domain/issues";
 import { stableStringify, type JsonObject } from "@/domain/json";
 import { snapshotHash, snapshotOf, toRecordView, type RecordSnapshot, type RecordView } from "@/domain/records";
-import { defaultProtectedFor, type RecordType } from "@/domain/recordTypes";
+import {
+  allowedParent,
+  defaultProtectedFor,
+  PARENT_TYPES,
+  RECORD_TYPE_LABELS,
+  requiresParent,
+  type RecordType,
+} from "@/domain/recordTypes";
 import type { AuthorityStatus, MutationScope, SourceKind } from "@/domain/statuses";
 import type { Db, DbOrTx, Tx } from "../db";
 import { writeAudit } from "./auditService";
@@ -25,6 +33,8 @@ export interface CreateRecordMutation {
   authorityStatus: AuthorityStatus;
   /** Request protection at creation. Cannot lower the type's default (manuscript is always protected). */
   protected?: boolean;
+  /** Required for scenes and scene notes (see PARENT_TYPES); refused for every other type. */
+  parentRecordId?: string | null;
   operationIndex?: number;
 }
 
@@ -74,6 +84,8 @@ export interface PlannedMutation {
   recordId: string;
   type: RecordType;
   protected: boolean;
+  /** Set only on creation; existing records keep the parent they were created with. */
+  parentRecordId: string | null;
   before: RecordSnapshot | null;
   beforeRevision: number | null;
   after: RecordSnapshot;
@@ -113,12 +125,36 @@ function referencedIds(mutations: readonly Mutation[]): string[] {
   for (const m of mutations) {
     if (m.kind === "create_record") {
       if (m.recordId) ids.add(m.recordId);
+      if (m.parentRecordId) ids.add(m.parentRecordId);
     } else {
       ids.add(m.recordId);
     }
     if (m.kind === "set_authority_status" && m.supersededBy) ids.add(m.supersededBy);
   }
   return [...ids];
+}
+
+function checkParent(
+  m: CreateRecordMutation,
+  inProject: (id: string) => RecordView | undefined,
+  at: { operationIndex: number; path: string },
+): Issue[] {
+  const label = RECORD_TYPE_LABELS[m.type];
+  if (!requiresParent(m.type)) {
+    return m.parentRecordId ? [errorIssue("INVALID_PARENT", `A ${label} does not belong to another record.`, at)] : [];
+  }
+  const allowed = PARENT_TYPES[m.type]!.map((t) => RECORD_TYPE_LABELS[t].toLowerCase()).join(" or ");
+  if (!m.parentRecordId) {
+    return [errorIssue("INVALID_PARENT", `A ${label} must be created inside a ${allowed}, from the Write page.`, at)];
+  }
+  const parent = inProject(m.parentRecordId);
+  if (!parent) {
+    return [errorIssue("INVALID_PARENT", `Parent record ${m.parentRecordId} does not exist in this project.`, at)];
+  }
+  if (!allowedParent(m.type, parent.type)) {
+    return [errorIssue("INVALID_PARENT", `A ${label} can only be inside a ${allowed}, not a ${RECORD_TYPE_LABELS[parent.type]}.`, at)];
+  }
+  return [];
 }
 
 /**
@@ -139,15 +175,28 @@ export async function planMutations(
     return { issues, planned };
   }
 
+  const project = await db.project.findUnique({
+    where: { id: ctx.projectId },
+    select: { trashedAt: true, workspace: { select: { trashedAt: true } } },
+  });
+  if (project && (project.trashedAt || project.workspace.trashedAt)) {
+    issues.push(errorIssue("IN_TRASH", "This project is in the Trash. Restore it before changing its records."));
+    return { issues, planned };
+  }
+
   const rows = await db.record.findMany({ where: { id: { in: referencedIds(mutations) } } });
   const existing = new Map<string, RecordView>(rows.map((r) => [r.id, toRecordView(r)]));
+  const trashed = new Set(rows.filter((r) => r.trashedAt && r.projectId === ctx.projectId).map((r) => r.id));
   const createdIds = new Set<string>();
   const targeted = new Set<string>();
 
+  /** Records in the Trash count as absent, except for ID conflicts. */
   const inProject = (id: string) => {
     const rec = existing.get(id);
-    return rec && rec.projectId === ctx.projectId ? rec : undefined;
+    return rec && rec.projectId === ctx.projectId && !trashed.has(id) ? rec : undefined;
   };
+  const inTrash = (id: string, at: { operationIndex: number; path: string }) =>
+    errorIssue("IN_TRASH", `Record ${id} is in the Trash. Restore it from the Trash first.`, { ...at, recordId: id });
 
   mutations.forEach((m, index) => {
     const opIndex = m.operationIndex ?? index;
@@ -180,12 +229,18 @@ export async function planMutations(
       if (!m.title.trim()) {
         issues.push(errorIssue("INVALID_CHANGE", "Title must not be empty.", at("title")));
       }
+      if (m.parentRecordId && trashed.has(m.parentRecordId)) {
+        issues.push(inTrash(m.parentRecordId, at("parentRecordId")));
+      } else {
+        issues.push(...checkParent(m, inProject, at("parentRecordId")));
+      }
       planned.push({
         index: opIndex,
         mutation: m,
         recordId,
         type: m.type,
         protected: m.protected === true || defaultProtectedFor(m.type),
+        parentRecordId: m.parentRecordId ?? null,
         before: null,
         beforeRevision: null,
         after: {
@@ -201,6 +256,10 @@ export async function planMutations(
     }
 
     const record = inProject(m.recordId);
+    if (!record && trashed.has(m.recordId)) {
+      issues.push(inTrash(m.recordId, at("recordId")));
+      return;
+    }
     if (!record) {
       issues.push(
         errorIssue("RECORD_NOT_FOUND", `Record ${m.recordId} does not exist in this project.`, {
@@ -285,6 +344,8 @@ export async function planMutations(
                 recordId: record.id,
               }),
             );
+          } else if (trashed.has(m.supersededBy)) {
+            issues.push(inTrash(m.supersededBy, at("supersededBy")));
           } else if (!inProject(m.supersededBy) && !mutations.some((o) => o.kind === "create_record" && o.recordId === m.supersededBy)) {
             issues.push(
               errorIssue("INVALID_REFERENCE", `supersededBy ${m.supersededBy} does not exist in this project.`, {
@@ -322,6 +383,7 @@ export async function planMutations(
       recordId: record.id,
       type: record.type,
       protected: record.protected,
+      parentRecordId: record.parentRecordId,
       before,
       beforeRevision: record.currentRevision,
       after,
@@ -396,6 +458,7 @@ export async function applyMutationsInTx(
           projectId: ctx.projectId,
           type: p.type,
           protected: p.protected,
+          parentRecordId: p.parentRecordId,
           currentRevision: newRevision,
           ...data,
         },
@@ -477,7 +540,7 @@ export async function setRecordProtectionInTx(
   tx: Tx,
   input: { projectId: string; recordId: string; protected: boolean; actor: string },
 ): Promise<void> {
-  const record = await tx.record.findFirst({ where: { id: input.recordId, projectId: input.projectId } });
+  const record = await tx.record.findFirst({ where: { id: input.recordId, projectId: input.projectId, trashedAt: null } });
   if (!record) throw new NotFoundError(`Record ${input.recordId} not found`);
   if (record.protected === input.protected) return;
   await tx.record.update({ where: { id: record.id }, data: { protected: input.protected } });
@@ -488,4 +551,286 @@ export async function setRecordProtectionInTx(
     summary: `${input.protected ? "Protected" : "Unprotected"} "${record.title}"`,
     details: { recordId: record.id, protected: input.protected },
   });
+}
+
+/*
+ * Book order. A chapter's place among chapters, and a scene's place and
+ * chapter, are outside revisioned content: a move writes no revision and
+ * needs no protection unlock, because no text changes. Every move is audited.
+ * Notes on a moved scene stay on that scene and so move with it.
+ */
+
+export interface MoveInBookInput {
+  projectId: string;
+  recordId: string;
+  /** The chapter a scene goes into; null for a chapter. */
+  parentRecordId: string | null;
+  /** Place among the destination's chapters or scenes, counted without the moved record. Clamped. */
+  index: number;
+  actor: string;
+}
+
+export interface MoveInBookResult {
+  moved: boolean;
+  position: number;
+  of: number;
+}
+
+export async function moveInBook(db: Db, input: MoveInBookInput): Promise<MoveInBookResult> {
+  return db.$transaction((tx) => moveInBookInTx(tx, input));
+}
+
+export async function moveInBookInTx(tx: Tx, input: MoveInBookInput): Promise<MoveInBookResult> {
+  const record = await tx.record.findFirst({ where: { id: input.recordId, projectId: input.projectId, trashedAt: null } });
+  if (!record) throw new NotFoundError(`Record ${input.recordId} not found`);
+  const reject = (message: string): never => {
+    throw new MutationRejectedError([errorIssue("INVALID_PARENT", message, { recordId: record.id })]);
+  };
+  let chapterTitle: string | null = null;
+  if (record.type === "manuscript_chapter") {
+    if (input.parentRecordId) reject("A chapter cannot go inside another record.");
+  } else if (record.type === "manuscript_scene") {
+    if (!input.parentRecordId) reject("A scene must be inside a chapter.");
+    const parent = await tx.record.findFirst({
+      where: { id: input.parentRecordId!, projectId: input.projectId, trashedAt: null },
+      select: { type: true, title: true },
+    });
+    if (!parent || parent.type !== "manuscript_chapter") reject("A scene can only move into a chapter of this project.");
+    chapterTitle = parent!.title;
+  } else {
+    reject("Only chapters and scenes have a place in the book.");
+  }
+
+  const siblings = await tx.record.findMany({
+    where: { projectId: input.projectId, type: record.type, parentRecordId: input.parentRecordId, trashedAt: null },
+    select: { id: true, position: true, createdAt: true },
+  });
+  const before = siblings
+    .map((s) => ({ id: s.id, position: s.position, createdAt: s.createdAt.toISOString() }))
+    .sort(compareBookOrder);
+  const beforeIds = before.map((s) => s.id);
+  const order = orderAfterMove(beforeIds, record.id, input.index);
+  const position = order.indexOf(record.id);
+  const sameParent = record.parentRecordId === input.parentRecordId;
+  if (sameParent && order.every((id, i) => beforeIds[i] === id)) return { moved: false, position, of: order.length };
+
+  const current = new Map(before.map((s) => [s.id, s.position]));
+  for (const [i, id] of order.entries()) {
+    if (id === record.id) {
+      await tx.record.update({ where: { id }, data: { position: i, parentRecordId: input.parentRecordId } });
+    } else if (current.get(id) !== i) {
+      await tx.record.update({ where: { id }, data: { position: i } });
+    }
+  }
+  const place = `${position + 1} of ${order.length}`;
+  await writeAudit(tx, {
+    projectId: input.projectId,
+    action: "record.move",
+    actor: input.actor,
+    summary:
+      record.type === "manuscript_chapter"
+        ? `Moved chapter "${record.title}" to place ${place}`
+        : sameParent
+          ? `Moved scene "${record.title}" to place ${place} in "${chapterTitle}"`
+          : `Moved scene "${record.title}" to "${chapterTitle}", place ${place}`,
+    details: {
+      recordId: record.id,
+      fromParentRecordId: record.parentRecordId,
+      toParentRecordId: input.parentRecordId,
+      position,
+      order,
+    },
+  });
+  return { moved: true, position, of: order.length };
+}
+
+/*
+ * The Trash. Like protection, it is a record-level mark outside revisioned
+ * content: moving a record to the Trash and restoring it keep every row and
+ * revision. A chapter or scene goes with the scenes and notes inside it, as
+ * one batch. Records are deleted only from the Trash (or with their project),
+ * through deleteRecordRowsInTx.
+ */
+
+const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+
+/** Scenes and notes inside these records, at any depth, in or out of the Trash. */
+async function descendantIds(db: DbOrTx, projectId: string, rootIds: readonly string[]): Promise<string[]> {
+  const seen = new Set(rootIds);
+  const found: string[] = [];
+  let frontier = [...rootIds];
+  while (frontier.length > 0) {
+    const children = await db.record.findMany({ where: { projectId, parentRecordId: { in: frontier } }, select: { id: true } });
+    frontier = children.map((c) => c.id).filter((id) => !seen.has(id));
+    frontier.forEach((id) => seen.add(id));
+    found.push(...frontier);
+  }
+  return found;
+}
+
+export interface TrashedBatch {
+  batchId: string;
+  recordIds: string[];
+}
+
+export async function trashRecord(
+  db: Db,
+  input: { projectId: string; recordId: string; actor: string; unlockProtected: boolean },
+): Promise<TrashedBatch> {
+  return db.$transaction((tx) => trashRecordInTx(tx, input));
+}
+
+export async function trashRecordInTx(
+  tx: Tx,
+  input: { projectId: string; recordId: string; actor: string; unlockProtected: boolean },
+): Promise<TrashedBatch> {
+  const record = await tx.record.findFirst({ where: { id: input.recordId, projectId: input.projectId, trashedAt: null } });
+  if (!record) throw new NotFoundError(`Record ${input.recordId} not found`);
+  const inside = await tx.record.findMany({
+    where: { id: { in: await descendantIds(tx, input.projectId, [record.id]) }, trashedAt: null },
+    select: { id: true, protected: true },
+  });
+  if ((record.protected || inside.some((r) => r.protected)) && !input.unlockProtected) {
+    throw new MutationRejectedError([
+      errorIssue(
+        "PROTECTED_RECORD",
+        `"${record.title}"${inside.length ? " or a record inside it" : ""} is protected. Confirm that you are intentionally moving it to the Trash.`,
+        { recordId: record.id },
+      ),
+    ]);
+  }
+  const batchId = newId("trb");
+  const recordIds = [record.id, ...inside.map((r) => r.id)];
+  await tx.record.updateMany({ where: { id: { in: recordIds }, trashedAt: null }, data: { trashedAt: new Date(), trashBatchId: batchId } });
+  await writeAudit(tx, {
+    projectId: input.projectId,
+    action: "trash.move",
+    actor: input.actor,
+    summary: inside.length
+      ? `Moved "${record.title}" and ${plural(inside.length, "record", "records")} inside it to the Trash`
+      : `Moved "${record.title}" to the Trash`,
+    details: { kind: "records", batchId, recordIds },
+  });
+  return { batchId, recordIds };
+}
+
+export async function restoreTrashBatch(db: Db, input: { projectId: string; batchId: string; actor: string }): Promise<TrashedBatch> {
+  return db.$transaction((tx) => restoreTrashBatchInTx(tx, input));
+}
+
+export async function restoreTrashBatchInTx(
+  tx: Tx,
+  input: { projectId: string; batchId: string; actor: string },
+): Promise<TrashedBatch> {
+  const rows = await tx.record.findMany({
+    where: { projectId: input.projectId, trashBatchId: input.batchId, trashedAt: { not: null } },
+    select: { id: true, title: true, parentRecordId: true },
+  });
+  if (rows.length === 0) throw new NotFoundError(`Nothing in the Trash for ${input.batchId}`);
+  const ids = new Set(rows.map((r) => r.id));
+  const outsideParents = rows.flatMap((r) => (r.parentRecordId && !ids.has(r.parentRecordId) ? [r.parentRecordId] : []));
+  const trashedParent = await tx.record.findFirst({
+    where: { id: { in: outsideParents }, trashedAt: { not: null } },
+    select: { title: true },
+  });
+  if (trashedParent) {
+    throw new MutationRejectedError([
+      errorIssue("IN_TRASH", `"${trashedParent.title}", which this belongs to, is also in the Trash. Restore it first.`),
+    ]);
+  }
+  const lead = rows.find((r) => !r.parentRecordId || !ids.has(r.parentRecordId)) ?? rows[0];
+  await tx.record.updateMany({ where: { id: { in: [...ids] } }, data: { trashedAt: null, trashBatchId: null } });
+  await writeAudit(tx, {
+    projectId: input.projectId,
+    action: "trash.restore",
+    actor: input.actor,
+    summary:
+      rows.length > 1
+        ? `Restored "${lead.title}" and ${plural(rows.length - 1, "record", "records")} inside it from the Trash`
+        : `Restored "${lead.title}" from the Trash`,
+    details: { kind: "records", batchId: input.batchId, recordIds: [...ids] },
+  });
+  return { batchId: input.batchId, recordIds: [...ids] };
+}
+
+export interface RecordDeletionPlan {
+  records: Array<{ id: string; title: string; type: string }>;
+  issues: Issue[];
+}
+
+/**
+ * What deleting these Trash batches removes (the batches plus everything inside
+ * their records), and why it may not be allowed. Reads only.
+ */
+export async function planTrashedRecordDeletion(
+  db: DbOrTx,
+  projectId: string,
+  batchIds: readonly string[],
+): Promise<RecordDeletionPlan> {
+  const roots = await db.record.findMany({
+    where: { projectId, trashBatchId: { in: [...batchIds] }, trashedAt: { not: null } },
+    select: { id: true },
+  });
+  const rootIds = roots.map((r) => r.id);
+  const ids = [...rootIds, ...(await descendantIds(db, projectId, rootIds))];
+  const rows = await db.record.findMany({
+    where: { id: { in: ids } },
+    orderBy: [{ type: "asc" }, { title: "asc" }],
+    select: { id: true, title: true, type: true, trashedAt: true },
+  });
+  const issues: Issue[] = [];
+  for (const r of rows.filter((x) => !x.trashedAt)) {
+    issues.push(errorIssue("DELETE_BLOCKED", `"${r.title}" is inside a record in the Trash but is not in the Trash itself.`, { recordId: r.id }));
+  }
+  const titles = new Map(rows.map((r) => [r.id, r.title]));
+  const superseding = await db.record.findMany({
+    where: { supersededByRecordId: { in: ids }, id: { notIn: ids } },
+    select: { id: true, title: true, supersededByRecordId: true },
+  });
+  for (const r of superseding) {
+    issues.push(
+      errorIssue(
+        "DELETE_BLOCKED",
+        `"${r.title}" is marked superseded by "${titles.get(r.supersededByRecordId!)}". Change the status of "${r.title}" before deleting "${titles.get(r.supersededByRecordId!)}" permanently.`,
+        { recordId: r.id },
+      ),
+    );
+  }
+  return { records: rows.map(({ id, title, type }) => ({ id, title, type })), issues };
+}
+
+export async function deleteTrashedRecordsInTx(
+  tx: Tx,
+  input: { projectId: string; batchIds: readonly string[]; actor: string },
+): Promise<RecordDeletionPlan["records"]> {
+  const plan = await planTrashedRecordDeletion(tx, input.projectId, input.batchIds);
+  if (plan.issues.length) throw new MutationRejectedError(plan.issues);
+  if (plan.records.length === 0) throw new NotFoundError("Nothing in the Trash to delete");
+  await deleteRecordRowsInTx(tx, plan.records.map((r) => r.id));
+  await writeAudit(tx, {
+    projectId: input.projectId,
+    action: "trash.delete",
+    actor: input.actor,
+    summary: `Permanently deleted ${plural(plan.records.length, "record", "records")} from the Trash`,
+    details: { kind: "records", batchIds: [...input.batchIds], records: plan.records },
+  });
+  return plan.records;
+}
+
+/**
+ * Removes records with their revisions, links, images, review items, imported
+ * files, proofreading runs and assistant context items. Callers check first
+ * that every record is in the Trash or that its whole project is being deleted.
+ */
+export async function deleteRecordRowsInTx(tx: Tx, recordIds: readonly string[]): Promise<void> {
+  if (recordIds.length === 0) return;
+  const ids = { in: [...recordIds] };
+  await tx.recordLink.deleteMany({ where: { OR: [{ fromRecordId: ids }, { toRecordId: ids }] } });
+  await tx.recordImage.deleteMany({ where: { recordId: ids } });
+  await tx.reviewItem.deleteMany({ where: { recordId: ids } });
+  await tx.importedFile.deleteMany({ where: { recordId: ids } });
+  await tx.assistantContextItem.deleteMany({ where: { recordId: ids } });
+  await tx.proofreadRun.deleteMany({ where: { recordId: ids } });
+  await tx.revision.deleteMany({ where: { recordId: ids } });
+  await tx.record.deleteMany({ where: { id: ids } });
 }

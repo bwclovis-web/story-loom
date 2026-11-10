@@ -1,10 +1,11 @@
+import { NAV } from "@/ui/labels";
 import { MarkdownImportClient } from "./MarkdownImportClient";
 
 export default async function ImportMarkdownPage({ params }: { params: Promise<{ projectId: string }> }) {
   const { projectId } = await params;
   return (
     <>
-      <h1>Import Markdown references</h1>
+      <h1>{NAV.importMarkdown}</h1>
       <p className="muted small">
         Select one or more <code>.md</code> files. Nothing is written until you review the preview and choose, for every
         file, its document type, canon status, and protection. Nothing is inferred from filenames. Imports create

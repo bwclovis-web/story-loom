@@ -14,6 +14,9 @@ src/generated/
 .env.*
 !.env.example
 
+# Local MCP grant. The example in mcp/grant.example.json stays tracked.
+mcp/grant.json
+
 # Local databases anywhere in the tree, including SQLite journal/WAL files
 *.db
 *.db-journal

@@ -1,4 +1,4 @@
-import { diffLines, diffWords } from "diff";
+import { diffLines, diffWordsWithSpace } from "diff";
 import { stableStringify, type JsonObject, type JsonValue } from "@/domain/json";
 
 export interface DiffPart {
@@ -14,11 +14,15 @@ export interface FieldDiff {
   after?: JsonValue;
 }
 
-/** Word-level diff for short text, line-level for long text. */
+/**
+ * Word-level diff for short text, line-level for long text. Unchanged plus
+ * removed parts rebuild `before` exactly, and unchanged plus added parts
+ * rebuild `after` (`diffWords` moves whitespace and breaks the first).
+ */
 export function textDiff(before: string, after: string): DiffPart[] {
   if (before === after) return before ? [{ value: before }] : [];
   const useLines = before.length + after.length > 20_000;
-  const parts = useLines ? diffLines(before, after) : diffWords(before, after);
+  const parts = useLines ? diffLines(before, after) : diffWordsWithSpace(before, after);
   return parts.map((p) => ({
     value: p.value,
     ...(p.added ? { added: true } : {}),

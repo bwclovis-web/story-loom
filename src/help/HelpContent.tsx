@@ -1,0 +1,2775 @@
+import Link from "next/link";
+import { CopyButton } from "@/components/CopyButton";
+import { contentClassOf, RECORD_TYPE_LABELS, RECORD_TYPES } from "@/domain/recordTypes";
+import { AUTHORITY_STATUSES } from "@/domain/statuses";
+import { formatBytes, MAX_IMAGE_BYTES, MAX_IMAGES_PER_RECORD } from "@/images/imageFormat";
+import {
+  ASSISTANT,
+  BACKUP,
+  BOOK_ORDER,
+  CHAPTER_IMPORT,
+  CONNECTIONS,
+  DICTIONARY,
+  EXPORT,
+  HISTORY,
+  HOME,
+  IMAGES,
+  MANUSCRIPT_SEARCH,
+  MARKDOWN_IMPORT,
+  NAV,
+  PACKAGE_IMPORT,
+  PDF,
+  PROOFREAD,
+  READ_BOOK,
+  RECORD,
+  REVIEW,
+  SHELL,
+  SPELLING,
+  TEXT_APPEARANCE,
+  THEME,
+  TRASH,
+  WORLD,
+  WRITE,
+  WRITING,
+  XREF,
+  XREF_CHECK,
+} from "@/ui/labels";
+import { WORLD_CATEGORY_LABELS, WORLD_TYPES } from "@/ui/world";
+import { SPELL_CHECKERS, SPELLING_LANGUAGES } from "@/writing/spelling";
+import { APP_URL, HELP_SECTIONS, helpHref, STATUS_DESCRIPTIONS, type HelpAnchor, type HelpScript } from "./outline";
+
+/*
+ * Text of the "How to use" page. Describe only what the app does today and
+ * quote interface labels through src/ui/labels.ts. PROJECT_RULES.md requires
+ * updating this file whenever a documented workflow or label changes.
+ */
+
+export const CHATGPT_INSTRUCTION =
+  "Use this WordlyEditor context export as the current source. Keep proposed ideas separate from approved decisions. " +
+  "When I ask you to prepare updates, follow the included package format and use the supplied record IDs and " +
+  "saved-version numbers. Do not change manuscript prose unless I explicitly request it.";
+
+const REFERENCE_TYPES = RECORD_TYPES.filter((t) => contentClassOf(t) === "reference");
+
+function titleOf(id: HelpAnchor): string {
+  for (const s of HELP_SECTIONS) {
+    if (s.id === id) return s.title;
+    const child = "children" in s ? s.children.find((c) => c.id === id) : undefined;
+    if (child) return child.title;
+  }
+  return id;
+}
+
+/** An interface label, shown the way the author sees it on screen. */
+function L({ children }: { children: React.ReactNode }) {
+  return <strong>{children}</strong>;
+}
+
+function Cmd({ script, args }: { script: HelpScript; args?: string }) {
+  return <code>{`pnpm ${script}${args ? ` ${args}` : ""}`}</code>;
+}
+
+function See({ anchor }: { anchor: HelpAnchor }) {
+  return <Link href={helpHref(anchor)}>{titleOf(anchor)}</Link>;
+}
+
+function Section({ id, children }: { id: HelpAnchor; children: React.ReactNode }) {
+  return (
+    <section id={id} aria-labelledby={`${id}-heading`} className="panel">
+      <h2 id={`${id}-heading`}>{titleOf(id)}</h2>
+      {children}
+      <p className="help-back">
+        <a href="#contents">Back to contents</a>
+      </p>
+    </section>
+  );
+}
+
+function Sub({ id, children }: { id: HelpAnchor; children: React.ReactNode }) {
+  return (
+    <>
+      <h3 id={id}>{titleOf(id)}</h3>
+      {children}
+    </>
+  );
+}
+
+export function HelpContent() {
+  return (
+    <div className="help-body">
+      <Section id="quick-start">
+        <ol>
+          <li>Open a terminal in the WordlyEditor folder.</li>
+          <li>
+            Run <Cmd script="dev" />. Leave this terminal open while you work.
+          </li>
+          <li>
+            Open <a href={APP_URL}>{APP_URL}</a> in your browser.
+          </li>
+          <li>
+            Under <L>{HOME.newWorkspaceHeading}</L>, type a name and choose <L>{HOME.createWorkspace}</L>.
+          </li>
+          <li>
+            In that workspace, type a book title in <L>{HOME.projectTitlePlaceholder}</L> and choose{" "}
+            <L>{HOME.addProject}</L>. The project opens.
+          </li>
+          <li>
+            Choose <L>{NAV.importMarkdown}</L> to bring in your notes, or use <L>{RECORD.newRecordHeading}</L> to write
+            one yourself.
+          </li>
+          <li>
+            Before big changes, choose <L>{SHELL.backups}</L> in the left navigation and download a backup.
+          </li>
+        </ol>
+        <p>
+          To stop the app, press <kbd>Ctrl</kbd>+<kbd>C</kbd> in the terminal. Your work is already saved.
+        </p>
+      </Section>
+
+      <Section id="getting-started">
+        <p>
+          WordlyEditor keeps your novel&apos;s working material in one place: manuscript chapters, outlines, character
+          dossiers, worldbuilding, canon decisions, continuity notes, and reference notes. Each item is called a{" "}
+          <em>record</em>. Every time you save a record, the earlier saved versions are kept.
+        </p>
+        <h3>Where your work is stored</h3>
+        <p>
+          Everything is stored in one database file on this computer. By default it is <code>prisma/dev.db</code>{" "}
+          inside the WordlyEditor folder. The <code>.env</code> file says which file is used. To see the exact path,
+          run <Cmd script="db:info" />. It only reads; it changes nothing.
+        </p>
+        <p>
+          There is no cloud sync and no account. The app only answers on this computer (<code>127.0.0.1</code>), so
+          other devices cannot open it. ChatGPT cannot see or change anything in the app.
+        </p>
+        <h3>Opening the app</h3>
+        <p>The app must be running before the page will load.</p>
+        <ol>
+          <li>Open a terminal in the WordlyEditor folder.</li>
+          <li>
+            Run <Cmd script="dev" /> (<code>npm run dev</code> also works).
+          </li>
+          <li>Wait until the terminal says it is ready.</li>
+          <li>
+            Open <a href={APP_URL}>{APP_URL}</a>.
+          </li>
+        </ol>
+        <p>
+          If port 3000 is already taken, the app uses the next free port, up to 3010. The terminal shows the address it
+          used, for example <code>http://127.0.0.1:3001</code>; open that address instead.
+        </p>
+        <p>
+          If the terminal says another dev server is already running, the app is already open from an earlier start.
+          Open the address it shows, or press Ctrl+C in that server&apos;s terminal and start again.
+        </p>
+        <p>Use the same steps every time you come back.</p>
+        <details>
+          <summary>First-time setup on a new computer</summary>
+          <p>You need Node 24 or later and pnpm 10 or later.</p>
+          <ol>
+            <li>
+              Copy <code>.env.example</code> to a new file named <code>.env</code>.
+            </li>
+            <li>
+              Run <code>pnpm install</code>.
+            </li>
+            <li>
+              Run <Cmd script="db:setup" />. It backs up any existing database first, prepares the database, and adds a
+              demo project called &ldquo;The Salt Archive&rdquo; if it is missing. It never deletes your work, so it is
+              safe to run again.
+            </li>
+            <li>
+              Run <Cmd script="dev" />.
+            </li>
+          </ol>
+        </details>
+      </Section>
+
+      <Section id="navigation">
+        <p>The dark column on the left is the main navigation. It is the same on every page.</p>
+        <ul>
+          <li>
+            <L>{SHELL.write}</L>: the project&apos;s manuscript chapters, scenes and scene notes. See{" "}
+            <See anchor="write" />.
+          </li>
+          <li>
+            <L>{SHELL.plan}</L>: chapter outlines and story architecture.
+          </li>
+          <li>
+            <L>{SHELL.world}</L>: character dossiers, worldbuilding, canon decisions, continuity notes and reference
+            notes.
+          </li>
+          <li>
+            <L>{SHELL.assistant}</L>: the optional assistant. See <See anchor="assistant" />.
+          </li>
+          <li>
+            <L>{SHELL.backups}</L>: the <L>{BACKUP.heading}</L> page.
+          </li>
+          <li>
+            <L>{SHELL.connections}</L>: the <L>{CONNECTIONS.heading}</L> page. See <See anchor="chatgpt-direct" />.
+          </li>
+          <li>
+            <L>{SHELL.trash}</L>: what you have moved to the Trash. See <See anchor="trash" />.
+          </li>
+          <li>
+            <L>{SHELL.help}</L>: this page.
+          </li>
+        </ul>
+        <p>
+          <L>{SHELL.write}</L>, <L>{SHELL.plan}</L>, <L>{SHELL.world}</L> and <L>{SHELL.assistant}</L> open pages of one
+          project: the project you are in, or the last one you opened. Before you have opened a project they are greyed
+          out. <L>{NAV.brand}</L> at the top goes to the home page with all workspaces.
+        </p>
+        <h3>Switch project</h3>
+        <ol>
+          <li>
+            At the bottom of the left column, choose the project box. It shows the project&apos;s title, its workspace,
+            its number of manuscript chapters, and the saved word count of those chapters.
+          </li>
+          <li>
+            Choose a project from the list. Each entry also shows how many records the project has.{" "}
+            <L>{SHELL.allWorkspaces}</L> opens the home page.
+          </li>
+        </ol>
+        <p>The counts use saved text. Changes you have not saved yet are not included.</p>
+        <h3>Project pages</h3>
+        <p>Inside a project, a second column lists:</p>
+        <ul>
+          <li>
+            <L>{NAV.records}</L>, with the number of records.
+          </li>
+          <li>
+            On <L>{SHELL.plan}</L> and its records, the records of that part by type. Choose a title to open it. On{" "}
+            <L>{SHELL.world}</L> and its records, search and categories instead (see <See anchor="world-nav" />
+            ). On <L>{SHELL.write}</L> and its records, the chapters and scenes (see <See anchor="manuscript-panel" />
+            ).
+          </li>
+          <li>
+            <L>{SHELL.projectTools}</L>: <L>{NAV.importPackage}</L>, <L>{NAV.importMarkdown}</L>,{" "}
+            <L>{NAV.importChapters}</L>, <L>{NAV.readBook}</L>, <L>{NAV.exportContext}</L>, <L>{NAV.exportPdf}</L>,{" "}
+            <L>{NAV.history}</L>, <L>{NAV.dictionary}</L> and <L>{NAV.crossRefCheck}</L> (see{" "}
+            <See anchor="cross-reference-check" />
+            ). A number beside{" "}
+            <L>{NAV.history}</L> is how many open review items the project has.
+          </li>
+        </ul>
+        <h3>Smaller windows</h3>
+        <p>
+          Choose <L>{SHELL.collapse}</L> at the bottom of the left column to show icons only. Point at an icon, or move to
+          it with <kbd>Tab</kbd>, to see its name. Choose the same button again (now <L>{SHELL.expand}</L>) to bring the
+          names back. On medium-width windows the column shows icons only until you expand it.
+        </p>
+        <h3>Light and dark theme</h3>
+        <p>
+          The theme button at the bottom of the left column, above <L>{SHELL.collapse}</L>, shows the current theme. Each
+          time you choose it, it moves to the next one: <L>{THEME.names.light}</L>, <L>{THEME.names.dark}</L>, then{" "}
+          <L>{THEME.names.system}</L>, which follows your computer&apos;s light or dark setting. The theme changes the
+          colours of every page. It does not change your text, the saved records, printed pages or PDF exports, which
+          always use light colours.
+        </p>
+        <p>
+          On a narrow window, such as a phone-sized one, both columns are hidden. Choose the menu button (three lines,
+          top left) for the main navigation, and <L>{SHELL.openProjectMenu}</L> above the page for the project&apos;s
+          pages. Choose a page, press <kbd>Esc</kbd>, or choose the close button to close them again.
+        </p>
+        <p>
+          This browser remembers whether the navigation is collapsed, the theme, and which project you opened last. It
+          keeps them as small cookies. No record text is stored in them.
+        </p>
+      </Section>
+
+      <Section id="workspaces">
+        <p>
+          A <em>workspace</em> holds one or more projects. A <em>project</em> is one book. Every record belongs to one
+          project.
+        </p>
+        <h3>Create a workspace</h3>
+        <ol>
+          <li>
+            Choose <L>{NAV.brand}</L> at the top of the left navigation to go to the home page.
+          </li>
+          <li>
+            Under <L>{HOME.newWorkspaceHeading}</L>, type a name.
+          </li>
+          <li>
+            Choose <L>{HOME.createWorkspace}</L>. The workspace appears in the list.
+          </li>
+        </ol>
+        <h3>Create a project</h3>
+        <ol>
+          <li>
+            In the workspace&apos;s box, type a title in <L>{HOME.projectTitlePlaceholder}</L>.
+          </li>
+          <li>
+            Choose <L>{HOME.addProject}</L>. The new project opens.
+          </li>
+        </ol>
+        <h3>Open a project</h3>
+        <p>
+          On the home page, choose the project&apos;s title. You can also choose it from the project box at the bottom
+          of the left navigation. The project&apos;s pages are listed in the second column. See{" "}
+          <See anchor="navigation" />.
+        </p>
+        <h3>Try things in a separate trial workspace</h3>
+        <p>
+          Create a workspace called, for example, &ldquo;Trial&rdquo;, and add a test project to it. Imports and updates in
+          one project never change another project. This is a safe place to try an import or a change package first.
+        </p>
+        <p className="warning">
+          Workspaces and projects cannot be renamed in the app. (A record&apos;s title can be changed when you edit it and
+          save.) When you no longer need a trial workspace, move
+          it to the Trash with <L>{TRASH.moveWorkspace}</L>. See <See anchor="trash" />.
+        </p>
+      </Section>
+
+      <Section id="importing">
+        <p>
+          You can bring in notes written elsewhere as Markdown files (<code>.md</code> or <code>.markdown</code>). Each
+          file becomes one reference record. You can import up to 200 files at once, up to 5 MB each. Chapter files are
+          imported separately, with <L>{NAV.importChapters}</L>; see <See anchor="import-chapters" />.
+        </p>
+        <ol>
+          <li>
+            Open the project and choose <L>{NAV.importMarkdown}</L>.
+          </li>
+          <li>
+            Use the file picker to choose the files you want to import. You can check them before anything is saved.
+          </li>
+          <li>
+            Read each file&apos;s preview. Open <L>{MARKDOWN_IMPORT.previewContent}</L> to see the start of the text.
+          </li>
+          <li>
+            Check each title. The app suggests the file&apos;s first <code># heading</code>, or the filename. You can
+            change it.
+          </li>
+          <li>
+            For each file, choose a type, a canon status, and protection. Nothing is chosen for you, and nothing is
+            guessed from the filename.
+          </li>
+          <li>
+            To give many files the same choices, use <L>{MARKDOWN_IMPORT.setForAll}</L>, then choose{" "}
+            <L>{MARKDOWN_IMPORT.applyToAll}</L>. You can still change single files afterwards.
+          </li>
+          <li>
+            If a file is marked as a possible duplicate, choose what to do in its action menu. See{" "}
+            <See anchor="duplicates" />.
+          </li>
+          <li>
+            Optionally, type where the files came from in <L>{MARKDOWN_IMPORT.provenanceLabel}</L>. It is kept in each
+            record&apos;s history.
+          </li>
+          <li>
+            Choose <L>{MARKDOWN_IMPORT.importFiles("N")}</L>.
+          </li>
+        </ol>
+        <p>
+          The button stays unavailable until every file has all its choices. Until then you see:{" "}
+          <em>{MARKDOWN_IMPORT.incomplete}</em>
+        </p>
+        <p>
+          After importing, you see <em>{MARKDOWN_IMPORT.done}</em> and a table linking to each record. If anything is
+          wrong, you see <em>{MARKDOWN_IMPORT.rejected}</em> with the problems listed beside each file. The files are
+          saved together or not at all, so fix the problems and import again.
+        </p>
+        <details>
+          <summary>Which types can be imported</summary>
+          <ul>
+            {REFERENCE_TYPES.map((t) => (
+              <li key={t}>{RECORD_TYPE_LABELS[t]}</li>
+            ))}
+          </ul>
+          <p>
+            {RECORD_TYPE_LABELS.manuscript_chapter} cannot be imported. To add a chapter, use{" "}
+            <L>{RECORD.newRecordHeading}</L> on the project page and paste the text.
+          </p>
+        </details>
+
+        <Sub id="canon-status">
+          <p>
+            <em>Canon</em> is an established fact about the story. A record&apos;s canon status says how settled it is:
+          </p>
+          <dl>
+            {AUTHORITY_STATUSES.map((s) => (
+              <div key={s}>
+                <dt>{s}</dt>
+                <dd>{STATUS_DESCRIPTIONS[s]}</dd>
+              </div>
+            ))}
+          </dl>
+          <p>
+            Only <L>approved</L> means canon. You always choose the status; the app never decides it.
+          </p>
+          <p>
+            The status covers the whole record. If a file mixes approved facts with ideas you have not settled, mark its
+            sections in the headings, such as <code>[APPROVED FRAMEWORK]</code> or <code>[WORKING PROPOSAL]</code>: the app
+            shows those tags and tells the assistant and ChatGPT that they govern their sections (see{" "}
+            <See anchor="section-status" />). Otherwise choose <L>proposed</L> for the whole file, or split it into two
+            files before importing so each part gets its own status.
+          </p>
+        </Sub>
+
+        <Sub id="duplicates">
+          <p>
+            A file is marked as a possible duplicate when it has the same text or title as an existing record, the same
+            filename as an earlier import, a filename that differs only by version, date, status words or a number prefix
+            (<em>same document, another version</em>; see <See anchor="new-versions" />), or matches another file in the
+            same batch. Use the link to open the existing record in a new tab and compare.
+          </p>
+          <p>For each such file, choose one action:</p>
+          <ul>
+            <li>
+              <L>{MARKDOWN_IMPORT.createNew}</L> keeps both. The file becomes a separate record.
+            </li>
+            <li>
+              <L>{MARKDOWN_IMPORT.replacePrefix} &ldquo;title&rdquo; (rev N)</L> saves the file as a new saved version
+              of that record. The earlier versions are kept.
+            </li>
+            <li>
+              <L>{MARKDOWN_IMPORT.skip}</L> leaves this file out.
+            </li>
+          </ul>
+          <p>Nothing is saved until you choose the import button.</p>
+          <details>
+            <summary>What a replacement changes, and what it keeps</summary>
+            <p>A replacement changes the record&apos;s title, its text, and its canon status.</p>
+            <p>It keeps:</p>
+            <ul>
+              <li>The record ID, so links and earlier ChatGPT references still point to it.</li>
+              <li>
+                The type. Choose the record&apos;s current type, or the import will be refused.
+              </li>
+              <li>
+                The structured fields. A Markdown file only brings text, so fields such as aliases are left as they
+                were. Edit them on the record page if needed.
+              </li>
+              <li>
+                Protection. A protected record stays protected, and you must tick the box that starts{" "}
+                <em>I confirm replacing</em> before importing. Choosing <L>Protected</L> protects a record that was
+                not protected. Choosing <L>Not protected</L> never removes protection.
+              </li>
+            </ul>
+            <p>If the file is identical to the record, the import is refused and suggests skipping it.</p>
+          </details>
+        </Sub>
+      </Section>
+
+      <Section id="editing">
+        <h3>Find a record</h3>
+        <p>
+          The project&apos;s <L>{NAV.records}</L> page lists records grouped by type, in title order. Each row shows the
+          record ID, its canon status, <L>rev N</L> (the number of its current saved version), and{" "}
+          <L>manuscript</L> or <L>protected</L> labels where they apply. Choose a title to open it.
+        </p>
+        <p>
+          <L>{SHELL.write}</L>, <L>{SHELL.plan}</L> and <L>{SHELL.world}</L> in the left navigation show the same lists
+          for their record types only. When a record is open, the second column lists the other records of its part, so
+          you can move between them.
+        </p>
+        <h3>Create a record</h3>
+        <ol>
+          <li>
+            On the <L>{NAV.records}</L> page, or on <L>{SHELL.write}</L>, <L>{SHELL.plan}</L> or{" "}
+            <L>{SHELL.world}</L>, go to <L>{RECORD.newRecordHeading}</L>. On those three pages the type starts as the
+            first type of that part, for example <L>{RECORD_TYPE_LABELS.manuscript_chapter}</L> on{" "}
+            <L>{SHELL.write}</L>. In a World category, it starts as that category&apos;s type.
+          </li>
+          <li>
+            Choose a <L>Type</L> and a <L>Status</L>. The status starts as <L>draft</L>.
+          </li>
+          <li>
+            Type a <L>Title</L> and the text in <L>{RECORD.bodyLabel}</L>.
+          </li>
+          <li>
+            Choose <L>{RECORD.createRecord}</L>. The new record opens.
+          </li>
+        </ol>
+        <p>
+          The text is stored exactly as you type it. Markdown formatting such as <code>**bold**</code> is kept. In the
+          editor you see the Markdown itself; outside the editor, a reference document&apos;s page shows it formatted
+          (see <See anchor="reference-page" />
+          ).
+        </p>
+        <details>
+          <summary>What are structured fields?</summary>
+          <p>
+            Structured fields are optional extra details written in a strict format called JSON, for example{" "}
+            <code>{`{"name": "Mara Venn", "aliases": ["Mara"]}`}</code>. The app uses <code>name</code> and{" "}
+            <code>aliases</code> to find other records that mention this one when a change package is applied. Leave the
+            box empty if you do not need it. If the format is wrong, the save is refused with a message.
+          </p>
+        </details>
+        <h3>Edit a record</h3>
+        <ol>
+          <li>
+            Open the record. On a reference document&apos;s page, choose <L>{WORLD.edit}</L>.
+          </li>
+          <li>
+            In <L>{RECORD.editHeading}</L>, change the <L>Title</L>, the text, or the structured fields.
+          </li>
+          <li>
+            Choose <L>{RECORD.saveAsRevision("N")}</L>.
+          </li>
+        </ol>
+        <p>
+          Nothing is saved until you choose that button; there is no autosave. After saving you see{" "}
+          <em>Saved as revision N.</em> If the save is refused, your typing stays on screen and the reason is shown.
+        </p>
+        <p>
+          Spelling, word counts, and find and replace are in the <L>{WRITING.toolsHeading}</L> box above the text. See{" "}
+          <See anchor="writing-tools" />.
+        </p>
+        <h3>Change the canon status</h3>
+        <ol>
+          <li>
+            In <L>{RECORD.statusHeading}</L>, choose a new <L>Status</L>.
+          </li>
+          <li>
+            For <L>superseded</L>, you can type the ID of the record that replaces it in{" "}
+            <L>{RECORD.supersededByLabel}</L>.
+          </li>
+          <li>
+            Choose <L>{RECORD.updateStatus}</L>. This saves a new version.
+          </li>
+        </ol>
+
+        <Sub id="saved-versions">
+          <p>
+            Every save creates a new saved version. The app calls these <em>revisions</em> and numbers them 1, 2, 3, and
+            so on. Earlier versions are never changed or removed.
+          </p>
+          <ul>
+            <li>
+              <L>{RECORD.historyHeading}</L> lists every version with its status, where it came from (typed in the app, a
+              Markdown import, or a change package), and when.
+            </li>
+            <li>Choose a version number there to see what changed since the version before it.</li>
+            <li>
+              In <L>{RECORD.compareHeading}</L>, pick any two versions and choose <L>{RECORD.compare}</L>. Pick the same
+              number twice to read one version in full.
+            </li>
+          </ul>
+          <details>
+            <summary>Going back to an earlier version</summary>
+            <p>There is no restore button. To go back:</p>
+            <ol>
+              <li>Show the earlier version in full with the same number in both boxes.</li>
+              <li>Copy the text you want.</li>
+              <li>
+                Paste it into <L>{RECORD.editHeading}</L>.
+              </li>
+              <li>
+                Choose <L>{RECORD.saveAsRevision("N")}</L>.
+              </li>
+            </ol>
+            <p>This adds a new version; nothing is lost.</p>
+          </details>
+        </Sub>
+
+        <Sub id="protection">
+          <p>
+            Protection guards a record against accidental changes. Manuscript chapters and scenes are protected
+            automatically when created. Any record can be protected.
+          </p>
+          <p>To change a protected record on its page:</p>
+          <ol>
+            <li>Make your changes.</li>
+            <li>
+              Tick <L>{RECORD.unlockProtected}</L>
+            </li>
+            <li>Save.</li>
+          </ol>
+          <p>Without the tick, the save is refused and your typing stays on screen.</p>
+          <p>
+            In <L>{RECORD.protectionHeading}</L>, <L>{RECORD.protect}</L> and <L>{RECORD.unprotect}</L> switch
+            protection on or off. Neither creates a new saved version.
+          </p>
+          <p className="warning">
+            <L>{RECORD.unprotect}</L> takes effect at once. There is no confirmation step.
+          </p>
+          <p>
+            Imports and change packages can only change a protected record after you tick a confirmation box. See{" "}
+            <See anchor="duplicates" /> and <See anchor="change-package-import" />.
+          </p>
+        </Sub>
+
+        <h3>Manuscript chapters and scenes</h3>
+        <p>
+          Chapters and scenes open on their own writing page, with a <L>{WRITE.save}</L> button instead of{" "}
+          <L>{RECORD.saveAsRevision("N")}</L>. Saving works the same way. See <See anchor="write" />.
+        </p>
+      </Section>
+
+      <Section id="write">
+        <p>
+          <L>{SHELL.write}</L> holds the manuscript: {RECORD_TYPE_LABELS.manuscript_chapter.toLowerCase()}s,{" "}
+          {RECORD_TYPE_LABELS.manuscript_scene.toLowerCase()}s inside them, and{" "}
+          {RECORD_TYPE_LABELS.scene_note.toLowerCase()}s. A scene always belongs to one chapter. A scene note belongs to
+          a chapter or a scene.
+        </p>
+
+        <Sub id="manuscript-panel">
+          <p>
+            On <L>{SHELL.write}</L> and on any chapter, scene or scene note, the second column shows{" "}
+            <L>{WRITE.manuscript}</L>: the book&apos;s chapters with their scenes underneath. The open chapter or scene
+            is highlighted. Long titles are shortened on screen; point at one to read it in full.
+          </p>
+          <ul>
+            <li>
+              Choose the arrow beside a chapter to show or hide its scenes. The number beside a chapter is how many
+              scenes it has.
+            </li>
+            <li>
+              Type in <L>{WRITE.searchManuscript}</L> to show only chapters and scenes whose titles contain that text.
+              Clear the box to see everything again. Press Enter to search the text as well (see{" "}
+              <See anchor="manuscript-search" />
+              ).
+            </li>
+            <li>
+              Chapters and scenes are in book order. To change it, see <See anchor="book-order" />.
+            </li>
+            <li>
+              Under the heading, <L>{NAV.readBook}</L> opens the whole book on one page (see <See anchor="read-book" />) and{" "}
+              <L>{NAV.importChapters}</L> turns files into chapters (see <See anchor="import-chapters" />). The same two
+              links are at the top of <L>{SHELL.write}</L> and under <L>{SHELL.projectTools}</L>.
+            </li>
+          </ul>
+          <h4>Add a chapter or scene</h4>
+          <ol>
+            <li>
+              Choose <L>{WRITE.newChapter}</L> or <L>{WRITE.newScene}</L>.
+            </li>
+            <li>
+              Type a <L>{WRITE.titleLabel}</L>. For a scene, choose its <L>{WRITE.chapterLabel}</L>; it starts as the
+              chapter you are in.
+            </li>
+            <li>
+              Choose <L>{WRITE.create}</L>. The new chapter or scene opens with empty text, status <L>draft</L>, and
+              protection on.
+            </li>
+          </ol>
+          <p>
+            A scene needs a chapter, so create a chapter first. Scenes and scene notes cannot be added with{" "}
+            <L>{RECORD.newRecordHeading}</L>, imports or change packages. A new chapter goes at the end of the book, and a
+            new scene at the end of its chapter.
+          </p>
+        </Sub>
+
+        <Sub id="book-order">
+          <p>
+            <L>{BOOK_ORDER.heading}</L> on <L>{SHELL.write}</L> lists every chapter with its scenes underneath, with each
+            one&apos;s status, protection and saved word count, and the whole book&apos;s word count at the top. The same
+            order is used by the manuscript panel, <L>{NAV.readBook}</L> and the PDF export.
+          </p>
+          <ul>
+            <li>
+              Choose <L>{BOOK_ORDER.moveUp}</L> or <L>{BOOK_ORDER.moveDown}</L> beside a chapter to move it one place
+              among the chapters, with all its scenes. Beside a scene, they move it one place within its chapter.
+            </li>
+            <li>
+              To move a scene into a different chapter, pick the chapter in the list beside the scene (it starts as{" "}
+              <L>{BOOK_ORDER.chooseChapter}</L>), then choose <L>{BOOK_ORDER.moveTo}</L>. The scene goes to the end of that
+              chapter, and its scene notes go with it.
+            </li>
+          </ul>
+          <p>
+            Moving changes no text and makes no new saved version, so it does not need the protection tick. Every move is
+            listed in the <L>{HISTORY.auditLog}</L> on <L>{NAV.history}</L>. A chapter you create or import later goes at the end of the book. Backups keep
+            the order.
+          </p>
+        </Sub>
+
+        <Sub id="manuscript-search">
+          <p>
+            The search box at the top of <L>{SHELL.write}</L> (<L>{MANUSCRIPT_SEARCH.label}</L>) finds text in the saved
+            titles and text of every chapter, scene and scene note. Pressing Enter in the manuscript panel&apos;s search
+            box does the same search.
+          </p>
+          <ol>
+            <li>
+              Type a word or phrase and choose <L>{MANUSCRIPT_SEARCH.submit}</L>. Tick <L>{MANUSCRIPT_SEARCH.matchCase}</L>{" "}
+              first to tell &ldquo;Salt&rdquo; from &ldquo;salt&rdquo;; otherwise case is ignored. The text is matched
+              exactly as typed, the same way as <L>{WRITING.find}</L> in the editor.
+            </li>
+            <li>
+              Results are in book order, each scene note after the chapter or scene it is on. Each shows how many matches
+              its text has and up to three of them with the matching words highlighted, then how many more there are.{" "}
+              <L>{MANUSCRIPT_SEARCH.titleOnly}</L> means only the title matched.
+            </li>
+            <li>
+              Choose <L>{MANUSCRIPT_SEARCH.openWithFind}</L> beside a chapter or scene to open it with{" "}
+              <L>{WRITING.find}</L> already filled in and the first match selected. Choose the title to open it normally.
+            </li>
+          </ol>
+          <p>
+            Searching never changes anything. It reads saved text only, so unsaved changes in an open editor are not
+            searched. There is no replace across the whole manuscript; replace text one chapter or scene at a time with{" "}
+            <L>{WRITING.find}</L>.
+          </p>
+        </Sub>
+
+        <Sub id="import-chapters">
+          <p>
+            If you write chapters in other programs as <code>.md</code>, <code>.markdown</code> or <code>.txt</code> files,{" "}
+            <L>{NAV.importChapters}</L> turns each file into a chapter. Only files you pick on that page become chapters;{" "}
+            <L>{NAV.importMarkdown}</L> never creates chapters.
+          </p>
+          <ol>
+            <li>
+              Open <L>{NAV.importChapters}</L> and pick one or more files. Nothing is written yet.
+            </li>
+            <li>
+              The list shows the files in the order they will be created: files whose names start with a number (
+              <code>18-Chapter_One.md</code>) by that number, then the rest in the order you picked them. Each shows its
+              word count and a suggested <L>{CHAPTER_IMPORT.titleLabel}</L> (the first <code># heading</code>, or the
+              filename without number, version and status words). Change the title if you like.
+            </li>
+            <li>
+              A file that matches a chapter already in the project (same filename, another version of the same file,
+              same title or same text) shows <L>{CHAPTER_IMPORT.matches}</L> and needs your choice:{" "}
+              <L>{CHAPTER_IMPORT.createNew}</L>, <L>{CHAPTER_IMPORT.replacePrefix} &ldquo;...&rdquo;</L> or{" "}
+              <L>{CHAPTER_IMPORT.skip}</L>. Replacing keeps the chapter&apos;s title, scenes and notes and saves the
+              file&apos;s text as a new version; earlier versions stay in its history. Chapters are protected, so
+              replacing asks you to tick a confirmation box.
+            </li>
+            <li>
+              <L>{CHAPTER_IMPORT.tidy}</L> is ticked to start with: each file&apos;s text is tidied before it becomes
+              chapter text (see <See anchor="tidy-text" />
+              ), and <L>{CHAPTER_IMPORT.previewTidied}</L> shows the result. Untick it to import the text as it is.
+              Changing the tick works the list out again, so choose the actions after it.
+            </li>
+            <li>
+              Choose <L>{CHAPTER_IMPORT.importFiles("N")}</L>. Everything is written together, or nothing is if any file
+              has a problem.
+            </li>
+          </ol>
+          <p>
+            New chapters start as protected drafts. Each file&apos;s original name and exact content are kept with the
+            chapter. Chapters already in the project keep their place: a new chapter is added after them, whatever its
+            number. Move it afterwards under <L>{BOOK_ORDER.heading}</L> (see <See anchor="book-order" />). A replaced
+            chapter keeps its place.
+          </p>
+        </Sub>
+
+        <Sub id="read-book">
+          <p>
+            <L>{NAV.readBook}</L> shows every chapter and its scenes on one page, in the same order as the manuscript
+            panel, in a book typeface. It shows the saved text; unsaved changes in an open editor are not included. When a
+            text begins with a heading that repeats its title, that heading is shown only once. The
+            list of chapters at the top jumps to each one, and <L>{READ_BOOK.edit}</L> beside a heading opens that chapter
+            or scene for editing. Printing the page leaves out the list and the Edit links.
+          </p>
+        </Sub>
+
+        <Sub id="tidy-text">
+          <p>
+            On the writing page, <L>{WRITE.more}</L> then <L>{WRITE.tidy}</L> cleans up the whole chapter or scene in the
+            editor:
+          </p>
+          <ul>
+            <li>one blank line between paragraphs, and none at the start or end;</li>
+            <li>no spaces at the ends of lines;</li>
+            <li>
+              headings written the same way (<code>#Title</code> becomes <code># Title</code>), with a blank line before
+              and after;
+            </li>
+            <li>
+              scene breaks such as <code>***</code>, <code>---</code>, <code>#</code> or <code>⁂</code> on a line of
+              their own all become <code>* * *</code>, with a blank line before and after;
+            </li>
+            <li>
+              straight quotes become curly quotes and apostrophes, <code>--</code> becomes an em dash (—) and three dots
+              become an ellipsis (…).
+            </li>
+          </ul>
+          <p>
+            Single line breaks inside a paragraph are kept, because the app shows them as line breaks. Code, link
+            addresses, web addresses, HTML comments, table rules and front matter between <code>---</code> lines at the
+            very top are left alone.
+          </p>
+          <p>
+            The change appears in the editor with a summary of what was tidied. Nothing is saved until you choose{" "}
+            <L>{WRITE.save}</L>, and <kbd>Ctrl</kbd>+<kbd>Z</kbd> undoes it. On protected text, tick{" "}
+            <L>{RECORD.unlockProtected}</L> first. If nothing needs tidying, the text is not changed. The same tidy-up is
+            offered when importing chapters; see <See anchor="import-chapters" />.
+          </p>
+        </Sub>
+
+        <Sub id="text-appearance">
+          <p>
+            The <strong>Aa</strong> button (<L>{TEXT_APPEARANCE.button}</L>) on the writing page, on{" "}
+            <L>{NAV.readBook}</L> and on reference documents changes how text is shown: <L>{TEXT_APPEARANCE.font}</L>{" "}
+            (fonts that come with Windows; Garamond only if installed), <L>{TEXT_APPEARANCE.size}</L>,{" "}
+            <L>{TEXT_APPEARANCE.spacing}</L> and <L>{TEXT_APPEARANCE.width}</L>. Changes apply at once to chapter, scene
+            and reference text on every page. Menus, buttons and headings are not changed.
+          </p>
+          <p>
+            The choice is kept in this browser only. It does not change your text, the saved records or PDF exports.{" "}
+            <L>{TEXT_APPEARANCE.reset}</L> returns to the app&apos;s own settings. For dark colours, see{" "}
+            <See anchor="navigation" />.
+          </p>
+        </Sub>
+
+        <Sub id="write-page">
+          <p>At the top of a chapter or scene you see, from left to right:</p>
+          <ul>
+            <li>For a scene, its chapter (a link), and the title, which you can edit in place.</li>
+            <li>
+              The save status. <L>{WRITE.saving}</L> while the app is saving, <L>{WRITE.savedRevision("N")}</L> once the
+              database has stored it, <L>{WRITE.unsaved}</L> when the text, title or fields differ from the saved
+              version, and <L>{WRITE.notSaved}</L> when a save was refused (the reason is shown below).
+            </li>
+            <li>
+              <L>{WRITE.save}</L>. Nothing is saved until you choose it or press <kbd>Ctrl</kbd>+<kbd>S</kbd>; there is
+              no autosave.
+            </li>
+            <li>
+              <L>{WRITE.versionHistory}</L>, which jumps to <L>{RECORD.historyHeading}</L> lower on the page.
+            </li>
+            <li>
+              <L>{WRITE.showContext}</L> or <L>{WRITE.hideContext}</L>. See <See anchor="scene-context" />.
+            </li>
+            <li>
+              <L>{TEXT_APPEARANCE.button}</L> (the <strong>Aa</strong> button). See <See anchor="text-appearance" />.
+            </li>
+            <li>
+              <L>{WRITE.more}</L>: jumps to <L>{RECORD.statusHeading}</L>, <L>{RECORD.protectionHeading}</L>,{" "}
+              <L>{RECORD.historyHeading}</L>, <L>{RECORD.compareHeading}</L> and <L>{WRITE.structuredFields}</L>, and
+              offers <L>{WRITE.loadFromFile}</L> (see <See anchor="load-from-file" />) and <L>{WRITE.tidy}</L> (see{" "}
+              <See anchor="tidy-text" />
+              ).
+            </li>
+          </ul>
+          <p>
+            Chapters and scenes are protected, so a red bar asks you to tick <L>{RECORD.unlockProtected}</L> before
+            saving. Until you tick it, the formatting buttons are unavailable and a save is refused with your typing
+            kept on screen. The tick clears after each save. See <See anchor="protection" />.
+          </p>
+          <h4>Formatting toolbar</h4>
+          <p>
+            The buttons write Markdown symbols into the text, the same symbols you could type yourself (see{" "}
+            <See anchor="formatting" />
+            ). The text is not shown formatted. Each button acts on the selected text or the line with the cursor, and
+            keeps your selection.
+          </p>
+          <ul>
+            <li>
+              <L>{WRITE.paragraphStyle}</L>: <L>{WRITE.paragraph}</L>, <L>{WRITE.heading(1)}</L> to{" "}
+              <L>{WRITE.heading(3)}</L>, or <L>{WRITE.quote}</L> for the lines with the selection.
+            </li>
+            <li>
+              <L>{WRITE.bold}</L> (<kbd>Ctrl</kbd>+<kbd>B</kbd>) and <L>{WRITE.italic}</L> (<kbd>Ctrl</kbd>+
+              <kbd>I</kbd>). Choose again to remove them. A highlighted button means the cursor is already inside that
+              formatting.
+            </li>
+            <li>
+              <L>{WRITE.bulletList}</L> and <L>{WRITE.numberedList}</L> turn the selected lines into a list, or back.
+            </li>
+            <li>
+              <L>{WRITE.link}</L> (<kbd>Ctrl</kbd>+<kbd>K</kbd>): type a <L>{WRITE.linkUrl}</L>, check the{" "}
+              <L>{WRITE.linkText}</L> (it starts as the selected words), and choose <L>{WRITE.insertLink}</L>. With the
+              cursor inside an existing link, the boxes show that link so you can change it.
+            </li>
+            <li>
+              <L>{WRITE.undo}</L> and <L>{WRITE.redo}</L>: the same history as <kbd>Ctrl</kbd>+<kbd>Z</kbd> and{" "}
+              <kbd>Ctrl</kbd>+<kbd>Y</kbd>. Each button press is one step.
+            </li>
+            <li>
+              <L>{WRITE.find}</L> (<kbd>Ctrl</kbd>+<kbd>F</kbd>) and <L>{WRITE.spellcheck}</L> open those tools below
+              the toolbar. See <See anchor="find-replace" /> and <See anchor="spelling" />.
+            </li>
+            <li>
+              <L>{WRITE.focus}</L> (<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>F</kbd>). See <See anchor="panels-focus" />.
+            </li>
+            <li>
+              <L>{WRITE.moreFormatting}</L>: <L>{WRITE.quote}</L> and <L>{WRITE.sceneBreak}</L> (a line with{" "}
+              <code>* * *</code>).
+            </li>
+          </ul>
+          <p>
+            On a Mac, use <kbd>Cmd</kbd> instead of <kbd>Ctrl</kbd>. Point at a button, or move to it with{" "}
+            <kbd>Tab</kbd>, to see its name and shortcut. In the toolbar, the arrow keys move between buttons. There is
+            no underline, because Markdown has none.
+          </p>
+          <p>
+            Below the text, the footer shows the word counts (<L>{WRITING.chapterCount}</L> or{" "}
+            <L>{WRITING.sceneCount}</L>, <L>{WRITING.selectionCount}</L> and <L>{WRITING.bookCount}</L>) and the{" "}
+            <L>{WRITING.spellingLanguage}</L>. See <See anchor="word-counts" />.
+          </p>
+          <h4>Leaving with unsaved changes</h4>
+          <p>
+            If you choose a link in the app while a chapter, scene or note has unsaved changes, the browser asks &ldquo;
+            {WRITE.leaveUnsaved}&rdquo; Choose Cancel to stay; your typing is still there. Closing or reloading the tab
+            shows the browser&apos;s own warning. The browser&apos;s Back button does not ask, so save before using it.
+          </p>
+        </Sub>
+
+        <Sub id="scene-context">
+          <p>
+            The panel to the right of the text, <L>{WRITE.contextPanel}</L>, has three tabs. Choose a tab, or move
+            between them with the arrow keys.
+          </p>
+          <h4>{WRITE.references}</h4>
+          <ul>
+            <li>
+              <L>{WRITE.linkedReferences}</L> lists the reference records linked to this chapter or scene.
+            </li>
+            <li>
+              Under <L>{WRITE.findReference}</L>, type part of a title or type name. Choose <L>{WRITE.linkReference}</L>{" "}
+              to link a record, or <L>{WRITE.openReference}</L> to read it in the panel without leaving your text.{" "}
+              <L>{WRITE.openFull}</L> opens its own page.
+            </li>
+            <li>
+              <L>{WRITE.unlinkReference}</L> removes a link. The reference record itself is not changed.
+            </li>
+          </ul>
+          <p>
+            Character dossiers, worldbuilding, outlines, canon decisions and the other reference types can be linked.
+            Links are saved at once, do not create a new saved version of your text, and do not need the protection
+            tick. They are included in backups and in context exports. Adding or removing a link is recorded in{" "}
+            <L>{NAV.history}</L>.
+          </p>
+          <h4>{WRITE.notes}</h4>
+          <ul>
+            <li>
+              The tab lists the {RECORD_TYPE_LABELS.scene_note.toLowerCase()}s of this chapter or scene. Choose{" "}
+              <L>{WRITE.editNote}</L> to change one, then <L>{WRITE.saveNote}</L>.
+            </li>
+            <li>
+              Under <L>{WRITE.newNote}</L>, type a <L>{WRITE.noteTitle}</L> and the <L>{WRITE.noteText}</L>, then choose{" "}
+              <L>{WRITE.addNote}</L>.
+            </li>
+          </ul>
+          <p>
+            Notes are records like any other: every save keeps the earlier versions, and a note can be protected. Each
+            note also has its own page, reached from the record lists.
+          </p>
+          <h4>{WRITE.proofread}</h4>
+          <p>
+            The optional AI proofreading, described in <See anchor="proofreading" />. Until the assistant is set up, the
+            tab says so and checks nothing.
+          </p>
+        </Sub>
+
+        <Sub id="panels-focus">
+          <ul>
+            <li>
+              Choose <L>{WRITE.hideNavigation}</L> (top of the manuscript column) or <L>{WRITE.hideContext}</L> to give
+              the text more room. A thin strip with <L>{WRITE.showNavigation}</L> brings the manuscript column back.
+            </li>
+            <li>
+              To change a panel&apos;s width, drag the line at its edge. Or move to that line with <kbd>Tab</kbd> and
+              use the left and right arrow keys (with <kbd>Shift</kbd> for bigger steps), or <kbd>Home</kbd> and{" "}
+              <kbd>End</kbd> for the narrowest and widest.
+            </li>
+            <li>
+              This browser remembers the widths, which panels are hidden, and the open tab, in a small cookie. No text is
+              stored in it.
+            </li>
+            <li>
+              <L>{WRITE.focus}</L> hides the navigation and both panels and leaves only the text. Press{" "}
+              <kbd>Esc</kbd> or choose <L>{WRITE.exitFocus}</L> to return. Your text, selection and undo history stay as
+              they were.
+            </li>
+          </ul>
+          <p>
+            On a medium-width window, the context panel opens over the text instead of beside it. Choose{" "}
+            <L>{WRITE.showContext}</L> to open it, and <L>{WRITE.closeContext}</L> or <kbd>Esc</kbd> to close it. On a
+            narrow window, such as a phone-sized one, the manuscript column is in <L>{SHELL.openProjectMenu}</L>.
+          </p>
+        </Sub>
+      </Section>
+
+      <Section id="world">
+        <p>
+          <L>{SHELL.world}</L> holds the project&apos;s reference documents of these types:{" "}
+          {WORLD_TYPES.map((t) => RECORD_TYPE_LABELS[t]).join(", ")}. Its page lists them in a table with each
+          document&apos;s type, canon status, saved version and protection.
+        </p>
+        <p>
+          <L>{WORLD.importReferences}</L> opens <L>{NAV.importMarkdown}</L> (see <See anchor="importing" />).{" "}
+          <L>{WORLD.exportForChatGpt}</L> opens <L>{NAV.exportContext}</L> with the documents you were looking at
+          already ticked: one document from its page, a category from that category, or every World document from the
+          World page. You see <em>{EXPORT.preselected("N")}</em>. Tick or untick anything before generating. See{" "}
+          <See anchor="chatgpt" />.
+        </p>
+        <p>
+          <L>{WORLD.exportPdf}</L> on the World page opens <L>{NAV.exportPdf}</L> with that category, or every World
+          document, ticked. <L>{WORLD.downloadPdf}</L> on a document&apos;s page downloads a PDF of that document straight
+          away. See <See anchor="pdf-export" />.
+        </p>
+
+        <Sub id="world-nav">
+          <p>
+            On <L>{SHELL.world}</L> and on a World document&apos;s page, the second column shows{" "}
+            <L>{WORLD.references}</L>:
+          </p>
+          <ul>
+            <li>
+              <L>{WORLD.searchReferences}</L>. Typing filters the titles listed in the column. Press <kbd>Enter</kbd> to
+              also search the text and structured fields of every World document. The results page says where each match
+              was found and shows the surrounding text. Every match is listed. <L>{WORLD.clearSearch}</L> returns to the
+              list. Search ignores upper and lower case.
+            </li>
+            <li>
+              <L>{WORLD.allReferences}</L> and one category per document type:{" "}
+              {WORLD_TYPES.map((t) => WORLD_CATEGORY_LABELS[t]).join(", ")}. The number beside each is how many documents
+              of that type the project has. Choose one to list those documents on the World page and below the
+              categories.
+            </li>
+          </ul>
+          <p>
+            The categories are the document types you choose when importing or creating a record; the app never guesses
+            them. There are no separate categories for places or magic: those are {RECORD_TYPE_LABELS.worldbuilding}{" "}
+            documents. A document that covers several subjects still has one type. It is listed under that type and under{" "}
+            <L>{WORLD.allReferences}</L>, so nothing is hidden.
+          </p>
+        </Sub>
+
+        <Sub id="reference-page">
+          <p>
+            Every record except manuscript chapters and scenes opens on this page: World documents, Plan documents, and
+            scene notes. The links above the title show where it belongs: <L>{SHELL.world}</L> and its category,{" "}
+            <L>{SHELL.plan}</L>, or <L>{SHELL.write}</L> and the chapter or scene a note is on.
+          </p>
+          <p>Below the title, four separate labels describe different things:</p>
+          <ul>
+            <li>
+              <L>{WORLD.documentType}</L>: what kind of document it is.
+            </li>
+            <li>
+              <L>{WORLD.canonStatus}</L>: how settled it is. Anything other than <L>approved</L> also says{" "}
+              <em>(not canon)</em>. The status covers the whole document. It does not mean every section in it has been
+              approved. See <See anchor="canon-status" />.
+            </li>
+            <li>
+              <L>{WORLD.savedVersion}</L>: the number of the current saved version, and when it was saved.
+            </li>
+            <li>
+              <L>{WORLD.protection}</L>: <L>{WORLD.protectedLabel}</L> or <L>{WORLD.notProtected}</L>. Protection does not
+              depend on the canon status. See <See anchor="protection" />.
+            </li>
+          </ul>
+          <h4>The text</h4>
+          <p>
+            The saved text is shown formatted: headings, paragraphs, bulleted and numbered lists, tables, block quotes,
+            links, bold, italic and code. The text itself is not changed. Wide tables scroll sideways inside their box.
+            Links to web pages open in a new tab. Images attached to the document are shown where the text refers to
+            them (see <See anchor="images" />). Any other picture address is shown as a link and is not loaded. HTML is
+            shown as plain text.
+          </p>
+          <p>
+            <L>{WORLD.contents}</L> lists the document&apos;s own headings. Choose one to jump to it. Structured fields, if
+            the document has any, are shown in a table below the text. They are stored separately: editing the text does
+            not change them, and editing them does not change the text.
+          </p>
+          <p>
+            If your last save changed a field but the text still contains its old value, the page shows{" "}
+            <L>{WORLD.disagreementsHeading}</L>. Nothing was changed for you; check the text and fields yourself.
+          </p>
+          <h4>Editing</h4>
+          <ol>
+            <li>
+              Choose <L>{WORLD.edit}</L>. The editor described in <See anchor="editing" /> opens in place of the formatted
+              text.
+            </li>
+            <li>
+              Make your changes. On a protected document, tick <L>{RECORD.unlockProtected}</L>
+            </li>
+            <li>
+              Choose <L>{RECORD.saveAsRevision("N")}</L>.
+            </li>
+            <li>
+              Choose <L>{WORLD.doneEditing}</L> to see the formatted text again. If you have unsaved changes, you are
+              asked first.
+            </li>
+          </ol>
+          <p>
+            If the document was saved somewhere else after you opened the editor (for example in another tab, or by
+            changing its status), the save is refused with <code>STALE_REVISION</code> and your typing stays on screen.
+            Copy your text, reload the page, and make the change again on the current version.
+          </p>
+          <p>
+            <L>{WORLD.history}</L> and <L>{WORLD.statusAndProtection}</L> jump to the boxes below the document:{" "}
+            <L>{RECORD.statusHeading}</L>, <L>{RECORD.protectionHeading}</L>, <L>{RECORD.historyHeading}</L>,{" "}
+            <L>{RECORD.compareHeading}</L>, and <L>{WORLD.importedFiles}</L>. See <See anchor="saved-versions" />.
+          </p>
+        </Sub>
+
+        <Sub id="reference-context">
+          <p>
+            Beside the document, or below it on narrower windows, are these sections. On narrower windows they start
+            closed; choose a heading to open it.
+          </p>
+          <ul>
+            <li>
+              <L>{WORLD.contents}</L>: the document&apos;s headings, with any status tags from the headings shown word for
+              word. See <See anchor="section-status" />.
+            </li>
+            <li>
+              <L>{XREF.heading}</L>: IDs this document defines, the filenames and IDs it mentions, and the documents that
+              mention it. See <See anchor="cross-references" />.
+            </li>
+            <li>
+              <L>{WORLD.linkedManuscript}</L>: the chapters and scenes that link to this document from their{" "}
+              <L>{WRITE.references}</L> tab (see <See anchor="scene-context" />). A scene note shows{" "}
+              <L>{WORLD.noteOn}</L> and its chapter or scene instead.
+            </li>
+            <li>
+              <L>{WORLD.recentChanges}</L>: the latest five saved versions, with their status and where they came from.
+              Choose one to see what changed. <L>{WORLD.viewHistory}</L> jumps to the full list.
+            </li>
+            <li>
+              <L>{WORLD.openReview}</L>: items in <L>{HISTORY.openReviewItems}</L> about this document. Resolve them on{" "}
+              <L>{NAV.history}</L>. See <See anchor="review-items" />.
+            </li>
+            <li>
+              <L>{WORLD.proposals}</L>: assistant proposals that would change this document and have not been applied.
+              They are marked <em>{WORLD.proposedBadge}</em> and are not part of the text shown. <L>{WORLD.reviewProposal}</L>{" "}
+              opens the proposal&apos;s review page, where you can read the exact changes and apply them. See{" "}
+              <See anchor="change-review" />.
+            </li>
+            <li>
+              <L>{WORLD.importedFiles}</L>: Markdown files imported into this document. <L>{WORLD.showOriginal}</L> shows
+              the file exactly as it was imported. Later edits change the document, not this copy.
+            </li>
+          </ul>
+          <p>
+            Each section says so when it has nothing to show. Changing one document never changes linked or related
+            documents. Update them yourself if needed.
+          </p>
+        </Sub>
+
+        <Sub id="images">
+          <p>
+            Every record that opens on a reference page can have images: World documents, Plan documents and scene notes.
+            Manuscript chapters and scenes cannot. The <L>{IMAGES.heading}</L> box is below the document text, with every
+            image attached to the document.
+          </p>
+          <h4>Adding images</h4>
+          <ol>
+            <li>
+              Under <L>{IMAGES.heading}</L>, choose files in <L>{IMAGES.chooseFiles}</L>. You can pick several at once.
+            </li>
+            <li>
+              On a protected document, tick <L>{RECORD.unlockProtected}</L>
+            </li>
+            <li>
+              Choose <L>{IMAGES.add}</L>.
+            </li>
+          </ol>
+          <p>
+            PNG, JPEG, GIF and WebP files are accepted, up to {formatBytes(MAX_IMAGE_BYTES)} each and{" "}
+            {MAX_IMAGES_PER_RECORD} per document. The app checks what each file really contains, not just its name. If
+            one file is refused, none of the batch is added and the message says which file and why.
+          </p>
+          <p>
+            Images are stored in the app&apos;s database, not as separate files, and are included in workspace backups.
+            Adding, captioning or removing an image does not create a saved version of the document and does not change
+            its text. Each change is recorded in the project&apos;s history.
+          </p>
+          <h4>Showing an image in the text</h4>
+          <p>
+            Each image has a name, such as <code>harbour-map.png</code>, made from its file name. A line like{" "}
+            <code>![The harbour at dawn](image:harbour-map.png)</code> in the text shows that image at that place, with
+            its caption below. The words in the square brackets describe the image for screen readers.
+          </p>
+          <ul>
+            <li>
+              <L>{IMAGES.copyReference}</L> on an image copies that line. Paste it into the text while editing.
+            </li>
+            <li>
+              While editing, <L>{IMAGES.insertLabel}</L> above the text box lists the document&apos;s images.{" "}
+              <L>{IMAGES.insertButton}</L> adds the chosen image&apos;s line where the cursor is, or in place of selected text. Undo it with{" "}
+              <kbd>Ctrl</kbd>+<kbd>Z</kbd> in the text box. If your browser cannot add it to its undo history, the{" "}
+              <L>{WRITING.undoReplacement}</L> button of <See anchor="find-replace" /> removes it instead.
+            </li>
+          </ul>
+          <p>
+            Images shown in the text are marked <em>{IMAGES.inText}</em>. If the text refers to a name that no attached
+            image has, the formatted text says the image is not found, and <L>{IMAGES.missingHeading}</L> lists the
+            names. The text is never changed for you.
+          </p>
+          <h4>Captions and removing</h4>
+          <p>
+            Open <L>{IMAGES.details}</L> under an image to change its <L>{IMAGES.caption}</L> and{" "}
+            <L>{IMAGES.altText}</L>, then choose <L>{IMAGES.save}</L>. <L>{IMAGES.remove}</L> asks you to confirm, then deletes
+            the stored image. It is not offered while the text shows the image: remove the line from the text and save first. Older saved
+            versions that showed a removed image say it is not found.
+          </p>
+          <p>Choose an image to open it at full size in a new tab.</p>
+        </Sub>
+      </Section>
+
+      <Section id="series-documents">
+        <p>
+          A series bible and its companion files often mark status section by section, refer to each other by filename,
+          and give decisions IDs such as <code>SA-WORLD-001</code>. The app reads these markings from the saved text each
+          time a page opens. It never changes a record because of them, and nothing about them is stored.
+        </p>
+
+        <Sub id="section-status">
+          <p>
+            A heading can end with a status tag in square brackets, such as <code>## Rules [APPROVED FRAMEWORK]</code> or{" "}
+            <code>[WORKING PROPOSAL; NOT FULLY APPROVED ARC]</code>, or after a dash, such as{" "}
+            <code>### Harbour scene — SELECTED; after the storm</code>. A tag starts with, or contains, a word in capitals.
+            Dates such as <code>[25 October 2026]</code> and lower-case notes after a dash are not tags.
+          </p>
+          <ul>
+            <li>
+              <L>{WORLD.contents}</L> beside a reference shows each heading with its tag in a dashed box, word for word. Tags in
+              the text apply to their own sections; the record&apos;s <L>{WORLD.canonStatus}</L> still describes the whole
+              document, and you set it yourself. See <See anchor="canon-status" />.
+            </li>
+            <li>
+              The assistant, the context export and the read-only adapter are all told that these markings govern their
+              sections, so a section marked as working, proposed or open is not treated as settled even in an approved
+              document.
+            </li>
+          </ul>
+        </Sub>
+
+        <Sub id="cross-references">
+          <p>In a reference document&apos;s text, the app turns two kinds of mention into links:</p>
+          <ul>
+            <li>
+              <strong>Filenames</strong> such as <code>Harbour_Guide_APPROVED_WORKING_v1.4.md</code> link to the document
+              imported from that file, whatever its version: the version number, a date, status words in capitals at the
+              end, and a number at the start such as <code>18-</code> are ignored.
+            </li>
+            <li>
+              <strong>IDs</strong> such as <code>SA-TIDE-001</code> or <code>SA-B1-C01</code> (capital letters and digits
+              joined by hyphens) link to where the ID is defined: a heading that starts with it, a bold list item or
+              paragraph that starts with it, or a table row whose first cell is it.
+            </li>
+          </ul>
+          <p>
+            To give a chapter, scene or any other record its own ID, add it to the record&apos;s structured fields, for
+            example <code>{`{"refIds": ["SA-B1-C01"]}`}</code>. Mentions of that ID then link to the record itself rather
+            than to a row in a register.
+          </p>
+          <p>
+            The <L>{XREF.heading}</L> section, beside a reference and below a chapter&apos;s text, lists{" "}
+            <L>{XREF.definedHere}</L>, the filenames and IDs the text <L>{XREF.mentions}</L>, and the documents it is{" "}
+            <L>{XREF.mentionedBy}</L>. A filename that was never imported is marked <em>{XREF.notImported}</em>; an ID no
+            document defines is marked <em>{XREF.notDefined}</em>.
+          </p>
+          <p>
+            When a link leads to a document whose canon status is <em>superseded</em> or <em>draft</em>, the{" "}
+            <L>{XREF.heading}</L> section says so beside the link, and names the document that replaces a superseded
+            one when its <em>Superseded by</em> is set. In the document text, a link to a superseded document has a wavy
+            underline and a small dagger (†); a link to a draft has a dashed underline. Point at a link to see the
+            reason. If an ID is defined both in a superseded document and in a current one, links go to the current one.
+          </p>
+        </Sub>
+
+        <Sub id="names-in-manuscript">
+          <p>
+            Characters (character dossiers) and places and other world details (worldbuilding records) are looked for
+            by name in every chapter and scene. Names are matched as whole words, with capitals exactly as written.
+          </p>
+          <ul>
+            <li>
+              The name is the record&apos;s title up to a dash, colon or bracket: <em>Seren — Character Dossier</em> is
+              found as <em>Seren</em>. A title starting with &ldquo;The&rdquo; is also found without it, so{" "}
+              <em>The Salt Guild</em> also matches <em>Salt Guild</em>.
+            </li>
+            <li>
+              For a character with two or more words in the name, the first and last words are also found on their own
+              (<em>Mara Venn</em> also as <em>Mara</em> and <em>Venn</em>), unless another character uses the same
+              word, or it is a title such as <em>Lady</em> or <em>Captain</em>.
+            </li>
+            <li>
+              To add nicknames or other spellings, put them in the record&apos;s structured fields, for example{" "}
+              <code>{`{"aliases": ["Mags", "the Archivist"]}`}</code>.
+            </li>
+            <li>A title that does not start with a capital letter is not looked for unless it has aliases.</li>
+            <li>Superseded records are not looked for.</li>
+          </ul>
+          <p>
+            Below a chapter or scene, the <L>{XREF.heading}</L> section lists <L>{XREF.namesHere}</L> with how often
+            each appears. On a dossier or worldbuilding record it lists <L>{XREF.namedIn}</L>: the forms looked for and
+            the chapters and scenes that use them. Nothing is changed in either text.
+          </p>
+        </Sub>
+
+        <Sub id="cross-reference-check">
+          <p>
+            <L>{NAV.crossRefCheck}</L> under <L>{SHELL.projectTools}</L> checks every document in the project at once
+            and lists:
+          </p>
+          <ul>
+            <li>
+              <L>{XREF_CHECK.undefinedIds}</L>, with the documents that mention each one. Only IDs whose first part
+              some document uses are listed, so ordinary capitalised words with a hyphen are not.
+            </li>
+            <li>
+              <L>{XREF_CHECK.missingFiles}</L>: Markdown filenames mentioned in the text that were never imported.
+            </li>
+            <li>
+              <L>{XREF_CHECK.conflicts}</L>, with each place it is defined. A table row in a register next to the
+              document that defines the ID is not counted, and definitions in superseded documents are not counted.
+            </li>
+            <li>
+              <L>{XREF_CHECK.flagged}</L>, superseded first, with the replacement when there is one.
+            </li>
+            <li>
+              <L>{XREF_CHECK.names}</L>: how many chapters and scenes name each character and place, and which are not
+              named anywhere yet.
+            </li>
+          </ul>
+          <p>
+            Mentions made by superseded documents are left out: an old version that refers to old material is
+            expected. The check reads saved text each time the page opens and changes nothing.
+          </p>
+        </Sub>
+
+        <Sub id="new-versions">
+          <p>
+            When you import a newer version of a file, for example <code>Harbour_Guide_APPROVED_WORKING_v1.5.md</code> after{" "}
+            <code>..._v1.4.md</code>, the import page marks it a possible duplicate: <em>same document, another version</em>.
+            Choose <L>{MARKDOWN_IMPORT.replacePrefix} &ldquo;title&rdquo;</L> to save it as a new saved version of the
+            existing record, keeping the earlier one; or keep both, or skip it. Nothing is replaced unless you choose it,
+            and the status words in the filename never set the canon status. See <See anchor="duplicates" />.
+          </p>
+        </Sub>
+
+        <Sub id="long-documents">
+          <p>
+            A long series bible can be larger than the assistant&apos;s limit. On the assistant page, a reference with
+            several headings has <L>{ASSISTANT.sectionsHeading}</L> under it: tick the sections to send
+            instead of the whole document. A section runs to the next heading of the same or higher level, so it includes
+            its subsections. Each section is sent whole with the headings above it and their tags; nothing is cut. See{" "}
+            <See anchor="assistant-context" />.
+          </p>
+          <p>
+            The read-only adapter can do the same: it lists a document&apos;s sections and reads one at a time. See{" "}
+            <See anchor="chatgpt-direct" />.
+          </p>
+        </Sub>
+
+        <Sub id="load-from-file">
+          <p>
+            To bring a chapter or scene you wrote elsewhere into one you created here, open it on the writing page, choose{" "}
+            <L>{WRITE.more}</L>, then <L>{WRITE.loadFromFile}</L>, and pick a <code>.md</code>, <code>.markdown</code> or{" "}
+            <code>.txt</code> file of up to 5 MB.
+          </p>
+          <ul>
+            <li>The file replaces the text in the editor. If the editor already has text, the app asks first.</li>
+            <li>
+              Nothing is saved until you choose <L>{WRITE.save}</L>. <kbd>Ctrl</kbd>+<kbd>Z</kbd> undoes the load.
+            </li>
+            <li>
+              On protected text, tick <L>{RECORD.unlockProtected}</L> first. The title, status and structured fields are
+              not changed.
+            </li>
+          </ul>
+          <p>Reference files are imported instead; see <See anchor="importing" />. Importing never creates chapters.</p>
+        </Sub>
+      </Section>
+
+      <Section id="pdf-export">
+        <p>
+          The app makes PDF files of your saved documents on this computer. Unsaved edits are not included, and the app
+          does not keep a copy of the PDF.
+        </p>
+        <h4>One reference document</h4>
+        <p>
+          On a document&apos;s page, choose <L>{WORLD.downloadPdf}</L>. The PDF has the title, document type, canon
+          status, saved version and protection, then the text, structured fields and images.
+        </p>
+        <h4>Several documents or a category</h4>
+        <ol>
+          <li>
+            Open the project and choose <L>{NAV.exportPdf}</L>, or <L>{WORLD.exportPdf}</L> on the World page or a
+            category.
+          </li>
+          <li>
+            Under <L>{PDF.referencesHeading}</L>, tick documents. The box beside a category name ticks or unticks the
+            whole category.
+          </li>
+          <li>
+            Choose <L>{PDF.downloadReferences("N")}</L>.
+          </li>
+        </ol>
+        <p>
+          The PDF starts with a list of the documents by type. Each document starts on a new page, ordered by type and
+          then title. The PDF&apos;s bookmarks list every document.
+        </p>
+        <h4>The manuscript</h4>
+        <ol>
+          <li>
+            Open <L>{NAV.exportPdf}</L>.
+          </li>
+          <li>
+            Under <L>{PDF.manuscriptHeading}</L>, optionally tick <L>{PDF.sceneTitles}</L>.
+          </li>
+          <li>
+            Choose <L>{PDF.downloadManuscript}</L>.
+          </li>
+        </ol>
+        <p>
+          Chapters are in book order, as under <L>{BOOK_ORDER.heading}</L> on <L>{SHELL.write}</L>, each starting on a new page, with its text followed by
+          its scenes. Notes and references are not included.
+        </p>
+        <h4>What a PDF contains</h4>
+        <ul>
+          <li>Text is formatted the way the reference page shows it: headings, lists, tables, quotes, links and code.</li>
+          <li>
+            PNG and JPEG images are included where the text shows them, and images the text does not show come after the
+            text. GIF and WebP images are listed by name instead.
+          </li>
+          <li>Pages after the first are numbered. The page size is A4.</li>
+        </ul>
+      </Section>
+
+      <Section id="writing-tools">
+        <p>
+          On a record page, the <L>{RECORD.editHeading}</L> panel has a <L>{WRITING.toolsHeading}</L> box above the
+          text. The tools work on this record&apos;s text box (<L>{RECORD.bodyLabel}</L>) only.
+        </p>
+        <p>
+          On a chapter or scene, the same tools are spread over the writing page: <L>{WRITE.find}</L> and{" "}
+          <L>{WRITE.spellcheck}</L> in the toolbar, word counts and <L>{WRITING.spellingLanguage}</L> below the text,
+          and proofreading in the <L>{WRITE.proofread}</L> tab. There, choose <L>{WRITE.save}</L> wherever these steps
+          say <L>{RECORD.saveAsRevision("N")}</L>.
+        </p>
+
+        <Sub id="spelling">
+          <p>
+            A record&apos;s text box is checked as you type. Words the checker does not recognise get a wavy red
+            underline. <L>{SPELLING.checker}</L> chooses who checks it:
+          </p>
+          <ul>
+            <li>
+              <L>{SPELL_CHECKERS[0].label}</L> (the default): the app checks the text itself, with a standard English
+              word list plus your <See anchor="dictionary" />. It works without the internet and without the assistant,
+              and nothing is sent anywhere.
+            </li>
+            <li>
+              <L>{SPELL_CHECKERS[1].label}</L>: your browser checks the text with its own dictionaries and settings, as
+              before. It does not know your dictionary. Right-click an underlined word for the browser&apos;s
+              suggestions.
+            </li>
+          </ul>
+          <p>Only one checker underlines the text at a time. The choice is saved in this browser.</p>
+          <h4>Checking with Wordly</h4>
+          <ol>
+            <li>
+              Click an underlined word, or choose <L>{SPELLING.next}</L> or <L>{SPELLING.previous}</L> to select the
+              next or previous one. The count beside them shows how many words are not recognised.
+            </li>
+            <li>
+              The word appears in the <L>{WRITING.toolsHeading}</L> box with <L>{SPELLING.suggestions}</L>. Choose a
+              suggestion to replace the word in the text box.
+            </li>
+            <li>
+              Or choose <L>{SPELLING.ignoreOnce}</L> to remove the underline from this one place only. The same word
+              elsewhere stays underlined, and the underline comes back when you reload the page.
+            </li>
+            <li>
+              Or choose <L>{SPELLING.addToProject}</L> (this book) or <L>{SPELLING.addToWorkspace}</L> (every project
+              in the workspace). Tick <L>{SPELLING.matchCase}</L> first if only this exact capitalisation is correct; it
+              is ticked for words with capitals. A possessive such as &ldquo;Aldreth&rsquo;s&rdquo; is added as
+              &ldquo;Aldreth&rdquo;, which then covers both.
+            </li>
+            <li>
+              Choose <L>{RECORD.saveAsRevision("N")}</L> to keep replacements. Nothing in the text is saved before that.
+              Adding a word to the dictionary is saved at once and changes no record.
+            </li>
+          </ol>
+          <ul>
+            <li>
+              Checking waits until you pause typing, so typing never slows down. Underlines can take a moment to appear
+              after the page opens, the first time the word list is loaded.
+            </li>
+            <li>
+              When a word is close to one in your dictionary, the box says so, for example a misspelt character name.
+              It stays underlined: your dictionary only accepts the exact words in it.
+            </li>
+            <li>
+              Suggestions start with similar words from your dictionary, then come from the standard word list.
+              Suggestions can take a second or two for long or unusual words.
+            </li>
+            <li>
+              Code, link addresses, URLs, HTML and words joined to digits (such as &ldquo;3rd&rdquo;) are not checked.
+              Hyphenated words are checked part by part.
+            </li>
+            <li>
+              On a protected record, suggestions cannot be used until you tick <L>{RECORD.unlockProtected}</L> The tick
+              box appears in the spelling box itself, as well as in the red bar under a chapter&apos;s title (below the
+              text on a reference document); ticking either ticks both. Ignoring and adding words still work.
+            </li>
+            <li>
+              If the Wordly checker cannot start, the box says so and the browser&apos;s checker is used instead.
+            </li>
+          </ul>
+          <h4>Spelling language</h4>
+          <ol>
+            <li>Open any record.</li>
+            <li>
+              In <L>{WRITING.spellingLanguage}</L>, choose{" "}
+              {SPELLING_LANGUAGES.map((l, i) => (
+                <span key={l.code}>
+                  {i > 0 ? " or " : null}
+                  <L>{l.label}</L>
+                </span>
+              ))}
+              .
+            </li>
+          </ol>
+          <p>
+            The choice is saved in this browser. Wordly checks with the matching US or UK word list. Record titles, and
+            the text in <L>{RECORD.newRecordHeading}</L>, are always checked by the browser, which is told the language
+            you chose.
+          </p>
+          <p className="warning">
+            The browser decides whether to check spelling and which dictionary to use. If the browser&apos;s checker
+            underlines nothing, or marks US spellings in UK mode, check that spell check is on in your browser&apos;s
+            settings and that the English you want is installed there.
+          </p>
+          <p>Structured fields and change package boxes are not checked, because they hold codes rather than prose.</p>
+        </Sub>
+
+        <Sub id="dictionary">
+          <p>
+            Your dictionary holds invented names and words that are spelled correctly, so the Wordly checker stops
+            underlining them and AI proofreading leaves them alone. Open it with <L>{NAV.dictionary}</L> in a
+            project&apos;s menu, or <L>{SPELLING.manageDictionary}</L> in the <L>{WRITING.toolsHeading}</L> box.
+          </p>
+          <ul>
+            <li>
+              <L>{DICTIONARY.scopeProject}</L>: words for this book only.
+            </li>
+            <li>
+              <L>{DICTIONARY.scopeWorkspace}</L>: words for every project in the workspace, such as names that recur
+              across a series.
+            </li>
+          </ul>
+          <p>A project never sees another project&apos;s words, and nothing is shared between workspaces.</p>
+          <h4>Add, edit and remove words</h4>
+          <ol>
+            <li>
+              In <L>{DICTIONARY.addHeading}</L>, type one word, choose the <L>{DICTIONARY.scope}</L>, and optionally a
+              note. Choose <L>{DICTIONARY.add}</L>.
+            </li>
+            <li>
+              Choose <L>{DICTIONARY.edit}</L> beside a word to change its spelling, <L>{DICTIONARY.matchCase}</L>, note
+              or dictionary, then <L>{DICTIONARY.save}</L>.
+            </li>
+            <li>
+              Choose <L>{DICTIONARY.remove}</L>, then confirm. The word is underlined again wherever it appears.
+            </li>
+          </ol>
+          <ul>
+            <li>
+              <L>{DICTIONARY.matchCase}</L> ticked: only that exact capitalisation is accepted (&ldquo;Aldreth&rdquo;,
+              not &ldquo;aldreth&rdquo;). It starts ticked for words typed with capitals. Unticked: any capitalisation is
+              accepted.
+            </li>
+            <li>
+              Entries are single words: for a two-word name, add each word. For a hyphenated name, add each part. A
+              word that is already accepted cannot be added again.
+            </li>
+            <li>
+              Words close to another word in your dictionary are marked &ldquo;{DICTIONARY.similar}&rdquo;, so two
+              spellings of one name stand out. Both stay in the dictionary until you remove one.
+            </li>
+            <li>
+              Adding, editing and removing words never changes a record. Each change is listed in{" "}
+              <L>{HISTORY.auditLog}</L> on the <L>{NAV.history}</L> page of the project where you made it.
+            </li>
+          </ul>
+          <h4>{DICTIONARY.referencesHeading}</h4>
+          <p>{DICTIONARY.referencesNote}</p>
+          <ol>
+            <li>
+              Choose <L>{DICTIONARY.findNames}</L>. Each word is listed with the records it was found in.
+            </li>
+            <li>Tick the words you want. None are ticked to start with.</li>
+            <li>
+              Choose the <L>{DICTIONARY.scope}</L>, then <L>{DICTIONARY.addSelected("N")}</L>.
+            </li>
+          </ol>
+          <h4>Export and import</h4>
+          <ul>
+            <li>
+              In <L>{DICTIONARY.exportHeading}</L>, <L>{DICTIONARY.exportScope("project")}</L> and{" "}
+              <L>{DICTIONARY.exportScope("workspace")}</L> download a JSON file with each word, its match-case setting
+              and note.
+            </li>
+            <li>
+              In <L>{DICTIONARY.importHeading}</L>, choose a file exported this way, or a plain list with one word per
+              line (lines starting with # are skipped; Hunspell .dic files also work). The words are listed, with
+              those already in your dictionary, repeated, or not a single word marked and not selectable.
+            </li>
+            <li>
+              Nothing is selected at first. Tick words one by one or choose <L>{DICTIONARY.selectAllNew}</L>, choose
+              the <L>{DICTIONARY.scope}</L>, then <L>{DICTIONARY.addSelected("N")}</L>. Words that could not be added
+              are listed with the reason.
+            </li>
+          </ul>
+          <p>
+            Dictionary words are included in full workspace backups and restored with them. See{" "}
+            <See anchor="full-backup" />.
+          </p>
+        </Sub>
+
+        <Sub id="word-counts">
+          <p>Below the text box you see:</p>
+          <ul>
+            <li>
+              <L>{WRITING.documentCount}</L> (<L>{WRITING.chapterCount}</L> for a chapter, <L>{WRITING.sceneCount}</L>{" "}
+              for a scene): words in the text box now.
+            </li>
+            <li>
+              <L>{WRITING.selectionCount}</L>: words in the text you have selected.
+            </li>
+            <li>
+              <L>{WRITING.bookCount}</L>, for chapters and scenes only: {WRITING.bookCountNote}.
+            </li>
+          </ul>
+          <p>
+            Counts change as you type and include changes you have not saved. On the <L>{NAV.records}</L> page, each
+            manuscript chapter shows its word count, and the chapter group shows the <L>{WRITING.bookCount}</L> total of
+            their saved text.
+          </p>
+          <details>
+            <summary>What is counted</summary>
+            <ul>
+              <li>Only the words a reader would see. Markdown symbols such as ** and # are not counted.</li>
+              <li>Link text is counted; link addresses, images, HTML tags and hidden comments are not.</li>
+              <li>Scene-break lines such as *** count nothing.</li>
+              <li>
+                Hyphenated words count as one: &ldquo;well-known&rdquo; and &ldquo;mother-in-law&rdquo; are one word
+                each.
+              </li>
+              <li>
+                Apostrophes stay inside a word: &ldquo;don&apos;t&rdquo; and &ldquo;Mara&rsquo;s&rdquo; are one word
+                each.
+              </li>
+              <li>Dashes separate words: &ldquo;yes&mdash;no&rdquo; is two words.</li>
+              <li>Numbers such as 3.14, 1,000 and 10:30 are one word each.</li>
+            </ul>
+            <p>The same rules are used everywhere counts appear.</p>
+          </details>
+        </Sub>
+
+        <Sub id="find-replace">
+          <ol>
+            <li>
+              Type the text to look for in <L>{WRITING.find}</L>. The number of matches appears beside the buttons.
+            </li>
+            <li>
+              Choose <L>{WRITING.next}</L> or <L>{WRITING.previous}</L>. The match is selected in the text and the count
+              shows which one it is, for example &ldquo;2 of 5&rdquo;. In the <L>{WRITING.find}</L> box, Enter goes to the
+              next match and Shift+Enter to the previous one.
+            </li>
+            <li>
+              Type the new text in <L>{WRITING.replaceWith}</L>. Leave it empty to delete the matches.
+            </li>
+            <li>
+              Choose <L>{WRITING.replace}</L> to change the selected match, or the next one after the cursor. The
+              following match is then selected.
+            </li>
+            <li>
+              Or choose <L>{WRITING.replaceAll}</L> to change every match at once.
+            </li>
+            <li>
+              Choose <L>{RECORD.saveAsRevision("N")}</L> to keep the changes. Nothing is saved before that.
+            </li>
+          </ol>
+          <ul>
+            <li>
+              The search matches exactly what you type, including symbols such as * or ?. Tick{" "}
+              <L>{WRITING.matchCase}</L> to tell &ldquo;Salt&rdquo; from &ldquo;salt&rdquo;; otherwise case is ignored.
+            </li>
+            <li>
+              It searches this record&apos;s text box only, not the title, structured fields, or other records. To find
+              text in every chapter and scene, see <See anchor="manuscript-search" />.
+            </li>
+            <li>
+              A replacement changes only the matched characters. Formatting symbols around them, such as the ** around a
+              bold word, stay as they were.
+            </li>
+            <li>
+              Undo a replacement with <kbd>Ctrl</kbd>+<kbd>Z</kbd> in the text box. <L>{WRITING.replaceAll}</L> undoes
+              in one step. If your browser cannot add a replacement to its undo history, an{" "}
+              <L>{WRITING.undoReplacement}</L> button appears instead.
+            </li>
+          </ul>
+          <p className="warning">
+            On a protected record, <L>{WRITING.replace}</L> and <L>{WRITING.replaceAll}</L> stay unavailable until you
+            tick <L>{RECORD.unlockProtected}</L> The tick box appears in the find box too; ticking it there is the same
+            as ticking it in the editor. Saving still needs that tick. See <See anchor="protection" />.
+          </p>
+        </Sub>
+
+        <Sub id="proofreading">
+          <p>
+            <L>{PROOFREAD.heading}</L> checks spelling, grammar and punctuation in this record&apos;s text with an OpenAI
+            model. It uses the assistant&apos;s setup and is off until the assistant is set up (
+            <See anchor="assistant-setup" />
+            ). Without it, the box says so and everything else works as usual.
+          </p>
+          <ol>
+            <li>
+              Save your changes first. Proofreading checks the saved text, so while there are unsaved changes the buttons
+              are unavailable and the box says <em>{PROOFREAD.saveFirst}</em>
+            </li>
+            <li>
+              Select text in the text box and choose <L>{PROOFREAD.proofreadSelection}</L>, or choose{" "}
+              <L>{PROOFREAD.proofreadDocument}</L> to check all of it. The approximate size and the limit are shown beside
+              the buttons.
+            </li>
+            <li>
+              Wait for the suggestions, or choose <L>{PROOFREAD.cancel}</L>.
+            </li>
+            <li>
+              Each suggestion shows its category (spelling, grammar or punctuation), the original text struck through,
+              the replacement, a short explanation and the text around it. The original is selected in the text box. Move
+              with <L>{PROOFREAD.previous}</L> and <L>{PROOFREAD.next}</L>; <L>{PROOFREAD.showInText}</L> selects it
+              again.
+            </li>
+            <li>
+              Choose <L>{PROOFREAD.accept}</L> to change exactly that text in the text box, or <L>{PROOFREAD.dismiss}</L>{" "}
+              to leave it. The next open suggestion is then shown.
+            </li>
+            <li>
+              Choose <L>{RECORD.saveAsRevision("N")}</L> to keep accepted changes. Nothing is saved before that.
+            </li>
+          </ol>
+          <ul>
+            <li>
+              Nothing changes until you accept a suggestion, one at a time. There is no &ldquo;accept all&rdquo;.
+              Suggestions that would change more than 200 characters at once or add or remove a line break are left out,
+              so paragraphs are never rewritten.
+            </li>
+            <li>
+              To undo, choose <L>{PROOFREAD.undo}</L> on an accepted suggestion, or press <kbd>Ctrl</kbd>+<kbd>Z</kbd> in
+              the text box. Once the original text is back, the suggestion is open again.
+            </li>
+            <li>
+              The model is told to keep your voice and meaning, and to leave dialogue, dialect, slang and invented names
+              and terms alone when they could be deliberate. It can still be wrong, so read each suggestion.
+            </li>
+            <li>
+              Words from your <See anchor="dictionary" /> that appear in the text are sent with it as accepted
+              spellings. A suggestion that would change one of them is left out. A name that only resembles a
+              dictionary word can still be corrected.
+            </li>
+            <li>
+              Suggestions work on the Markdown text in the box, not on formatted text. A suggestion that would add,
+              remove or move formatting symbols such as ** or _, or that touches code, a link address, a URL or HTML, is
+              left out. Symbols around a corrected word stay as they were.
+            </li>
+            <li>
+              Each suggestion is tied to one place in the text. When the same words appear more than once, the text
+              around them decides which place is meant; if it cannot, the suggestion is left out.
+            </li>
+            <li>
+              Suggestions that could not be placed safely are listed under &ldquo;{PROOFREAD.leftOut("N")}&rdquo; with
+              the reason. They are never applied.
+            </li>
+            <li>
+              If the text at a suggestion, or right next to it, changes after proofreading (by typing, find and replace,
+              or accepting an overlapping suggestion), the suggestion is marked <em>{PROOFREAD.stale}</em> and cannot be
+              accepted. Suggestions elsewhere keep working. Save and proofread again to get fresh ones.
+            </li>
+            <li>
+              On a protected record you can proofread and review suggestions, but <L>{PROOFREAD.accept}</L> and{" "}
+              <L>{PROOFREAD.undo}</L> stay unavailable until you tick <L>{RECORD.unlockProtected}</L> The tick box is shown
+              above the suggestions too. Saving still needs that tick. Proofreading never unlocks a record by itself.
+            </li>
+            <li>
+              If the record was saved somewhere else after you opened the page, proofreading is refused. Reload the page
+              first.
+            </li>
+            <li>
+              If the model declines, stops at the output limit, or returns something unusable, the box says so and shows
+              no suggestions. After an output-limit stop, proofread a shorter selection.
+            </li>
+            <li>
+              Suggestions stay until you leave or reload the page, or choose <L>{PROOFREAD.clear}</L>. They are not
+              saved.
+            </li>
+          </ul>
+          <p className="warning">
+            {PROOFREAD.privacyNote} Proofreading shares the assistant&apos;s request limits, monthly cap and usage count.
+            See <See anchor="assistant-privacy" />.
+          </p>
+        </Sub>
+
+        <Sub id="formatting">
+          <p>
+            The text box is plain text. Formatting is written with Markdown symbols and stored exactly as typed. It is not
+            shown formatted. On chapters and scenes, the formatting toolbar writes these symbols for you (see{" "}
+            <See anchor="write-page" />
+            ); other records have no formatting buttons.
+          </p>
+          <ul>
+            <li>
+              Bold: <code>**word**</code>
+            </li>
+            <li>
+              Italics: <code>*word*</code> or <code>_word_</code>
+            </li>
+            <li>New paragraph: leave one blank line.</li>
+            <li>
+              Scene break: a line containing only <code>***</code> (or <code>* * *</code>).
+            </li>
+          </ul>
+          <p>
+            Undo and redo are the browser&apos;s own: <kbd>Ctrl</kbd>+<kbd>Z</kbd> to undo, and <kbd>Ctrl</kbd>+
+            <kbd>Y</kbd> or <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd> to redo (on a Mac, <kbd>Cmd</kbd> instead of{" "}
+            <kbd>Ctrl</kbd>). The history lasts until you leave or reload the page, even after saving. After that, use{" "}
+            <See anchor="saved-versions" />.
+          </p>
+        </Sub>
+      </Section>
+
+      <Section id="assistant">
+        <p>
+          The assistant lets you discuss chosen records or a manuscript passage with an OpenAI model, inside the app.
+          It is optional and off until you set it up. Open a project and choose <L>{NAV.assistant}</L>.
+        </p>
+        <ul>
+          <li>
+            Discussing never changes records, even if you say yes or agree in the conversation. To change reference
+            records, ask for a change proposal, review the exact changes, and apply that proposal yourself. See{" "}
+            <See anchor="assistant-proposals" />.
+          </li>
+          <li>
+            It does not use your ChatGPT account. It has no access to your ChatGPT memory, conversations, or Projects,
+            and nothing appears in ChatGPT.
+          </li>
+          <li>It only sees what you include in each question. Nothing else from the workspace is sent.</li>
+          <li>Conversations are saved in this app, separately for each project.</li>
+          <li>
+            The same setup turns on <L>{PROOFREAD.heading}</L> on record pages. See <See anchor="proofreading" />.
+          </li>
+        </ul>
+
+        <Sub id="assistant-setup">
+          <p>
+            The assistant uses an OpenAI API key, which is separate from a ChatGPT subscription and billed separately by
+            OpenAI. Setup happens in the <code>.env</code> file in the WordlyEditor folder, never in the app.
+          </p>
+          <ol>
+            <li>Create an API key in your OpenAI API account (platform.openai.com).</li>
+            <li>
+              Open <code>.env</code> in a text editor and add two lines: <code>WORDLY_OPENAI_API_KEY=</code> followed by
+              your key, and <code>OPENAI_MODEL=</code> followed by a model ID. Choose a text model from OpenAI&apos;s model
+              list that supports the Responses API and that your API project can use.
+            </li>
+            <li>Save the file.</li>
+            <li>
+              Restart the app: press <kbd>Ctrl</kbd>+<kbd>C</kbd> in its terminal, then run <Cmd script="dev" /> again.
+            </li>
+            <li>
+              Open <L>{NAV.assistant}</L>. The model ID and limits are shown at the top. If something is missing, the page
+              says what.
+            </li>
+          </ol>
+          <p className="warning">
+            Keep the key only in <code>.env</code>. Do not paste it into the app, a record, a chat, or any file that is
+            shared. <code>.env</code> is not saved to git. Never put the key in a variable whose name starts with{" "}
+            <code>NEXT_PUBLIC_</code>; the assistant refuses to run if one is set.
+          </p>
+          <p>
+            Wordly Editor uses only its own key. A key in the general <code>OPENAI_API_KEY</code> variable, which other
+            apps on the computer may share, is ignored, and the assistant stays off until <code>WORDLY_OPENAI_API_KEY</code>{" "}
+            is set. A separate key also lets you see this app&apos;s usage and spending on its own in your OpenAI account.
+            Other shared OpenAI settings (organisation, project and server address) are not used either; if{" "}
+            <code>OPENAI_CUSTOM_HEADERS</code> is set, the assistant stays off until it is removed.
+          </p>
+          <p>
+            Without a key, the page explains what is missing and nothing can be sent. Everything else in the app works as
+            usual. Optional limits are listed in <See anchor="assistant-privacy" />.
+          </p>
+        </Sub>
+
+        <Sub id="assistant-context">
+          <p>
+            The conversation fills the middle of the page, with the question box directly under the latest message. What
+            to send is chosen in <L>{ASSISTANT.contextHeading}</L>, a panel on the right. <L>{ASSISTANT.hideContext}</L>{" "}
+            closes it and <L>{ASSISTANT.showContext}</L>, above the question box, opens it again; the app remembers your
+            choice on this computer. Closing the panel does not change what is sent. The line above the question box shows
+            how many items are included and the approximate size. On a narrow window the panel moves below the
+            conversation, and <L>{ASSISTANT.conversations}</L> moves to the bottom of the page.
+          </p>
+          <ol>
+            <li>
+              Under <L>{ASSISTANT.conversations}</L>, choose <L>{ASSISTANT.newConversation}</L>, or open an earlier
+              conversation.
+            </li>
+            <li>
+              In <L>{ASSISTANT.contextHeading}</L>, under <L>{ASSISTANT.references}</L>, tick the records to include. Each shows its type, canon status, saved
+              version, and length. For a document with several headings, open <L>{ASSISTANT.sectionsHeading}</L> under it
+              and tick only the sections you need instead; a ticked section includes its subsections, and ticking a
+              section unticks the whole document. See <See anchor="long-documents" />.
+            </li>
+            <li>
+              Under <L>{ASSISTANT.manuscript}</L>, choose a chapter, or leave <L>{ASSISTANT.noManuscript}</L>. Choose{" "}
+              <L>{ASSISTANT.wholeChapter}</L>, or <L>{ASSISTANT.passageOnly}</L>: select text in the chapter shown, then
+              choose <L>{ASSISTANT.usePassage}</L>. The chosen characters and the start of the passage are shown.
+            </li>
+            <li>
+              To give the assistant earlier parts of the conversation, tick <L>{ASSISTANT.includeMessage}</L> on those
+              messages, or use <L>{ASSISTANT.includeAll}</L> and <L>{ASSISTANT.includeNone}</L>. Unticked messages are not
+              sent, so the assistant does not remember them.
+            </li>
+            <li>
+              Check <L>{ASSISTANT.summaryHeading}</L>. It lists every item, its saved version, and its length, with an
+              approximate total against the limit.
+            </li>
+            <li>
+              Type your question in the box under the conversation and choose <L>{ASSISTANT.send}</L>. The conversation
+              scrolls to the newest message unless you have scrolled up to read an earlier one.
+            </li>
+          </ol>
+          <p>
+            Records and chosen sections are sent whole; nothing is cut to fit. If the total is over the limit, <L>{ASSISTANT.send}</L> stays
+            unavailable. If the app refuses a question as too large, it lists each item&apos;s size and how many characters
+            to remove. Untick records or earlier messages, or choose a shorter passage.
+          </p>
+          <p>
+            If a selected record is saved somewhere else after you selected it, the app refuses to send and reloads the
+            list. Check the new version and send again.
+          </p>
+        </Sub>
+
+        <Sub id="assistant-answers">
+          <p>
+            The answer appears as it is written. Under each answer, <em>Used</em> lists the records, saved versions, and
+            passage that were sent, and how many earlier messages were included. Token counts reported by OpenAI are
+            shown; counts marked as an estimate were worked out by the app.
+          </p>
+          <ul>
+            <li>
+              <L>{ASSISTANT.olderVersion}</L> means at least one record used has been saved again since. The old and new
+              version numbers are shown. Ask again to discuss the current version.
+            </li>
+            <li>
+              {ASSISTANT.proposalsNote} The assistant is told to put suggestions under a heading saying they are proposals.
+              Approving an idea is up to you: edit the record yourself, or ask for a change proposal (
+              <See anchor="assistant-proposals" />).
+            </li>
+            <li>
+              Imported text is sent as source material. The assistant is told not to follow instructions found inside
+              records or passages.
+            </li>
+            <li>
+              Choose <L>{ASSISTANT.cancel}</L> to stop an answer. The part already written is kept and marked cancelled.
+            </li>
+            <li>
+              A failed or cancelled answer shows the reason and <L>{ASSISTANT.retry}</L>. Retry sends the same question,
+              the same saved versions of the same records, and the same earlier messages. It is never retried
+              automatically.
+            </li>
+            <li>An answer stopped by the output limit is marked incomplete.</li>
+            <li>
+              <L>{ASSISTANT.deleteConversation}</L> asks you to tick <L>{ASSISTANT.confirmDelete}</L> first. Records are
+              not affected.
+            </li>
+          </ul>
+        </Sub>
+
+        <Sub id="assistant-proposals">
+          <p>
+            A change proposal is a change package the assistant prepares for reference records. It is applied through
+            the same checks as <See anchor="change-package-import" />, and only when you choose to apply it.
+          </p>
+          <ol>
+            <li>
+              Choose the records to change under <L>{ASSISTANT.references}</L>. The assistant can only change records you
+              include; it can also suggest new reference records. A chapter or passage can be included as source
+              material, but manuscript text is never changed.
+            </li>
+            <li>
+              Describe the change in the question box and choose <L>{ASSISTANT.prepare}</L>. Your request is
+              marked <em>{ASSISTANT.proposalRequest}</em>. Nothing is changed yet.
+            </li>
+            <li>
+              The <L>{ASSISTANT.proposalHeading}</L> under the answer lists the records it would change and whether it can
+              be applied. Choose <L>{ASSISTANT.reviewProposal}</L> to open the review page. See{" "}
+              <See anchor="change-review" />.
+            </li>
+            <li>
+              The review page shows each change exactly: titles, text differences, structured fields, canon status, and
+              the saved version each change expects. Records that may need review are listed under{" "}
+              <em>{REVIEW.affectedHeading}</em>; they are not changed.
+            </li>
+            <li>
+              If the proposal adds or changes canon, the review summary lists which records and asks you to tick{" "}
+              <L>{REVIEW.confirmCanon}</L>.
+            </li>
+            <li>
+              Choose <L>{REVIEW.apply("N")}</L>. That applies exactly the changes shown, as one package. There is no
+              further question.
+            </li>
+            <li>
+              The result lists each changed record with its old and new saved version, and the items added to review.
+              The proposal under the answer then shows it was applied, and the package appears under{" "}
+              <L>{NAV.history}</L>. <L>{REVIEW.backToDiscussion}</L> returns to the proposal in its conversation.
+            </li>
+          </ol>
+          <ul>
+            <li>
+              Saying yes in the conversation does not apply a proposal. Only <L>{REVIEW.apply("N")}</L> on the review page
+              does.
+            </li>
+            <li>
+              The app, not the assistant, sets the package ID, the project, the saved versions expected, and the
+              approval. Proposals never unlock protected records and never change manuscript chapters. A proposal that
+              touches a protected record shows the problem and cannot be applied.
+            </li>
+            <li>
+              New records start as proposed unless you asked for something else. Promoting a record to approved,
+              creating an approved record, or changing an approved record needs the canon tick.
+            </li>
+            <li>
+              If a record changes after the proposal was prepared, the proposal is shown as out of date and cannot be
+              applied. Go back to the discussion and choose <L>{ASSISTANT.prepare}</L> again; the new proposal uses the
+              current versions.
+            </li>
+            <li>
+              Applying twice changes nothing the second time. If applying fails part-way, nothing is saved.
+            </li>
+            <li>
+              Other records are never rewritten to match. When a record&apos;s structured fields and its text seem to
+              disagree, for example an <code>age</code> field that changes while the text still gives the old age, a
+              review note is added instead.
+            </li>
+            <li>
+              If the assistant declines, stops at the output limit, or returns something unusable, the answer says
+              nothing was prepared. A failed proposal can be retried.
+            </li>
+            <li>
+              <em>Package JSON</em> on a proposal holds the package marked proposed, with <L>{ASSISTANT.copyPackage}</L>.
+              Pasted into <L>{NAV.importPackage}</L> it can be previewed, but only a package marked approved can be
+              applied there.
+            </li>
+          </ul>
+        </Sub>
+
+        <Sub id="assistant-privacy">
+          <p className="warning">{ASSISTANT.privacyNote}</p>
+          <p>
+            Requests ask OpenAI not to store the response for later retrieval. OpenAI still keeps request data for abuse
+            monitoring, normally for up to 30 days, so this is not zero retention. See OpenAI&apos;s data controls for
+            current details. The app does not write manuscript or record text to its log.
+          </p>
+          <p>
+            The app has its own limits, set in <code>.env</code>. Each has a default, and the page shows how much is used.
+          </p>
+          <ul>
+            <li>
+              <code>ASSISTANT_MAX_INPUT_CHARS</code>: characters per request, including selections and earlier messages,
+              or the text sent for proofreading (default 600,000).
+            </li>
+            <li>
+              <code>ASSISTANT_MAX_OUTPUT_TOKENS</code>: longest answer or proofreading result (default 2,000 tokens).
+            </li>
+            <li>
+              <code>ASSISTANT_MAX_REQUESTS_PER_HOUR</code>: requests per hour (questions, change proposals and
+              proofreading), across all workspaces (default 30).
+            </li>
+            <li>
+              <code>ASSISTANT_MONTHLY_TOKEN_CAP</code>: tokens per calendar month (UTC), across all workspaces (default
+              300,000). A question is refused if its estimated size plus the longest possible answer would pass the cap.
+            </li>
+            <li>
+              <code>ASSISTANT_REQUEST_TIMEOUT_SECONDS</code>: how long to wait for an answer (default 120).
+            </li>
+          </ul>
+          <p>
+            <L>{ASSISTANT.usageHeading}</L> on the <L>{NAV.assistant}</L> page adds up the tokens OpenAI reported for
+            answers and proofreading, plus estimates for cancelled requests and requests without a report. It is this app&apos;s count, not your OpenAI bill, and the app shows no prices. The
+            cap is not a hard spending cap: estimates can be wrong, and other use of the same key is not counted. Budget
+            alerts in your OpenAI account are notifications, not hard caps either. Check usage in your OpenAI account.
+          </p>
+        </Sub>
+      </Section>
+
+      <Section id="chatgpt">
+        <p className="warning">
+          ChatGPT cannot read or update this app. You move information by hand: an export file goes to ChatGPT, and a
+          change package comes back.
+        </p>
+        <ol>
+          <li>
+            Open the project and choose <L>{NAV.exportContext}</L>.
+          </li>
+          <li>
+            Tick the records relevant to your discussion. Ticking a type name ticks all records of that type.
+            Manuscript chapters and scenes start unticked.
+          </li>
+          <li>
+            Leave <L>{EXPORT.includeSchema}</L> ticked. It tells ChatGPT the exact format to use.
+          </li>
+          <li>
+            Choose <L>{EXPORT.generate("N")}</L>.
+          </li>
+          <li>
+            Choose <L>{EXPORT.download}</L> to save the file, or <L>{EXPORT.copy}</L>.
+          </li>
+          <li>Attach the file to a ChatGPT conversation, or paste the copied text.</li>
+          <li>Paste the instruction below into the same message.</li>
+          <li>Discuss your ideas. When you are sure, tell ChatGPT plainly which changes you approve.</li>
+          <li>Ask ChatGPT to prepare a change package for the approved changes, using the format in the export.</li>
+          <li>Save ChatGPT&apos;s answer as a .json file, or copy its text.</li>
+          <li>
+            In WordlyEditor, import the package with <L>{NAV.importPackage}</L>. See{" "}
+            <See anchor="change-package-import" />.
+          </li>
+          <li>Review the differences.</li>
+          <li>
+            Choose <L>{REVIEW.apply("N")}</L> to apply the changes you intended.
+          </li>
+          <li>
+            Open the changed records from the summary, then check <L>{NAV.history}</L>.
+          </li>
+        </ol>
+        <h3>Instruction to give ChatGPT</h3>
+        <pre>{CHATGPT_INSTRUCTION}</pre>
+        <div>
+          <CopyButton text={CHATGPT_INSTRUCTION} label="Copy instruction" />
+        </div>
+
+        <Sub id="context-export">
+          <p>
+            A context export is a snapshot of the records you ticked: their current text, IDs, saved-version numbers,
+            canon status, and protection, plus instructions for ChatGPT. It does not stay in step with the app.
+          </p>
+          <p className="warning">
+            After you change records (by editing, importing, or applying a package), export again and give ChatGPT the new
+            file. A package built from an old export will be refused.
+          </p>
+          <p>
+            A record whose headings carry status tags also lists them, word for word, and the export tells ChatGPT that
+            those markings govern their own sections. See <See anchor="section-status" />.
+          </p>
+          <p>
+            An export is not a backup. It leaves out earlier saved versions and unticked records, and it cannot be
+            restored. For safekeeping, see <See anchor="full-backup" />.
+          </p>
+        </Sub>
+
+        <Sub id="chatgpt-direct">
+          <p className="warning">
+            ChatGPT is not connected to this app. Choose <L>{SHELL.connections}</L> to see the checks this computer has
+            actually made. A local read-only adapter is not a ChatGPT connection, and it cannot save changes.
+          </p>
+          <p>The page has two parts:</p>
+          <ul>
+            <li>
+              <L>{CONNECTIONS.assistantHeading}</L> is the optional assistant inside WordlyEditor. See{" "}
+              <See anchor="assistant" />.
+            </li>
+            <li>
+              <L>{CONNECTIONS.chatgptHeading}</L> is ChatGPT calling WordlyEditor. It shows the{" "}
+              <L>{CONNECTIONS.localAdapter}</L> and <L>{CONNECTIONS.chatgpt}</L> separately.
+            </li>
+          </ul>
+          <p>The states mean:</p>
+          <ul>
+            <li>
+              <L>{CONNECTIONS.notConfigured}</L>: the setting or grant file for that part is missing or not usable.
+            </li>
+            <li>
+              <L>{CONNECTIONS.localAdapterReady}</L>: the read-only adapter on this computer accepted its grant and listed
+              its tools. ChatGPT was not contacted.
+            </li>
+            <li>
+              <L>{CONNECTIONS.connectionNotVerified}</L>: something is set up locally, and no live connection was checked.
+            </li>
+            <li>
+              <L>{CONNECTIONS.disabled}</L>: the adapter is turned off, or its grant is revoked. Calls are refused.
+            </li>
+          </ul>
+          <p>
+            Under <L>{CONNECTIONS.grantHeading}</L> on the same page you choose what the adapter may read, without editing
+            any file:
+          </p>
+          <ul>
+            <li>
+              <L>{CONNECTIONS.grantActive}</L>: untick it to refuse every request. Your project choices are kept for when you
+              turn it on again.
+            </li>
+            <li>
+              <L>{CONNECTIONS.grantProjects}</L>: tick each project it may read. Projects that are not ticked cannot be
+              listed or read.
+            </li>
+            <li>
+              <L>{CONNECTIONS.grantManuscript}</L>: leave it unticked to allow reference documents only (series bible,
+              characters, worldbuilding and so on).
+            </li>
+          </ul>
+          <p>
+            Choose <L>{CONNECTIONS.grantSave}</L>. The settings are saved to the grant file shown on the page (normally{" "}
+            <code>mcp/grant.json</code>, which is never saved to git). The adapter reads that file on every request, so a
+            change applies to the next one. Reading is the only permission it can have; this page cannot give ChatGPT a
+            way to save changes. If the file has been edited by hand and cannot be read, the page lists the problems
+            and leaves the file alone until you fix or remove it.
+          </p>
+          <p>
+            <Cmd script="mcp:stdio" /> speaks the read-only protocol on this computer. It does not open a network port.
+            Running it does not connect ChatGPT, and the Connections page does not treat a running command as a live
+            connection. Setting <code>WORDLY_MCP_DISABLED=1</code> in <code>.env</code> turns the adapter off whatever the
+            page says.
+          </p>
+          <p>
+            The adapter can list permitted projects, search reference records, read current records, list a
+            document&apos;s sections and read one section at a time, and read saved versions and change history. It
+            cannot apply updates. Updates from a ChatGPT conversation still come back as
+            a change package you review and apply yourself. See <See anchor="change-package-import" />.
+          </p>
+          <p className="warning">
+            Do not make the app reachable from the internet or point a tunnel or forwarding service at it. The app has no
+            sign-in. Connecting ChatGPT needs a separate decision after you check your account. The assessment, including
+            the account checks and the remaining decisions, is in <code>docs/future-chatgpt-connection.md</code>.
+          </p>
+        </Sub>
+      </Section>
+
+      <Section id="reviewing">
+        <Sub id="change-package-import">
+          <p>
+            A change package is a file containing proposed updates, usually prepared by ChatGPT. Nothing changes until
+            you apply it.
+          </p>
+          <ol>
+            <li>
+              Open the project and choose <L>{NAV.importPackage}</L>.
+            </li>
+            <li>Choose the package file, or paste its text into the box.</li>
+            <li>
+              Choose <L>{PACKAGE_IMPORT.validate}</L>. The app checks the whole package and opens the review screen.
+              Nothing is saved yet.
+            </li>
+            <li>
+              Read the changes on the review screen. See <See anchor="change-review" />.
+            </li>
+            <li>
+              If the package lists protected records as overrides, tick <L>{REVIEW.confirmProtected}</L>
+            </li>
+            <li>
+              Choose <L>{REVIEW.apply("N")}</L>.
+            </li>
+          </ol>
+          <p>
+            After applying you see <em>{REVIEW.applied}</em> and a summary with links to each changed record.
+          </p>
+          <p>
+            A package is applied only if it says you approved it. One marked as proposed can be reviewed but not
+            applied, so ideas cannot become canon by accident.
+          </p>
+          <p>
+            The screen always checks and applies the text you validated. To use different text, choose{" "}
+            <L>{PACKAGE_IMPORT.changeText}</L> (or <L>{REVIEW.backToPackageText}</L>), edit it, and validate again. When
+            the package&apos;s source names a conversation from this project&apos;s <L>{NAV.assistant}</L>, the screen
+            links to it and offers <L>{REVIEW.backToDiscussion}</L> instead.
+          </p>
+        </Sub>
+
+        <Sub id="change-review">
+          <p>
+            The review screen is used for imported packages and for assistant proposals. It shows exactly what applying
+            would do, checked against the current records. The package is applied as a whole: every change is saved, or
+            none is. Choosing a record only changes which comparison you see; it never leaves a change out.
+          </p>
+          <p>
+            At the top are the package&apos;s summary, its ID and scope, where it came from, and its state:{" "}
+            <em>{REVIEW.stateReady}</em>, <em>{REVIEW.stateStale}</em>, <em>{REVIEW.stateNotApproved}</em>, or the number
+            of problems. Below are three areas side by side. In a narrower window the list and summary sit beside the
+            comparison, then everything stacks in one column.
+          </p>
+          <ul>
+            <li>
+              <L>{REVIEW.recordsHeading}</L> lists each record with its type and what changes, for example{" "}
+              <em>Text</em>, <em>2 fields</em>, or <em>New record</em>, and marks it <em>{REVIEW.badgeManuscript}</em>,{" "}
+              <em>{REVIEW.badgeStale}</em>, or <em>{REVIEW.badgeProblem}</em> where that applies. Choose one to see its
+              changes. With a record
+              selected, the Up and Down arrow keys, Home and End move through the list. <L>{REVIEW.previous}</L> and{" "}
+              <L>{REVIEW.next}</L> do the same.
+            </li>
+            <li>
+              The comparison shows <L>{REVIEW.detailsHeading}</L> (title, canon status, superseded-by, and structured
+              fields) separately from the <L>{REVIEW.textHeading}</L>. Each detail shows a box labelled{" "}
+              <em>{REVIEW.removed}</em> with the old value and a box labelled <em>{REVIEW.added}</em> with the new one.
+            </li>
+            <li>
+              In a wide comparison the text appears in two columns: <em>{REVIEW.current("N")}</em> and{" "}
+              <em>{REVIEW.afterApplying}</em>. When it is narrow the text appears once, with changes marked in place.{" "}
+              <del className="diff-sample">Removed text is struck through</del> and{" "}
+              <ins className="diff-sample">added text is underlined</ins>; screen readers announce them as Removed and
+              Added. Line breaks and spacing are kept.
+            </li>
+            <li>
+              Long unchanged stretches are folded into a line such as <em>{REVIEW.unchangedLines(12)}</em>. Choose it to
+              show the text.
+            </li>
+            <li>
+              A new record says <em>{REVIEW.newRecordBefore}</em> and shows the text it will have.{" "}
+              <em>{REVIEW.emptyText}</em> marks a record that has no text now; <em>{REVIEW.allTextRemoved}</em> marks a
+              change that empties it.
+            </li>
+          </ul>
+          <p>
+            <L>{REVIEW.summaryHeading}</L> on the right covers the whole package:
+          </p>
+          <ul>
+            <li>How many records are updated and how many are created.</li>
+            <li>
+              <em>{REVIEW.manuscriptUnchanged}</em> appears only when no change touches a chapter or scene. Otherwise it
+              names the manuscript records that change. Chapters that only mention a changed name are counted, not
+              changed.
+            </li>
+            <li>
+              <L>{REVIEW.protectionHeading}</L>: protected records the package changes, and whether each is listed as an
+              override. A package cannot give itself permission: an override needs your tick on{" "}
+              <L>{REVIEW.confirmProtected}</L>, and a protected record that is not listed cannot be changed.
+            </li>
+            <li>
+              <L>{REVIEW.revisionsHeading}</L>: the saved version each change expects and the record&apos;s current
+              version. <em>{REVIEW.revisionsVerified}</em> means they all match. The screen checks again when you come
+              back to the window, every 30 seconds while it is visible, and when you choose <L>{REVIEW.checkAgain}</L>.
+            </li>
+            <li>
+              <L>{REVIEW.affectedHeading}</L>: records that mention a changed record&apos;s title, name, or aliases, plus
+              records the package lists for follow-up. They are not changed. When you apply, they are added to{" "}
+              <L>{HISTORY.openReviewItems}</L>.
+            </li>
+          </ul>
+          <p>
+            <L>{REVIEW.apply("N")}</L> is available only when the package is ready and every required tick is given. It
+            shows <em>{REVIEW.applying}</em> while it works, and pressing it again does nothing until the result is
+            back.
+          </p>
+          <h3>When something is wrong</h3>
+          <ul>
+            <li>
+              If the check finds a problem, the state shows how many and the problems are listed. There is no apply
+              button. No part of the package is saved. Yellow warnings do not stop the package.
+            </li>
+            <li>
+              If applying is refused, you see <em>{REVIEW.rejected}</em> with the reasons, and the screen checks the
+              records again.
+            </li>
+            <li>
+              If the app cannot confirm the result, for example because the connection dropped, you see that either every
+              change was saved or none was, and the screen checks again to find out.
+            </li>
+          </ul>
+        </Sub>
+        <dl>
+          <dt>Already applied</dt>
+          <dd>
+            Validating the same package again shows <em>{REVIEW.stateAlreadyApplied}</em> and the earlier result. If it
+            was applied in another tab while the screen was open, applying shows <em>{REVIEW.alreadyApplied}</em> This is
+            safe; nothing is changed twice.
+          </dd>
+          <dt>Out of date</dt>
+          <dd>
+            <em>{REVIEW.stateStale}</em> means a record was saved again after the package was prepared. If that happens
+            while the screen is open, it also says <em>{REVIEW.becameStale}</em> The package cannot be applied, and the
+            app never updates its expected versions for you. The record shows a <code>STALE_REVISION</code> problem
+            naming the version the package expected. For an imported package, export the context again, give ChatGPT the
+            new file, and ask for a new package. For an assistant proposal, go back to the discussion and prepare a new
+            proposal. Do not edit the numbers by hand; the package was written against the older text.
+          </dd>
+          <dt>Package ID already used</dt>
+          <dd>
+            Every package has an ID. The app uses it to recognise packages it has already applied. A different package
+            with a used ID is refused (<code>PACKAGE_ID_CONFLICT</code>). Ask ChatGPT for a new package ID.
+          </dd>
+        </dl>
+
+        <Sub id="review-items">
+          <p>
+            <L>{NAV.history}</L> shows <L>{HISTORY.openReviewItems}</L>: records that might need follow-up because a
+            related record changed. The app never updates related records itself.
+          </p>
+          <ol>
+            <li>Open the record from the list.</li>
+            <li>Decide whether it needs a change, and edit it if so.</li>
+            <li>
+              Back on <L>{NAV.history}</L>, choose <L>{HISTORY.resolve}</L>.
+            </li>
+          </ol>
+          <p>
+            <L>{HISTORY.resolve}</L> only removes the item from the list. It does not change the record. Resolved items are
+            no longer shown; the resolution is noted in the <L>{HISTORY.auditLog}</L>.
+          </p>
+          <p>
+            The same page lists <L>{HISTORY.appliedPackages}</L> and the <L>{HISTORY.auditLog}</L> of every change.
+          </p>
+        </Sub>
+      </Section>
+
+      <Section id="trash">
+        <p>
+          Nothing is deleted in one step. You first move a document, chapter, scene, project or workspace to the Trash,
+          where it waits, hidden, until you restore it or delete it permanently.
+        </p>
+        <Sub id="move-to-trash">
+          <ul>
+            <li>
+              <strong>A reference document, scene note, chapter or scene:</strong> open it. At the bottom of the page (on
+              the writing page, at the bottom of the record details below the editor) find <L>{TRASH.sectionHeading}</L>{" "}
+              and choose <L>{TRASH.moveRecord}</L>.
+            </li>
+            <li>
+              <strong>A project:</strong> on the home page, choose <L>{TRASH.moveProject}</L> beside it.
+            </li>
+            <li>
+              <strong>A workspace:</strong> on the home page, choose <L>{TRASH.moveWorkspace}</L> at the bottom of its
+              box.
+            </li>
+          </ul>
+          <p>
+            The app asks first. Choose the button that names the item, for example{" "}
+            <L>{TRASH.confirmMove("Chapter 3")}</L>, or <L>{TRASH.cancel}</L>.
+          </p>
+          <ul>
+            <li>
+              A chapter takes its scenes and all their notes with it; a scene takes its notes. The confirmation lists
+              them. They come back together when you restore it.
+            </li>
+            <li>
+              If anything being moved is protected (chapters and scenes are, by default), tick{" "}
+              <L>{TRASH.unlockProtected}</L> first.
+            </li>
+            <li>
+              A project or workspace takes everything in it. Its records keep their own state, so a document that was
+              already in the Trash stays there when the project comes back.
+            </li>
+          </ul>
+          <p>
+            Anything in the Trash disappears from the home page, the navigation, lists, search, word counts, PDF and
+            context exports, the assistant, linked references, open review items and the ChatGPT adapter. Change packages
+            and imports cannot change it or use it as a parent. Nothing is removed: its saved versions, images, links and
+            history are kept, and it is still included in backups.
+          </p>
+        </Sub>
+        <Sub id="trash-page">
+          <p>
+            Choose <L>{SHELL.trash}</L> in the left navigation. The page lists workspaces, projects, and documents,
+            chapters and scenes in the Trash, with when each was moved.
+          </p>
+          <ul>
+            <li>
+              <L>{TRASH.restore}</L> puts it back where it was, unchanged. A scene whose chapter is also in the Trash
+              cannot come back on its own: restore the chapter first. The same goes for a project in a workspace in the
+              Trash.
+            </li>
+            <li>
+              <L>{TRASH.downloadBackup}</L> beside a workspace downloads a backup file of it, as on the{" "}
+              <L>{SHELL.backups}</L> page.
+            </li>
+            <li>
+              <L>{TRASH.deletePermanently}</L> asks you to confirm, then removes the item and everything inside it from the
+              database: its saved versions, images, links, imported files, review items and proofreading records.
+            </li>
+            <li>
+              <L>{TRASH.emptyTrash}</L> does the same for everything on the page at once.
+            </li>
+          </ul>
+          <p>
+            Before deleting anything permanently, the app writes a full backup to a new folder under <code>backups/</code>{" "}
+            in the WordlyEditor folder, named with the date and <code>before-permanent-delete</code>. It holds a copy of
+            the database file and one backup file per workspace, including everything in the Trash. If the backup cannot
+            be written, nothing is deleted. When deletion finishes, the page names the folder. To get something back, restore
+            its workspace from that folder on the <L>{SHELL.backups}</L> page (see <See anchor="restore" />).
+          </p>
+          <p>
+            A document cannot be deleted permanently while another record is marked superseded by it. The page says which
+            record; change that record&apos;s status first.
+          </p>
+        </Sub>
+      </Section>
+
+      <Section id="backup">
+        <Sub id="full-backup">
+          <p>A backup is a complete copy of a workspace that you can restore later.</p>
+          <ol>
+            <li>
+              Choose <L>{SHELL.backups}</L> in the left navigation.
+            </li>
+            <li>
+              Under <L>{BACKUP.downloadHeading}</L>, choose the workspace name.
+            </li>
+            <li>
+              Your browser downloads a file ending in <code>.wordly-backup.json</code>.
+            </li>
+          </ol>
+          <p>
+            It holds everything in that workspace: projects, records, every saved version and where it came from, canon
+            status, protection, applied change packages, the audit log, open review items, the original imported files,
+            images attached to documents, and the project and workspace dictionaries. Each file covers one workspace.
+            Anything in the Trash is included and is still in the Trash after a restore; a restored workspace itself
+            always starts outside the Trash. A workspace in the Trash is not listed here; download its backup from the{" "}
+            <L>{SHELL.trash}</L> page.
+          </p>
+          <details>
+            <summary>Backing up every workspace at once</summary>
+            <p>
+              Run <Cmd script="db:backup" />. It only reads your data. It writes a folder under <code>backups/</code>{" "}
+              in the WordlyEditor folder with a copy of the database file and one backup file per workspace.
+            </p>
+          </details>
+          <p>Make a backup before importing many files, before applying a large package, and at the end of a work session.</p>
+          <p className="warning">
+            A backup on this computer will not help if the computer is lost or broken. Copy backup files to another place
+            you control, such as an external drive.
+          </p>
+          <p>
+            A backup is different from a context export. A backup is for safekeeping and can be restored. A context
+            export is a snapshot of selected records for ChatGPT and cannot be restored.
+          </p>
+        </Sub>
+
+        <Sub id="restore">
+          <p>Restoring adds a copy of the backup as a new workspace. It never overwrites your current work.</p>
+          <ol>
+            <li>
+              Choose <L>{SHELL.backups}</L> in the left navigation.
+            </li>
+            <li>
+              Under <L>{BACKUP.restoreHeading}</L>, choose the backup file.
+            </li>
+            <li>The app checks the whole file and shows what it contains. Nothing is saved yet.</li>
+            <li>Check or change the name for the restored workspace.</li>
+            <li>
+              Choose <L>{BACKUP.restore}</L>.
+            </li>
+          </ol>
+          <p>
+            The restored workspace appears on the home page beside your existing ones. Its records get new IDs, so export
+            context again from the restored copy before using ChatGPT with it.
+          </p>
+          <details>
+            <summary>Checking a backup from the terminal</summary>
+            <p>
+              <Cmd script="db:restore" args="<file> --dry-run" /> checks a backup and summarises it without changing
+              anything. <Cmd script="db:restore" args="<file> --new-database <path>" /> restores it into a separate new
+              database file, keeping the original IDs.
+            </p>
+          </details>
+        </Sub>
+      </Section>
+
+      <Section id="troubleshooting">
+        <dl>
+          <dt>The app will not open</dt>
+          <dd>
+            If the browser cannot connect, the app is not running. Run <Cmd script="dev" /> in the WordlyEditor folder,
+            wait until it is ready, then open the address the terminal shows (normally <a href={APP_URL}>{APP_URL}</a>).
+            If that address ends in a port other than 3000, something else is using port 3000. Often it is the app
+            itself, still running in another terminal; use that copy, or stop it with <kbd>Ctrl</kbd>+<kbd>C</kbd> there
+            and start again, rather than keeping two copies running. If an error mentions the database, run{" "}
+            <Cmd script="db:info" /> to see which file is used and check <code>.env</code>. Do not delete the database.
+          </dd>
+
+          <dt>A file will not import</dt>
+          <dd>
+            Read the message beside the file. Only <code>.md</code> and <code>.markdown</code> files that are not empty
+            and are under 5 MB can be imported. Every file needs a type, canon status, protection, and action. Only
+            reference types are allowed. A replacement must keep the record&apos;s type. See{" "}
+            <See anchor="importing" />.
+          </dd>
+
+          <dt>A possible duplicate appears</dt>
+          <dd>
+            Open the linked record and compare. Then choose <L>{MARKDOWN_IMPORT.createNew}</L>,{" "}
+            <L>{MARKDOWN_IMPORT.replacePrefix}</L>, or <L>{MARKDOWN_IMPORT.skip}</L>. See <See anchor="duplicates" />.
+          </dd>
+
+          <dt>An update is based on an older saved version</dt>
+          <dd>
+            The record was saved after you started (in another tab, by an import, or by a package). On a record page,
+            copy your typing, reload the page, paste your changes into the newest version, and save. For a change
+            package, export the context again and ask ChatGPT for a new package.
+          </dd>
+
+          <dt>A package was already applied</dt>
+          <dd>
+            Nothing more is needed; it will not be applied twice. If you meant to make new changes, ask ChatGPT for a new
+            package with a new package ID.
+          </dd>
+
+          <dt>A record is protected</dt>
+          <dd>
+            On the record page, tick <L>{RECORD.unlockProtected}</L> and save again. For imports and packages, tick the
+            confirmation box before applying. A package can only change a protected record if it lists that record as
+            allowed, so ask ChatGPT for that only when you mean it. See <See anchor="protection" />.
+          </dd>
+
+          <dt>A replacement left a structured field unchanged</dt>
+          <dd>
+            This is expected. Replacing a record from a Markdown file changes only its title, text, and canon status.
+            Edit the field in <L>{RECORD.editHeading}</L> on the record page and save.
+          </dd>
+
+          <dt>An expected related record was not flagged</dt>
+          <dd>
+            The app only looks for related records when a change package is applied, not when you edit or import. It
+            finds exact matches of the changed record&apos;s title, <code>name</code>, or <code>aliases</code> (three or
+            more characters). Nicknames that are not listed as aliases and pronouns are missed. Add aliases to the
+            record&apos;s structured fields, ask ChatGPT to list related records in the package, and check related records
+            yourself.
+          </dd>
+
+          <dt>Spelling mistakes are not underlined</dt>
+          <dd>
+            Look at <L>{SPELLING.checker}</L>. With <L>{SPELL_CHECKERS[0].label}</L>, the box beside it says{" "}
+            <em>{SPELLING.loading}</em> until the word list has loaded; underlines appear a moment after you stop typing.
+            If it says the checker could not start, reload the page; if that keeps happening, the word list files may be
+            missing, so stop the app, run <code>pnpm install</code>, and start it again. With{" "}
+            <L>{SPELL_CHECKERS[1].label}</L>, checking is done by your browser: check that spell check is turned on in
+            its settings and that the English you chose in <L>{WRITING.spellingLanguage}</L> is installed there. Some
+            browsers only underline words after you click into the text box. See <See anchor="spelling" />.
+          </dd>
+
+          <dt>A name is underlined even though it is in the dictionary</dt>
+          <dd>
+            Compare the spelling and capitals letter by letter with the entry on the <L>{NAV.dictionary}</L> page. With{" "}
+            <L>{DICTIONARY.matchCase}</L> ticked, &ldquo;ALDRETH&rdquo; is not the same as &ldquo;Aldreth&rdquo;. A
+            project word is not accepted in other projects; move it to the workspace dictionary with{" "}
+            <L>{DICTIONARY.edit}</L> if the whole series uses it. The browser&apos;s checker never uses your dictionary.
+            See <See anchor="dictionary" />.
+          </dd>
+
+          <dt>A backup will not restore</dt>
+          <dd>
+            You see <em>{BACKUP.cannotRestore}</em> Your existing work is unchanged. Make sure the file ends in{" "}
+            <code>.wordly-backup.json</code> and is not a context export. The file must be exactly as downloaded; any edit
+            makes the check fail. Try another backup, or run <Cmd script="db:restore" args="<file> --dry-run" /> for a
+            detailed report.
+          </dd>
+
+          <dt>The assistant says it is not set up</dt>
+          <dd>
+            The page lists what is missing. Check the <code>WORDLY_OPENAI_API_KEY</code> and <code>OPENAI_MODEL</code>{" "}
+            lines in <code>.env</code>, then restart the app. A key under the older name <code>OPENAI_API_KEY</code> is not
+            used: rename that line to <code>WORDLY_OPENAI_API_KEY</code>. Changes to <code>.env</code> are read only when the app starts. See{" "}
+            <See anchor="assistant-setup" />.
+          </dd>
+
+          <dt>An assistant answer failed</dt>
+          <dd>
+            Read the reason under the answer. A rejected key (401) or missing model (404) means the <code>.env</code>{" "}
+            settings need fixing, followed by a restart. A rate limit or quota message (429) comes from OpenAI: wait, or
+            check usage and billing in your OpenAI account. For connection or timeout errors, check the internet
+            connection and choose <L>{ASSISTANT.retry}</L>.
+          </dd>
+
+          <dt>A change proposal cannot be applied</dt>
+          <dd>
+            Choose <L>{ASSISTANT.reviewProposal}</L> and read the problems on the review page. <em>{REVIEW.stateStale}</em>{" "}
+            means a record changed after the proposal was prepared: go back to the discussion and prepare a new proposal.
+            A protected record must be changed by hand, or unprotected first. A canon change needs{" "}
+            <L>{REVIEW.confirmCanon}</L> ticked. See <See anchor="change-review" />.
+          </dd>
+
+          <dt>The assistant refuses a question</dt>
+          <dd>
+            If it is too large, untick records or earlier messages, or use a shorter passage; the message lists each
+            item&apos;s size. If the hourly limit or the monthly cap is reached, wait, or raise the limit in{" "}
+            <code>.env</code> and restart. See <See anchor="assistant-privacy" />.
+          </dd>
+
+          <dt>The proofreading buttons are unavailable</dt>
+          <dd>
+            If the box says the assistant is not set up, see <See anchor="assistant-setup" />. If you have unsaved
+            changes, save first. <L>{PROOFREAD.proofreadSelection}</L> needs text selected in the text box. If the text is
+            over the request limit, select a shorter part; nothing is cut automatically.
+          </dd>
+
+          <dt>A proofreading suggestion cannot be accepted</dt>
+          <dd>
+            If it is marked <em>{PROOFREAD.stale}</em>, the text there changed after proofreading: save and proofread
+            again. On a protected record, tick <L>{RECORD.unlockProtected}</L> first. If proofreading was refused because
+            the record was saved elsewhere, reload the page. See <See anchor="proofreading" />.
+          </dd>
+        </dl>
+      </Section>
+
+      <Section id="limitations">
+        <ul>
+          <li>
+            ChatGPT cannot reach this app (see <See anchor="chatgpt-direct" />). The local read-only adapter does not
+            save changes and is not a ChatGPT connection. There is no cloud sync and no accounts. The app runs on this
+            computer only. The optional assistant sends what you select to OpenAI, and nothing else.
+          </li>
+          <li>
+            The assistant changes records only through a change proposal you apply, and only reference records it was
+            given. Assistant conversations and proposals are not included in workspace backups; applied changes are.
+          </li>
+          <li>
+            Field and text disagreements are found only for simple values (numbers and short text) in records a
+            proposal changes.
+          </li>
+          <li>
+            Workspaces and projects cannot be renamed. Change packages and the assistant cannot move anything to
+            the Trash or delete it; only you can, in the app.
+          </li>
+          <li>
+            Deleting permanently removes the item&apos;s whole history from the database, including its entries in{" "}
+            <L>{NAV.history}</L> when a whole project or workspace goes. Only the backup made just before keeps it.
+          </li>
+          <li>No autosave, and no one-click return to an earlier saved version.</li>
+          <li>
+            Chapter files can be imported as chapters (see <See anchor="import-chapters" />), but scenes cannot, and
+            chapters and scenes are exported only as a PDF. A chapter imported later goes after the existing ones until
+            you move it.
+          </li>
+          <li>
+            Manuscript search finds text but cannot replace it across chapters; replace in one chapter or scene at a time.
+            A scene cannot be turned into a chapter, or a chapter into a scene.
+          </li>
+          <li>
+            Chapters and scenes cannot have images. Images cannot be cropped, resized or renamed in the app. PDFs include
+            PNG and JPEG images only, and have no layout choices beyond scene titles.
+          </li>
+          <li>
+            Formatting buttons exist only for chapters and scenes, and there is no underline. Reference pages show common
+            Markdown only: headings written with <code>#</code>, lists, tables, block quotes, links, emphasis and code.
+            Headings underlined with <code>===</code> or <code>---</code>, and code marked only by indenting, are not
+            recognised as headings or code.
+          </li>
+          <li>
+            <L>{SHELL.world}</L> categories are the document types. There are no separate categories for places, magic
+            or other subjects, and no Overview, Relationships or Open questions tabs; a document&apos;s own headings are
+            listed under <L>{WORLD.contents}</L> instead.
+          </li>
+          <li>The browser&apos;s Back button does not warn about unsaved changes.</li>
+          <li>Find and replace works on one record&apos;s text at a time, with literal text only.</li>
+          <li>
+            <L>{PROOFREAD.heading}</L> checks spelling, grammar and punctuation only, in one record&apos;s saved text at a
+            time. There is no style or continuity review. Suggestions are not kept after you leave the page.
+          </li>
+          <li>
+            Spelling is checked in US or UK English only. The Wordly checker and your dictionary apply to a record&apos;s
+            text box; titles and <L>{RECORD.newRecordHeading}</L> use the browser&apos;s checker. There is no grammar
+            checking while you type.
+          </li>
+          <li>
+            Dictionary entries are single words. &ldquo;{SPELLING.ignoreOnce}&rdquo; lasts until the page is reloaded.
+          </li>
+          <li>
+            Text search covers <L>{SHELL.world}</L> documents only (press <kbd>Enter</kbd> in{" "}
+            <L>{WORLD.searchReferences}</L>). The manuscript column filters chapters and scenes by title, and the{" "}
+            <L>{WRITE.references}</L> tab filters reference records by title or type. The local read-only adapter can
+            search reference records its grant allows.
+          </li>
+          <li>Canon status applies to a whole record, not to parts of it.</li>
+          <li>Related records are found only by exact names, and only when a change package is applied.</li>
+          <li>Resolved review items are not shown in the list.</li>
+          <li>Removing protection has no confirmation step.</li>
+          <li>In the app, each backup covers one workspace.</li>
+        </ul>
+      </Section>
+    </div>
+  );
+}

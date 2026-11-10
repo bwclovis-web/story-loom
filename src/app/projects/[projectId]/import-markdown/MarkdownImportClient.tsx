@@ -3,9 +3,11 @@
 import Link from "next/link";
 import { useState, useTransition } from "react";
 import { ProtectionBadge, StatusBadge } from "@/components/Badges";
+import { HelpHint } from "@/components/HelpHint";
 import { IssueList } from "@/components/IssueList";
 import { RECORD_TYPE_LABELS, type RecordType } from "@/domain/recordTypes";
 import { AUTHORITY_STATUSES } from "@/domain/statuses";
+import { MARKDOWN_IMPORT } from "@/ui/labels";
 import type {
   FilePreview,
   ImportDecision,
@@ -25,7 +27,12 @@ interface Choice {
   decision: string;
 }
 
-const REASON_LABELS = { same_content: "same content", same_title: "same title", same_filename: "same filename" } as const;
+const REASON_LABELS = {
+  same_content: "same content",
+  same_title: "same title",
+  same_filename: "same filename",
+  same_document: "same document, another version",
+} as const;
 
 function initialChoice(f: FilePreview): Choice {
   return { title: f.suggestedTitle, type: "", authorityStatus: "", protection: "", decision: f.needsDecision ? "" : "create" };
@@ -112,7 +119,7 @@ export function MarkdownImportClient({ projectId }: { projectId: string }) {
   if (outcome?.status === "applied") {
     return (
       <div className="stack">
-        <div className="banner ok">Import complete. Each file is stored with its original name and content.</div>
+        <div className="banner ok">{MARKDOWN_IMPORT.done}</div>
         <table>
           <thead>
             <tr>
@@ -136,7 +143,7 @@ export function MarkdownImportClient({ projectId }: { projectId: string }) {
         </table>
         <div>
           <button className="secondary" onClick={() => { setOutcome(null); setPreview(null); setFiles([]); }}>
-            Import more files
+            {MARKDOWN_IMPORT.importMore}
           </button>
         </div>
       </div>
@@ -146,24 +153,45 @@ export function MarkdownImportClient({ projectId }: { projectId: string }) {
   return (
     <div className="stack">
       <div className="panel row">
-        <input type="file" multiple accept=".md,.markdown,text/markdown" onChange={(e) => onFiles(e.target.files)} />
+        <input
+          type="file"
+          multiple
+          accept=".md,.markdown,text/markdown"
+          onChange={(e) => onFiles(e.target.files)}
+          aria-label="Markdown files to import"
+        />
         {pending ? <span className="small muted">Working...</span> : null}
       </div>
 
       {preview ? (
         <>
           <div className="panel stack">
-            <strong>Set for all files</strong>
+            <strong>{MARKDOWN_IMPORT.setForAll}</strong>
+            <div className="hints">
+              <HelpHint anchor="canon-status" topic="canon status">
+                Canon status: choose &ldquo;approved&rdquo; only for established facts. Use &ldquo;proposed&rdquo; for
+                files that mix facts and ideas.
+              </HelpHint>
+              <HelpHint anchor="protection" topic="protection">
+                Protection: protected records need an extra confirmation before anything can change them.
+              </HelpHint>
+              {preview.files.some((f) => f.duplicates.length > 0 || f.batchDuplicates.length > 0) ? (
+                <HelpHint anchor="duplicates" topic="duplicate choices">
+                  Possible duplicates: create a new record, replace the existing one (as a new saved version), or skip
+                  the file.
+                </HelpHint>
+              ) : null}
+            </div>
             <div className="row">
               <TypeSelect value={bulk.type} types={preview.importableTypes} onChange={(type) => setBulk({ ...bulk, type })} />
               <StatusSelect value={bulk.authorityStatus} onChange={(authorityStatus) => setBulk({ ...bulk, authorityStatus })} />
               <ProtectionSelect value={bulk.protection} onChange={(protection) => setBulk({ ...bulk, protection })} />
               <button className="secondary" onClick={applyBulk}>
-                Apply to all
+                {MARKDOWN_IMPORT.applyToAll}
               </button>
             </div>
             <label className="small">
-              Provenance label (optional){" "}
+              {MARKDOWN_IMPORT.provenanceLabel}{" "}
               <input type="text" value={label} onChange={(e) => setLabel(e.target.value)} placeholder="e.g. Reference notes, Oct 2026" />
             </label>
           </div>
@@ -180,21 +208,22 @@ export function MarkdownImportClient({ projectId }: { projectId: string }) {
                   type="text"
                   value={choices[i]?.title ?? ""}
                   onChange={(e) => update(i, { title: e.target.value })}
-                  style={{ minWidth: "18rem" }}
+                  style={{ minWidth: "min(18rem, 100%)" }}
                   aria-label="Title"
+                  spellCheck
                 />
                 <TypeSelect value={choices[i]?.type ?? ""} types={preview.importableTypes} onChange={(type) => update(i, { type })} />
                 <StatusSelect value={choices[i]?.authorityStatus ?? ""} onChange={(authorityStatus) => update(i, { authorityStatus })} />
                 <ProtectionSelect value={choices[i]?.protection ?? ""} onChange={(protection) => update(i, { protection })} />
                 <select value={choices[i]?.decision ?? ""} onChange={(e) => update(i, { decision: e.target.value })} aria-label="Action">
                   {f.needsDecision ? <option value="">Action: choose...</option> : null}
-                  <option value="create">Create new record</option>
+                  <option value="create">{MARKDOWN_IMPORT.createNew}</option>
                   {f.duplicates.map((d) => (
                     <option key={d.recordId} value={`replace:${d.recordId}`}>
-                      Replace &ldquo;{d.title}&rdquo; (rev {d.currentRevision})
+                      {MARKDOWN_IMPORT.replacePrefix} &ldquo;{d.title}&rdquo; (rev {d.currentRevision})
                     </option>
                   ))}
-                  <option value="skip">Skip this file</option>
+                  <option value="skip">{MARKDOWN_IMPORT.skip}</option>
                 </select>
               </div>
               {f.duplicates.length > 0 || f.batchDuplicates.length > 0 ? (
@@ -219,10 +248,10 @@ export function MarkdownImportClient({ projectId }: { projectId: string }) {
                 </div>
               ) : null}
               <details>
-                <summary className="small">Preview content</summary>
+                <summary className="small">{MARKDOWN_IMPORT.previewContent}</summary>
                 <pre className="mono small" style={{ whiteSpace: "pre-wrap" }}>
                   {f.excerpt}
-                  {f.byteSize > f.excerpt.length ? "\n..." : ""}
+                  {f.excerptTruncated ? "\n..." : ""}
                 </pre>
               </details>
               <IssueList issues={fileIssues(i)} />
@@ -232,7 +261,7 @@ export function MarkdownImportClient({ projectId }: { projectId: string }) {
           <div className="panel stack">
             {outcome?.status === "rejected" ? (
               <>
-                <div className="banner error">Import rejected. Nothing was written.</div>
+                <div className="banner error">{MARKDOWN_IMPORT.rejected}</div>
                 <IssueList issues={batchIssues} />
               </>
             ) : null}
@@ -245,11 +274,9 @@ export function MarkdownImportClient({ projectId }: { projectId: string }) {
             ) : null}
             <div className="row">
               <button onClick={runImport} disabled={pending || incomplete}>
-                Import {choices.filter((c) => c.decision !== "skip").length} file(s)
+                {MARKDOWN_IMPORT.importFiles(choices.filter((c) => c.decision !== "skip").length)}
               </button>
-              {incomplete ? (
-                <span className="small muted">Choose type, canon status, protection and action for every file.</span>
-              ) : null}
+              {incomplete ? <span className="small muted">{MARKDOWN_IMPORT.incomplete}</span> : null}
             </div>
           </div>
         </>

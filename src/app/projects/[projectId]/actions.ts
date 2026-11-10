@@ -14,6 +14,7 @@ import {
   type ApplyOutcome,
   type PackagePreview,
 } from "@/server/services/changePackageService";
+import { findSourceConversation, type SourceConversation } from "@/server/services/assistantProposalService";
 import { exportContextBundle } from "@/server/services/contextExportService";
 import {
   applyMarkdownImport,
@@ -23,8 +24,17 @@ import {
   type MarkdownImportOutcome,
   type MarkdownImportPreview,
 } from "@/server/services/markdownImportService";
-import { createRecord, setAuthorityStatus, setProtection, updateRecord } from "@/server/services/recordService";
+import {
+  createRecord,
+  getRecord,
+  moveRecordToTrash,
+  setAuthorityStatus,
+  setProtection,
+  updateRecord,
+} from "@/server/services/recordService";
 import { resolveReviewItem } from "@/server/services/reviewService";
+import { trashProject } from "@/server/services/trashService";
+import { groupOfType } from "@/ui/navigation";
 
 export interface FormResult {
   ok: boolean;
@@ -118,8 +128,44 @@ export async function setProtectionAction(projectId: string, recordId: string, f
   revalidatePath(`/projects/${projectId}`, "layout");
 }
 
+/** Moves the record (with any scenes and notes inside it) to the Trash, then opens its list page. */
+export async function trashRecordAction(projectId: string, recordId: string, _prev: FormResult, formData: FormData): Promise<FormResult> {
+  let destination: string;
+  try {
+    const db = getDb();
+    const record = await getRecord(db, projectId, recordId);
+    await moveRecordToTrash(db, projectId, recordId, formData.get("unlockProtected") === "on");
+    destination = `/projects/${projectId}/${groupOfType(record.type)}`;
+  } catch (error) {
+    return failure(error);
+  }
+  revalidatePath("/", "layout");
+  redirect(destination);
+}
+
+export async function trashProjectAction(projectId: string): Promise<FormResult> {
+  try {
+    await trashProject(getDb(), { projectId, actor: "author" });
+  } catch (error) {
+    return failure(error);
+  }
+  revalidatePath("/", "layout");
+  redirect("/");
+}
+
 export async function previewPackageAction(projectId: string, raw: string): Promise<PackagePreview> {
   return previewChangePackage(getDb(), raw, { projectId });
+}
+
+/** Preview plus the in-app conversation the package came from, if it names one in this project. */
+export async function reviewPackageAction(
+  projectId: string,
+  raw: string,
+): Promise<{ preview: PackagePreview; conversation: SourceConversation | null }> {
+  const db = getDb();
+  const preview = await previewChangePackage(db, raw, { projectId });
+  const conversation = await findSourceConversation(db, projectId, preview.header?.source?.conversationLabel);
+  return { preview, conversation };
 }
 
 export async function applyPackageAction(

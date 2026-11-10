@@ -57,7 +57,10 @@ All operations accept an optional `note` (shown in preview).
   need to reference the new record.
 - `type`: one of `manuscript_chapter`, `chapter_outline`, `story_architecture`,
   `character_dossier`, `worldbuilding`, `canon_decision`, `continuity_note`,
-  `reference_note`.
+  `reference_note`. The schema also lists `manuscript_scene` and `scene_note`
+  because existing records of those types can be updated, but creating one is
+  rejected with `INVALID_PARENT`: a package cannot say which chapter or scene it
+  belongs to, so the author adds them in the app.
 - `authorityStatus` is required: `draft | proposed | approved | superseded | unresolved`.
 
 ### `update_record`
@@ -93,11 +96,12 @@ There is **no delete operation**. Any other `op` value is rejected with `UNSUPPO
 
 Manuscript prose is protected independently of reference notes:
 
-- **Content class.** `manuscript_chapter` records are manuscript content. All
-  other types are reference content. A `scope: "reference"` package can never
+- **Content class.** `manuscript_chapter` and `manuscript_scene` records are
+  manuscript content. All other types, including `scene_note`, are reference
+  content. A `scope: "reference"` package can never
   create or modify manuscript content, even with overrides.
 - **Protection flag.** Any record can be flagged `protected` in the app
-  (manuscript chapters are protected by default). A protected record can be
+  (manuscript chapters and scenes are protected by default). A protected record can be
   changed only if its ID is in `protectedOverrides` and the author confirms
   when applying. Packages cannot change the protection flag itself.
 - To edit chapter prose through a package, you need all three:
@@ -156,6 +160,7 @@ normalized package content. The key is (`projectId`, `packageId`).
 | `PROTECTED_CONFIRMATION_REQUIRED` | Author did not confirm protected changes. |
 | `INVALID_CHANGE` | Empty update, empty title, field both set and unset, misplaced `supersededBy`. |
 | `INVALID_REFERENCE` | `supersededBy` or `relatedRecords` points to an unknown record. |
+| `INVALID_PARENT` | `create_record` of a `manuscript_scene` or `scene_note`, which only the author can add in the app. |
 | `NO_EFFECTIVE_CHANGE` | Operation would not change the record. |
 | `UNUSED_PROTECTED_OVERRIDE` (warning) | Override listed but not needed. |
 | `FIELD_NOT_PRESENT` (warning) | `unset` names a field that does not exist. |
