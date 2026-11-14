@@ -166,6 +166,8 @@ resolved path, applied migrations, and row counts. It is read-only.
 | `pnpm db:restore <file> --dry-run` | Read-only. Validates a backup and summarizes it. |
 | `pnpm db:restore <file> --new-database <path>` | Creates a new SQLite file (refuses if it exists) and restores with the original IDs. |
 | `pnpm db:restore <file> --into-current` | Backs up, then adds the backup as a new workspace with new IDs. Existing workspaces are untouched. |
+| `pnpm db:verify-backup backups/<dir>` | Leaves your database alone. Restores every workspace file in a backup folder into `<dir>/restore-check.db` with the original IDs and checks it against the folder's SQLite snapshot. |
+| `pnpm db:inventory [--database <file>] [--out <file>]` | Read-only. Writes an inventory of records, revision hashes, links, images, book order and package history (hashes, no text). `--compare <before> <after>` lists differences, for checking a migration or restore. |
 | `pnpm db:seed` | Adds the demo project if missing. |
 | `pnpm db:reset --confirm-delete-all-data [--seed]` | **Destructive.** Backs up, deletes the database file, and recreates an empty schema. Without the flag it only explains what it would do. |
 | `pnpm db:migrate:dev` | Developer only: creates a migration after editing `prisma/schema.prisma`. Backs up first. If Prisma offers to reset the database, answer **no**. |
@@ -187,6 +189,8 @@ git-ignored. Copy important backups somewhere outside the repository too.
    aside, copy `backups/<dir>/dev.db` into place, and start the app.
 
 Format and validation details: [docs/backup-format.md](docs/backup-format.md).
+Before a schema upgrade, follow [docs/upgrade-baseline.md](docs/upgrade-baseline.md):
+what must stay readable, the before/after inventory, and how to roll back.
 
 Other scripts: `pnpm test` (Vitest), `pnpm typecheck`, `pnpm build && pnpm start`,
 `pnpm schema:export` (regenerate `docs/schemas/change-package.v1.schema.json`).

@@ -1,0 +1,33 @@
+{
+  "format": "wordly.change-package",
+  "formatVersion": 1,
+  "packageId": "pkg_legacy_0006_protected_manuscript",
+  "workspaceId": "wsp_legacy_fixture",
+  "projectId": "prj_legacy_lantern",
+  "summary": "A manuscript-scope package with an override; it still needs the author's confirmation.",
+  "source": {
+    "conversationLabel": "Legacy fixture conversation",
+    "url": "https://chatgpt.com/c/legacy-fixture"
+  },
+  "approval": {
+    "status": "approved",
+    "statement": "Update the working files with the decisions I approved."
+  },
+  "scope": "manuscript",
+  "protectedOverrides": [
+    "rec_legacy_ch01"
+  ],
+  "operations": [
+    {
+      "op": "update_record",
+      "recordId": "rec_legacy_ch01",
+      "expectedRevision": 2,
+      "changes": {
+        "body": {
+          "replace": "Rewritten by a package."
+        }
+      }
+    }
+  ],
+  "relatedRecords": []
+}

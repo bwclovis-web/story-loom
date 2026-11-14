@@ -1,0 +1,552 @@
+{
+  "format": "wordly.database-inventory",
+  "formatVersion": 1,
+  "workspaces": [
+    {
+      "id": "wsp_legacy_fixture",
+      "nameSha256": "f85eaf7ebeb37293bb5aa51a576efda59a3d85c180ea4901a3f3d59f09df7202",
+      "trashed": false,
+      "createdAt": "2026-11-14T19:38:41.801Z",
+      "dictionary": {
+        "entries": 2,
+        "entriesSha256": "caa50deead52af1ade81c72fb324091f0c19e9690d08ec31f6c29d487415d0cc"
+      },
+      "projects": [
+        {
+          "id": "prj_legacy_lantern",
+          "titleSha256": "965ae370eec40790caf0df421dafab4e5f74f62182d36db983f6573751f6ccc7",
+          "trashed": false,
+          "createdAt": "2026-11-14T19:38:41.826Z",
+          "counts": {
+            "records": 15,
+            "trashedRecords": 1,
+            "revisions": 19,
+            "sources": 17,
+            "changePackages": 1,
+            "openReviewItems": 5,
+            "resolvedReviewItems": 1,
+            "importedFiles": 2,
+            "links": 2,
+            "images": 1,
+            "auditEntries": 31
+          },
+          "notInWorkspaceBackups": {
+            "assistantConversations": 0,
+            "assistantMessages": 0,
+            "assistantContextItems": 0,
+            "assistantProposals": 0,
+            "proofreadRuns": 0
+          },
+          "bookOrder": {
+            "chapters": [
+              "rec_legacy_ch03",
+              "rec_legacy_ch01",
+              "rec_legacy_ch02",
+              "rec_01M7DS3DGHAQFZ49RZBK0N0S9B"
+            ],
+            "scenes": {
+              "rec_legacy_ch01": [
+                "rec_legacy_sc01"
+              ],
+              "rec_legacy_ch02": [
+                "rec_legacy_sc02",
+                "rec_legacy_sc03"
+              ]
+            }
+          },
+          "records": [
+            {
+              "id": "rec_01M7DS3DG2JQK4R8YNYB55B1B4",
+              "type": "reference_note",
+              "parentRecordId": null,
+              "position": null,
+              "protected": false,
+              "authorityStatus": "approved",
+              "supersededByRecordId": null,
+              "currentRevision": 1,
+              "trashed": false,
+              "trashBatchId": null,
+              "createdAt": "2026-11-14T19:38:42.053Z",
+              "titleSha256": "cca5027d62439c632d65433dbb382f6428157fc2a12f2dcf883dbaf6318c59a5",
+              "bodySha256": "d15c94b43883bee9145654d1ab276488fc2d9fd9e1f4d568f9181a7835f368c3",
+              "bodyChars": 112,
+              "fieldsSha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+              "matchesLatestRevision": true,
+              "revisions": [
+                {
+                  "n": 1,
+                  "contentHash": "883866ba196406c2403498ab721383876ee3978d7bbddfff7acee7be05243100",
+                  "hashValid": true,
+                  "sourceKind": "markdown_import",
+                  "packageId": null
+                }
+              ]
+            },
+            {
+              "id": "rec_01M7DS3DGHAQFZ49RZBK0N0S9B",
+              "type": "manuscript_chapter",
+              "parentRecordId": null,
+              "position": null,
+              "protected": true,
+              "authorityStatus": "draft",
+              "supersededByRecordId": null,
+              "currentRevision": 1,
+              "trashed": false,
+              "trashBatchId": null,
+              "createdAt": "2026-11-14T19:38:42.068Z",
+              "titleSha256": "bc5dc2e4c8af9bc4493f8d3dca64b7173f90f251177c93425405d1836a889937",
+              "bodySha256": "7c7aa852ce8423adedcb6ce89de92ad9dd06bae9b4e572517dddc25436acfeb8",
+              "bodyChars": 65,
+              "fieldsSha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+              "matchesLatestRevision": true,
+              "revisions": [
+                {
+                  "n": 1,
+                  "contentHash": "66a7ca575da5f656ce5559c2a7fb592c804fbbd6204d6c0374cfa64c07029507",
+                  "hashValid": true,
+                  "sourceKind": "markdown_import",
+                  "packageId": null
+                }
+              ]
+            },
+            {
+              "id": "rec_legacy_ch01",
+              "type": "manuscript_chapter",
+              "parentRecordId": null,
+              "position": 1,
+              "protected": true,
+              "authorityStatus": "draft",
+              "supersededByRecordId": null,
+              "currentRevision": 2,
+              "trashed": false,
+              "trashBatchId": null,
+              "createdAt": "2026-11-14T19:38:41.852Z",
+              "titleSha256": "3eb69fdf135b1146947199f481258bb2b1a2c5008c7fc5303ffa9ba80a4c55d9",
+              "bodySha256": "fa80f49c558e7970c41581608e818b486ad7047e7a93570969b77239fd89f520",
+              "bodyChars": 198,
+              "fieldsSha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+              "matchesLatestRevision": true,
+              "revisions": [
+                {
+                  "n": 1,
+                  "contentHash": "5ca1ab1fbf45e2659b60b4924b4967866c08952f50286772cf3ac325938ccfb3",
+                  "hashValid": true,
+                  "sourceKind": "ui",
+                  "packageId": null
+                },
+                {
+                  "n": 2,
+                  "contentHash": "484a1aa2cf49654d001be814b62dc96f1f2c55ebdb193157a99513dd8ab3e0a9",
+                  "hashValid": true,
+                  "sourceKind": "ui",
+                  "packageId": null
+                }
+              ]
+            },
+            {
+              "id": "rec_legacy_ch02",
+              "type": "manuscript_chapter",
+              "parentRecordId": null,
+              "position": 2,
+              "protected": true,
+              "authorityStatus": "draft",
+              "supersededByRecordId": null,
+              "currentRevision": 1,
+              "trashed": false,
+              "trashBatchId": null,
+              "createdAt": "2026-11-14T19:38:41.865Z",
+              "titleSha256": "18e2b7dcbb5bb87d3e9af16e9ca3c97ba1693ff7c68841db19349d0a7a02d838",
+              "bodySha256": "e301ab93a4161eae30bab7ec0ca2689a1d535615b325ca373159e60bccfd066d",
+              "bodyChars": 56,
+              "fieldsSha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+              "matchesLatestRevision": true,
+              "revisions": [
+                {
+                  "n": 1,
+                  "contentHash": "1a7c7cfa0b70d608dbc39da7281ed99ea1212fa710bf1b1a9398bab8da99a6d2",
+                  "hashValid": true,
+                  "sourceKind": "ui",
+                  "packageId": null
+                }
+              ]
+            },
+            {
+              "id": "rec_legacy_ch03",
+              "type": "manuscript_chapter",
+              "parentRecordId": null,
+              "position": 0,
+              "protected": true,
+              "authorityStatus": "draft",
+              "supersededByRecordId": null,
+              "currentRevision": 1,
+              "trashed": false,
+              "trashBatchId": null,
+              "createdAt": "2026-11-14T19:38:41.872Z",
+              "titleSha256": "8d4ae149c383635ce7054e32c9acdfd8e8c84c440dc463cbbad8c8ad85c0d184",
+              "bodySha256": "89d45e0ba5395b2c91eadbcbbbb4dd8fac60c7e2d957ffce39200c1a2a91a7f1",
+              "bodyChars": 60,
+              "fieldsSha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+              "matchesLatestRevision": true,
+              "revisions": [
+                {
+                  "n": 1,
+                  "contentHash": "909626b28f284c7ba8e9ecdad539c14b3159f51dcb9c965ad8e3df58d921919e",
+                  "hashValid": true,
+                  "sourceKind": "ui",
+                  "packageId": null
+                }
+              ]
+            },
+            {
+              "id": "rec_legacy_decision",
+              "type": "canon_decision",
+              "parentRecordId": null,
+              "position": null,
+              "protected": false,
+              "authorityStatus": "superseded",
+              "supersededByRecordId": "rec_legacy_decision_v2",
+              "currentRevision": 2,
+              "trashed": false,
+              "trashBatchId": null,
+              "createdAt": "2026-11-14T19:38:41.941Z",
+              "titleSha256": "118888a29fcacc143c7b65517a1d61e08a95681d6a9318ba8f17f0437be92e18",
+              "bodySha256": "2ba959aa072b8f78ffca08dca818cf40f76cb3ad7a61f3eb0aa1b43d76ef31c8",
+              "bodyChars": 54,
+              "fieldsSha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+              "matchesLatestRevision": true,
+              "revisions": [
+                {
+                  "n": 1,
+                  "contentHash": "ca795154b7e935fe0492df5c35249ffcc26858f0b41253fefba48ad25ddf21b2",
+                  "hashValid": true,
+                  "sourceKind": "ui",
+                  "packageId": null
+                },
+                {
+                  "n": 2,
+                  "contentHash": "6fa52303a5cc0fb59f9c3d196991bfea3d188e813c0cdf71370f436aa1fb92dc",
+                  "hashValid": true,
+                  "sourceKind": "change_package",
+                  "packageId": "pkg_legacy_0001_ivo_age"
+                }
+              ]
+            },
+            {
+              "id": "rec_legacy_decision_v2",
+              "type": "canon_decision",
+              "parentRecordId": null,
+              "position": null,
+              "protected": false,
+              "authorityStatus": "approved",
+              "supersededByRecordId": null,
+              "currentRevision": 1,
+              "trashed": false,
+              "trashBatchId": null,
+              "createdAt": "2026-11-14T19:38:42.019Z",
+              "titleSha256": "eea98772c75b9daaf071a1654e584b6249316686fcecc4d730d2c67e845e4c88",
+              "bodySha256": "bf7ff8489e80d850e31d9c291c6afefaf4d1d8aaedb48ee6a1d87e55f9aa2185",
+              "bodyChars": 53,
+              "fieldsSha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+              "matchesLatestRevision": true,
+              "revisions": [
+                {
+                  "n": 1,
+                  "contentHash": "c19caa786840af0e2f5ba4fe28edb75ad47ef88ebd26276745d050ae276fb3e8",
+                  "hashValid": true,
+                  "sourceKind": "change_package",
+                  "packageId": "pkg_legacy_0001_ivo_age"
+                }
+              ]
+            },
+            {
+              "id": "rec_legacy_dossier",
+              "type": "character_dossier",
+              "parentRecordId": null,
+              "position": null,
+              "protected": false,
+              "authorityStatus": "approved",
+              "supersededByRecordId": null,
+              "currentRevision": 2,
+              "trashed": false,
+              "trashBatchId": null,
+              "createdAt": "2026-11-14T19:38:41.925Z",
+              "titleSha256": "f323725491857a8e2f800a1dc7d1f3c55f93819d1ac9d995afd6bcd88f885853",
+              "bodySha256": "09bc7f42ef3d3c6e5ab81c0f8cda182ae15d01f2ac81ca78265208589958b2f9",
+              "bodyChars": 65,
+              "fieldsSha256": "d33c0eca2af2de011453c81b0cdb179feff3c9aa2fefbd182d3a618a26b4b407",
+              "matchesLatestRevision": true,
+              "revisions": [
+                {
+                  "n": 1,
+                  "contentHash": "21f527be95992fc019233e4f0652cc4f48592920575151157150f9148e818755",
+                  "hashValid": true,
+                  "sourceKind": "ui",
+                  "packageId": null
+                },
+                {
+                  "n": 2,
+                  "contentHash": "2827fef33322c9cfc6c9fc5eaaa0a16de2e94f7d0b787f9d8b2a8b7039f1e5af",
+                  "hashValid": true,
+                  "sourceKind": "change_package",
+                  "packageId": "pkg_legacy_0001_ivo_age"
+                }
+              ]
+            },
+            {
+              "id": "rec_legacy_note01",
+              "type": "scene_note",
+              "parentRecordId": "rec_legacy_sc01",
+              "position": null,
+              "protected": false,
+              "authorityStatus": "approved",
+              "supersededByRecordId": null,
+              "currentRevision": 1,
+              "trashed": false,
+              "trashBatchId": null,
+              "createdAt": "2026-11-14T19:38:41.916Z",
+              "titleSha256": "9657da84ecbbab11ae150efeaca959be4cb0c9900f7e2b9668ef87cdc8625cd3",
+              "bodySha256": "61a4f750ec4d0f75a3e483aef1d6f7e9f97978f7b59f5c3ed3f7e4cbf144f7c5",
+              "bodyChars": 53,
+              "fieldsSha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+              "matchesLatestRevision": true,
+              "revisions": [
+                {
+                  "n": 1,
+                  "contentHash": "46027fdd2bf728f3d2101164193610786cbfc3f83fda77c5f894a2a87caaaf4a",
+                  "hashValid": true,
+                  "sourceKind": "ui",
+                  "packageId": null
+                }
+              ]
+            },
+            {
+              "id": "rec_legacy_outline",
+              "type": "chapter_outline",
+              "parentRecordId": null,
+              "position": null,
+              "protected": false,
+              "authorityStatus": "approved",
+              "supersededByRecordId": null,
+              "currentRevision": 2,
+              "trashed": false,
+              "trashBatchId": null,
+              "createdAt": "2026-11-14T19:38:41.950Z",
+              "titleSha256": "f51b98ab2017a676cf82c8a0259f45c305899d7cb8ede86d7c87841d5eec4d05",
+              "bodySha256": "d17b26dfa7e20e47947f30f574f3f96902a91b1b372e866f72556df9309e5063",
+              "bodyChars": 44,
+              "fieldsSha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+              "matchesLatestRevision": true,
+              "revisions": [
+                {
+                  "n": 1,
+                  "contentHash": "dd0312a30ee86a45be58491637e686a6282e8e5b9a7b47e5e49c87ae5d6f6e0b",
+                  "hashValid": true,
+                  "sourceKind": "ui",
+                  "packageId": null
+                },
+                {
+                  "n": 2,
+                  "contentHash": "b24851297916d3c421e0d8f057b345845762c3ea76a72a472179d4067d9bc9d3",
+                  "hashValid": true,
+                  "sourceKind": "ui",
+                  "packageId": null
+                }
+              ]
+            },
+            {
+              "id": "rec_legacy_sc01",
+              "type": "manuscript_scene",
+              "parentRecordId": "rec_legacy_ch01",
+              "position": null,
+              "protected": true,
+              "authorityStatus": "draft",
+              "supersededByRecordId": null,
+              "currentRevision": 1,
+              "trashed": false,
+              "trashBatchId": null,
+              "createdAt": "2026-11-14T19:38:41.883Z",
+              "titleSha256": "926abc3d10394a8483a1bdd10797004903b4478b1c6b2b9bfb4752e6bd1e8bdd",
+              "bodySha256": "b49a2be7ff5d823a9e2bd69bf69aaab723bc0922c5035c9f96de55de0901db60",
+              "bodyChars": 45,
+              "fieldsSha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+              "matchesLatestRevision": true,
+              "revisions": [
+                {
+                  "n": 1,
+                  "contentHash": "a82530486f84a95313749fcb3257d5fdfd59789d5003f17476c4bba57db4931d",
+                  "hashValid": true,
+                  "sourceKind": "ui",
+                  "packageId": null
+                }
+              ]
+            },
+            {
+              "id": "rec_legacy_sc02",
+              "type": "manuscript_scene",
+              "parentRecordId": "rec_legacy_ch02",
+              "position": 0,
+              "protected": true,
+              "authorityStatus": "draft",
+              "supersededByRecordId": null,
+              "currentRevision": 1,
+              "trashed": false,
+              "trashBatchId": null,
+              "createdAt": "2026-11-14T19:38:41.894Z",
+              "titleSha256": "d691f7724c05d74596449f907e479d410ee4d8ee60a3e9514a3cbc317b2720ff",
+              "bodySha256": "006729dd7276d818113fc3d5f4573156ed484d3750b917485718d1211a604b4f",
+              "bodyChars": 55,
+              "fieldsSha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+              "matchesLatestRevision": true,
+              "revisions": [
+                {
+                  "n": 1,
+                  "contentHash": "51c4c224394f05f31a8eda4f9c8fca98aa9ffc6de20a5d313fb43734e852dfff",
+                  "hashValid": true,
+                  "sourceKind": "ui",
+                  "packageId": null
+                }
+              ]
+            },
+            {
+              "id": "rec_legacy_sc03",
+              "type": "manuscript_scene",
+              "parentRecordId": "rec_legacy_ch02",
+              "position": 1,
+              "protected": true,
+              "authorityStatus": "draft",
+              "supersededByRecordId": null,
+              "currentRevision": 1,
+              "trashed": false,
+              "trashBatchId": null,
+              "createdAt": "2026-11-14T19:38:41.904Z",
+              "titleSha256": "5a4e3be2a4f2491a9a6b6a43673cfce6c7e6b0f34728f661f34690ee9f3dca20",
+              "bodySha256": "03476279a8cb2cd10b83ed6b997b9f288efdf348329e0d9f4a8be2f8b749f451",
+              "bodyChars": 42,
+              "fieldsSha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+              "matchesLatestRevision": true,
+              "revisions": [
+                {
+                  "n": 1,
+                  "contentHash": "0de49e62b11fd2fa29348a42ef0ca9522a971250077b02d4b774d010fdf185ff",
+                  "hashValid": true,
+                  "sourceKind": "ui",
+                  "packageId": null
+                }
+              ]
+            },
+            {
+              "id": "rec_legacy_trashed",
+              "type": "reference_note",
+              "parentRecordId": null,
+              "position": null,
+              "protected": false,
+              "authorityStatus": "draft",
+              "supersededByRecordId": null,
+              "currentRevision": 1,
+              "trashed": true,
+              "trashBatchId": "trb_01M7DS3DJS6D9C8D4GDNQZPR0Y",
+              "createdAt": "2026-11-14T19:38:42.126Z",
+              "titleSha256": "f3a8b7b2c9a96e1bcb5acce9aa800fd73e431741ab093ffc9d774984221bf5e8",
+              "bodySha256": "45e625e5f6054db74b62579eb32ace7b6fd25a3a4cf5f5e80e0e4370c2938c27",
+              "bodyChars": 33,
+              "fieldsSha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+              "matchesLatestRevision": true,
+              "revisions": [
+                {
+                  "n": 1,
+                  "contentHash": "5ad2e982d52ca3ecd664434882ae0b40f3c52d5882be869c694223664964b099",
+                  "hashValid": true,
+                  "sourceKind": "ui",
+                  "packageId": null
+                }
+              ]
+            },
+            {
+              "id": "rec_legacy_world",
+              "type": "worldbuilding",
+              "parentRecordId": null,
+              "position": null,
+              "protected": true,
+              "authorityStatus": "approved",
+              "supersededByRecordId": null,
+              "currentRevision": 1,
+              "trashed": false,
+              "trashBatchId": null,
+              "createdAt": "2026-11-14T19:38:41.933Z",
+              "titleSha256": "182b69827965acc951cc625eeac8a193865596031ae761e3793ecbafdf1aa63d",
+              "bodySha256": "a5b46120530b83d3b988329a59987deeb7941d245ed62eb6888d7290fc01ad1b",
+              "bodyChars": 71,
+              "fieldsSha256": "4f7b492a082e1acafbeee1670aa5d9fd1e362790c1ad9ae872616093acd1753a",
+              "matchesLatestRevision": true,
+              "revisions": [
+                {
+                  "n": 1,
+                  "contentHash": "3e5aac384ef40b7b34732e7196974a97ebbd5a460efbadac177a2ef0b473df52",
+                  "hashValid": true,
+                  "sourceKind": "ui",
+                  "packageId": null
+                }
+              ]
+            }
+          ],
+          "links": [
+            {
+              "id": "lnk_01M7DS3DGTRTHD9JV400E26JV0",
+              "fromRecordId": "rec_legacy_sc01",
+              "toRecordId": "rec_legacy_dossier"
+            },
+            {
+              "id": "lnk_01M7DS3DH0CXM9B1AGPS1RH596",
+              "fromRecordId": "rec_legacy_ch02",
+              "toRecordId": "rec_legacy_world"
+            }
+          ],
+          "images": [
+            {
+              "id": "img_01M7DS3DH7QHND8AKWEMPMXHZ6",
+              "recordId": "rec_legacy_dossier",
+              "name": "ivo-portrait.png",
+              "mimeType": "image/png",
+              "byteSize": 73,
+              "width": 3,
+              "height": 2,
+              "contentHash": "24225721b57f0356524bf5744a12733bf487b43cf7a67e83cff3431484ee07da",
+              "dataSha256": "24225721b57f0356524bf5744a12733bf487b43cf7a67e83cff3431484ee07da",
+              "position": 1,
+              "captionSha256": "1c4c06d1dc4a3f3d72002a5c9df83624f3c21d365dc65a011b25e59ae0f3e865",
+              "altTextSha256": "155f05bffb12fd344fc0568ea8e89e06b38a2c25a0ee22fc60c6d624ec69d5ca"
+            }
+          ],
+          "changePackages": [
+            {
+              "packageId": "pkg_legacy_0001_ivo_age",
+              "formatVersion": 1,
+              "contentHash": "0f7a4eaf1b42beb89efc42980b3efc7ede9aa947cb8d30c01c93f8586f67631f",
+              "status": "applied",
+              "rawJsonSha256": "a72429028fe14d282ae214b5ecb2e500be8f5d31a271a37d9e45843097d52613",
+              "appliedAt": "2026-11-14T19:38:42.036Z"
+            }
+          ],
+          "importedFiles": [
+            {
+              "id": "imp_01M7DS3DG66J61473H10RGFAZF",
+              "recordId": "rec_01M7DS3DG2JQK4R8YNYB55B1B4",
+              "action": "created",
+              "revisionNumber": 1,
+              "contentHash": "d15c94b43883bee9145654d1ab276488fc2d9fd9e1f4d568f9181a7835f368c3",
+              "byteSize": 112
+            },
+            {
+              "id": "imp_01M7DS3DGNKFGSRKQJQB9W9KFM",
+              "recordId": "rec_01M7DS3DGHAQFZ49RZBK0N0S9B",
+              "action": "created",
+              "revisionNumber": 1,
+              "contentHash": "7c7aa852ce8423adedcb6ce89de92ad9dd06bae9b4e572517dddc25436acfeb8",
+              "byteSize": 65
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -5,6 +5,7 @@ import path from "node:path";
 import { writeFullBackup, type FullBackupResult } from "../../src/server/backupFiles";
 import { createDb } from "../../src/server/db";
 import { databaseFilePath, fileUrl } from "../../src/server/dbLocation";
+import type { InventoryDifference } from "../../src/server/inventory";
 
 export { BACKUPS_DIR, snapshotSqlite, timestamp, type FullBackupResult } from "../../src/server/backupFiles";
 
@@ -17,7 +18,7 @@ export function flagValue(name: string): string | undefined {
   return i >= 0 ? process.argv[i + 1] : undefined;
 }
 
-const VALUE_FLAGS = new Set(["--new-database", "--name", "--label"]);
+const VALUE_FLAGS = new Set(["--new-database", "--name", "--label", "--database", "--out"]);
 
 export function positionalArgs(): string[] {
   const args = process.argv.slice(2);
@@ -49,6 +50,17 @@ export async function backupCurrentDatabase(label?: string): Promise<FullBackupR
   } finally {
     await db.$disconnect();
   }
+}
+
+const MAX_PRINTED_DIFFERENCES = 60;
+
+export function printDifferences(differences: InventoryDifference[]): void {
+  const short = (value: unknown) => {
+    const text = value === undefined ? "(missing)" : JSON.stringify(value);
+    return text.length > 100 ? `${text.slice(0, 97)}...` : text;
+  };
+  for (const d of differences.slice(0, MAX_PRINTED_DIFFERENCES)) console.log(`  ${d.path}: ${short(d.before)} -> ${short(d.after)}`);
+  if (differences.length > MAX_PRINTED_DIFFERENCES) console.log(`  ... and ${differences.length - MAX_PRINTED_DIFFERENCES} more`);
 }
 
 export function printBackup(result: FullBackupResult) {

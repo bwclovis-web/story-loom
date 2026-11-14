@@ -1504,3 +1504,70 @@ afterwards). The real database only received the migration.
 - A scene cannot become a chapter or the reverse; scenes move only within or
   between chapters, one place or one chapter at a time (no drag and drop).
 - Context exports still list records by type and title, not book order.
+
+## Upgrade baseline before Storyloom (Nov 14, 2026)
+
+Requested: a baseline pass before the Storyloom upgrade. Inventory what is
+stored and exposed, run the checks, add an invented legacy fixture, capture a
+before-upgrade inventory and document compatibility and rollback. No schema
+change, no migration, no change to app behavior, routes or Help.
+
+### Implemented
+
+- [docs/upgrade-baseline.md](docs/upgrade-baseline.md): database path,
+  migrations, commands, stored tables (and which ones workspace backups
+  omit), every format and version, import/export entry points, routes and
+  query parameters, configuration keys and stored identifiers, what the new
+  app must read, the before/after procedure, rollback steps and findings.
+- `pnpm db:inventory` (`src/server/inventory.ts`): read-only inventory of a
+  SQLite file inside one read transaction (IDs, structure, counts, sha256 of
+  titles, bodies, fields, revisions, images and package JSON; no text), and
+  `--compare` to list differences. Reads by plain SQL and treats missing
+  tables or columns as empty, so it works on every schema since the first
+  migration.
+- `pnpm db:verify-backup backups/<dir>`: restores every workspace file of a
+  backup folder into `<dir>/restore-check.db` with original IDs and compares
+  it with the folder's SQLite snapshot. Never opens the working database.
+- Frozen legacy fixture `tests/fixtures/legacy/` (invented; written once by
+  `generate.ts`, which refuses to overwrite it): a full v1 workspace backup
+  (moved chapters and scenes, scene note, protected prose with two
+  revisions, package with supersession and review notes, Markdown and
+  chapter imports, links, a PNG, dictionary, Trash), an earliest-shape v1
+  backup, expected inventories, and seven change packages (applied,
+  reformatted duplicate, ID conflict, stale, protected reference scope,
+  unconfirmed manuscript override, version 2).
+- `tests/acceptance/legacy-baseline.test.ts` (10 tests): restoration with an
+  identical inventory, exact prose of current and earlier revisions,
+  provenance, links, image bytes, imports and Trash, re-backup identity,
+  remapped copy with package identity, protected-write refusal, stale
+  refusal, duplicate and conflict handling, unsupported versions, earliest
+  shape, and a check that the comparison detects a change.
+- README: the two scripts and a link to the baseline document.
+
+### Verification results
+
+| Check | Result |
+| --- | --- |
+| `pnpm typecheck` (before changes) | pass |
+| `pnpm test` (before changes) | 51 files, 435 passed, 3 failed: assistant section tests. Cause: `Saltmarsh_Annals_Series_Guide_CURRENT.md` was CRLF in this Windows working tree although the index and `.gitattributes` are LF. Rewritten byte-identical to the committed blob; the 3 tests then pass |
+| `pnpm build` (before changes) | pass, 31 routes |
+| `pnpm typecheck` (after) | pass |
+| `pnpm test` (after) | 52 files, 448 tests passed |
+| `pnpm build` (after) | pass |
+| `pnpm db:backup --label baseline-pre-storyloom` | `backups/2026-11-14T19-37-37-908Z-baseline-pre-storyloom/` |
+| `pnpm db:verify-backup` on it | both workspaces restored with original IDs; no differences from the snapshot; integrity and foreign-key checks clean on both files |
+| Baseline inventory | 2 workspaces, 2 projects, 110 records (24 in Trash, 62 protected), 282 revisions (0 invalid hashes), 27 chapters in book order, 0 scenes, 4 links, 0 images, 55 applied packages, 70 imported files, 25 dictionary entries; assistant: 42 conversations, 184 messages, 8 proposals (SQLite only) |
+
+### Limitations and findings
+
+- Workspace JSON backups do not include assistant conversations, messages,
+  context items, proposals or proofreading runs; only the SQLite snapshot
+  does. Roll back from the snapshot.
+- Backups written after a migration list migrations this code does not know,
+  so this code refuses them. Rolling back loses work done after the snapshot.
+- `prisma/dev.db.example`, tracked since `28d6fd2` and present on
+  `origin/main`, is an older copy of the author's real database. At the
+  author's request it is no longer tracked (local file kept) and `*.db.*` is
+  ignored. It is still in history and on the remote.
+- Other tracked text files are also CRLF in this working tree; only the one
+  test fixture was rewritten.

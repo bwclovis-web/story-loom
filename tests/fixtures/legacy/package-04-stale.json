@@ -1,0 +1,31 @@
+{
+  "format": "wordly.change-package",
+  "formatVersion": 1,
+  "packageId": "pkg_legacy_0004_stale",
+  "workspaceId": "wsp_legacy_fixture",
+  "projectId": "prj_legacy_lantern",
+  "summary": "Written against revision 1 of the dossier, which has moved on.",
+  "source": {
+    "conversationLabel": "Legacy fixture conversation",
+    "url": "https://chatgpt.com/c/legacy-fixture"
+  },
+  "approval": {
+    "status": "approved",
+    "statement": "Update the working files with the decisions I approved."
+  },
+  "scope": "reference",
+  "protectedOverrides": [],
+  "operations": [
+    {
+      "op": "update_record",
+      "recordId": "rec_legacy_dossier",
+      "expectedRevision": 1,
+      "changes": {
+        "body": {
+          "replace": "Stale edit."
+        }
+      }
+    }
+  ],
+  "relatedRecords": []
+}

@@ -10,6 +10,8 @@
     "db:info": "tsx scripts/db-info.ts",
     "db:backup": "tsx scripts/db-backup.ts",
     "db:restore": "tsx scripts/db-restore.ts",
+    "db:inventory": "tsx scripts/db-inventory.ts",
+    "db:verify-backup": "tsx scripts/db-verify-backup.ts",
     "db:reset": "tsx scripts/db-reset.ts",
     "db:generate": "prisma generate",
     "db:migrate:dev": "tsx scripts/db-migrate-dev.ts",

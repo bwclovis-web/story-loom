@@ -1,0 +1,126 @@
+{
+  "format": "wordly.database-inventory",
+  "formatVersion": 1,
+  "workspaces": [
+    {
+      "id": "wsp_legacy_early",
+      "nameSha256": "dfc2e109cfc5663193a89c4deec0bbd300d9634a56f0d1b43b090638d7be6afb",
+      "trashed": false,
+      "createdAt": "2026-11-14T19:38:42.318Z",
+      "dictionary": {
+        "entries": 0,
+        "entriesSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "projects": [
+        {
+          "id": "prj_legacy_early",
+          "titleSha256": "6e6c84cd9a258cd7f368ab64b8b1b50d47406d719b4005df1e18237a8044dd38",
+          "trashed": false,
+          "createdAt": "2026-11-14T19:38:42.326Z",
+          "counts": {
+            "records": 2,
+            "trashedRecords": 0,
+            "revisions": 3,
+            "sources": 3,
+            "changePackages": 1,
+            "openReviewItems": 0,
+            "resolvedReviewItems": 0,
+            "importedFiles": 0,
+            "links": 0,
+            "images": 0,
+            "auditEntries": 4
+          },
+          "notInWorkspaceBackups": {
+            "assistantConversations": 0,
+            "assistantMessages": 0,
+            "assistantContextItems": 0,
+            "assistantProposals": 0,
+            "proofreadRuns": 0
+          },
+          "bookOrder": {
+            "chapters": [
+              "rec_legacy_early_ch01"
+            ],
+            "scenes": {}
+          },
+          "records": [
+            {
+              "id": "rec_legacy_early_ch01",
+              "type": "manuscript_chapter",
+              "parentRecordId": null,
+              "position": null,
+              "protected": true,
+              "authorityStatus": "draft",
+              "supersededByRecordId": null,
+              "currentRevision": 1,
+              "trashed": false,
+              "trashBatchId": null,
+              "createdAt": "2026-11-14T19:38:42.342Z",
+              "titleSha256": "3178a647e0f2bcd284eaa96aab1750e61d3211c14aa60f2b45b6bdd27da6a159",
+              "bodySha256": "54026d80179583c14a614f58faf0fdfc83e24fff7949f1bd17a72012af38aa2a",
+              "bodyChars": 35,
+              "fieldsSha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+              "matchesLatestRevision": true,
+              "revisions": [
+                {
+                  "n": 1,
+                  "contentHash": "fa9caa542b35f4c6a94bea7d51f424ca6b1cc82448263cf7526a01624d502001",
+                  "hashValid": true,
+                  "sourceKind": "ui",
+                  "packageId": null
+                }
+              ]
+            },
+            {
+              "id": "rec_legacy_early_dossier",
+              "type": "character_dossier",
+              "parentRecordId": null,
+              "position": null,
+              "protected": false,
+              "authorityStatus": "draft",
+              "supersededByRecordId": null,
+              "currentRevision": 2,
+              "trashed": false,
+              "trashBatchId": null,
+              "createdAt": "2026-11-14T19:38:42.352Z",
+              "titleSha256": "1f1a4b92658e742aab0ac394923a8df1cb9d122592fc65300a3deeb114af68bb",
+              "bodySha256": "5be67bde6b8754b216efd8b4a3982e9a10ba5479e2a0d2029c76aee78473c6ae",
+              "bodyChars": 13,
+              "fieldsSha256": "4fbd1d54336a535cf5c3190928dfbc75f969978e074617dd367d0fb8029669fb",
+              "matchesLatestRevision": true,
+              "revisions": [
+                {
+                  "n": 1,
+                  "contentHash": "97f9571129fe3f1925645bc4149e002be56872b8c41636ed3e37ec60d298bae8",
+                  "hashValid": true,
+                  "sourceKind": "ui",
+                  "packageId": null
+                },
+                {
+                  "n": 2,
+                  "contentHash": "e4af9f0140390d6b847a7b9d4a8bd366b13c2d97dab4ca517f52ea69eccad192",
+                  "hashValid": true,
+                  "sourceKind": "change_package",
+                  "packageId": "pkg_legacy_early_0001"
+                }
+              ]
+            }
+          ],
+          "links": [],
+          "images": [],
+          "changePackages": [
+            {
+              "packageId": "pkg_legacy_early_0001",
+              "formatVersion": 1,
+              "contentHash": "69e975f4eef2ebbef09310777d5028b8a742a7fe75e0a3401c3bd5de104e0cb4",
+              "status": "applied",
+              "rawJsonSha256": "cd7581cb91220363bdf794d39514e8ebfb66cd92c9fdc61ac7eabfb08fbaa716",
+              "appliedAt": "2026-11-14T19:38:42.375Z"
+            }
+          ],
+          "importedFiles": []
+        }
+      ]
+    }
+  ]
+}

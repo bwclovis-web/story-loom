@@ -1,0 +1,31 @@
+{
+  "format": "wordly.change-package",
+  "formatVersion": 1,
+  "packageId": "pkg_legacy_0005_protected_reference",
+  "workspaceId": "wsp_legacy_fixture",
+  "projectId": "prj_legacy_lantern",
+  "summary": "A reference-scope package that tries to rewrite chapter prose.",
+  "source": {
+    "conversationLabel": "Legacy fixture conversation",
+    "url": "https://chatgpt.com/c/legacy-fixture"
+  },
+  "approval": {
+    "status": "approved",
+    "statement": "Update the working files with the decisions I approved."
+  },
+  "scope": "reference",
+  "protectedOverrides": [],
+  "operations": [
+    {
+      "op": "update_record",
+      "recordId": "rec_legacy_ch01",
+      "expectedRevision": 2,
+      "changes": {
+        "body": {
+          "replace": "Rewritten by a package."
+        }
+      }
+    }
+  ],
+  "relatedRecords": []
+}

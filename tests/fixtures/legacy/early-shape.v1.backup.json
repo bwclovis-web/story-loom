@@ -1,0 +1,209 @@
+{
+  "format": "wordly.workspace-backup",
+  "formatVersion": 1,
+  "createdAt": "2026-11-14T19:38:42.402Z",
+  "app": {
+    "name": "wordly-editor",
+    "migrations": [
+      "20261025150342_init",
+      "20261025152500_package_scope_and_file_imports"
+    ]
+  },
+  "workspace": {
+    "id": "wsp_legacy_early",
+    "name": "Early backup workspace",
+    "createdAt": "2026-11-14T19:38:42.318Z"
+  },
+  "projects": [
+    {
+      "id": "prj_legacy_early",
+      "workspaceId": "wsp_legacy_early",
+      "title": "The First Ledger",
+      "createdAt": "2026-11-14T19:38:42.326Z"
+    }
+  ],
+  "records": [
+    {
+      "id": "rec_legacy_early_ch01",
+      "projectId": "prj_legacy_early",
+      "type": "manuscript_chapter",
+      "title": "Chapter 1",
+      "body": "The first ledger was kept in brine.",
+      "fields": {},
+      "authorityStatus": "draft",
+      "supersededByRecordId": null,
+      "protected": true,
+      "currentRevision": 1,
+      "createdAt": "2026-11-14T19:38:42.342Z",
+      "updatedAt": "2026-11-14T19:38:42.342Z"
+    },
+    {
+      "id": "rec_legacy_early_dossier",
+      "projectId": "prj_legacy_early",
+      "type": "character_dossier",
+      "title": "Pell Rook",
+      "body": "Senior clerk.",
+      "fields": {
+        "name": "Pell Rook"
+      },
+      "authorityStatus": "draft",
+      "supersededByRecordId": null,
+      "protected": false,
+      "currentRevision": 2,
+      "createdAt": "2026-11-14T19:38:42.352Z",
+      "updatedAt": "2026-11-14T19:38:42.369Z"
+    }
+  ],
+  "revisions": [
+    {
+      "id": "rev_01M7DS3DS6NWPN09V1A9JJT3QX",
+      "recordId": "rec_legacy_early_ch01",
+      "revisionNumber": 1,
+      "title": "Chapter 1",
+      "body": "The first ledger was kept in brine.",
+      "fields": {},
+      "authorityStatus": "draft",
+      "supersededByRecordId": null,
+      "contentHash": "fa9caa542b35f4c6a94bea7d51f424ca6b1cc82448263cf7526a01624d502001",
+      "sourceId": "src_01M7DS3DS3YS2WKBJK0GK0BMCV",
+      "createdAt": "2026-11-14T19:38:42.343Z"
+    },
+    {
+      "id": "rev_01M7DS3DSGV4VR34EYET3KSC6G",
+      "recordId": "rec_legacy_early_dossier",
+      "revisionNumber": 1,
+      "title": "Pell Rook",
+      "body": "Clerk.",
+      "fields": {
+        "name": "Pell Rook"
+      },
+      "authorityStatus": "draft",
+      "supersededByRecordId": null,
+      "contentHash": "97f9571129fe3f1925645bc4149e002be56872b8c41636ed3e37ec60d298bae8",
+      "sourceId": "src_01M7DS3DSDV9WVNQVV73SZDJ8V",
+      "createdAt": "2026-11-14T19:38:42.353Z"
+    },
+    {
+      "id": "rev_01M7DS3DT2CD7MPMZMM2BJ09QZ",
+      "recordId": "rec_legacy_early_dossier",
+      "revisionNumber": 2,
+      "title": "Pell Rook",
+      "body": "Senior clerk.",
+      "fields": {
+        "name": "Pell Rook"
+      },
+      "authorityStatus": "draft",
+      "supersededByRecordId": null,
+      "contentHash": "e4af9f0140390d6b847a7b9d4a8bd366b13c2d97dab4ca517f52ea69eccad192",
+      "sourceId": "src_01M7DS3DSZRJTV7ZBXM5FC157R",
+      "createdAt": "2026-11-14T19:38:42.370Z"
+    }
+  ],
+  "sources": [
+    {
+      "id": "src_01M7DS3DS3YS2WKBJK0GK0BMCV",
+      "projectId": "prj_legacy_early",
+      "kind": "ui",
+      "actor": "author",
+      "conversationLabel": null,
+      "url": null,
+      "packageId": null,
+      "originalFilename": null,
+      "createdAt": "2026-11-14T19:38:42.340Z"
+    },
+    {
+      "id": "src_01M7DS3DSDV9WVNQVV73SZDJ8V",
+      "projectId": "prj_legacy_early",
+      "kind": "ui",
+      "actor": "author",
+      "conversationLabel": null,
+      "url": null,
+      "packageId": null,
+      "originalFilename": null,
+      "createdAt": "2026-11-14T19:38:42.349Z"
+    },
+    {
+      "id": "src_01M7DS3DSZRJTV7ZBXM5FC157R",
+      "projectId": "prj_legacy_early",
+      "kind": "change_package",
+      "actor": "change-package",
+      "conversationLabel": null,
+      "url": null,
+      "packageId": "pkg_legacy_early_0001",
+      "originalFilename": null,
+      "createdAt": "2026-11-14T19:38:42.368Z"
+    }
+  ],
+  "changePackages": [
+    {
+      "projectId": "prj_legacy_early",
+      "packageId": "pkg_legacy_early_0001",
+      "formatVersion": 1,
+      "contentHash": "69e975f4eef2ebbef09310777d5028b8a742a7fe75e0a3401c3bd5de104e0cb4",
+      "summary": "Approved: Pell is the senior clerk.",
+      "status": "applied",
+      "rawJson": "{\"format\":\"wordly.change-package\",\"formatVersion\":1,\"packageId\":\"pkg_legacy_early_0001\",\"workspaceId\":\"wsp_legacy_early\",\"projectId\":\"prj_legacy_early\",\"summary\":\"Approved: Pell is the senior clerk.\",\"approval\":{\"status\":\"approved\"},\"scope\":\"reference\",\"protectedOverrides\":[],\"operations\":[{\"op\":\"update_record\",\"recordId\":\"rec_legacy_early_dossier\",\"expectedRevision\":1,\"changes\":{\"body\":{\"replace\":\"Senior clerk.\"}}}],\"relatedRecords\":[]}",
+      "resultJson": "{\"packageId\":\"pkg_legacy_early_0001\",\"projectId\":\"prj_legacy_early\",\"summary\":\"Approved: Pell is the senior clerk.\",\"contentHash\":\"69e975f4eef2ebbef09310777d5028b8a742a7fe75e0a3401c3bd5de104e0cb4\",\"appliedAt\":\"2026-11-14T19:38:42.375Z\",\"sourceId\":\"src_01M7DS3DSZRJTV7ZBXM5FC157R\",\"auditEntryId\":\"aud_01M7DS3DT2SJX4WJ4ZWJGK8KKX\",\"changes\":[{\"index\":0,\"op\":\"update_record\",\"recordId\":\"rec_legacy_early_dossier\",\"type\":\"character_dossier\",\"title\":\"Pell Rook\",\"previousRevision\":1,\"newRevision\":2}],\"createdRecordIds\":[],\"reviewItems\":[]}",
+      "appliedAt": "2026-11-14T19:38:42.375Z"
+    }
+  ],
+  "auditEntries": [
+    {
+      "id": "aud_01M7DS3DRRB5N3MTZWE7DA64WR",
+      "projectId": "prj_legacy_early",
+      "action": "project.create",
+      "actor": "author",
+      "sourceId": null,
+      "packageId": null,
+      "summary": "Created project \"The First Ledger\"",
+      "detailsJson": "{\"projectId\":\"prj_legacy_early\",\"workspaceId\":\"wsp_legacy_early\"}",
+      "createdAt": "2026-11-14T19:38:42.329Z"
+    },
+    {
+      "id": "aud_01M7DS3DS763ZXRBQ3Z3CSN89R",
+      "projectId": "prj_legacy_early",
+      "action": "record.create",
+      "actor": "author",
+      "sourceId": "src_01M7DS3DS3YS2WKBJK0GK0BMCV",
+      "packageId": null,
+      "summary": "Created Manuscript chapter \"Chapter 1\"",
+      "detailsJson": "{\"outcomes\":[{\"index\":0,\"kind\":\"create_record\",\"newRevision\":1,\"previousRevision\":null,\"recordId\":\"rec_legacy_early_ch01\",\"title\":\"Chapter 1\",\"type\":\"manuscript_chapter\"}],\"protectedOverridesUsed\":[],\"scope\":\"manuscript\",\"sourceKind\":\"ui\"}",
+      "createdAt": "2026-11-14T19:38:42.344Z"
+    },
+    {
+      "id": "aud_01M7DS3DSH0VE6S5E9GBWCVG17",
+      "projectId": "prj_legacy_early",
+      "action": "record.create",
+      "actor": "author",
+      "sourceId": "src_01M7DS3DSDV9WVNQVV73SZDJ8V",
+      "packageId": null,
+      "summary": "Created Character dossier \"Pell Rook\"",
+      "detailsJson": "{\"outcomes\":[{\"index\":0,\"kind\":\"create_record\",\"newRevision\":1,\"previousRevision\":null,\"recordId\":\"rec_legacy_early_dossier\",\"title\":\"Pell Rook\",\"type\":\"character_dossier\"}],\"protectedOverridesUsed\":[],\"scope\":\"manuscript\",\"sourceKind\":\"ui\"}",
+      "createdAt": "2026-11-14T19:38:42.354Z"
+    },
+    {
+      "id": "aud_01M7DS3DT2SJX4WJ4ZWJGK8KKX",
+      "projectId": "prj_legacy_early",
+      "action": "package.apply",
+      "actor": "change-package",
+      "sourceId": "src_01M7DS3DSZRJTV7ZBXM5FC157R",
+      "packageId": "pkg_legacy_early_0001",
+      "summary": "Applied change package pkg_legacy_early_0001: Approved: Pell is the senior clerk.",
+      "detailsJson": "{\"outcomes\":[{\"index\":0,\"kind\":\"update_record\",\"newRevision\":2,\"previousRevision\":1,\"recordId\":\"rec_legacy_early_dossier\",\"title\":\"Pell Rook\",\"type\":\"character_dossier\"}],\"protectedOverridesUsed\":[],\"scope\":\"reference\",\"sourceKind\":\"change_package\"}",
+      "createdAt": "2026-11-14T19:38:42.371Z"
+    }
+  ],
+  "reviewItems": [],
+  "importedFiles": [],
+  "counts": {
+    "projects": 1,
+    "records": 2,
+    "revisions": 3,
+    "sources": 3,
+    "changePackages": 1,
+    "auditEntries": 4,
+    "reviewItems": 0,
+    "importedFiles": 0
+  },
+  "checksum": "37b58fa0c0203c7774d61410e350db95a259bb123e59d39e09421336ec80a43a"
+}

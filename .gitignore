@@ -18,7 +18,9 @@ src/generated/
 mcp/grant.json
 
 # Local databases anywhere in the tree, including SQLite journal/WAL files
+# and renamed copies such as dev.db.example
 *.db
+*.db.*
 *.db-journal
 *.db-wal
 *.db-shm
