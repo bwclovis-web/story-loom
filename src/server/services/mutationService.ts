@@ -860,7 +860,13 @@ export async function deleteRecordRowsInTx(tx: Tx, recordIds: readonly string[])
   const ids = { in: [...recordIds] };
   await tx.rewriteSourceLink.deleteMany({ where: { OR: [{ fromRecordId: ids }, { toRecordId: ids }] } });
   await tx.readingPin.deleteMany({ where: { recordId: ids } });
+  await tx.boardCard.deleteMany({ where: { recordId: ids } });
   await tx.recordLink.deleteMany({ where: { OR: [{ fromRecordId: ids }, { toRecordId: ids }] } });
+  // Images cascade board image cards via FK SET NULL; clear image-linked cards first.
+  const images = await tx.recordImage.findMany({ where: { recordId: ids }, select: { id: true } });
+  if (images.length) {
+    await tx.boardCard.deleteMany({ where: { imageId: { in: images.map((i) => i.id) } } });
+  }
   await tx.recordImage.deleteMany({ where: { recordId: ids } });
   await tx.reviewItem.deleteMany({ where: { recordId: ids } });
   await tx.importedFile.deleteMany({ where: { recordId: ids } });

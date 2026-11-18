@@ -58,6 +58,7 @@ export function parseProjectPath(pathname: string): { projectId: string; rest: s
 /** The record group a project page belongs to, or null for project-wide pages such as history. */
 export function groupForProjectPath(rest: readonly string[], recordType: (id: string) => RecordType | undefined): RecordGroup | null {
   const [first, second] = rest;
+  if (first === "world") return "world";
   if (first && (RECORD_GROUP_IDS as string[]).includes(first) && rest.length === 1) return first as RecordGroup;
   if ((first === "read" || first === "import-chapters") && rest.length === 1) return "write";
   if (first === "records" && second) {

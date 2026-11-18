@@ -72,6 +72,14 @@ function readingPinsOf(b: WorkspaceBackupV1) {
   return b.readingPins ?? [];
 }
 
+function boardsOf(b: WorkspaceBackupV1) {
+  return b.boards ?? [];
+}
+
+function boardCardsOf(b: WorkspaceBackupV1) {
+  return b.boardCards ?? [];
+}
+
 /** P2021: table missing. P2022: column missing. */
 function isMissingSchemaError(error: unknown, code: "P2021" | "P2022"): boolean {
   return error instanceof Prisma.PrismaClientKnownRequestError && error.code === code;
@@ -222,6 +230,32 @@ async function readingPinRows(db: DbOrTx, projectIds: string[]) {
   }
 }
 
+async function boardRows(db: DbOrTx, projectIds: string[]) {
+  if (!("board" in db) || !(db as { board?: { findMany: unknown } }).board) return [];
+  try {
+    return await db.board.findMany({
+      where: { projectId: { in: projectIds } },
+      orderBy: [{ projectId: "asc" }, { id: "asc" }],
+    });
+  } catch (error) {
+    if (isMissingSchemaError(error, "P2021")) return [];
+    throw error;
+  }
+}
+
+async function boardCardRows(db: DbOrTx, projectIds: string[]) {
+  if (!("boardCard" in db) || !(db as { boardCard?: { findMany: unknown } }).boardCard) return [];
+  try {
+    return await db.boardCard.findMany({
+      where: { projectId: { in: projectIds } },
+      orderBy: [{ boardId: "asc" }, { zIndex: "asc" }, { id: "asc" }],
+    });
+  } catch (error) {
+    if (isMissingSchemaError(error, "P2021")) return [];
+    throw error;
+  }
+}
+
 async function manuscriptGroupRows(db: DbOrTx, projectIds: string[]) {
   try {
     return await db.manuscriptGroup.findMany({
@@ -343,6 +377,8 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
     manuscriptDrafts,
     rewriteSourceLinks,
     readingPins,
+    boards,
+    boardCards,
   ] = await Promise.all([
     recordRows(db, projectIds),
     db.source.findMany({ where: inProjects, orderBy: { id: "asc" } }),
@@ -357,6 +393,8 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
     manuscriptDraftRows(db, projectIds),
     rewriteSourceLinkRows(db, projectIds),
     readingPinRows(db, projectIds),
+    boardRows(db, projectIds),
+    boardCardRows(db, projectIds),
   ]);
   const revisions = await db.revision.findMany({
     where: { recordId: { in: records.map((r) => r.id) } },
@@ -543,6 +581,38 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
           })),
         }
       : {}),
+    ...(boards.length
+      ? {
+          boards: boards.map((b) => ({
+            id: b.id,
+            projectId: b.projectId,
+            title: b.title,
+            templateKey: b.templateKey as "blank" | "geography",
+            createdAt: iso(b.createdAt),
+            updatedAt: iso(b.updatedAt),
+          })),
+        }
+      : {}),
+    ...(boardCards.length
+      ? {
+          boardCards: boardCards.map((c) => ({
+            id: c.id,
+            boardId: c.boardId,
+            projectId: c.projectId,
+            kind: c.kind as "record" | "image" | "note",
+            ...(c.recordId ? { recordId: c.recordId } : { recordId: null }),
+            ...(c.imageId ? { imageId: c.imageId } : { imageId: null }),
+            noteTitle: c.noteTitle,
+            noteBody: c.noteBody,
+            x: c.x,
+            y: c.y,
+            width: c.width,
+            height: c.height,
+            zIndex: c.zIndex,
+            createdAt: iso(c.createdAt),
+          })),
+        }
+      : {}),
     recordImages: recordImages.map((img) => ({
       id: img.id,
       projectId: img.projectId,
@@ -577,6 +647,8 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
       ...(manuscriptDrafts.length ? { manuscriptDrafts: manuscriptDrafts.length } : {}),
       ...(rewriteSourceLinks.length ? { rewriteSourceLinks: rewriteSourceLinks.length } : {}),
       ...(readingPins.length ? { readingPins: readingPins.length } : {}),
+      ...(boards.length ? { boards: boards.length } : {}),
+      ...(boardCards.length ? { boardCards: boardCards.length } : {}),
     },
   };
   return { ...body, checksum: backupChecksum(body) };
@@ -632,6 +704,8 @@ function checkInternalConsistency(b: WorkspaceBackupV1): Issue[] {
     manuscriptDrafts: manuscriptDraftsOf(b).length,
     rewriteSourceLinks: rewriteSourceLinksOf(b).length,
     readingPins: readingPinsOf(b).length,
+    boards: boardsOf(b).length,
+    boardCards: boardCardsOf(b).length,
   };
   for (const key of Object.keys(actualCounts) as (keyof BackupCounts)[]) {
     if (actualCounts[key] !== (b.counts[key] ?? 0)) {
@@ -676,6 +750,8 @@ function checkInternalConsistency(b: WorkspaceBackupV1): Issue[] {
     "reading pin scope",
     issues,
   );
+  checkUnique(boardsOf(b).map((x) => x.id), "board", issues);
+  checkUnique(boardCardsOf(b).map((c) => c.id), "board card", issues);
 
   const projectIds = new Set(b.projects.map((p) => p.id));
   const recordIds = new Set(b.records.map((r) => r.id));
@@ -779,6 +855,30 @@ function checkInternalConsistency(b: WorkspaceBackupV1): Issue[] {
     }
     if (p.scopeDraftId !== "" && (!draftIds.has(p.scopeDraftId) || draftProject.get(p.scopeDraftId) !== p.projectId)) {
       issues.push(integrity(`Reading pin ${p.id} references missing draft ${p.scopeDraftId}.`));
+    }
+  });
+  const boardIds = new Set(boardsOf(b).map((x) => x.id));
+  const boardProject = new Map(boardsOf(b).map((x) => [x.id, x.projectId]));
+  boardsOf(b).forEach((board) => needProject(board.projectId, `Board ${board.id}`));
+  const imageIds = new Set(recordImagesOf(b).map((img) => img.id));
+  const imageProject = new Map(recordImagesOf(b).map((img) => [img.id, img.projectId]));
+  boardCardsOf(b).forEach((c) => {
+    needProject(c.projectId, `Board card ${c.id}`);
+    if (!boardIds.has(c.boardId) || boardProject.get(c.boardId) !== c.projectId) {
+      issues.push(integrity(`Board card ${c.id} references missing board ${c.boardId}.`));
+    }
+    if (c.kind === "record") {
+      if (!c.recordId || !recordIds.has(c.recordId) || recordProject.get(c.recordId) !== c.projectId) {
+        issues.push(integrity(`Board card ${c.id} references missing record ${c.recordId}.`));
+      }
+    }
+    if (c.kind === "image") {
+      if (!c.imageId || !imageIds.has(c.imageId) || imageProject.get(c.imageId) !== c.projectId) {
+        issues.push(integrity(`Board card ${c.id} references missing image ${c.imageId}.`));
+      }
+    }
+    if (c.recordId && (!recordIds.has(c.recordId) || recordProject.get(c.recordId) !== c.projectId)) {
+      issues.push(integrity(`Board card ${c.id} references missing record ${c.recordId}.`));
     }
   });
   recordImagesOf(b).forEach((img) => {
@@ -914,6 +1014,12 @@ async function findCollisions(db: DbOrTx, b: WorkspaceBackupV1): Promise<Issue[]
   if (readingPinsOf(b).length) {
     await check("reading pin", db.readingPin.count({ where: { id: { in: readingPinsOf(b).map((p) => p.id) } } }));
   }
+  if (boardsOf(b).length) {
+    await check("board", db.board.count({ where: { id: { in: boardsOf(b).map((x) => x.id) } } }));
+  }
+  if (boardCardsOf(b).length) {
+    await check("board card", db.boardCard.count({ where: { id: { in: boardCardsOf(b).map((c) => c.id) } } }));
+  }
   return issues;
 }
 
@@ -1036,6 +1142,8 @@ export async function restoreWorkspaceBackup(db: Db, input: string | unknown, op
   manuscriptDraftsOf(b).forEach((d) => assign(d.id, "drf"));
   rewriteSourceLinksOf(b).forEach((l) => assign(l.id, "rsl"));
   readingPinsOf(b).forEach((p) => assign(p.id, "pin"));
+  boardsOf(b).forEach((x) => assign(x.id, "brd"));
+  boardCardsOf(b).forEach((c) => assign(c.id, "bcd"));
 
   const workspaceName =
     options.workspaceName?.trim() || (remap ? `${b.workspace.name} (restored ${b.createdAt.slice(0, 10)})` : b.workspace.name);
@@ -1276,6 +1384,19 @@ export async function restoreWorkspaceBackup(db: Db, input: string | unknown, op
             })),
           });
         }
+        const boards = boardsOf(b);
+        if (boards.length) {
+          await tx.board.createMany({
+            data: boards.map((board) => ({
+              id: m(board.id),
+              projectId: m(board.projectId),
+              title: board.title,
+              templateKey: board.templateKey,
+              createdAt: new Date(board.createdAt),
+              updatedAt: new Date(board.updatedAt),
+            })),
+          });
+        }
         // One at a time: a batch of large images would be one very large statement.
         for (const img of recordImagesOf(b)) {
           await tx.recordImage.create({
@@ -1297,6 +1418,27 @@ export async function restoreWorkspaceBackup(db: Db, input: string | unknown, op
               createdAt: new Date(img.createdAt),
               updatedAt: new Date(img.updatedAt),
             },
+          });
+        }
+        const cards = boardCardsOf(b);
+        if (cards.length) {
+          await tx.boardCard.createMany({
+            data: cards.map((c) => ({
+              id: m(c.id),
+              boardId: m(c.boardId),
+              projectId: m(c.projectId),
+              kind: c.kind,
+              recordId: c.recordId ? m(c.recordId) : null,
+              imageId: c.imageId ? m(c.imageId) : null,
+              noteTitle: c.noteTitle,
+              noteBody: c.noteBody,
+              x: c.x,
+              y: c.y,
+              width: c.width,
+              height: c.height,
+              zIndex: c.zIndex,
+              createdAt: new Date(c.createdAt),
+            })),
           });
         }
         for (const p of b.projects) {

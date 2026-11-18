@@ -1739,3 +1739,35 @@ alone does not authorize send.
 Restore the SQLite snapshot from that pre-migrate backup folder and check out
 the pre-feature commit. Workspace JSON backups that include
 `20261118060000_reading_pins` need this schema to restore.
+
+## World → Boards (Nov 17, 2026)
+
+Requested: focused boards under World; place/reposition cards for existing
+records and images; freeform notes; store positions and source IDs; same record
+on several boards; select card → source in right rail; remove card from board
+only; blank board + editable geography template; invented fixtures; legacy
+projects open with no boards; backup round-trip for positions, notes, links.
+
+### Implemented
+
+- Migration `20261118070000_world_boards`: `Board`, `BoardCard` (kinds
+  `record` | `image` | `note`). Audited create/rename/delete and card
+  add/move/update/remove.
+- Templates: blank; geography seeds editable invented region notes.
+- UI `/world/boards` and `/world/boards/[boardId]` with drag reposition and
+  ContextRail source preview. World nav lists boards.
+- Backup optional `boards` / `boardCards`. Help, labels, acceptance tests.
+
+### Verification
+
+| Check | Result |
+| --- | --- |
+| Pre-migrate backup | `backups/2026-11-18T03-39-35-659Z-pre-migrate` |
+| `pnpm db:deploy` | Applied `20261118070000_world_boards` |
+| `pnpm typecheck` | pass |
+| `pnpm exec vitest run tests/acceptance/world-boards.test.ts tests/unit/help.test.ts` | 7/7 passed |
+| `pnpm build` | pass (Next.js security reminder on first attempt; retry succeeded); routes `/world/boards` present |
+
+### Rollback
+
+Restore that pre-migrate SQLite snapshot and check out the pre-feature commit.

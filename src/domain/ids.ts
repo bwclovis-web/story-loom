@@ -23,7 +23,9 @@ export type IdPrefix =
   | "grp" // manuscript group
   | "drf" // manuscript draft (zero draft / author manuscript)
   | "rsl" // rewrite source link
-  | "pin"; // reading pin (reference beside prose)
+  | "pin" // reading pin (reference beside prose)
+  | "brd" // world board
+  | "bcd"; // board card
 
 export function newId(prefix: IdPrefix): string {
   return `${prefix}_${ulid()}`;

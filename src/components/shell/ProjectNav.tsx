@@ -33,12 +33,14 @@ export function ProjectNav({
   openReviewItems,
   drafts = [],
   activeDraftId = null,
+  boards = [],
 }: {
   project: ProjectInfo;
   records: RecordNavEntry[];
   openReviewItems: number;
   drafts?: DraftOption[];
   activeDraftId?: string | null;
+  boards?: Array<{ id: string; title: string }>;
 }) {
   const pathname = usePathname();
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -51,7 +53,7 @@ export function ProjectNav({
   const writing = parsed ? groupForProjectPath(parsed.rest, typeOf) === "write" : false;
   const showLabel = writing ? WRITE.showNavigation : WRITE.showProjectPanel;
   const hideLabel = writing ? WRITE.hideNavigation : WRITE.hideProjectPanel;
-  const contentProps = { project, records, openReviewItems, pathname, drafts, activeDraftId };
+  const contentProps = { project, records, openReviewItems, pathname, drafts, activeDraftId, boards };
 
   return (
     <>
@@ -122,6 +124,7 @@ function ProjectNavContent({
   pathname,
   drafts,
   activeDraftId,
+  boards = [],
   hideButton,
 }: {
   project: ProjectInfo;
@@ -130,6 +133,7 @@ function ProjectNavContent({
   pathname: string;
   drafts: DraftOption[];
   activeDraftId: string | null;
+  boards?: Array<{ id: string; title: string }>;
   hideButton?: React.ReactNode;
 }) {
   const base = `/projects/${encodeURIComponent(project.id)}`;
@@ -208,7 +212,13 @@ function ProjectNavContent({
           draftId={activeDraftId}
         />
       ) : group === "world" ? (
-        <WorldNav projectId={project.id} records={records} onWorldPage={parsed?.rest[0] === "world"} currentRecordId={currentRecordId} />
+        <WorldNav
+          projectId={project.id}
+          records={records}
+          onWorldPage={parsed?.rest[0] === "world"}
+          currentRecordId={currentRecordId}
+          boards={boards}
+        />
       ) : group ? (
         RECORD_GROUPS[group].map((type) => {
           const ofType = records.filter((r) => r.type === type);

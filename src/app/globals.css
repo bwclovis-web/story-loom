@@ -578,6 +578,34 @@ button.linkish {
 button.linkish:where(:hover:not(:disabled)) { color: var(--color-text); background: none; }
 .preview-section { display: block; scroll-margin-top: 0.5rem; }
 .find-relevant-preview { padding-top: 0.5rem; border-top: 1px solid var(--border); }
+
+/* World boards */
+.board-layout { min-height: 70vh; }
+.board-main { display: flex; flex-direction: column; gap: 0.6rem; padding-bottom: 1rem; }
+.board-title-field { flex: 1 1 12rem; min-width: 0; }
+.board-title-field input { width: 100%; font-size: 1.1rem; font-weight: 600; }
+.board-surface {
+  position: relative; min-height: 28rem; height: min(70vh, 40rem); overflow: auto;
+  border: 1px solid var(--border); border-radius: var(--radius-lg); background:
+    linear-gradient(180deg, color-mix(in srgb, var(--color-surface) 88%, var(--color-accent-soft) 12%), var(--color-surface));
+  background-size: 24px 24px;
+  background-image:
+    linear-gradient(to right, color-mix(in srgb, var(--border) 55%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in srgb, var(--border) 55%, transparent) 1px, transparent 1px);
+  touch-action: none;
+}
+.board-card {
+  position: absolute; box-sizing: border-box; padding: 0.45rem 0.55rem; border: 1px solid var(--border);
+  border-radius: var(--radius-md); background: var(--color-surface); box-shadow: var(--shadow-sm);
+  cursor: grab; user-select: none; display: flex; flex-direction: column; gap: 0.2rem;
+}
+.board-card:active { cursor: grabbing; }
+.board-card.selected { border-color: var(--color-accent); box-shadow: 0 0 0 2px var(--color-accent-soft); }
+.board-card-kind { text-transform: uppercase; letter-spacing: 0.04em; font-size: 0.68rem; }
+.board-card-title { font-size: 0.92rem; line-height: 1.25; }
+.board-card-body { margin: 0; max-height: 4.5rem; overflow: hidden; }
+.board-card-thumb { width: 100%; height: 5.5rem; object-fit: cover; border-radius: var(--radius-sm); pointer-events: none; }
+.board-card-note { background: color-mix(in srgb, var(--color-warn-soft) 35%, var(--color-surface)); }
 .write-main { flex: 1; min-width: 0; overflow-x: clip; }
 .write-form { display: flex; flex-direction: column; min-height: 100vh; min-height: 100dvh; }
 .write-header {

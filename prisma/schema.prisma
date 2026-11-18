@@ -59,6 +59,8 @@ model Project {
   recordImages           RecordImage[]
   rewriteSourceLinks     RewriteSourceLink[]
   readingPins            ReadingPin[]
+  boards                 Board[]
+  boardCards             BoardCard[]
 
   @@index([workspaceId])
 }
@@ -176,12 +178,59 @@ model Record {
   rewriteSourcesFrom    RewriteSourceLink[]    @relation("RewriteFrom")
   rewriteSourcesTo      RewriteSourceLink[]    @relation("RewriteTo")
   readingPins           ReadingPin[]
+  boardCards            BoardCard[]
 
   @@index([projectId, type])
   @@index([parentRecordId])
   @@index([trashBatchId])
   @@index([groupId])
   @@index([draftId])
+}
+
+/// A focused World board: freeform placement of record/image cards and notes.
+/// Not revisioned content. Legacy projects have none until the author creates one.
+model Board {
+  id          String      @id
+  projectId   String
+  project     Project     @relation(fields: [projectId], references: [id])
+  title       String
+  /// blank | geography — creation template; the board remains fully editable.
+  templateKey String      @default("blank")
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  cards       BoardCard[]
+
+  @@index([projectId])
+}
+
+/// A card on a board. Positions are board-local. Source links point at a record
+/// and/or image; removing a card only removes this row. The same record may
+/// appear on several boards.
+model BoardCard {
+  id         String   @id
+  boardId    String
+  board      Board    @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  projectId  String
+  project    Project  @relation(fields: [projectId], references: [id])
+  /// record | image | note
+  kind       String
+  recordId   String?
+  record     Record?  @relation(fields: [recordId], references: [id])
+  imageId    String?
+  image      RecordImage? @relation(fields: [imageId], references: [id])
+  noteTitle  String   @default("")
+  noteBody   String   @default("")
+  x          Int
+  y          Int
+  width      Int      @default(220)
+  height     Int      @default(120)
+  zIndex     Int      @default(0)
+  createdAt  DateTime @default(now())
+
+  @@index([boardId])
+  @@index([projectId])
+  @@index([recordId])
+  @@index([imageId])
 }
 
 /// Ordered reading pins for references kept open beside prose. Scoped by project
@@ -269,6 +318,7 @@ model RecordImage {
   position         Int
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
+  boardCards       BoardCard[]
 
   @@unique([recordId, name])
   @@index([projectId])

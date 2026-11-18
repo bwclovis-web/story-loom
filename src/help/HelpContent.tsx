@@ -1079,7 +1079,8 @@ export function HelpContent() {
         <p>
           <L>{SHELL.world}</L> holds the project&apos;s reference documents of these types:{" "}
           {WORLD_TYPES.map((t) => RECORD_TYPE_LABELS[t]).join(", ")}. Its page lists them in a table with each
-          document&apos;s type, canon status, saved version and protection.
+          document&apos;s type, canon status, saved version and protection. Under <L>{WORLD.boards}</L> you can place
+          references, images and freeform notes on a focused board (see <See anchor="world-boards" />).
         </p>
         <p>
           <L>{WORLD.importReferences}</L> opens <L>{NAV.importMarkdown}</L> (see <See anchor="importing" />).{" "}
@@ -1094,10 +1095,35 @@ export function HelpContent() {
           away. See <See anchor="pdf-export" />.
         </p>
 
+        <Sub id="world-boards">
+          <p>
+            <L>{WORLD.boards}</L> in the World column lists boards for this project. A project can have none; creating the
+            first board does not change existing records. Choose <L>{WORLD.newBoard}</L> with{" "}
+            <L>{WORLD.templateBlank}</L> (empty) or <L>{WORLD.templateGeography}</L> (invented region notes you can edit,
+            move or remove).
+          </p>
+          <ul>
+            <li>
+              Add a reference, an image from a reference, or a freeform note. Drag a card to reposition it; the position
+              is stored on that board only.
+            </li>
+            <li>
+              The same record can appear on several boards. Selecting a reference or image card opens its source in the
+              context rail (same collapse and resize behaviour as elsewhere in World).
+            </li>
+            <li>
+              <L>{WORLD.removeCard}</L> removes the card from that board only; the source record or image is unchanged.
+            </li>
+          </ul>
+          <p>
+            Boards and cards are included in workspace backups. Older backups that omit them restore with no boards.
+          </p>
+        </Sub>
+
         <Sub id="world-nav">
           <p>
             On <L>{SHELL.world}</L> and on a World document&apos;s page, the second column shows{" "}
-            <L>{WORLD.references}</L>:
+            <L>{WORLD.boards}</L> and <L>{WORLD.references}</L>:
           </p>
           <ul>
             <li>

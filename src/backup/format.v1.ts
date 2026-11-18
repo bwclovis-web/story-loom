@@ -266,6 +266,44 @@ export const workspaceBackupV1Schema = z
           .strict(),
       )
       .optional(),
+    /** World boards; omitted in older backups → no boards. */
+    boards: z
+      .array(
+        z
+          .object({
+            id,
+            projectId: id,
+            title: z.string().min(1),
+            templateKey: z.enum(["blank", "geography"]),
+            createdAt: timestamp,
+            updatedAt: timestamp,
+          })
+          .strict(),
+      )
+      .optional(),
+    /** Cards on World boards (positions + source links); omitted → empty. */
+    boardCards: z
+      .array(
+        z
+          .object({
+            id,
+            boardId: id,
+            projectId: id,
+            kind: z.enum(["record", "image", "note"]),
+            recordId: id.nullable().optional(),
+            imageId: id.nullable().optional(),
+            noteTitle: z.string(),
+            noteBody: z.string(),
+            x: z.number().int(),
+            y: z.number().int(),
+            width: z.number().int().min(1),
+            height: z.number().int().min(1),
+            zIndex: z.number().int(),
+            createdAt: timestamp,
+          })
+          .strict(),
+      )
+      .optional(),
     /** Added with images; a backup without it restores with no images. */
     recordImages: z
       .array(
@@ -309,6 +347,8 @@ export const workspaceBackupV1Schema = z
         manuscriptDrafts: z.number().int().optional(),
         rewriteSourceLinks: z.number().int().optional(),
         readingPins: z.number().int().optional(),
+        boards: z.number().int().optional(),
+        boardCards: z.number().int().optional(),
       })
       .strict(),
     /** sha256 of the stable JSON serialization of every other top-level field. */

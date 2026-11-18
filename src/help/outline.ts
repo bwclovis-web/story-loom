@@ -57,6 +57,7 @@ export const HELP_SECTIONS = [
     id: "world",
     title: "World references",
     children: [
+      { id: "world-boards", title: "Boards" },
       { id: "world-nav", title: "Finding references" },
       { id: "reference-page", title: "Reading a reference" },
       { id: "reference-context", title: "Context beside a reference" },
@@ -163,6 +164,8 @@ export const HELP_ROUTES = [
   "/projects/[projectId]/write",
   "/projects/[projectId]/plan",
   "/projects/[projectId]/world",
+  "/projects/[projectId]/world/boards",
+  "/projects/[projectId]/world/boards/[boardId]",
   "/projects/[projectId]/records/[recordId]",
   "/projects/[projectId]/import",
   "/projects/[projectId]/import-markdown",
