@@ -606,6 +606,69 @@ button.linkish:where(:hover:not(:disabled)) { color: var(--color-text); backgrou
 .board-card-body { margin: 0; max-height: 4.5rem; overflow: hidden; }
 .board-card-thumb { width: 100%; height: 5.5rem; object-fit: cover; border-radius: var(--radius-sm); pointer-events: none; }
 .board-card-note { background: color-mix(in srgb, var(--color-warn-soft) 35%, var(--color-surface)); }
+.map-surface {
+  position: relative;
+  width: 100%;
+  max-width: 56rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--color-surface-2, var(--color-surface));
+  cursor: crosshair;
+  user-select: none;
+}
+.map-backdrop {
+  display: block;
+  width: 100%;
+  height: auto;
+  pointer-events: none;
+}
+.map-pin {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  width: 1.5rem;
+  height: 1.5rem;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: grab;
+  z-index: 2;
+}
+.map-pin:active { cursor: grabbing; }
+.map-pin-dot {
+  display: block;
+  width: 0.85rem;
+  height: 0.85rem;
+  margin: 0.325rem auto;
+  border-radius: 50%;
+  background: var(--color-accent);
+  border: 2px solid var(--color-surface);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-accent) 50%, transparent);
+}
+.map-pin.selected .map-pin-dot {
+  box-shadow: 0 0 0 3px var(--color-accent-soft);
+}
+.map-pin.unavailable .map-pin-dot {
+  background: var(--color-muted, #888);
+}
+.map-pin-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.25rem; }
+.map-pin-list-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  width: 100%;
+  text-align: left;
+  padding: 0.4rem 0.55rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  cursor: pointer;
+}
+.map-pin-list-item:hover,
+.map-pin-list-item.selected {
+  border-color: var(--color-border);
+  background: var(--color-surface-2, var(--color-surface));
+}
 .write-main { flex: 1; min-width: 0; overflow-x: clip; }
 .write-form { display: flex; flex-direction: column; min-height: 100vh; min-height: 100dvh; }
 .write-header {

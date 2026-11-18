@@ -1771,3 +1771,39 @@ projects open with no boards; backup round-trip for positions, notes, links.
 ### Rollback
 
 Restore that pre-migrate SQLite snapshot and check out the pre-feature commit.
+
+## World maps and place relationships (Nov 18, 2026)
+
+Requested: use an existing reference image as a map; pins to World records with
+image-relative positions; open pin source in the right rail; keyboard-accessible
+pin list; several maps may pin the same place; trash rules for soft vs permanent
+delete of images and linked records; explicit place relationships (`part_of`,
+`flows_into`, `governed_by`); fixture with two river names → one record and a
+separate tidal approach; moving cards/pins never creates or changes relationships;
+backup round-trip.
+
+### Implemented
+
+- Migration `20261118120000_world_maps_place_relations`: `WorldMap`,
+  `WorldMapPin` (`xNorm`/`yNorm` 0–1), `PlaceRelation`.
+- Services: `worldMapService`, `placeRelationService`. Soft-trash hides maps /
+  marks pins unavailable; permanent image remove deletes maps; permanent record
+  delete removes pins and place relations.
+- UI: `/world/maps`, map canvas with pin list + ContextRail; place relationships
+  panel on reference pages. World nav lists maps.
+- Backup optional `worldMaps` / `worldMapPins` / `placeRelations`. Help, labels,
+  acceptance tests (river aliases fixture).
+
+### Verification
+
+| Check | Result |
+| --- | --- |
+| Pre-migrate backup | `backups/2026-11-18T11-47-12-715Z-pre-migrate` |
+| `pnpm db:deploy` | Applied `20261118120000_world_maps_place_relations` |
+| `pnpm exec vitest run tests/acceptance/world-maps-place-relations.test.ts tests/unit/help.test.ts` | 11/11 passed |
+| `pnpm typecheck` | pass |
+| `pnpm build` | pass (Next.js security reminder on first attempt; retry succeeded); routes `/world/maps` present |
+
+### Rollback
+
+Restore that pre-migrate SQLite snapshot and check out the pre-feature commit.

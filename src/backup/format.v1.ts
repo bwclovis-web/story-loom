@@ -304,6 +304,52 @@ export const workspaceBackupV1Schema = z
           .strict(),
       )
       .optional(),
+    /** World maps (image backdrop); omitted in older backups → no maps. */
+    worldMaps: z
+      .array(
+        z
+          .object({
+            id,
+            projectId: id,
+            title: z.string().min(1),
+            imageId: id,
+            createdAt: timestamp,
+            updatedAt: timestamp,
+          })
+          .strict(),
+      )
+      .optional(),
+    /** Pins on World maps (normalized 0–1 positions); omitted → empty. */
+    worldMapPins: z
+      .array(
+        z
+          .object({
+            id,
+            mapId: id,
+            projectId: id,
+            recordId: id,
+            xNorm: z.number().min(0).max(1),
+            yNorm: z.number().min(0).max(1),
+            createdAt: timestamp,
+          })
+          .strict(),
+      )
+      .optional(),
+    /** Explicit place relationships; omitted → empty. Independent of pin/card positions. */
+    placeRelations: z
+      .array(
+        z
+          .object({
+            id,
+            projectId: id,
+            fromRecordId: id,
+            toRecordId: id,
+            kind: z.enum(["part_of", "flows_into", "governed_by"]),
+            createdAt: timestamp,
+          })
+          .strict(),
+      )
+      .optional(),
     /** Added with images; a backup without it restores with no images. */
     recordImages: z
       .array(
@@ -349,6 +395,9 @@ export const workspaceBackupV1Schema = z
         readingPins: z.number().int().optional(),
         boards: z.number().int().optional(),
         boardCards: z.number().int().optional(),
+        worldMaps: z.number().int().optional(),
+        worldMapPins: z.number().int().optional(),
+        placeRelations: z.number().int().optional(),
       })
       .strict(),
     /** sha256 of the stable JSON serialization of every other top-level field. */

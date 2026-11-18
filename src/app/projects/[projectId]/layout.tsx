@@ -7,6 +7,7 @@ import { findProject } from "@/server/services/projectService";
 import { listBoards } from "@/server/services/boardService";
 import { listRecordNav } from "@/server/services/recordService";
 import { countOpenReviewItems } from "@/server/services/reviewService";
+import { listWorldMaps } from "@/server/services/worldMapService";
 
 export const dynamic = "force-dynamic";
 
@@ -25,10 +26,11 @@ export default async function ProjectLayout({
   const writeDraftCookie = await readWriteDraftCookie();
   const activeDraftId = resolveWriteDraftId(drafts, writeDraftCookie);
   const hasDrafts = drafts.length > 0;
-  const [records, openReviewItems, boards] = await Promise.all([
+  const [records, openReviewItems, boards, maps] = await Promise.all([
     listRecordNav(db, project.id, { hasDrafts, draftId: activeDraftId }),
     countOpenReviewItems(db, project.id),
     listBoards(db, project.id).catch(() => []),
+    listWorldMaps(db, project.id).catch(() => []),
     getDraftDefaults(db, project.id),
   ]);
 
@@ -46,6 +48,7 @@ export default async function ProjectLayout({
         }))}
         activeDraftId={activeDraftId}
         boards={boards.map((b) => ({ id: b.id, title: b.title }))}
+        maps={maps.map((m) => ({ id: m.id, title: m.title }))}
       />
       <main id="main" tabIndex={-1} className="workspace">
         {children}

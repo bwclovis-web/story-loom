@@ -19,19 +19,24 @@ export function WorldNav({
   onWorldPage,
   currentRecordId,
   boards = [],
+  maps = [],
 }: {
   projectId: string;
   records: RecordNavEntry[];
   onWorldPage: boolean;
   currentRecordId: string | null;
   boards?: Array<{ id: string; title: string }>;
+  maps?: Array<{ id: string; title: string }>;
 }) {
   const idPrefix = useId();
   const params = useSearchParams();
   const pathname = usePathname() ?? "";
   const boardsBase = `/projects/${encodeURIComponent(projectId)}/world/boards`;
+  const mapsBase = `/projects/${encodeURIComponent(projectId)}/world/maps`;
   const onBoards = pathname.includes("/world/boards");
-  const urlQuery = onWorldPage && !onBoards ? (params.get("q") ?? "") : "";
+  const onMaps = pathname.includes("/world/maps");
+  const onSpecial = onBoards || onMaps;
+  const urlQuery = onWorldPage && !onSpecial ? (params.get("q") ?? "") : "";
   const [query, setQuery] = useState(urlQuery);
   const [syncedQuery, setSyncedQuery] = useState(urlQuery);
   if (syncedQuery !== urlQuery) {
@@ -41,9 +46,9 @@ export function WorldNav({
 
   const counts = useMemo(() => worldCounts(records), [records]);
   const currentRecord = currentRecordId ? records.find((r) => r.id === currentRecordId) : undefined;
-  const pageType = onWorldPage && !onBoards ? params.get("type") : null;
+  const pageType = onWorldPage && !onSpecial ? params.get("type") : null;
   const category: WorldType | null = isWorldType(pageType) ? pageType : currentRecord && isWorldType(currentRecord.type) ? currentRecord.type : null;
-  const allCurrent = onWorldPage && !onBoards && !isWorldType(pageType) && !urlQuery;
+  const allCurrent = onWorldPage && !onSpecial && !isWorldType(pageType) && !urlQuery;
 
   const searching = query.trim() !== "";
   const listed = useMemo(() => filterWorldTitles(records, query, searching ? null : category), [records, query, searching, category]);
@@ -69,6 +74,28 @@ export function WorldNav({
               aria-current={pathname.endsWith(`/boards/${b.id}`) || pathname.includes(`/boards/${b.id}`) ? "page" : undefined}
             >
               {b.title}
+            </Link>
+          </li>
+        ))}
+      </ul>
+
+      <p className="nav-subheading" id={`${idPrefix}-maps`}>
+        {WORLD.maps}
+      </p>
+      <ul className="nav-list" aria-labelledby={`${idPrefix}-maps`}>
+        <li>
+          <Link href={mapsBase} aria-current={onMaps && !pathname.includes("/maps/") ? "page" : undefined}>
+            {WORLD.maps}
+            <span className="nav-count">{maps.length}</span>
+          </Link>
+        </li>
+        {maps.map((m) => (
+          <li key={m.id}>
+            <Link
+              href={`${mapsBase}/${encodeURIComponent(m.id)}`}
+              aria-current={pathname.endsWith(`/maps/${m.id}`) || pathname.includes(`/maps/${m.id}`) ? "page" : undefined}
+            >
+              {m.title}
             </Link>
           </li>
         ))}

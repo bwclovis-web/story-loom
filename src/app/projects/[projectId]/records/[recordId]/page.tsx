@@ -9,6 +9,7 @@ import { listPendingProposalsForRecord } from "@/server/services/assistantPropos
 import { NotFoundError } from "@/server/services/errors";
 import { listLinkedReferences, listLinkingRecords } from "@/server/services/linkService";
 import { listRecordImages } from "@/server/services/imageService";
+import { listPlaceRelationsForRecord } from "@/server/services/placeRelationService";
 import { listReadingPins, resolvePinScope } from "@/server/services/readingPinService";
 import { listImportedFilesForRecord } from "@/server/services/markdownImportService";
 import { PROOFREAD_SCHEMA_CHARS } from "@/server/services/proofreadService";
@@ -153,17 +154,20 @@ export default async function RecordPage({
     projectId,
     drafts.find((d) => d.kind === "author_manuscript")?.id ?? drafts[0]?.id ?? null,
   );
-  const [linking, reviewItems, proposals, importedFiles, images, supersededBy, worldPins] = await Promise.all([
-    listLinkingRecords(db, projectId, record.id),
-    listOpenReviewItemsForRecord(db, projectId, record.id),
-    listPendingProposalsForRecord(db, projectId, record.id),
-    listImportedFilesForRecord(db, projectId, record.id),
-    listRecordImages(db, projectId, record.id),
-    record.supersededByRecordId
-      ? db.record.findFirst({ where: { id: record.supersededByRecordId, projectId, trashedAt: null }, select: { id: true, title: true } })
-      : null,
-    listReadingPins(db, projectId, worldPinScope),
-  ]);
+  const [linking, reviewItems, proposals, importedFiles, images, supersededBy, worldPins, placeRelations, referenceChoices] =
+    await Promise.all([
+      listLinkingRecords(db, projectId, record.id),
+      listOpenReviewItemsForRecord(db, projectId, record.id),
+      listPendingProposalsForRecord(db, projectId, record.id),
+      listImportedFilesForRecord(db, projectId, record.id),
+      listRecordImages(db, projectId, record.id),
+      record.supersededByRecordId
+        ? db.record.findFirst({ where: { id: record.supersededByRecordId, projectId, trashedAt: null }, select: { id: true, title: true } })
+        : null,
+      listReadingPins(db, projectId, worldPinScope),
+      listPlaceRelationsForRecord(db, projectId, record.id).catch(() => ({ outgoing: [], incoming: [] })),
+      listReferenceChoices(db, projectId),
+    ]);
   const chapterIds = [...new Set(linking.flatMap((l) => (l.parentRecordId ? [l.parentRecordId] : [])))];
   const chapters = chapterIds.length
     ? await db.record.findMany({ where: { projectId, id: { in: chapterIds }, trashedAt: null }, select: { id: true, title: true } })
@@ -189,6 +193,12 @@ export default async function RecordPage({
       crossRefs={crossRefs}
       draftScopeId={worldPinScope === "" ? null : worldPinScope}
       initialPins={worldPins}
+      placeRelations={placeRelations}
+      placeChoices={referenceChoices.map((c) => ({
+        id: c.id,
+        title: c.title,
+        typeLabel: RECORD_TYPE_LABELS[c.type],
+      }))}
       editor={{ spellingLanguage, spellChecker, dictionaryWords, proofread }}
     />
   );

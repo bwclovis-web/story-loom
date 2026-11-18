@@ -25,7 +25,10 @@ export type IdPrefix =
   | "rsl" // rewrite source link
   | "pin" // reading pin (reference beside prose)
   | "brd" // world board
-  | "bcd"; // board card
+  | "bcd" // board card
+  | "wmp" // world map
+  | "wpn" // world map pin
+  | "plr"; // place relation
 
 export function newId(prefix: IdPrefix): string {
   return `${prefix}_${ulid()}`;

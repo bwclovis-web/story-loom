@@ -861,11 +861,19 @@ export async function deleteRecordRowsInTx(tx: Tx, recordIds: readonly string[])
   await tx.rewriteSourceLink.deleteMany({ where: { OR: [{ fromRecordId: ids }, { toRecordId: ids }] } });
   await tx.readingPin.deleteMany({ where: { recordId: ids } });
   await tx.boardCard.deleteMany({ where: { recordId: ids } });
+  await tx.worldMapPin.deleteMany({ where: { recordId: ids } });
+  await tx.placeRelation.deleteMany({ where: { OR: [{ fromRecordId: ids }, { toRecordId: ids }] } });
   await tx.recordLink.deleteMany({ where: { OR: [{ fromRecordId: ids }, { toRecordId: ids }] } });
-  // Images cascade board image cards via FK SET NULL; clear image-linked cards first.
+  // Clear board image cards and maps that use these images before deleting the bytes.
   const images = await tx.recordImage.findMany({ where: { recordId: ids }, select: { id: true } });
   if (images.length) {
-    await tx.boardCard.deleteMany({ where: { imageId: { in: images.map((i) => i.id) } } });
+    const imageIds = images.map((i) => i.id);
+    await tx.boardCard.deleteMany({ where: { imageId: { in: imageIds } } });
+    const maps = await tx.worldMap.findMany({ where: { imageId: { in: imageIds } }, select: { id: true } });
+    if (maps.length) {
+      await tx.worldMapPin.deleteMany({ where: { mapId: { in: maps.map((m) => m.id) } } });
+      await tx.worldMap.deleteMany({ where: { id: { in: maps.map((m) => m.id) } } });
+    }
   }
   await tx.recordImage.deleteMany({ where: { recordId: ids } });
   await tx.reviewItem.deleteMany({ where: { recordId: ids } });

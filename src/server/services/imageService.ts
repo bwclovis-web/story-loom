@@ -20,6 +20,7 @@ import type { Db, DbOrTx, Tx } from "../db";
 import { writeAudit } from "./auditService";
 import { MutationRejectedError, NotFoundError } from "./errors";
 import { LIVE_RECORD } from "./trashFilters";
+import { deleteMapsForImageInTx } from "./worldMapService";
 
 /*
  * Images on reference documents. An image is not record content: adding,
@@ -307,6 +308,9 @@ export async function removeRecordImage(db: Db, projectId: string, imageId: stri
         { recordId: record.id },
       );
     }
+    // Permanent image remove deletes maps that used this image as a backdrop.
+    await deleteMapsForImageInTx(tx, projectId, imageId);
+    await tx.boardCard.deleteMany({ where: { imageId } });
     await tx.recordImage.delete({ where: { id: imageId } });
     await writeAudit(tx, {
       projectId,

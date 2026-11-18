@@ -1,0 +1,142 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { errorIssue, type Issue } from "@/domain/issues";
+import { getDb } from "@/server/db";
+import {
+  addPlaceRelation,
+  isPlaceRelationKind,
+  removePlaceRelation,
+  type PlaceRelationKind,
+} from "@/server/services/placeRelationService";
+import { MutationRejectedError, NotFoundError } from "@/server/services/errors";
+import {
+  addWorldMapPin,
+  createWorldMap,
+  deleteWorldMap,
+  moveWorldMapPin,
+  removeWorldMapPin,
+  renameWorldMap,
+} from "@/server/services/worldMapService";
+
+function failure(error: unknown): { ok: false; issues: Issue[] } {
+  if (error instanceof MutationRejectedError) return { ok: false, issues: error.issues };
+  if (error instanceof NotFoundError) return { ok: false, issues: [errorIssue("RECORD_NOT_FOUND", error.message)] };
+  return { ok: false, issues: [errorIssue("INVALID_CHANGE", (error as Error).message)] };
+}
+
+function revalidateMaps(projectId: string, mapId?: string) {
+  revalidatePath(`/projects/${projectId}/world/maps`);
+  if (mapId) revalidatePath(`/projects/${projectId}/world/maps/${mapId}`);
+  revalidatePath(`/projects/${projectId}`, "layout");
+}
+
+export async function createWorldMapAction(
+  projectId: string,
+  input: { title: string; imageId: string },
+): Promise<{ ok: true; mapId: string } | { ok: false; issues: Issue[] }> {
+  try {
+    const map = await createWorldMap(getDb(), projectId, input);
+    revalidateMaps(projectId, map.id);
+    return { ok: true, mapId: map.id };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+export async function renameWorldMapAction(
+  projectId: string,
+  mapId: string,
+  title: string,
+): Promise<{ ok: true } | { ok: false; issues: Issue[] }> {
+  try {
+    await renameWorldMap(getDb(), projectId, mapId, title);
+    revalidateMaps(projectId, mapId);
+    return { ok: true };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+export async function deleteWorldMapAction(
+  projectId: string,
+  mapId: string,
+): Promise<{ ok: true } | { ok: false; issues: Issue[] }> {
+  try {
+    await deleteWorldMap(getDb(), projectId, mapId);
+    revalidateMaps(projectId);
+    return { ok: true };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+export async function addWorldMapPinAction(
+  projectId: string,
+  mapId: string,
+  input: { recordId: string; xNorm: number; yNorm: number },
+) {
+  try {
+    const pin = await addWorldMapPin(getDb(), projectId, mapId, input);
+    revalidateMaps(projectId, mapId);
+    return { ok: true as const, pin };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+export async function moveWorldMapPinAction(
+  projectId: string,
+  mapId: string,
+  pinId: string,
+  input: { xNorm: number; yNorm: number },
+) {
+  try {
+    const pin = await moveWorldMapPin(getDb(), projectId, mapId, pinId, input);
+    revalidateMaps(projectId, mapId);
+    return { ok: true as const, pin };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+export async function removeWorldMapPinAction(projectId: string, mapId: string, pinId: string) {
+  try {
+    await removeWorldMapPin(getDb(), projectId, mapId, pinId);
+    revalidateMaps(projectId, mapId);
+    return { ok: true as const };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+export async function addPlaceRelationAction(
+  projectId: string,
+  input: { fromRecordId: string; toRecordId: string; kind: string },
+) {
+  try {
+    if (!isPlaceRelationKind(input.kind)) {
+      return { ok: false as const, issues: [errorIssue("INVALID_REFERENCE", "Unknown relationship kind.")] };
+    }
+    const relation = await addPlaceRelation(getDb(), projectId, {
+      fromRecordId: input.fromRecordId,
+      toRecordId: input.toRecordId,
+      kind: input.kind as PlaceRelationKind,
+    });
+    revalidatePath(`/projects/${projectId}/records/${input.fromRecordId}`);
+    revalidatePath(`/projects/${projectId}/records/${input.toRecordId}`);
+    return { ok: true as const, relation };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+export async function removePlaceRelationAction(projectId: string, relationId: string, recordIds: string[]) {
+  try {
+    await removePlaceRelation(getDb(), projectId, relationId);
+    for (const id of recordIds) revalidatePath(`/projects/${projectId}/records/${id}`);
+    return { ok: true as const };
+  } catch (error) {
+    return failure(error);
+  }
+}

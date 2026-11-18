@@ -34,7 +34,9 @@ import {
   TrashSection,
   type InsideRecord,
 } from "./RecordSections";
+import type { PlaceRelationView } from "@/server/services/placeRelationService";
 import type { ReadingPinView } from "@/server/services/readingPinService";
+import { PlaceRelations } from "./PlaceRelations";
 import { WorldContextAside, WorldContextProvider, WorldContextToggle } from "./WorldContextRail";
 import { WorldPins } from "./WorldPins";
 
@@ -84,6 +86,8 @@ export interface ReferenceViewProps {
   crossRefs: CrossRefIndex;
   draftScopeId: string | null;
   initialPins: ReadingPinView[];
+  placeRelations: { outgoing: PlaceRelationView[]; incoming: PlaceRelationView[] } | null;
+  placeChoices: Array<{ id: string; title: string; typeLabel: string }>;
   editor: {
     spellingLanguage: SpellingLanguage;
     spellChecker: SpellChecker;
@@ -341,6 +345,16 @@ export function ReferenceView(props: ReferenceViewProps) {
             isProtected={record.protected}
             unavailable={props.images === null}
           />
+
+          {linkable && props.placeRelations ? (
+            <PlaceRelations
+              projectId={projectId}
+              recordId={record.id}
+              outgoing={props.placeRelations.outgoing}
+              incoming={props.placeRelations.incoming}
+              choices={props.placeChoices}
+            />
+          ) : null}
         </div>
 
         <WorldContextAside>

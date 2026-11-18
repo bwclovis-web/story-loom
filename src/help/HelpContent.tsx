@@ -1080,7 +1080,8 @@ export function HelpContent() {
           <L>{SHELL.world}</L> holds the project&apos;s reference documents of these types:{" "}
           {WORLD_TYPES.map((t) => RECORD_TYPE_LABELS[t]).join(", ")}. Its page lists them in a table with each
           document&apos;s type, canon status, saved version and protection. Under <L>{WORLD.boards}</L> you can place
-          references, images and freeform notes on a focused board (see <See anchor="world-boards" />).
+          references, images and freeform notes on a focused board (see <See anchor="world-boards" />). Under{" "}
+          <L>{WORLD.maps}</L> you can pin places on an existing reference image (see <See anchor="world-maps" />).
         </p>
         <p>
           <L>{WORLD.importReferences}</L> opens <L>{NAV.importMarkdown}</L> (see <See anchor="importing" />).{" "}
@@ -1120,10 +1121,48 @@ export function HelpContent() {
           </p>
         </Sub>
 
+        <Sub id="world-maps">
+          <p>
+            <L>{WORLD.maps}</L> use an existing reference image as a backdrop. Create a map from{" "}
+            <L>{WORLD.newMap}</L>, choose the image, then place pins that link to World records. Pin positions are stored
+            as fractions of the image width and height (0–1), so they stay aligned when the map is resized.
+          </p>
+          <ul>
+            <li>
+              The same place can appear on several maps. Selecting a pin (on the image or in the keyboard-accessible pin
+              list) opens its source in the context rail.
+            </li>
+            <li>
+              <L>{WORLD.removePin}</L> removes the pin from that map only. Moving a pin never creates or changes a place
+              relationship (see <See anchor="place-relations" />).
+            </li>
+            <li>
+              Soft-trashing the image&apos;s host record hides the map until restore. Soft-trashing a pinned place keeps
+              the pin but marks it unavailable. Permanently deleting the image deletes maps that used it; permanently
+              deleting a pinned record removes its pins (and place relationships involving that record).
+            </li>
+          </ul>
+          <p>
+            Maps and pins are included in workspace backups. Older backups that omit them restore with no maps.
+          </p>
+        </Sub>
+
+        <Sub id="place-relations">
+          <p>
+            On a reference page, <L>{WORLD.placeRelations}</L> records explicit edges such as{" "}
+            <L>{WORLD.relationPartOf}</L>, <L>{WORLD.relationFlowsInto}</L>, and <L>{WORLD.relationGovernedBy}</L>. These
+            are independent of board cards and map pins: moving cards or pins never creates or changes a relationship.
+          </p>
+          <p>
+            Soft-trashed ends are hidden from the list; permanent delete of either end removes the relationship. Place
+            relationships are included in workspace backups.
+          </p>
+        </Sub>
+
         <Sub id="world-nav">
           <p>
             On <L>{SHELL.world}</L> and on a World document&apos;s page, the second column shows{" "}
-            <L>{WORLD.boards}</L> and <L>{WORLD.references}</L>:
+            <L>{WORLD.boards}</L>, <L>{WORLD.maps}</L>, and <L>{WORLD.references}</L>:
           </p>
           <ul>
             <li>

@@ -34,6 +34,7 @@ export function ProjectNav({
   drafts = [],
   activeDraftId = null,
   boards = [],
+  maps = [],
 }: {
   project: ProjectInfo;
   records: RecordNavEntry[];
@@ -41,6 +42,7 @@ export function ProjectNav({
   drafts?: DraftOption[];
   activeDraftId?: string | null;
   boards?: Array<{ id: string; title: string }>;
+  maps?: Array<{ id: string; title: string }>;
 }) {
   const pathname = usePathname();
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -53,7 +55,7 @@ export function ProjectNav({
   const writing = parsed ? groupForProjectPath(parsed.rest, typeOf) === "write" : false;
   const showLabel = writing ? WRITE.showNavigation : WRITE.showProjectPanel;
   const hideLabel = writing ? WRITE.hideNavigation : WRITE.hideProjectPanel;
-  const contentProps = { project, records, openReviewItems, pathname, drafts, activeDraftId, boards };
+  const contentProps = { project, records, openReviewItems, pathname, drafts, activeDraftId, boards, maps };
 
   return (
     <>
@@ -125,6 +127,7 @@ function ProjectNavContent({
   drafts,
   activeDraftId,
   boards = [],
+  maps = [],
   hideButton,
 }: {
   project: ProjectInfo;
@@ -134,6 +137,7 @@ function ProjectNavContent({
   drafts: DraftOption[];
   activeDraftId: string | null;
   boards?: Array<{ id: string; title: string }>;
+  maps?: Array<{ id: string; title: string }>;
   hideButton?: React.ReactNode;
 }) {
   const base = `/projects/${encodeURIComponent(project.id)}`;
@@ -218,6 +222,7 @@ function ProjectNavContent({
           onWorldPage={parsed?.rest[0] === "world"}
           currentRecordId={currentRecordId}
           boards={boards}
+          maps={maps}
         />
       ) : group ? (
         RECORD_GROUPS[group].map((type) => {

@@ -80,6 +80,18 @@ function boardCardsOf(b: WorkspaceBackupV1) {
   return b.boardCards ?? [];
 }
 
+function worldMapsOf(b: WorkspaceBackupV1) {
+  return b.worldMaps ?? [];
+}
+
+function worldMapPinsOf(b: WorkspaceBackupV1) {
+  return b.worldMapPins ?? [];
+}
+
+function placeRelationsOf(b: WorkspaceBackupV1) {
+  return b.placeRelations ?? [];
+}
+
 /** P2021: table missing. P2022: column missing. */
 function isMissingSchemaError(error: unknown, code: "P2021" | "P2022"): boolean {
   return error instanceof Prisma.PrismaClientKnownRequestError && error.code === code;
@@ -256,6 +268,45 @@ async function boardCardRows(db: DbOrTx, projectIds: string[]) {
   }
 }
 
+async function worldMapRows(db: DbOrTx, projectIds: string[]) {
+  if (!("worldMap" in db) || !(db as { worldMap?: { findMany: unknown } }).worldMap) return [];
+  try {
+    return await db.worldMap.findMany({
+      where: { projectId: { in: projectIds } },
+      orderBy: [{ projectId: "asc" }, { id: "asc" }],
+    });
+  } catch (error) {
+    if (isMissingSchemaError(error, "P2021")) return [];
+    throw error;
+  }
+}
+
+async function worldMapPinRows(db: DbOrTx, projectIds: string[]) {
+  if (!("worldMapPin" in db) || !(db as { worldMapPin?: { findMany: unknown } }).worldMapPin) return [];
+  try {
+    return await db.worldMapPin.findMany({
+      where: { projectId: { in: projectIds } },
+      orderBy: [{ mapId: "asc" }, { id: "asc" }],
+    });
+  } catch (error) {
+    if (isMissingSchemaError(error, "P2021")) return [];
+    throw error;
+  }
+}
+
+async function placeRelationRows(db: DbOrTx, projectIds: string[]) {
+  if (!("placeRelation" in db) || !(db as { placeRelation?: { findMany: unknown } }).placeRelation) return [];
+  try {
+    return await db.placeRelation.findMany({
+      where: { projectId: { in: projectIds } },
+      orderBy: [{ projectId: "asc" }, { kind: "asc" }, { id: "asc" }],
+    });
+  } catch (error) {
+    if (isMissingSchemaError(error, "P2021")) return [];
+    throw error;
+  }
+}
+
 async function manuscriptGroupRows(db: DbOrTx, projectIds: string[]) {
   try {
     return await db.manuscriptGroup.findMany({
@@ -379,6 +430,9 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
     readingPins,
     boards,
     boardCards,
+    worldMaps,
+    worldMapPins,
+    placeRelations,
   ] = await Promise.all([
     recordRows(db, projectIds),
     db.source.findMany({ where: inProjects, orderBy: { id: "asc" } }),
@@ -395,6 +449,9 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
     readingPinRows(db, projectIds),
     boardRows(db, projectIds),
     boardCardRows(db, projectIds),
+    worldMapRows(db, projectIds),
+    worldMapPinRows(db, projectIds),
+    placeRelationRows(db, projectIds),
   ]);
   const revisions = await db.revision.findMany({
     where: { recordId: { in: records.map((r) => r.id) } },
@@ -613,6 +670,43 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
           })),
         }
       : {}),
+    ...(worldMaps.length
+      ? {
+          worldMaps: worldMaps.map((m) => ({
+            id: m.id,
+            projectId: m.projectId,
+            title: m.title,
+            imageId: m.imageId,
+            createdAt: iso(m.createdAt),
+            updatedAt: iso(m.updatedAt),
+          })),
+        }
+      : {}),
+    ...(worldMapPins.length
+      ? {
+          worldMapPins: worldMapPins.map((p) => ({
+            id: p.id,
+            mapId: p.mapId,
+            projectId: p.projectId,
+            recordId: p.recordId,
+            xNorm: p.xNorm,
+            yNorm: p.yNorm,
+            createdAt: iso(p.createdAt),
+          })),
+        }
+      : {}),
+    ...(placeRelations.length
+      ? {
+          placeRelations: placeRelations.map((r) => ({
+            id: r.id,
+            projectId: r.projectId,
+            fromRecordId: r.fromRecordId,
+            toRecordId: r.toRecordId,
+            kind: r.kind as "part_of" | "flows_into" | "governed_by",
+            createdAt: iso(r.createdAt),
+          })),
+        }
+      : {}),
     recordImages: recordImages.map((img) => ({
       id: img.id,
       projectId: img.projectId,
@@ -649,6 +743,9 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
       ...(readingPins.length ? { readingPins: readingPins.length } : {}),
       ...(boards.length ? { boards: boards.length } : {}),
       ...(boardCards.length ? { boardCards: boardCards.length } : {}),
+      ...(worldMaps.length ? { worldMaps: worldMaps.length } : {}),
+      ...(worldMapPins.length ? { worldMapPins: worldMapPins.length } : {}),
+      ...(placeRelations.length ? { placeRelations: placeRelations.length } : {}),
     },
   };
   return { ...body, checksum: backupChecksum(body) };
@@ -706,6 +803,9 @@ function checkInternalConsistency(b: WorkspaceBackupV1): Issue[] {
     readingPins: readingPinsOf(b).length,
     boards: boardsOf(b).length,
     boardCards: boardCardsOf(b).length,
+    worldMaps: worldMapsOf(b).length,
+    worldMapPins: worldMapPinsOf(b).length,
+    placeRelations: placeRelationsOf(b).length,
   };
   for (const key of Object.keys(actualCounts) as (keyof BackupCounts)[]) {
     if (actualCounts[key] !== (b.counts[key] ?? 0)) {
@@ -752,6 +852,14 @@ function checkInternalConsistency(b: WorkspaceBackupV1): Issue[] {
   );
   checkUnique(boardsOf(b).map((x) => x.id), "board", issues);
   checkUnique(boardCardsOf(b).map((c) => c.id), "board card", issues);
+  checkUnique(worldMapsOf(b).map((x) => x.id), "world map", issues);
+  checkUnique(worldMapPinsOf(b).map((p) => p.id), "world map pin", issues);
+  checkUnique(placeRelationsOf(b).map((r) => r.id), "place relation", issues);
+  checkUnique(
+    placeRelationsOf(b).map((r) => `${r.fromRecordId}/${r.toRecordId}/${r.kind}`),
+    "place relation triple",
+    issues,
+  );
 
   const projectIds = new Set(b.projects.map((p) => p.id));
   const recordIds = new Set(b.records.map((r) => r.id));
@@ -879,6 +987,44 @@ function checkInternalConsistency(b: WorkspaceBackupV1): Issue[] {
     }
     if (c.recordId && (!recordIds.has(c.recordId) || recordProject.get(c.recordId) !== c.projectId)) {
       issues.push(integrity(`Board card ${c.id} references missing record ${c.recordId}.`));
+    }
+  });
+  const mapIds = new Set(worldMapsOf(b).map((x) => x.id));
+  const mapProject = new Map(worldMapsOf(b).map((x) => [x.id, x.projectId]));
+  worldMapsOf(b).forEach((m) => {
+    needProject(m.projectId, `World map ${m.id}`);
+    if (!imageIds.has(m.imageId) || imageProject.get(m.imageId) !== m.projectId) {
+      issues.push(integrity(`World map ${m.id} references missing image ${m.imageId}.`));
+    }
+  });
+  worldMapPinsOf(b).forEach((p) => {
+    needProject(p.projectId, `World map pin ${p.id}`);
+    if (!mapIds.has(p.mapId) || mapProject.get(p.mapId) !== p.projectId) {
+      issues.push(integrity(`World map pin ${p.id} references missing map ${p.mapId}.`));
+    }
+    if (!recordIds.has(p.recordId) || recordProject.get(p.recordId) !== p.projectId) {
+      issues.push(integrity(`World map pin ${p.id} references missing record ${p.recordId}.`));
+    }
+    const type = recordType.get(p.recordId);
+    if (type && !isLinkableReferenceType(type)) {
+      issues.push(integrity(`World map pin ${p.id} must point to a reference record.`));
+    }
+  });
+  placeRelationsOf(b).forEach((r) => {
+    needProject(r.projectId, `Place relation ${r.id}`);
+    for (const end of [r.fromRecordId, r.toRecordId]) {
+      if (!recordIds.has(end) || recordProject.get(end) !== r.projectId) {
+        issues.push(integrity(`Place relation ${r.id} references missing record ${end}.`));
+      }
+    }
+    if (r.fromRecordId === r.toRecordId) {
+      issues.push(integrity(`Place relation ${r.id} cannot relate a place to itself.`));
+    }
+    for (const end of [r.fromRecordId, r.toRecordId]) {
+      const type = recordType.get(end);
+      if (type && !isLinkableReferenceType(type)) {
+        issues.push(integrity(`Place relation ${r.id} must be between reference records.`));
+      }
     }
   });
   recordImagesOf(b).forEach((img) => {
@@ -1020,6 +1166,15 @@ async function findCollisions(db: DbOrTx, b: WorkspaceBackupV1): Promise<Issue[]
   if (boardCardsOf(b).length) {
     await check("board card", db.boardCard.count({ where: { id: { in: boardCardsOf(b).map((c) => c.id) } } }));
   }
+  if (worldMapsOf(b).length) {
+    await check("world map", db.worldMap.count({ where: { id: { in: worldMapsOf(b).map((x) => x.id) } } }));
+  }
+  if (worldMapPinsOf(b).length) {
+    await check("world map pin", db.worldMapPin.count({ where: { id: { in: worldMapPinsOf(b).map((p) => p.id) } } }));
+  }
+  if (placeRelationsOf(b).length) {
+    await check("place relation", db.placeRelation.count({ where: { id: { in: placeRelationsOf(b).map((r) => r.id) } } }));
+  }
   return issues;
 }
 
@@ -1144,6 +1299,9 @@ export async function restoreWorkspaceBackup(db: Db, input: string | unknown, op
   readingPinsOf(b).forEach((p) => assign(p.id, "pin"));
   boardsOf(b).forEach((x) => assign(x.id, "brd"));
   boardCardsOf(b).forEach((c) => assign(c.id, "bcd"));
+  worldMapsOf(b).forEach((x) => assign(x.id, "wmp"));
+  worldMapPinsOf(b).forEach((p) => assign(p.id, "wpn"));
+  placeRelationsOf(b).forEach((r) => assign(r.id, "plr"));
 
   const workspaceName =
     options.workspaceName?.trim() || (remap ? `${b.workspace.name} (restored ${b.createdAt.slice(0, 10)})` : b.workspace.name);
@@ -1438,6 +1596,46 @@ export async function restoreWorkspaceBackup(db: Db, input: string | unknown, op
               height: c.height,
               zIndex: c.zIndex,
               createdAt: new Date(c.createdAt),
+            })),
+          });
+        }
+        const maps = worldMapsOf(b);
+        if (maps.length) {
+          await tx.worldMap.createMany({
+            data: maps.map((map) => ({
+              id: m(map.id),
+              projectId: m(map.projectId),
+              title: map.title,
+              imageId: m(map.imageId),
+              createdAt: new Date(map.createdAt),
+              updatedAt: new Date(map.updatedAt),
+            })),
+          });
+        }
+        const mapPins = worldMapPinsOf(b);
+        if (mapPins.length) {
+          await tx.worldMapPin.createMany({
+            data: mapPins.map((p) => ({
+              id: m(p.id),
+              mapId: m(p.mapId),
+              projectId: m(p.projectId),
+              recordId: m(p.recordId),
+              xNorm: p.xNorm,
+              yNorm: p.yNorm,
+              createdAt: new Date(p.createdAt),
+            })),
+          });
+        }
+        const placeRels = placeRelationsOf(b);
+        if (placeRels.length) {
+          await tx.placeRelation.createMany({
+            data: placeRels.map((r) => ({
+              id: m(r.id),
+              projectId: m(r.projectId),
+              fromRecordId: m(r.fromRecordId),
+              toRecordId: m(r.toRecordId),
+              kind: r.kind,
+              createdAt: new Date(r.createdAt),
             })),
           });
         }

@@ -248,6 +248,9 @@ async function deleteProjectRowsInTx(tx: Tx, projectId: string) {
   await tx.readingPin.deleteMany({ where: { projectId } });
   await tx.boardCard.deleteMany({ where: { projectId } });
   await tx.board.deleteMany({ where: { projectId } });
+  await tx.worldMapPin.deleteMany({ where: { projectId } });
+  await tx.worldMap.deleteMany({ where: { projectId } });
+  await tx.placeRelation.deleteMany({ where: { projectId } });
   await tx.project.update({
     where: { id: projectId },
     data: { defaultReadingDraftId: null, defaultExportDraftId: null },
