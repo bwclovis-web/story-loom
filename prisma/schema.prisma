@@ -58,6 +58,7 @@ model Project {
   recordLinks            RecordLink[]
   recordImages           RecordImage[]
   rewriteSourceLinks     RewriteSourceLink[]
+  readingPins            ReadingPin[]
 
   @@index([workspaceId])
 }
@@ -174,12 +175,32 @@ model Record {
   images                RecordImage[]
   rewriteSourcesFrom    RewriteSourceLink[]    @relation("RewriteFrom")
   rewriteSourcesTo      RewriteSourceLink[]    @relation("RewriteTo")
+  readingPins           ReadingPin[]
 
   @@index([projectId, type])
   @@index([parentRecordId])
   @@index([trashBatchId])
   @@index([groupId])
   @@index([draftId])
+}
+
+/// Ordered reading pins for references kept open beside prose. Scoped by project
+/// and draft (`scopeDraftId` empty string = legacy project-level). Not revisioned;
+/// pin/unpin never changes RecordLink. A pin alone does not authorize assistant send.
+model ReadingPin {
+  id            String   @id
+  projectId     String
+  project       Project  @relation(fields: [projectId], references: [id])
+  /// Manuscript draft id, or "" when the project has no drafts.
+  scopeDraftId  String   @default("")
+  recordId      String
+  record        Record   @relation(fields: [recordId], references: [id])
+  position      Int
+  createdAt     DateTime @default(now())
+
+  @@unique([projectId, scopeDraftId, recordId])
+  @@index([projectId, scopeDraftId])
+  @@index([recordId])
 }
 
 /// Pins a rewrite chapter/scene to an exact Zero-draft revision. Not revisioned

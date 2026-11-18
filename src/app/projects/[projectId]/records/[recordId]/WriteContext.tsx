@@ -21,12 +21,19 @@ import {
 } from "../../drafts/actions";
 import { saveRecordAction, type FormResult } from "../../actions";
 import {
+  addReadingPinAction,
   createNoteAction,
   linkReferenceAction,
+  listReadingPinsAction,
   previewReferenceAction,
+  removeReadingPinAction,
+  reorderReadingPinsAction,
+  searchContextReferencesAction,
   unlinkReferenceAction,
   type ReferencePreview,
 } from "../../write/actions";
+import type { ContextSearchHit } from "@/server/services/searchService";
+import type { ReadingPinView } from "@/server/services/readingPinService";
 
 export interface NoteItem {
   id: string;
@@ -88,6 +95,8 @@ export function WriteContext({
   choices,
   sources,
   attachableSources,
+  draftScopeId,
+  initialPins,
   proofreader,
   overlay,
   onClose,
@@ -102,6 +111,9 @@ export function WriteContext({
   choices: ChoiceItem[];
   sources: SourceItem[];
   attachableSources: AttachableSource[];
+  /** Active Write draft id, or null for legacy project-level pins. */
+  draftScopeId: string | null;
+  initialPins: ReadingPinView[];
   proofreader: ReactNode;
   /** Shown over the page on narrow screens; closes with Escape. */
   overlay: boolean;
@@ -178,7 +190,15 @@ export function WriteContext({
         <Sources projectId={projectId} recordId={recordId} sources={sources} attachable={attachableSources} />
       </div>
       <div role="tabpanel" id={`${idPrefix}-panel-references`} aria-labelledby={`${idPrefix}-tab-references`} hidden={tab !== "references"} className="context-body">
-        <References projectId={projectId} recordId={recordId} isProtected={isProtected} linked={linked} choices={choices} />
+        <References
+          projectId={projectId}
+          recordId={recordId}
+          isProtected={isProtected}
+          linked={linked}
+          choices={choices}
+          draftScopeId={draftScopeId}
+          initialPins={initialPins}
+        />
       </div>
       <div role="tabpanel" id={`${idPrefix}-panel-notes`} aria-labelledby={`${idPrefix}-tab-notes`} hidden={tab !== "notes"} className="context-body">
         <Notes projectId={projectId} recordId={recordId} recordTitle={recordTitle} notes={notes} />
@@ -313,35 +333,88 @@ function Sources({
   );
 }
 
+function matchLabel(matchedIn: ContextSearchHit["matchedIn"]): string {
+  switch (matchedIn) {
+    case "title":
+      return WRITE.matchedInTitle;
+    case "name":
+      return WRITE.matchedInName;
+    case "aliases":
+      return WRITE.matchedInAliases;
+    case "section":
+      return WRITE.matchedInSection;
+  }
+}
+
 function References({
   projectId,
   recordId,
   isProtected,
   linked,
   choices,
+  draftScopeId,
+  initialPins,
 }: {
   projectId: string;
   recordId: string;
   isProtected: boolean;
   linked: LinkedItem[];
   choices: ChoiceItem[];
+  draftScopeId: string | null;
+  initialPins: ReadingPinView[];
 }) {
   const idPrefix = useId();
   const [query, setQuery] = useState("");
+  const [hits, setHits] = useState<ContextSearchHit[]>([]);
   const [issues, setIssues] = useState<Issue[]>([]);
   const [pending, startTransition] = useTransition();
   const [preview, setPreview] = useState<ReferencePreview | null>(null);
   const [previewing, setPreviewing] = useState<string | null>(null);
+  const [jumpSectionId, setJumpSectionId] = useState<string | null>(null);
+  const [pins, setPins] = useState(initialPins);
   const previewRef = useRef<HTMLElement>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
 
   const linkedIds = useMemo(() => new Set(linked.map((l) => l.recordId)), [linked]);
-  const available = useMemo(() => {
+  const pinnedIds = useMemo(() => new Set(pins.map((p) => p.recordId)), [pins]);
+
+  useEffect(() => {
+    setPins(initialPins);
+  }, [initialPins]);
+
+  useEffect(() => {
+    const q = query.trim();
+    if (!q) {
+      setHits([]);
+      return;
+    }
+    let cancelled = false;
+    const handle = window.setTimeout(() => {
+      void searchContextReferencesAction(projectId, q).then((result) => {
+        if (cancelled) return;
+        if (result.ok) setHits(result.hits);
+        else setIssues(result.issues);
+      });
+    }, 200);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(handle);
+    };
+  }, [projectId, query]);
+
+  const fallbackChoices = useMemo(() => {
     const q = query.trim().toLocaleLowerCase();
-    return choices.filter(
-      (c) => !linkedIds.has(c.id) && (!q || c.title.toLocaleLowerCase().includes(q) || RECORD_TYPE_LABELS[c.type].toLocaleLowerCase().includes(q)),
-    );
-  }, [choices, linkedIds, query]);
-  const shown = available.slice(0, CHOICES_SHOWN);
+    if (hits.length || !q) {
+      return choices
+        .filter(
+          (c) =>
+            !linkedIds.has(c.id) &&
+            (!q || c.title.toLocaleLowerCase().includes(q) || RECORD_TYPE_LABELS[c.type].toLocaleLowerCase().includes(q)),
+        )
+        .slice(0, CHOICES_SHOWN);
+    }
+    return [];
+  }, [choices, linkedIds, query, hits.length]);
 
   const run = (action: () => Promise<FormResult>) =>
     startTransition(async () => {
@@ -349,16 +422,58 @@ function References({
       setIssues(result.ok ? [] : (result.issues ?? []));
     });
 
-  const open = async (id: string) => {
+  const refreshPins = async () => {
+    const result = await listReadingPinsAction(projectId, draftScopeId);
+    if (result.ok) setPins(result.pins);
+  };
+
+  const open = async (id: string, sectionId?: string | null) => {
     setPreviewing(id);
     const result = await previewReferenceAction(projectId, id);
     setPreviewing(null);
     setPreview(result);
+    setJumpSectionId(sectionId ?? null);
   };
 
   useEffect(() => {
     if (preview) previewRef.current?.focus();
   }, [preview]);
+
+  useEffect(() => {
+    if (!preview?.ok || !jumpSectionId || !bodyRef.current) return;
+    const el = bodyRef.current.querySelector(`[data-section-id="${CSS.escape(jumpSectionId)}"]`);
+    el?.scrollIntoView({ block: "start" });
+  }, [preview, jumpSectionId]);
+
+  const pinRecord = (id: string) =>
+    startTransition(async () => {
+      const result = await addReadingPinAction(projectId, id, draftScopeId);
+      setIssues(result.ok ? [] : (result.issues ?? []));
+      if (result.ok && result.pins) setPins(result.pins);
+      else await refreshPins();
+    });
+
+  const unpinRecord = (id: string) =>
+    startTransition(async () => {
+      const result = await removeReadingPinAction(projectId, id, draftScopeId);
+      setIssues(result.ok ? [] : (result.issues ?? []));
+      if (result.ok && result.pins) setPins(result.pins);
+      else await refreshPins();
+    });
+
+  const movePin = (recordId: string, dir: -1 | 1) =>
+    startTransition(async () => {
+      const ids = pins.map((p) => p.recordId);
+      const i = ids.indexOf(recordId);
+      const j = i + dir;
+      if (i < 0 || j < 0 || j >= ids.length) return;
+      const next = [...ids];
+      const [moved] = next.splice(i, 1);
+      next.splice(j, 0, moved!);
+      const result = await reorderReadingPinsAction(projectId, next, draftScopeId);
+      setIssues(result.ok ? [] : (result.issues ?? []));
+      if (result.ok && result.pins) setPins(result.pins);
+    });
 
   return (
     <div className="stack">
@@ -370,7 +485,54 @@ function References({
               <p className="row small muted">
                 {preview.typeLabel} <StatusBadge status={preview.authorityStatus} /> revision {preview.revision}
               </p>
-              <div className="reference-text document">{preview.body || <span className="muted">(empty)</span>}</div>
+              {preview.sections.length ? (
+                <div className="reference-jump">
+                  <span className="small muted">{WRITE.jumpToSection}:</span>
+                  <ul className="context-links">
+                    {preview.sections.map((s) => (
+                      <li key={s.id}>
+                        <button
+                          type="button"
+                          className="linkish small"
+                          onClick={() => {
+                            setJumpSectionId(s.id);
+                            const el = bodyRef.current?.querySelector(`[data-section-id="${CSS.escape(s.id)}"]`);
+                            el?.scrollIntoView({ block: "start" });
+                          }}
+                        >
+                          {s.title}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+              {preview.images.length ? (
+                <div className="reference-thumbs" aria-label={WRITE.referenceImages}>
+                  {preview.images.map((img) => (
+                    // eslint-disable-next-line @next/next/no-img-element -- read-only rail thumbnails from project image route
+                    <img
+                      key={img.id}
+                      src={`/projects/${encodeURIComponent(projectId)}/images/${encodeURIComponent(img.id)}`}
+                      alt={img.altText || img.name}
+                      title={img.caption || img.name}
+                      width={72}
+                      height={72}
+                    />
+                  ))}
+                </div>
+              ) : null}
+              <div className="reference-text document" ref={bodyRef}>
+                {preview.body ? (
+                  preview.sections.length ? (
+                    <PreviewBody body={preview.body} sections={preview.sections} />
+                  ) : (
+                    preview.body
+                  )
+                ) : (
+                  <span className="muted">(empty)</span>
+                )}
+              </div>
             </>
           ) : (
             <p id={`${idPrefix}-preview`} className="error-text">
@@ -379,9 +541,39 @@ function References({
           )}
           <div className="row">
             {preview.ok ? (
-              <Link href={`/projects/${encodeURIComponent(projectId)}/records/${encodeURIComponent(preview.id)}`} className="small">
-                {WRITE.openFull}
-              </Link>
+              <>
+                <Link href={`/projects/${encodeURIComponent(projectId)}/records/${encodeURIComponent(preview.id)}`} className="small">
+                  {WRITE.openFull}
+                </Link>
+                {pinnedIds.has(preview.id) ? (
+                  <button type="button" className="secondary small-button" disabled={pending} onClick={() => unpinRecord(preview.id)}>
+                    {WRITE.unpinReference}
+                  </button>
+                ) : (
+                  <button type="button" className="secondary small-button" disabled={pending} onClick={() => pinRecord(preview.id)}>
+                    {WRITE.pinReference}
+                  </button>
+                )}
+                {linkedIds.has(preview.id) ? (
+                  <button
+                    type="button"
+                    className="secondary small-button"
+                    disabled={pending}
+                    onClick={() => run(() => unlinkReferenceAction(projectId, recordId, preview.id))}
+                  >
+                    {WRITE.unlinkFromScene}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="small-button"
+                    disabled={pending}
+                    onClick={() => run(() => linkReferenceAction(projectId, recordId, preview.id))}
+                  >
+                    {WRITE.linkToScene}
+                  </button>
+                )}
+              </>
             ) : null}
             <button type="button" className="secondary small-button" onClick={() => setPreview(null)}>
               {WRITE.closeReference}
@@ -389,6 +581,65 @@ function References({
           </div>
         </section>
       ) : null}
+
+      <section aria-labelledby={`${idPrefix}-pins`}>
+        <h3 id={`${idPrefix}-pins`}>{WRITE.pinnedReferences}</h3>
+        <p className="small muted">{WRITE.pinNote}</p>
+        {pins.length === 0 ? (
+          <p className="small muted">{WRITE.noPins}</p>
+        ) : (
+          <ul className="context-list">
+            {pins.map((p, index) => (
+              <li key={p.pinId}>
+                <span className="context-item-title" title={p.title}>
+                  {p.title}
+                </span>
+                <span className="small muted">{RECORD_TYPE_LABELS[p.type]}</span>
+                <div className="row">
+                  <button type="button" className="secondary small-button" onClick={() => void open(p.recordId)} disabled={previewing === p.recordId}>
+                    {WRITE.openReference}
+                    <span className="sr-only"> {p.title}</span>
+                  </button>
+                  <button type="button" className="secondary small-button" disabled={pending || index === 0} onClick={() => movePin(p.recordId, -1)}>
+                    {WRITE.movePinUp}
+                  </button>
+                  <button
+                    type="button"
+                    className="secondary small-button"
+                    disabled={pending || index === pins.length - 1}
+                    onClick={() => movePin(p.recordId, 1)}
+                  >
+                    {WRITE.movePinDown}
+                  </button>
+                  <button type="button" className="secondary small-button" disabled={pending} onClick={() => unpinRecord(p.recordId)}>
+                    {WRITE.unpinReference}
+                    <span className="sr-only"> {p.title}</span>
+                  </button>
+                  {linkedIds.has(p.recordId) ? (
+                    <button
+                      type="button"
+                      className="secondary small-button"
+                      disabled={pending}
+                      onClick={() => run(() => unlinkReferenceAction(projectId, recordId, p.recordId))}
+                    >
+                      {WRITE.unlinkFromScene}
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      className="small-button"
+                      disabled={pending}
+                      onClick={() => run(() => linkReferenceAction(projectId, recordId, p.recordId))}
+                    >
+                      {WRITE.linkToScene}
+                    </button>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
 
       <section aria-labelledby={`${idPrefix}-linked`}>
         <h3 id={`${idPrefix}-linked`}>{WRITE.linkedReferences}</h3>
@@ -407,13 +658,22 @@ function References({
                     {WRITE.openReference}
                     <span className="sr-only"> {l.title}</span>
                   </button>
+                  {pinnedIds.has(l.recordId) ? (
+                    <button type="button" className="secondary small-button" disabled={pending} onClick={() => unpinRecord(l.recordId)}>
+                      {WRITE.unpinReference}
+                    </button>
+                  ) : (
+                    <button type="button" className="secondary small-button" disabled={pending} onClick={() => pinRecord(l.recordId)}>
+                      {WRITE.pinReference}
+                    </button>
+                  )}
                   <button
                     type="button"
                     className="secondary small-button"
                     disabled={pending}
                     onClick={() => run(() => unlinkReferenceAction(projectId, recordId, l.recordId))}
                   >
-                    {WRITE.unlinkReference}
+                    {WRITE.unlinkFromScene}
                     <span className="sr-only"> {l.title}</span>
                   </button>
                 </div>
@@ -431,43 +691,132 @@ function References({
           <>
             <label>
               <span className="sr-only">{WRITE.findReference}</span>
-              <input type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder={WRITE.findReference} />
+              <input type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder={WRITE.searchReferenceHint} />
             </label>
             <p className="small muted" role="status">
-              {WRITE.showingChoices(shown.length, available.length)}
+              {hits.length
+                ? WRITE.showingChoices(Math.min(hits.length, CHOICES_SHOWN), hits.length)
+                : query.trim()
+                  ? WRITE.showingChoices(fallbackChoices.length, fallbackChoices.length)
+                  : WRITE.searchReferenceHint}
             </p>
             <ul className="context-list">
-              {shown.map((c) => (
-                <li key={c.id}>
-                  <span className="context-item-title" title={c.title}>
-                    {c.title}
-                  </span>
-                  <span className="small muted">{RECORD_TYPE_LABELS[c.type]}</span>
-                  <div className="row">
-                    <button
-                      type="button"
-                      className="small-button"
-                      disabled={pending}
-                      onClick={() => run(() => linkReferenceAction(projectId, recordId, c.id))}
-                    >
-                      {WRITE.linkReference}
-                      <span className="sr-only"> {c.title}</span>
-                    </button>
-                    <button type="button" className="secondary small-button" onClick={() => void open(c.id)} disabled={previewing === c.id}>
-                      {WRITE.openReference}
-                      <span className="sr-only"> {c.title}</span>
-                    </button>
-                  </div>
-                </li>
-              ))}
+              {hits.length
+                ? hits.slice(0, CHOICES_SHOWN).map((hit) => (
+                    <li key={hit.id}>
+                      <span className="context-item-title" title={hit.title}>
+                        {hit.title}
+                      </span>
+                      <span className="small muted">
+                        {RECORD_TYPE_LABELS[hit.type]} · {matchLabel(hit.matchedIn)}
+                        {hit.sectionTitle ? `: ${hit.sectionTitle}` : ""}
+                      </span>
+                      <div className="row">
+                        <button
+                          type="button"
+                          className="small-button"
+                          disabled={pending || linkedIds.has(hit.id)}
+                          onClick={() => run(() => linkReferenceAction(projectId, recordId, hit.id))}
+                        >
+                          {WRITE.linkToScene}
+                          <span className="sr-only"> {hit.title}</span>
+                        </button>
+                        {pinnedIds.has(hit.id) ? (
+                          <button type="button" className="secondary small-button" disabled={pending} onClick={() => unpinRecord(hit.id)}>
+                            {WRITE.unpinReference}
+                          </button>
+                        ) : (
+                          <button type="button" className="secondary small-button" disabled={pending} onClick={() => pinRecord(hit.id)}>
+                            {WRITE.pinReference}
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          className="secondary small-button"
+                          onClick={() => void open(hit.id, hit.sectionId)}
+                          disabled={previewing === hit.id}
+                        >
+                          {WRITE.openReference}
+                          <span className="sr-only"> {hit.title}</span>
+                        </button>
+                      </div>
+                    </li>
+                  ))
+                : fallbackChoices.map((c) => (
+                    <li key={c.id}>
+                      <span className="context-item-title" title={c.title}>
+                        {c.title}
+                      </span>
+                      <span className="small muted">{RECORD_TYPE_LABELS[c.type]}</span>
+                      <div className="row">
+                        <button
+                          type="button"
+                          className="small-button"
+                          disabled={pending || linkedIds.has(c.id)}
+                          onClick={() => run(() => linkReferenceAction(projectId, recordId, c.id))}
+                        >
+                          {WRITE.linkToScene}
+                          <span className="sr-only"> {c.title}</span>
+                        </button>
+                        {pinnedIds.has(c.id) ? (
+                          <button type="button" className="secondary small-button" disabled={pending} onClick={() => unpinRecord(c.id)}>
+                            {WRITE.unpinReference}
+                          </button>
+                        ) : (
+                          <button type="button" className="secondary small-button" disabled={pending} onClick={() => pinRecord(c.id)}>
+                            {WRITE.pinReference}
+                          </button>
+                        )}
+                        <button type="button" className="secondary small-button" onClick={() => void open(c.id)} disabled={previewing === c.id}>
+                          {WRITE.openReference}
+                          <span className="sr-only"> {c.title}</span>
+                        </button>
+                      </div>
+                    </li>
+                  ))}
             </ul>
           </>
         )}
+      </section>
+      <section aria-labelledby={`${idPrefix}-find-context`}>
+        <h3 id={`${idPrefix}-find-context`}>{WRITE.findRelevantContext}</h3>
+        <p className="small muted">{WRITE.findRelevantHint}</p>
+        <p>
+          <Link
+            className="small-button"
+            href={`/projects/${encodeURIComponent(projectId)}/assistant?seed=${encodeURIComponent(recordId)}`}
+          >
+            {WRITE.findRelevantContext}
+          </Link>
+        </p>
       </section>
       {isProtected ? <p className="small muted">{WRITE.referenceProtectedNote}</p> : null}
       <IssueList issues={issues} />
     </div>
   );
+}
+
+/** Section markers so Jump scrolls inside the rail preview. */
+function PreviewBody({
+  body,
+  sections,
+}: {
+  body: string;
+  sections: Array<{ id: string; title: string; level: number; start: number; end: number }>;
+}) {
+  const parts: ReactNode[] = [];
+  let cursor = 0;
+  for (const s of sections) {
+    if (s.start > cursor) parts.push(<span key={`t-${cursor}`}>{body.slice(cursor, s.start)}</span>);
+    parts.push(
+      <span key={s.id} data-section-id={s.id} className="preview-section">
+        {body.slice(s.start, s.end)}
+      </span>,
+    );
+    cursor = s.end;
+  }
+  if (cursor < body.length) parts.push(<span key="tail">{body.slice(cursor)}</span>);
+  return <>{parts}</>;
 }
 
 function Notes({

@@ -6,6 +6,7 @@ import { getDb } from "@/server/db";
 import { applyProposal, getProposalReview } from "@/server/services/assistantProposalService";
 import { AssistantError, createConversation, deleteConversation, getManuscriptText } from "@/server/services/assistantService";
 import type { ApplyOutcome, PackagePreview } from "@/server/services/changePackageService";
+import { MutationRejectedError } from "@/server/services/errors";
 
 export async function newConversationAction(projectId: string): Promise<void> {
   const { id } = await createConversation(getDb(), projectId);
@@ -61,5 +62,38 @@ export async function loadManuscriptAction(projectId: string, recordId: string) 
   } catch (error) {
     if (error instanceof AssistantError) return { ok: false as const, message: error.message };
     throw error;
+  }
+}
+
+export async function findRelevantContextAction(
+  projectId: string,
+  input: {
+    question: string;
+    manuscript: {
+      recordId: string;
+      start?: number;
+      end?: number;
+      unsavedBody?: string | null;
+    } | null;
+    draftScopeId?: string | null;
+    includePinnedZeroDraft: boolean;
+  },
+) {
+  try {
+    const { findRelevantContext } = await import("@/server/services/findRelevantContextService");
+    const result = await findRelevantContext(getDb(), {
+      projectId,
+      question: input.question,
+      manuscript: input.manuscript,
+      draftScopeId: input.draftScopeId,
+      includePinnedZeroDraft: input.includePinnedZeroDraft,
+    });
+    return { ok: true as const, ...result };
+  } catch (error) {
+    if (error instanceof AssistantError) return { ok: false as const, message: error.message };
+    if (error instanceof MutationRejectedError) {
+      return { ok: false as const, message: error.issues.map((i) => i.message).join(" ") };
+    }
+    return { ok: false as const, message: (error as Error).message };
   }
 }

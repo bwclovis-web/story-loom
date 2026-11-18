@@ -859,6 +859,7 @@ export async function deleteRecordRowsInTx(tx: Tx, recordIds: readonly string[])
   if (recordIds.length === 0) return;
   const ids = { in: [...recordIds] };
   await tx.rewriteSourceLink.deleteMany({ where: { OR: [{ fromRecordId: ids }, { toRecordId: ids }] } });
+  await tx.readingPin.deleteMany({ where: { recordId: ids } });
   await tx.recordLink.deleteMany({ where: { OR: [{ fromRecordId: ids }, { toRecordId: ids }] } });
   await tx.recordImage.deleteMany({ where: { recordId: ids } });
   await tx.reviewItem.deleteMany({ where: { recordId: ids } });

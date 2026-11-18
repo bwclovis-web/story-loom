@@ -10,6 +10,7 @@ import type { ConversationView, MessageView, SelectableRecord, SelectableSection
 import { ASSISTANT } from "@/ui/labels";
 import { loadManuscriptAction } from "./actions";
 import { DeleteConversation } from "./ConversationControls";
+import { FindRelevantContext } from "./FindRelevantContext";
 import { ProposalCard } from "./ProposalCard";
 
 interface ApiError {
@@ -74,6 +75,10 @@ export function AssistantPanel(props: {
   proposals: Record<string, ProposalView>;
   /** Extra fixed characters a proposal request sends (its instructions and output format). */
   proposalExtraChars: number;
+  /** Active Write draft for pin/discovery scope; null when the project has no drafts. */
+  draftScopeId?: string | null;
+  /** Manuscript record id from Write “Find relevant context” deep link. */
+  seedRecordId?: string | null;
 }) {
   const { projectId, conversation, records } = props;
   const router = useRouter();
@@ -165,6 +170,14 @@ export function AssistantPanel(props: {
     if (result.ok) setChapter({ recordId: result.recordId, title: result.title, revision: result.revision, body: result.body });
     else setChapterError(result.message);
   };
+
+  useEffect(() => {
+    if (!props.seedRecordId || chapter?.recordId === props.seedRecordId) return;
+    void chooseChapter(props.seedRecordId);
+    setContextOpen(true);
+    // Intentionally once per seed id when the panel mounts / seed changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [props.seedRecordId]);
 
   const takePassage = () => {
     const box = chapterBoxRef.current;
@@ -488,6 +501,33 @@ export function AssistantPanel(props: {
               {ASSISTANT.hideContext}
             </button>
           </div>
+          <FindRelevantContext
+            projectId={projectId}
+            question={question}
+            manuscript={
+              chapter
+                ? {
+                    recordId: chapter.recordId,
+                    start: mode === "passage" && passage ? passage.start : undefined,
+                    end: mode === "passage" && passage ? passage.end : undefined,
+                  }
+                : null
+            }
+            draftScopeId={props.draftScopeId}
+            disabled={busy}
+            onApply={({ selectedRefs: refs, sectionPicks: picks }) => {
+              const sectionIds = new Set(Object.keys(picks));
+              setSelectedRefs((prev) => [...new Set([...prev.filter((id) => !sectionIds.has(id)), ...refs.filter((id) => !sectionIds.has(id))])]);
+              setSectionPicks((prev) => {
+                const next = { ...prev };
+                for (const [id, sections] of Object.entries(picks)) {
+                  next[id] = [...new Set([...(prev[id] ?? []), ...sections])];
+                }
+                return next;
+              });
+              setContextOpen(true);
+            }}
+          />
           <fieldset disabled={busy}>
             <legend>{ASSISTANT.references}</legend>
             {references.length === 0 ? <p className="small muted">No reference records in this project.</p> : null}

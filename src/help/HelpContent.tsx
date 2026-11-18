@@ -998,22 +998,31 @@ export function HelpContent() {
           <h4>{WRITE.references}</h4>
           <ul>
             <li>
-              <L>{WRITE.linkedReferences}</L> lists the reference records linked to this chapter or scene.
+              <L>{WRITE.pinnedReferences}</L> keeps references handy beside this draft. <L>{WRITE.pinReference}</L> and{" "}
+              <L>{WRITE.unpinReference}</L> never create or remove a scene link, and a pin alone never authorizes sending
+              that text to the assistant.
             </li>
             <li>
-              Under <L>{WRITE.findReference}</L>, type part of a title or type name. Choose <L>{WRITE.linkReference}</L>{" "}
-              to link a record, or <L>{WRITE.openReference}</L> to read it in the panel without leaving your text.{" "}
-              <L>{WRITE.openFull}</L> opens its own page.
+              <L>{WRITE.linkedReferences}</L> lists the reference records linked to this chapter or scene.{" "}
+              <L>{WRITE.linkToScene}</L> / <L>{WRITE.unlinkFromScene}</L> are separate from pin/unpin.
             </li>
             <li>
-              <L>{WRITE.unlinkReference}</L> removes a link. The reference record itself is not changed.
+              Under <L>{WRITE.findReference}</L>, search by title, name, alias, or section heading. Choose{" "}
+              <L>{WRITE.openReference}</L> to read in the panel (jump to a matching section, see image thumbnails),{" "}
+              <L>{WRITE.pinReference}</L> to pin, or <L>{WRITE.linkToScene}</L> to link. <L>{WRITE.openFull}</L> opens
+              its own page.
+            </li>
+            <li>
+              <L>{WRITE.findRelevantContext}</L> opens the assistant with this scene as the seed so you can preview
+              suggested passages before adding them to Include.
             </li>
           </ul>
           <p>
-            Character dossiers, worldbuilding, outlines, canon decisions and the other reference types can be linked.
-            Links are saved at once, do not create a new saved version of your text, and do not need the protection
-            tick. They are included in backups and in context exports. Adding or removing a link is recorded in{" "}
-            <L>{NAV.history}</L>.
+            Character dossiers, worldbuilding, outlines, canon decisions and the other reference types can be linked or
+            pinned. Links and pins are saved at once, do not create a new saved version of your text, and do not need the
+            protection tick. Links are included in backups and in context exports; pins are included in backups as an
+            ordered list per draft (or project-wide when there are no drafts). Adding or removing a link or pin is
+            recorded in <L>{NAV.history}</L>.
           </p>
           <h4>{WRITE.notes}</h4>
           <ul>
@@ -1184,8 +1193,10 @@ export function HelpContent() {
 
         <Sub id="reference-context">
           <p>
-            Beside the document, or below it on narrower windows, are these sections. On narrower windows they start
-            closed; choose a heading to open it.
+            The context rail beside the document uses the same collapse, resize, and narrow-screen overlay as Write
+            (<L>{WRITE.showContext}</L> / <L>{WRITE.hideContext}</L>). It includes <L>{WRITE.pinnedReferences}</L> for
+            the active draft (or the whole project when there are no drafts). Pin and unpin never link or unlink
+            manuscript scenes. On narrower windows sections start closed; choose a heading to open it.
           </p>
           <ul>
             <li>
@@ -1988,6 +1999,14 @@ export function HelpContent() {
             <li>
               Under <L>{ASSISTANT.conversations}</L>, choose <L>{ASSISTANT.newConversation}</L>, or open an earlier
               conversation.
+            </li>
+            <li>
+              Optionally choose <L>{ASSISTANT.findRelevantContext}</L> after you have a question and (from the assistant
+              page) an explicit manuscript, or after arriving from Write with the open scene. It ranks linked references,
+              matching reading pins, and title/alias/section hits. Preview the exact passages and saved revisions, remove
+              or replace items, then <L>{ASSISTANT.findRelevantConfirm}</L> to add them to Include — nothing is sent yet.
+              A reading pin alone never authorizes a send. You may tick <L>{ASSISTANT.includePinnedZeroDraft}</L> to also
+              consider pins from the Zero draft.
             </li>
             <li>
               In <L>{ASSISTANT.contextHeading}</L>, under <L>{ASSISTANT.references}</L>, tick the records to include. Each shows its type, canon status, saved

@@ -34,6 +34,9 @@ import {
   TrashSection,
   type InsideRecord,
 } from "./RecordSections";
+import type { ReadingPinView } from "@/server/services/readingPinService";
+import { WorldContextAside, WorldContextProvider, WorldContextToggle } from "./WorldContextRail";
+import { WorldPins } from "./WorldPins";
 
 /*
  * Reference documents (everything except manuscript chapters and scenes):
@@ -79,6 +82,8 @@ export interface ReferenceViewProps {
   /** Records that would move to the Trash with this one (notes on it). */
   inside: InsideRecord[];
   crossRefs: CrossRefIndex;
+  draftScopeId: string | null;
+  initialPins: ReadingPinView[];
   editor: {
     spellingLanguage: SpellingLanguage;
     spellChecker: SpellChecker;
@@ -228,8 +233,9 @@ export function ReferenceView(props: ReferenceViewProps) {
         ) : null}
       </ul>
 
-      <div className="with-context reference-layout">
-        <div className="reference-main">
+      <WorldContextProvider>
+      <div className="write-layout reference-write-layout">
+        <div className="reference-main write-main">
           <div className="doc-toolbar">
             {editing ? (
               <Link className="button-link" href={recordHref}>
@@ -248,6 +254,7 @@ export function ReferenceView(props: ReferenceViewProps) {
             </a>
             <div className="doc-toolbar-end">
               <TextAppearanceMenu />
+              <WorldContextToggle />
             </div>
           </div>
 
@@ -336,7 +343,15 @@ export function ReferenceView(props: ReferenceViewProps) {
           />
         </div>
 
-        <aside className="context-panel reference-context" aria-label={WORLD.context}>
+        <WorldContextAside>
+          <WorldPins
+            projectId={projectId}
+            recordId={record.id}
+            draftScopeId={props.draftScopeId}
+            initialPins={props.initialPins}
+            canPinCurrent={linkable}
+          />
+
           {!editing && doc.headings.length ? (
             <ContextSection title={WORLD.contents} className="contents-section">
               <ContentsList doc={doc} label={WORLD.contents} />
@@ -464,8 +479,9 @@ export function ReferenceView(props: ReferenceViewProps) {
               <p className="small muted">{WORLD.noImportedFiles}</p>
             )}
           </ContextSection>
-        </aside>
+        </WorldContextAside>
       </div>
+      </WorldContextProvider>
 
       <section aria-label={RECORD.detailsLabel} className="record-details reference-details">
         <div className="grid2">

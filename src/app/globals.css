@@ -565,6 +565,19 @@ button.tree-toggle[aria-expanded="true"] .icon { transform: rotate(90deg); }
 .workspace:has(> .write-layout) { padding: 0; }
 html:has(.write-layout) { scroll-padding: 10rem 0 4rem; }
 .write-layout { display: flex; align-items: flex-start; min-height: 100vh; }
+/* World/reference pages reuse Write's context rail chrome inside the workspace padding. */
+.reference-write-layout { min-height: 0; margin: 0 -0.25rem; }
+.reference-write-layout > .reference-main { padding-right: 0.5rem; }
+.world-context-body { display: flex; flex-direction: column; gap: 0.85rem; }
+.world-context-body .context-section { margin: 0; }
+.reference-thumbs { display: flex; flex-wrap: wrap; gap: 0.35rem; margin: 0.4rem 0; }
+.reference-thumbs img { object-fit: cover; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--color-surface-sunken); }
+button.linkish {
+  display: inline; padding: 0; border: 0; background: none; color: var(--color-accent); font: inherit; text-align: left; cursor: pointer; text-decoration: underline;
+}
+button.linkish:where(:hover:not(:disabled)) { color: var(--color-text); background: none; }
+.preview-section { display: block; scroll-margin-top: 0.5rem; }
+.find-relevant-preview { padding-top: 0.5rem; border-top: 1px solid var(--border); }
 .write-main { flex: 1; min-width: 0; overflow-x: clip; }
 .write-form { display: flex; flex-direction: column; min-height: 100vh; min-height: 100dvh; }
 .write-header {

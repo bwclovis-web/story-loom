@@ -16,9 +16,9 @@ import {
   type ReactNode,
 } from "react";
 import { IssueList } from "@/components/IssueList";
-import { HistoryIcon, MoreIcon, PanelRightIcon } from "@/components/shell/icons";
+import { ContextRail, ContextRailToggle, useContextRail } from "@/components/shell/ContextRail";
+import { HistoryIcon, MoreIcon } from "@/components/shell/icons";
 import { useLayout } from "@/components/shell/LayoutContext";
-import { PanelResizer } from "@/components/shell/PanelResizer";
 import { setUnsaved } from "@/components/shell/unsaved";
 import { submitWithoutReset } from "@/components/submitWithoutReset";
 import { EditorToolbar, linkSeedFrom, shortcutHint, type FormatCommand, type LinkSeed } from "@/components/writing/EditorToolbar";
@@ -49,23 +49,8 @@ import {
   type SourceItem,
 } from "./WriteContext";
 
-/** At this viewport width and above the context panel sits beside the text; below it opens over the page. */
-const WIDE_QUERY = "(min-width: 1200px)";
-
 const LOADABLE_FILE = /\.(md|markdown|txt)$/i;
 const LOAD_MAX_BYTES = 5 * 1024 * 1024;
-
-function useWide(): boolean {
-  const [wide, setWide] = useState(true);
-  useEffect(() => {
-    const query = window.matchMedia(WIDE_QUERY);
-    const update = () => setWide(query.matches);
-    update();
-    query.addEventListener("change", update);
-    return () => query.removeEventListener("change", update);
-  }, []);
-  return wide;
-}
 
 export function WriteEditor(props: {
   projectId: string;
@@ -90,6 +75,8 @@ export function WriteEditor(props: {
   choices: ChoiceItem[];
   sources: SourceItem[];
   attachableSources: AttachableSource[];
+  draftScopeId: string | null;
+  initialPins: import("@/server/services/readingPinService").ReadingPinView[];
   /** Status, protection, history and compare, rendered by the server below the text. */
   details: ReactNode;
 }) {
@@ -98,8 +85,8 @@ export function WriteEditor(props: {
   const contextId = `${idPrefix}-context`;
   const findId = `${idPrefix}-find`;
   const spellId = `${idPrefix}-spell`;
-  const { layout, updateLayout, focusMode, setFocusMode } = useLayout();
-  const wide = useWide();
+  const { focusMode, setFocusMode } = useLayout();
+  const rail = useContextRail();
 
   const [state, action, pending] = useActionState<FormResult, FormData>(
     saveRecordAction.bind(null, props.projectId, props.recordId),
@@ -107,7 +94,6 @@ export function WriteEditor(props: {
   );
   const formRef = useRef<HTMLFormElement>(null);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
-  const contextToggleRef = useRef<HTMLButtonElement>(null);
   // The text box reports line endings as "\n"; keep offsets in the same terms.
   const savedText = normalizeNewlines(props.body);
   const [text, setText] = useState(savedText);
@@ -123,7 +109,6 @@ export function WriteEditor(props: {
   const [findOpen, setFindOpen] = useState(props.initialFind !== null);
   const [spellOpen, setSpellOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [overlayOpen, setOverlayOpen] = useState(false);
   const [linkRequest, setLinkRequest] = useState<(LinkSeed & { id: number }) | null>(null);
   /** "notice" shows even with nothing unsaved and clears on the next keystroke. */
   const [loadNote, setLoadNote] = useState<{ tone: "info" | "error" | "notice"; text: string } | null>(null);
@@ -266,20 +251,6 @@ export function WriteEditor(props: {
   });
   useEffect(() => () => setFocusMode(false), [setFocusMode]);
 
-  const contextVisible = !focusMode && (wide ? !layout.contextHidden : overlayOpen);
-  const toggleContext = () => {
-    if (wide) updateLayout({ contextHidden: !layout.contextHidden });
-    else setOverlayOpen((open) => !open);
-  };
-  const closeOverlay = () => {
-    setOverlayOpen(false);
-    contextToggleRef.current?.focus();
-  };
-  const contextRef = useRef<HTMLElement>(null);
-  useEffect(() => {
-    if (!wide && overlayOpen) contextRef.current?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')?.focus();
-  }, [wide, overlayOpen]);
-
   const focusFind = useRef(false);
   const openFind = () => {
     if (findOpen) {
@@ -362,18 +333,7 @@ export function WriteEditor(props: {
                 <a href="#history" className="icon-button tip" aria-label={WRITE.versionHistory} data-tooltip={WRITE.versionHistory}>
                   <HistoryIcon />
                 </a>
-                <button
-                  ref={contextToggleRef}
-                  type="button"
-                  className="icon-button tip context-toggle"
-                  aria-label={contextVisible ? WRITE.hideContext : WRITE.showContext}
-                  data-tooltip={contextVisible ? WRITE.hideContext : WRITE.showContext}
-                  aria-controls={contextId}
-                  aria-expanded={contextVisible}
-                  onClick={toggleContext}
-                >
-                  <PanelRightIcon />
-                </button>
+                <ContextRailToggle rail={rail} controls={contextId} />
                 <TextAppearanceMenu />
                 <div className="menu-wrap">
                   <button
@@ -574,15 +534,7 @@ export function WriteEditor(props: {
         <div className="write-details">{props.details}</div>
       </div>
 
-      {wide && contextVisible ? <PanelResizer panel="contextWidth" controls={contextId} label={WRITE.resizeContext} /> : null}
-      {!wide && overlayOpen && !focusMode ? <div className="context-backdrop" aria-hidden="true" onClick={closeOverlay} /> : null}
-      <aside
-        ref={contextRef}
-        id={contextId}
-        className={`write-context ${wide ? "inline" : "overlay"}`}
-        aria-labelledby={`${contextId}-title`}
-        hidden={!contextVisible}
-      >
+      <ContextRail id={contextId} labelledBy={`${contextId}-title`} rail={rail} focusOnOverlayOpen>
         <WriteContext
           id={contextId}
           projectId={props.projectId}
@@ -594,8 +546,10 @@ export function WriteEditor(props: {
           choices={props.choices}
           sources={props.sources}
           attachableSources={props.attachableSources}
-          overlay={!wide}
-          onClose={closeOverlay}
+          draftScopeId={props.draftScopeId}
+          initialPins={props.initialPins}
+          overlay={!rail.wide}
+          onClose={rail.close}
           proofreader={
             <Proofreader
               projectId={props.projectId}
@@ -611,7 +565,7 @@ export function WriteEditor(props: {
             />
           }
         />
-      </aside>
+      </ContextRail>
     </div>
   );
 }

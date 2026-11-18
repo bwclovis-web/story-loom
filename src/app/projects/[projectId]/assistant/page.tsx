@@ -15,6 +15,8 @@ import {
   usageSummary,
   type ConversationView,
 } from "@/server/services/assistantService";
+import { listManuscriptDrafts } from "@/server/services/draftService";
+import { resolvePinScope } from "@/server/services/readingPinService";
 import { ASSISTANT } from "@/ui/labels";
 import { AssistantPanel } from "./AssistantPanel";
 import { NewConversationButton } from "./ConversationControls";
@@ -26,26 +28,29 @@ export default async function AssistantPage({
   searchParams,
 }: {
   params: Promise<{ projectId: string }>;
-  searchParams: Promise<{ c?: string }>;
+  searchParams: Promise<{ c?: string; seed?: string }>;
 }) {
   const { projectId } = await params;
-  const { c } = await searchParams;
+  const { c, seed } = await searchParams;
   const db = getDb();
   const project = await findProject(db, projectId);
   if (!project) notFound();
 
   const { status } = getAssistantConfig();
-  const [conversations, records, usage] = await Promise.all([
+  const [conversations, records, usage, drafts] = await Promise.all([
     listConversations(db, projectId),
     listSelectableRecords(db, projectId),
     usageSummary(db, status.limits),
+    listManuscriptDrafts(db, projectId),
   ]);
+  const draftScopeId = await resolvePinScope(db, projectId, drafts.find((d) => d.kind === "author_manuscript")?.id ?? drafts[0]?.id ?? null);
 
   let conversation: ConversationView | null = null;
   let proposals: Record<string, ProposalView> = {};
-  if (c) {
+  const conversationId = c ?? (seed && conversations[0] ? conversations[0].id : undefined);
+  if (conversationId) {
     try {
-      conversation = await getConversationView(db, projectId, c, status.limits);
+      conversation = await getConversationView(db, projectId, conversationId, status.limits);
       proposals = await listProposalViews(db, projectId, conversation.id);
     } catch (error) {
       if (!(error instanceof AssistantError)) throw error;
@@ -82,7 +87,7 @@ export default async function AssistantPage({
           <ul className="conversation-list">
             {conversations.map((conv) => (
               <li key={conv.id}>
-                <Link href={`/projects/${projectId}/assistant?c=${conv.id}`} aria-current={conv.id === c ? "page" : undefined}>
+                <Link href={`/projects/${projectId}/assistant?c=${conv.id}`} aria-current={conv.id === conversation?.id ? "page" : undefined}>
                   {conv.title}
                 </Link>{" "}
                 <span className="small muted">({conv.messageCount})</span>
@@ -123,10 +128,17 @@ export default async function AssistantPage({
             records={records}
             proposals={proposals}
             proposalExtraChars={fixedChars("proposal", PROPOSAL_SCHEMA_CHARS) - ASSISTANT_INSTRUCTIONS.length}
+            draftScopeId={draftScopeId === "" ? null : draftScopeId}
+            seedRecordId={seed ?? null}
           />
         ) : (
           <section className="panel">
             <p>{c ? "That conversation is not in this project." : ASSISTANT.noConversation}</p>
+            {seed ? (
+              <p className="small muted">
+                Open or start a conversation to find relevant context for the scene you came from.
+              </p>
+            ) : null}
           </section>
         )}
       </div>

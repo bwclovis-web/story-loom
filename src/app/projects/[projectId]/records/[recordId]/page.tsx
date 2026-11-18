@@ -9,6 +9,7 @@ import { listPendingProposalsForRecord } from "@/server/services/assistantPropos
 import { NotFoundError } from "@/server/services/errors";
 import { listLinkedReferences, listLinkingRecords } from "@/server/services/linkService";
 import { listRecordImages } from "@/server/services/imageService";
+import { listReadingPins, resolvePinScope } from "@/server/services/readingPinService";
 import { listImportedFilesForRecord } from "@/server/services/markdownImportService";
 import { PROOFREAD_SCHEMA_CHARS } from "@/server/services/proofreadService";
 import {
@@ -83,12 +84,14 @@ export default async function RecordPage({
   };
 
   if (manuscript) {
-    const [notes, linked, choices, sources, attachableSources] = await Promise.all([
+    const pinScopeId = await resolvePinScope(db, projectId, recordDraftId);
+    const [notes, linked, choices, sources, attachableSources, pins] = await Promise.all([
       listNotes(db, projectId, record.id),
       listLinkedReferences(db, projectId, record.id),
       listReferenceChoices(db, projectId),
       listRewriteSources(db, projectId, record.id),
       listAttachableRewriteSources(db, projectId, record.id),
+      listReadingPins(db, projectId, pinScopeId),
     ]);
     return (
       <WriteEditor
@@ -129,6 +132,8 @@ export default async function RecordPage({
           currentRevision: s.currentRevision,
         }))}
         attachableSources={attachableSources}
+        draftScopeId={pinScopeId === "" ? null : pinScopeId}
+        initialPins={pins}
         details={
           <RecordDetails
             projectId={projectId}
@@ -143,7 +148,12 @@ export default async function RecordPage({
     );
   }
 
-  const [linking, reviewItems, proposals, importedFiles, images, supersededBy] = await Promise.all([
+  const worldPinScope = await resolvePinScope(
+    db,
+    projectId,
+    drafts.find((d) => d.kind === "author_manuscript")?.id ?? drafts[0]?.id ?? null,
+  );
+  const [linking, reviewItems, proposals, importedFiles, images, supersededBy, worldPins] = await Promise.all([
     listLinkingRecords(db, projectId, record.id),
     listOpenReviewItemsForRecord(db, projectId, record.id),
     listPendingProposalsForRecord(db, projectId, record.id),
@@ -152,6 +162,7 @@ export default async function RecordPage({
     record.supersededByRecordId
       ? db.record.findFirst({ where: { id: record.supersededByRecordId, projectId, trashedAt: null }, select: { id: true, title: true } })
       : null,
+    listReadingPins(db, projectId, worldPinScope),
   ]);
   const chapterIds = [...new Set(linking.flatMap((l) => (l.parentRecordId ? [l.parentRecordId] : [])))];
   const chapters = chapterIds.length
@@ -176,6 +187,8 @@ export default async function RecordPage({
       images={images}
       inside={inside}
       crossRefs={crossRefs}
+      draftScopeId={worldPinScope === "" ? null : worldPinScope}
+      initialPins={worldPins}
       editor={{ spellingLanguage, spellChecker, dictionaryWords, proofread }}
     />
   );

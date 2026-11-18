@@ -250,6 +250,22 @@ export const workspaceBackupV1Schema = z
           .strict(),
       )
       .optional(),
+    /** Ordered reading pins for references beside prose; omitted in older backups → empty. */
+    readingPins: z
+      .array(
+        z
+          .object({
+            id,
+            projectId: id,
+            /** Manuscript draft id, or "" for legacy project-level pins. */
+            scopeDraftId: z.string().max(200),
+            recordId: id,
+            position: z.number().int().min(0),
+            createdAt: timestamp,
+          })
+          .strict(),
+      )
+      .optional(),
     /** Added with images; a backup without it restores with no images. */
     recordImages: z
       .array(
@@ -292,6 +308,7 @@ export const workspaceBackupV1Schema = z
         manuscriptGroups: z.number().int().optional(),
         manuscriptDrafts: z.number().int().optional(),
         rewriteSourceLinks: z.number().int().optional(),
+        readingPins: z.number().int().optional(),
       })
       .strict(),
     /** sha256 of the stable JSON serialization of every other top-level field. */

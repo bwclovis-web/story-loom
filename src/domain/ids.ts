@@ -22,7 +22,8 @@ export type IdPrefix =
   | "trb" // records moved to the Trash together
   | "grp" // manuscript group
   | "drf" // manuscript draft (zero draft / author manuscript)
-  | "rsl"; // rewrite source link
+  | "rsl" // rewrite source link
+  | "pin"; // reading pin (reference beside prose)
 
 export function newId(prefix: IdPrefix): string {
   return `${prefix}_${ulid()}`;

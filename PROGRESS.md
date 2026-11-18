@@ -1701,3 +1701,41 @@ legacy single-draft projects still open and export without setup.
 - At most one Zero draft and one Author manuscript per project.
 - Omit is Trash (no separate “hide from draft” without deleting).
 - Combining scenes is attach sources + Trash of extras; no automatic prose merge.
+
+## Reading pins, context rail, and Find relevant context (Nov 17, 2026)
+
+Requested: persisted reading pins per project/draft; enrich Write and World
+context rails (shared collapse/resize/drawer, title/alias/section search, jump,
+images, pin vs link); assistant **Find relevant context** with passage preview
+feeding the existing Include / Prepare proposal Apply path. Pin ≠ link; pin
+alone does not authorize send.
+
+### Implemented
+
+- Migration `20261118060000_reading_pins`: `ReadingPin` (`scopeDraftId` `""` =
+  legacy project-level). Audited add/remove/reorder. Backup optional
+  `readingPins` + count.
+- Shared `ContextRail` shell; Write and World use the same cookie-backed width /
+  hide / overlay behaviour.
+- Write References: ordered pins, title/name/alias/section search, preview with
+  section jump and image thumbnails, separate **Link to scene** / **Pin**.
+- World rail: same shell + pin/unpin for the active draft scope.
+- `findRelevantContext` + Assistant **Find relevant context** preview
+  (remove/replace → Include). Write deep-links with `?seed=`. Optional include
+  pinned Zero-draft sources. Labels, Help, tests.
+
+### Verification
+
+| Check | Result |
+| --- | --- |
+| Pre-migrate backup | `backups/2026-11-18T03-13-51-789Z-pre-migrate` (also `2026-11-18T03-13-49-872Z`) |
+| `pnpm db:deploy` | Applied `20261118060000_reading_pins` |
+| `pnpm typecheck` | pass |
+| `pnpm exec vitest run tests/acceptance/reading-pins-context.test.ts tests/unit/help.test.ts` | 7/7 passed |
+| `pnpm build` | pass (Next.js 16.4.3 security reminder on first attempt; retry succeeded) |
+
+### Rollback
+
+Restore the SQLite snapshot from that pre-migrate backup folder and check out
+the pre-feature commit. Workspace JSON backups that include
+`20261118060000_reading_pins` need this schema to restore.

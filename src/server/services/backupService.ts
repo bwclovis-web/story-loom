@@ -68,6 +68,10 @@ function rewriteSourceLinksOf(b: WorkspaceBackupV1) {
   return b.rewriteSourceLinks ?? [];
 }
 
+function readingPinsOf(b: WorkspaceBackupV1) {
+  return b.readingPins ?? [];
+}
+
 /** P2021: table missing. P2022: column missing. */
 function isMissingSchemaError(error: unknown, code: "P2021" | "P2022"): boolean {
   return error instanceof Prisma.PrismaClientKnownRequestError && error.code === code;
@@ -204,6 +208,20 @@ async function rewriteSourceLinkRows(db: DbOrTx, projectIds: string[]) {
   }
 }
 
+async function readingPinRows(db: DbOrTx, projectIds: string[]) {
+  // Client may lag schema during `db:backup` before generate; table may be absent before migrate.
+  if (!("readingPin" in db) || !(db as { readingPin?: { findMany: unknown } }).readingPin) return [];
+  try {
+    return await db.readingPin.findMany({
+      where: { projectId: { in: projectIds } },
+      orderBy: [{ projectId: "asc" }, { scopeDraftId: "asc" }, { position: "asc" }, { id: "asc" }],
+    });
+  } catch (error) {
+    if (isMissingSchemaError(error, "P2021")) return [];
+    throw error;
+  }
+}
+
 async function manuscriptGroupRows(db: DbOrTx, projectIds: string[]) {
   try {
     return await db.manuscriptGroup.findMany({
@@ -324,6 +342,7 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
     manuscriptGroups,
     manuscriptDrafts,
     rewriteSourceLinks,
+    readingPins,
   ] = await Promise.all([
     recordRows(db, projectIds),
     db.source.findMany({ where: inProjects, orderBy: { id: "asc" } }),
@@ -337,6 +356,7 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
     manuscriptGroupRows(db, projectIds),
     manuscriptDraftRows(db, projectIds),
     rewriteSourceLinkRows(db, projectIds),
+    readingPinRows(db, projectIds),
   ]);
   const revisions = await db.revision.findMany({
     where: { recordId: { in: records.map((r) => r.id) } },
@@ -511,6 +531,18 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
           })),
         }
       : {}),
+    ...(readingPins.length
+      ? {
+          readingPins: readingPins.map((p) => ({
+            id: p.id,
+            projectId: p.projectId,
+            scopeDraftId: p.scopeDraftId,
+            recordId: p.recordId,
+            position: p.position,
+            createdAt: iso(p.createdAt),
+          })),
+        }
+      : {}),
     recordImages: recordImages.map((img) => ({
       id: img.id,
       projectId: img.projectId,
@@ -544,6 +576,7 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
       ...(manuscriptGroups.length ? { manuscriptGroups: manuscriptGroups.length } : {}),
       ...(manuscriptDrafts.length ? { manuscriptDrafts: manuscriptDrafts.length } : {}),
       ...(rewriteSourceLinks.length ? { rewriteSourceLinks: rewriteSourceLinks.length } : {}),
+      ...(readingPins.length ? { readingPins: readingPins.length } : {}),
     },
   };
   return { ...body, checksum: backupChecksum(body) };
@@ -598,6 +631,7 @@ function checkInternalConsistency(b: WorkspaceBackupV1): Issue[] {
     manuscriptGroups: manuscriptGroupsOf(b).length,
     manuscriptDrafts: manuscriptDraftsOf(b).length,
     rewriteSourceLinks: rewriteSourceLinksOf(b).length,
+    readingPins: readingPinsOf(b).length,
   };
   for (const key of Object.keys(actualCounts) as (keyof BackupCounts)[]) {
     if (actualCounts[key] !== (b.counts[key] ?? 0)) {
@@ -634,6 +668,12 @@ function checkInternalConsistency(b: WorkspaceBackupV1): Issue[] {
   checkUnique(
     rewriteSourceLinksOf(b).map((l) => `${l.fromRecordId}/${l.toRecordId}`),
     "rewrite source link pair",
+    issues,
+  );
+  checkUnique(readingPinsOf(b).map((p) => p.id), "reading pin", issues);
+  checkUnique(
+    readingPinsOf(b).map((p) => `${p.projectId}/${p.scopeDraftId}/${p.recordId}`),
+    "reading pin scope",
     issues,
   );
 
@@ -726,6 +766,19 @@ function checkInternalConsistency(b: WorkspaceBackupV1): Issue[] {
       issues.push(
         integrity(`Rewrite source link ${l.id} pins missing revision ${l.toRevisionNumber} of ${l.toRecordId}.`),
       );
+    }
+  });
+  readingPinsOf(b).forEach((p) => {
+    needProject(p.projectId, `Reading pin ${p.id}`);
+    if (!recordIds.has(p.recordId) || recordProject.get(p.recordId) !== p.projectId) {
+      issues.push(integrity(`Reading pin ${p.id} references missing record ${p.recordId}.`));
+    }
+    const type = recordType.get(p.recordId);
+    if (type && !isLinkableReferenceType(type)) {
+      issues.push(integrity(`Reading pin ${p.id} must point to a reference record.`));
+    }
+    if (p.scopeDraftId !== "" && (!draftIds.has(p.scopeDraftId) || draftProject.get(p.scopeDraftId) !== p.projectId)) {
+      issues.push(integrity(`Reading pin ${p.id} references missing draft ${p.scopeDraftId}.`));
     }
   });
   recordImagesOf(b).forEach((img) => {
@@ -858,6 +911,9 @@ async function findCollisions(db: DbOrTx, b: WorkspaceBackupV1): Promise<Issue[]
       db.rewriteSourceLink.count({ where: { id: { in: rewriteSourceLinksOf(b).map((l) => l.id) } } }),
     );
   }
+  if (readingPinsOf(b).length) {
+    await check("reading pin", db.readingPin.count({ where: { id: { in: readingPinsOf(b).map((p) => p.id) } } }));
+  }
   return issues;
 }
 
@@ -979,6 +1035,7 @@ export async function restoreWorkspaceBackup(db: Db, input: string | unknown, op
   manuscriptGroupsOf(b).forEach((g) => assign(g.id, "grp"));
   manuscriptDraftsOf(b).forEach((d) => assign(d.id, "drf"));
   rewriteSourceLinksOf(b).forEach((l) => assign(l.id, "rsl"));
+  readingPinsOf(b).forEach((p) => assign(p.id, "pin"));
 
   const workspaceName =
     options.workspaceName?.trim() || (remap ? `${b.workspace.name} (restored ${b.createdAt.slice(0, 10)})` : b.workspace.name);
@@ -1203,6 +1260,19 @@ export async function restoreWorkspaceBackup(db: Db, input: string | unknown, op
               toRevisionNumber: l.toRevisionNumber,
               position: l.position,
               createdAt: new Date(l.createdAt),
+            })),
+          });
+        }
+        const pins = readingPinsOf(b);
+        if (pins.length) {
+          await tx.readingPin.createMany({
+            data: pins.map((p) => ({
+              id: m(p.id),
+              projectId: m(p.projectId),
+              scopeDraftId: p.scopeDraftId === "" ? "" : m(p.scopeDraftId),
+              recordId: m(p.recordId),
+              position: p.position,
+              createdAt: new Date(p.createdAt),
             })),
           });
         }

@@ -1,7 +1,10 @@
-import { isRecordType, MANUSCRIPT_TYPES, type RecordType } from "@/domain/recordTypes";
+import { parseJsonObject } from "@/domain/json";
+import { isLinkableReferenceType, isRecordType, MANUSCRIPT_TYPES, type RecordType } from "@/domain/recordTypes";
 import { isAuthorityStatus, type AuthorityStatus } from "@/domain/statuses";
 import { buildManuscriptTree } from "@/ui/manuscriptTree";
+import { aliasesOf } from "@/writing/crossRefs";
 import { findMatches } from "@/writing/findReplace";
+import { listSections } from "@/writing/sections";
 import { searchText, type Excerpt } from "@/writing/textSearch";
 import type { DbOrTx } from "../db";
 
@@ -172,6 +175,117 @@ export async function searchManuscript(
   return { hits, totalMatches };
 }
 
+export type ContextMatchIn = "title" | "name" | "aliases" | "section";
+
+export interface ContextSearchHit {
+  id: string;
+  title: string;
+  type: RecordType;
+  authorityStatus: AuthorityStatus;
+  currentRevision: number;
+  matchedIn: ContextMatchIn;
+  excerpt: string;
+  /** Heading anchor when matchedIn is section. */
+  sectionId: string | null;
+  sectionTitle: string | null;
+}
+
+/**
+ * Title, fields.name / aliases, and section heading search for the context rail.
+ * Manuscript records are never returned. Prefer title, then name, aliases, then section.
+ */
+export async function searchContextReferences(
+  db: DbOrTx,
+  input: { projectId: string; query: string; limit?: number },
+): Promise<ContextSearchHit[]> {
+  const query = input.query.normalize("NFC").trim();
+  if (!query) return [];
+  const limit = input.limit ?? 24;
+  const rows = await db.record.findMany({
+    where: { projectId: input.projectId, trashedAt: null, type: { notIn: [...MANUSCRIPT_TYPES] } },
+    orderBy: [{ title: "asc" }, { id: "asc" }],
+    select: {
+      id: true,
+      title: true,
+      type: true,
+      body: true,
+      fields: true,
+      authorityStatus: true,
+      currentRevision: true,
+    },
+  });
+
+  const hits: ContextSearchHit[] = [];
+  for (const row of rows) {
+    if (!isRecordType(row.type) || !isLinkableReferenceType(row.type)) continue;
+    if (!isAuthorityStatus(row.authorityStatus)) continue;
+    const base = {
+      id: row.id,
+      title: row.title,
+      type: row.type,
+      authorityStatus: row.authorityStatus,
+      currentRevision: row.currentRevision,
+    };
+
+    if (findMatch(row.title, query) >= 0) {
+      hits.push({
+        ...base,
+        matchedIn: "title",
+        excerpt: clipExcerpt(row.title, query),
+        sectionId: null,
+        sectionTitle: null,
+      });
+      if (hits.length >= limit) break;
+      continue;
+    }
+
+    let fields: Record<string, unknown> = {};
+    try {
+      fields = parseJsonObject(row.fields);
+    } catch {
+      fields = {};
+    }
+    const name = typeof fields.name === "string" ? fields.name.trim() : "";
+    if (name && findMatch(name, query) >= 0) {
+      hits.push({
+        ...base,
+        matchedIn: "name",
+        excerpt: clipExcerpt(name, query),
+        sectionId: null,
+        sectionTitle: null,
+      });
+      if (hits.length >= limit) break;
+      continue;
+    }
+
+    const aliasHit = aliasesOf(fields).find((a) => findMatch(a, query) >= 0);
+    if (aliasHit) {
+      hits.push({
+        ...base,
+        matchedIn: "aliases",
+        excerpt: clipExcerpt(aliasHit, query),
+        sectionId: null,
+        sectionTitle: null,
+      });
+      if (hits.length >= limit) break;
+      continue;
+    }
+
+    const section = listSections(row.body).find((s) => findMatch(s.title, query) >= 0);
+    if (section) {
+      hits.push({
+        ...base,
+        matchedIn: "section",
+        excerpt: clipExcerpt(section.title, query),
+        sectionId: section.id,
+        sectionTitle: section.title,
+      });
+      if (hits.length >= limit) break;
+    }
+  }
+  return hits;
+}
+
 function excerptAt(text: string, query: string): { excerpt: string; excerptTruncated: boolean } | null {
   const haystack = text.normalize("NFC");
   const index = findMatch(haystack, query);
@@ -179,6 +293,10 @@ function excerptAt(text: string, query: string): { excerpt: string; excerptTrunc
   if (haystack.length <= SEARCH_EXCERPT_CHARS) return { excerpt: haystack, excerptTruncated: false };
   const start = Math.max(0, Math.min(index - 40, haystack.length - SEARCH_EXCERPT_CHARS));
   return { excerpt: haystack.slice(start, start + SEARCH_EXCERPT_CHARS), excerptTruncated: true };
+}
+
+function clipExcerpt(text: string, query: string): string {
+  return excerptAt(text, query)?.excerpt ?? text.slice(0, SEARCH_EXCERPT_CHARS);
 }
 
 function findMatch(haystack: string, query: string): number {
