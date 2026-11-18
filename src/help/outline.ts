@@ -15,7 +15,11 @@ export const HELP_SECTIONS = [
   { id: "quick-start", title: "Quick start" },
   { id: "getting-started", title: "Getting started" },
   { id: "navigation", title: "Finding your way around" },
-  { id: "workspaces", title: "Workspaces and projects" },
+  {
+    id: "workspaces",
+    title: "Workspaces and projects",
+    children: [{ id: "upgrade-project", title: "Upgrade this project" }],
+  },
   {
     id: "importing",
     title: "Importing reference files",
@@ -169,6 +173,7 @@ export const HELP_ROUTES = [
   "/projects/[projectId]/dictionary",
   "/projects/[projectId]/dictionary/export",
   "/projects/[projectId]/cross-references",
+  "/projects/[projectId]/upgrade",
 ] as const;
 
 export const APP_URL = "http://127.0.0.1:3000";

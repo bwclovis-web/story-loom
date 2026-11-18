@@ -27,10 +27,18 @@ function differences(expected: unknown, actual: DatabaseInventory) {
   return compareInventories(expected as DatabaseInventory, actual, INVENTORY_META_PATHS);
 }
 
-/** A backup without its timestamp, checksum, counts and the restore audit entries. */
+/**
+ * A backup without its timestamp, checksum, counts, the restore audit entries,
+ * and app.migrations (the writing app always lists every migration it knows,
+ * which grows when the schema gains optional fields).
+ */
 function comparable(b: WorkspaceBackupV1) {
   const { createdAt: _c, checksum: _s, counts: _n, ...rest } = b;
-  return { ...rest, auditEntries: rest.auditEntries.filter((a) => a.action !== "workspace.restore") };
+  return {
+    ...rest,
+    app: { name: rest.app.name },
+    auditEntries: rest.auditEntries.filter((a) => a.action !== "workspace.restore"),
+  };
 }
 
 describe("legacy fixture: restore and history", () => {

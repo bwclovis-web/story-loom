@@ -30,6 +30,7 @@ export const NAV = {
   assistant: "Assistant",
   dictionary: "Dictionary",
   crossRefCheck: "Cross-reference check",
+  upgradeProject: "Upgrade this project",
 } as const;
 
 export const CONNECTIONS = {
@@ -896,4 +897,43 @@ export const BACKUP = {
   restoreHeading: "Restore a backup as a new workspace",
   restore: "Restore as new workspace",
   cannotRestore: "This backup cannot be restored. Nothing was written.",
+} as const;
+
+/** Optional Series, Book and Draft assignments (Upgrade this project). */
+export const UPGRADE = {
+  heading: "Upgrade this project",
+  lead: "Optionally name the series and book, choose Zero draft or Author manuscript, group chapters, and say which World records belong to this book or the whole series. Projects without assignments open as they always have.",
+  seriesName: "Series name",
+  bookName: "Book name",
+  draftKind: "Draft",
+  draftNone: "Not assigned",
+  groupsHeading: "Chapter groups",
+  groupsIntro: "Put chapters into named groups. Scenes stay with their chapter. Chapters left ungrouped keep no group.",
+  addGroup: "Add group",
+  removeGroup: "Remove group",
+  groupLabel: "Group name",
+  groupDraft: "Group draft (optional)",
+  ungrouped: "Ungrouped chapters",
+  worldHeading: "World record scope",
+  worldIntro: "Each World reference can apply to this book, the whole series, or stay unassigned.",
+  worldNone: "Not assigned",
+  preview: "Preview assignments",
+  previewing: "Building preview...",
+  previewHeading: "Assignment preview",
+  previewNote: "Read-only summary. Nothing is written until you apply. If the project changes, preview again.",
+  apply: "Apply assignments",
+  applying: "Applying...",
+  changePreview: "Change assignments",
+  applied: "Assignments applied. Record text, revisions, images and links were not changed.",
+  alreadyApplied: "These assignments were already in place. Nothing was written.",
+  rejected: "Assignments were not applied. Nothing was written.",
+  stale: "This preview is out of date. Preview again, then apply.",
+  noChapters: "This project has no chapters yet. You can still set series, book, draft and World scopes.",
+  noWorld: "No World references yet.",
+  summarySeries: "Series",
+  summaryBook: "Book",
+  summaryDraft: "Draft",
+  summaryGroups: "Groups",
+  summaryWorld: "World scopes changed",
+  none: "None",
 } as const;

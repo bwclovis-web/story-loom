@@ -71,6 +71,13 @@ rewritten automatically, so do not put project rules inside it.
   reference record. They are not content: no revision, no protection unlock,
   but every add/remove is audited, and they travel in backups and context
   exports.
+- Series, Book and Draft assignments (`Project.seriesName` / `bookName` /
+  `draftKind`, `ManuscriptGroup`, `Record.groupId`, `Record.worldScope`) are
+  optional structural metadata. Null means the project opens as before.
+  They change only through `assignmentService` (Upgrade this project):
+  preview → confirm → one transaction, stale-preview detection, idempotent
+  reruns. They are not revisioned content: applying them never rewrites
+  record text, revisions, images or links. Audited as `project.assign`.
 - Change-package idempotency is per project: (projectId, packageId) + content hash.
 
 ## In-app help

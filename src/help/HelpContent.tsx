@@ -28,6 +28,7 @@ import {
   TEXT_APPEARANCE,
   THEME,
   TRASH,
+  UPGRADE,
   WORLD,
   WRITE,
   WRITING,
@@ -247,7 +248,8 @@ export function HelpContent() {
           <li>
             <L>{SHELL.projectTools}</L>: <L>{NAV.importPackage}</L>, <L>{NAV.importMarkdown}</L>,{" "}
             <L>{NAV.importChapters}</L>, <L>{NAV.readBook}</L>, <L>{NAV.exportContext}</L>, <L>{NAV.exportPdf}</L>,{" "}
-            <L>{NAV.history}</L>, <L>{NAV.dictionary}</L> and <L>{NAV.crossRefCheck}</L> (see{" "}
+            <L>{NAV.history}</L>, <L>{NAV.dictionary}</L>, <L>{NAV.crossRefCheck}</L> and <L>{NAV.upgradeProject}</L>{" "}
+            (see{" "}
             <See anchor="cross-reference-check" />
             ). A number beside{" "}
             <L>{NAV.history}</L> is how many open review items the project has.
@@ -320,6 +322,36 @@ export function HelpContent() {
           save.) When you no longer need a trial workspace, move
           it to the Trash with <L>{TRASH.moveWorkspace}</L>. See <See anchor="trash" />.
         </p>
+
+        <Sub id="upgrade-project">
+          <p>
+            Under <L>{SHELL.projectTools}</L>, <L>{NAV.upgradeProject}</L> lets you optionally name the series and book,
+            choose Zero draft or Author manuscript, put chapters into named groups, and say whether each World record
+            applies to this book or the whole series. Projects with none of these assignments open and edit exactly as
+            before.
+          </p>
+          <ol>
+            <li>
+              Open the project and choose <L>{NAV.upgradeProject}</L>.
+            </li>
+            <li>
+              Fill in what you want. Leave fields blank to keep them unassigned. Chapters left out of every group stay
+              ungrouped; their scenes stay with them.
+            </li>
+            <li>
+              Choose <L>{UPGRADE.preview}</L> for a read-only summary. Nothing is written yet.
+            </li>
+            <li>
+              If the summary is right, choose <L>{UPGRADE.apply}</L>. The change is applied all at once. Chapter text,
+              revisions, images and links are not changed.
+            </li>
+          </ol>
+          <p>
+            If the project changes between preview and apply (for example another edit updates assignments, or a chapter
+            is removed), apply is refused and you preview again. Applying the same assignments a second time writes
+            nothing.
+          </p>
+        </Sub>
       </Section>
 
       <Section id="importing">

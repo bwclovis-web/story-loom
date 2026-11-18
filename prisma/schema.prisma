@@ -27,10 +27,19 @@ model Project {
   workspaceId            String
   workspace              Workspace               @relation(fields: [workspaceId], references: [id])
   title                  String
+  /// Optional series this book belongs to. Null = unassigned; the project opens as today.
+  seriesName             String?
+  /// Optional book name within the series. Null = unassigned (UI may show title).
+  bookName               String?
+  /// zero_draft | author_manuscript | null (unassigned).
+  draftKind              String?
+  /// Bumped when Series/Book/Draft assignments change; used to detect stale upgrade previews.
+  assignmentRevision     Int                     @default(0)
   createdAt              DateTime                @default(now())
   /// Set while the project is in the Trash.
   trashedAt              DateTime?
   records                Record[]
+  manuscriptGroups       ManuscriptGroup[]
   sources                Source[]
   changePackages         ChangePackage[]
   auditEntries           AuditEntry[]
@@ -43,6 +52,23 @@ model Project {
   recordImages           RecordImage[]
 
   @@index([workspaceId])
+}
+
+/// A named group of chapters (and their scenes) within a project's manuscript.
+/// Not revisioned content: creating or renaming a group does not change record text.
+model ManuscriptGroup {
+  id        String   @id
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id])
+  label     String
+  /// Order among groups in the upgrade preview and Write tools.
+  position  Int
+  /// Optional draft kind for this group; null means use the project's draftKind.
+  draftKind String?
+  createdAt DateTime @default(now())
+  records   Record[]
+
+  @@index([projectId])
 }
 
 /// A word the author accepts as correctly spelled (see src/spelling/dictionary.ts).
@@ -94,6 +120,11 @@ model Record {
   /// unpositioned records follow positioned ones in creation order. Not part of
   /// revisioned content.
   position              Int?
+  /// Optional manuscript group for a chapter or scene. Not revisioned content.
+  groupId               String?
+  group                 ManuscriptGroup?       @relation(fields: [groupId], references: [id])
+  /// For World reference records: book | series | null (unassigned = project-local as today).
+  worldScope            String?
   currentRevision       Int
   /// Set while the record is in the Trash. Not part of revisioned content.
   trashedAt             DateTime?
@@ -114,6 +145,7 @@ model Record {
   @@index([projectId, type])
   @@index([parentRecordId])
   @@index([trashBatchId])
+  @@index([groupId])
 }
 
 /// A manuscript chapter or scene linked to a reference record it draws on.

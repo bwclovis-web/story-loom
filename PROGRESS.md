@@ -1608,3 +1608,51 @@ and no migration.
   "Wordly Editor" where they describe past work.
 - Package and MCP protocol identifiers remain `wordly-*` / `wordly-editor` on
   purpose so older backups, grants and clients keep working.
+
+## Optional Series, Book and Draft assignments (Nov 17, 2026)
+
+Requested: optional Series/Book/Draft assignments, chapter groups, World scope
+(book or series), and a read-only **Upgrade this project** preview that applies
+confirmed assignments atomically, revalidates stale previews, and is safe to
+rerun. Projects without assignments must open as before. Preserve IDs, exact
+text, revisions, images and links. Verify old backup restore and a new backup
+round trip on isolated copies.
+
+### Implemented
+
+- Migration `20261118030000_series_book_draft`: nullable `Project.seriesName`,
+  `bookName`, `draftKind`, `assignmentRevision`; `ManuscriptGroup`;
+  `Record.groupId` and `Record.worldScope`. All optional; null = previous
+  behavior.
+- `assignmentService`: preview (read-only token) → apply in one transaction;
+  `STALE_PREVIEW` when the token no longer matches; `already_applied` when the
+  plan already matches (no write). Never rewrites record text, revisions,
+  images or links. Audited as `project.assign`.
+- UI `/projects/[projectId]/upgrade` under Project tools; Help and labels.
+- Workspace backup v1: optional project assignment fields, optional
+  `manuscriptGroups`, optional `groupId` / `worldScope` on records. Older
+  backups restore as unassigned.
+
+### Verification results
+
+| Check | Result |
+| --- | --- |
+| Pre-feature backup | `backups/2026-11-18T02-16-46-563Z-pre-series-book-draft/` |
+| `pnpm db:deploy` | Applied `20261118030000_series_book_draft` after `backups/2026-11-18T02-28-38-412Z-pre-migrate` |
+| `pnpm typecheck` | pass |
+| `pnpm test` | 54 files, 454 tests passed |
+| `pnpm build` | pass; route `/projects/[projectId]/upgrade` present. Next.js 16.4.3 security reminder on first build attempt |
+| Assignment + backup tests | preview/apply/stale/idempotent; legacy restore stays unassigned; new backup round-trip keeps assignments and prose |
+| Legacy fixture | `tests/acceptance/legacy-baseline.test.ts` still restores and keeps history |
+
+### Limitations
+
+- World `book` / `series` scope is stored and backed up; the World page still
+  lists only this project's records (series-wide visibility across sibling
+  projects is not wired yet).
+- Chapter groups are stored and used by the upgrade flow; Write / book order
+  do not yet filter or label by group.
+
+### Rollback
+
+Restore the SQLite snapshot from `backups/2026-11-18T02-16-46-563Z-pre-series-book-draft/` (or the pre-migrate folder above) and check out the pre-feature commit. Workspace JSON backups written after this migration list the new migration; older app builds refuse them.

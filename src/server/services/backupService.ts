@@ -56,6 +56,10 @@ function recordImagesOf(b: WorkspaceBackupV1) {
   return b.recordImages ?? [];
 }
 
+function manuscriptGroupsOf(b: WorkspaceBackupV1) {
+  return b.manuscriptGroups ?? [];
+}
+
 /** P2021: table missing. P2022: column missing. */
 function isMissingSchemaError(error: unknown, code: "P2021" | "P2022"): boolean {
   return error instanceof Prisma.PrismaClientKnownRequestError && error.code === code;
@@ -105,15 +109,52 @@ async function workspaceRow(db: DbOrTx, workspaceId: string) {
 
 async function projectRows(db: DbOrTx, workspaceId: string) {
   const query = { where: { workspaceId }, orderBy: { id: "asc" as const } };
+  const assignmentDefaults = {
+    seriesName: null as string | null,
+    bookName: null as string | null,
+    draftKind: null as string | null,
+    assignmentRevision: 0,
+  };
   try {
     return await db.project.findMany({
       ...query,
-      select: { id: true, workspaceId: true, title: true, createdAt: true, trashedAt: true },
+      select: {
+        id: true,
+        workspaceId: true,
+        title: true,
+        createdAt: true,
+        trashedAt: true,
+        seriesName: true,
+        bookName: true,
+        draftKind: true,
+        assignmentRevision: true,
+      },
     });
   } catch (error) {
     if (!isMissingSchemaError(error, "P2022")) throw error;
+  }
+  try {
+    const rows = await db.project.findMany({
+      ...query,
+      select: { id: true, workspaceId: true, title: true, createdAt: true, trashedAt: true },
+    });
+    return rows.map((p) => ({ ...p, ...assignmentDefaults }));
+  } catch (error) {
+    if (!isMissingSchemaError(error, "P2022")) throw error;
     const rows = await db.project.findMany({ ...query, select: { id: true, workspaceId: true, title: true, createdAt: true } });
-    return rows.map((p) => ({ ...p, trashedAt: null }));
+    return rows.map((p) => ({ ...p, trashedAt: null, ...assignmentDefaults }));
+  }
+}
+
+async function manuscriptGroupRows(db: DbOrTx, projectIds: string[]) {
+  try {
+    return await db.manuscriptGroup.findMany({
+      where: { projectId: { in: projectIds } },
+      orderBy: [{ projectId: "asc" }, { position: "asc" }, { id: "asc" }],
+    });
+  } catch (error) {
+    if (isMissingSchemaError(error, "P2021")) return [];
+    throw error;
   }
 }
 
@@ -134,11 +175,29 @@ const RECORD_COLUMNS = {
 
 async function recordRows(db: DbOrTx, projectIds: string[]) {
   const query = { where: { projectId: { in: projectIds } }, orderBy: { id: "asc" as const } };
+  const assignmentCols = { groupId: true as const, worldScope: true as const };
+  const noAssignment = { groupId: null as string | null, worldScope: null as string | null };
   try {
     return await db.record.findMany({
       ...query,
+      select: {
+        ...RECORD_COLUMNS,
+        parentRecordId: true,
+        trashedAt: true,
+        trashBatchId: true,
+        position: true,
+        ...assignmentCols,
+      },
+    });
+  } catch (error) {
+    if (!isMissingSchemaError(error, "P2022")) throw error;
+  }
+  try {
+    const rows = await db.record.findMany({
+      ...query,
       select: { ...RECORD_COLUMNS, parentRecordId: true, trashedAt: true, trashBatchId: true, position: true },
     });
+    return rows.map((r) => ({ ...r, ...noAssignment }));
   } catch (error) {
     if (!isMissingSchemaError(error, "P2022")) throw error;
   }
@@ -147,11 +206,11 @@ async function recordRows(db: DbOrTx, projectIds: string[]) {
       ...query,
       select: { ...RECORD_COLUMNS, parentRecordId: true, trashedAt: true, trashBatchId: true },
     });
-    return rows.map((r) => ({ ...r, position: null }));
+    return rows.map((r) => ({ ...r, position: null, ...noAssignment }));
   } catch (error) {
     if (!isMissingSchemaError(error, "P2022")) throw error;
   }
-  const noTrash = { trashedAt: null, trashBatchId: null, position: null };
+  const noTrash = { trashedAt: null, trashBatchId: null, position: null, ...noAssignment };
   try {
     const rows = await db.record.findMany({ ...query, select: { ...RECORD_COLUMNS, parentRecordId: true } });
     return rows.map((r) => ({ ...r, ...noTrash }));
@@ -175,18 +234,29 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
   const projectIds = projects.map((p) => p.id);
   const inProjects = { projectId: { in: projectIds } };
 
-  const [records, sources, changePackages, auditEntries, reviewItems, importedFiles, dictionaryEntries, recordLinks, recordImages] =
-    await Promise.all([
-      recordRows(db, projectIds),
-      db.source.findMany({ where: inProjects, orderBy: { id: "asc" } }),
-      db.changePackage.findMany({ where: inProjects, orderBy: [{ projectId: "asc" }, { packageId: "asc" }] }),
-      db.auditEntry.findMany({ where: inProjects, orderBy: { id: "asc" } }),
-      db.reviewItem.findMany({ where: inProjects, orderBy: { id: "asc" } }),
-      db.importedFile.findMany({ where: inProjects, orderBy: { id: "asc" } }),
-      dictionaryRows(db, workspaceId),
-      recordLinkRows(db, projectIds),
-      recordImageRows(db, projectIds),
-    ]);
+  const [
+    records,
+    sources,
+    changePackages,
+    auditEntries,
+    reviewItems,
+    importedFiles,
+    dictionaryEntries,
+    recordLinks,
+    recordImages,
+    manuscriptGroups,
+  ] = await Promise.all([
+    recordRows(db, projectIds),
+    db.source.findMany({ where: inProjects, orderBy: { id: "asc" } }),
+    db.changePackage.findMany({ where: inProjects, orderBy: [{ projectId: "asc" }, { packageId: "asc" }] }),
+    db.auditEntry.findMany({ where: inProjects, orderBy: { id: "asc" } }),
+    db.reviewItem.findMany({ where: inProjects, orderBy: { id: "asc" } }),
+    db.importedFile.findMany({ where: inProjects, orderBy: { id: "asc" } }),
+    dictionaryRows(db, workspaceId),
+    recordLinkRows(db, projectIds),
+    recordImageRows(db, projectIds),
+    manuscriptGroupRows(db, projectIds),
+  ]);
   const revisions = await db.revision.findMany({
     where: { recordId: { in: records.map((r) => r.id) } },
     orderBy: [{ recordId: "asc" }, { revisionNumber: "asc" }],
@@ -204,7 +274,24 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
       title: p.title,
       createdAt: iso(p.createdAt),
       ...trashFields(p),
+      ...(p.seriesName ? { seriesName: p.seriesName } : {}),
+      ...(p.bookName ? { bookName: p.bookName } : {}),
+      ...(p.draftKind === "zero_draft" || p.draftKind === "author_manuscript" ? { draftKind: p.draftKind } : {}),
+      ...(p.assignmentRevision > 0 ? { assignmentRevision: p.assignmentRevision } : {}),
     })),
+    ...(manuscriptGroups.length
+      ? {
+          manuscriptGroups: manuscriptGroups.map((g) => ({
+            id: g.id,
+            projectId: g.projectId,
+            label: g.label,
+            position: g.position,
+            draftKind:
+              g.draftKind === "zero_draft" || g.draftKind === "author_manuscript" ? g.draftKind : null,
+            createdAt: iso(g.createdAt),
+          })),
+        }
+      : {}),
     records: records.map((r) => ({
       id: r.id,
       projectId: r.projectId,
@@ -217,6 +304,8 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
       protected: r.protected,
       parentRecordId: r.parentRecordId,
       ...(r.position !== null ? { position: r.position } : {}),
+      ...(r.groupId ? { groupId: r.groupId } : {}),
+      ...(r.worldScope === "book" || r.worldScope === "series" ? { worldScope: r.worldScope } : {}),
       currentRevision: r.currentRevision,
       ...trashFields(r),
       ...(r.trashBatchId ? { trashBatchId: r.trashBatchId } : {}),
@@ -343,6 +432,7 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
       dictionaryEntries: dictionaryEntries.length,
       recordLinks: recordLinks.length,
       recordImages: recordImages.length,
+      ...(manuscriptGroups.length ? { manuscriptGroups: manuscriptGroups.length } : {}),
     },
   };
   return { ...body, checksum: backupChecksum(body) };
@@ -394,6 +484,7 @@ function checkInternalConsistency(b: WorkspaceBackupV1): Issue[] {
     dictionaryEntries: dictionaryEntriesOf(b).length,
     recordLinks: recordLinksOf(b).length,
     recordImages: recordImagesOf(b).length,
+    manuscriptGroups: manuscriptGroupsOf(b).length,
   };
   for (const key of Object.keys(actualCounts) as (keyof BackupCounts)[]) {
     if (actualCounts[key] !== (b.counts[key] ?? 0)) {
@@ -419,11 +510,14 @@ function checkInternalConsistency(b: WorkspaceBackupV1): Issue[] {
   checkUnique(recordLinksOf(b).map((l) => `${l.fromRecordId}/${l.toRecordId}`), "reference link pair", issues);
   checkUnique(recordImagesOf(b).map((img) => img.id), "image", issues);
   checkUnique(recordImagesOf(b).map((img) => `${img.recordId}/${img.name}`), "image name", issues);
+  checkUnique(manuscriptGroupsOf(b).map((g) => g.id), "manuscript group", issues);
 
   const projectIds = new Set(b.projects.map((p) => p.id));
   const recordIds = new Set(b.records.map((r) => r.id));
   const sourceIds = new Set(b.sources.map((s) => s.id));
   const recordProject = new Map(b.records.map((r) => [r.id, r.projectId]));
+  const groupIds = new Set(manuscriptGroupsOf(b).map((g) => g.id));
+  const groupProject = new Map(manuscriptGroupsOf(b).map((g) => [g.id, g.projectId]));
 
   for (const p of b.projects) {
     if (p.workspaceId !== b.workspace.id) issues.push(integrity(`Project ${p.id} belongs to another workspace.`));
@@ -431,6 +525,7 @@ function checkInternalConsistency(b: WorkspaceBackupV1): Issue[] {
   const needProject = (pid: string, what: string) => {
     if (!projectIds.has(pid)) issues.push(integrity(`${what} references missing project ${pid}.`));
   };
+  manuscriptGroupsOf(b).forEach((g) => needProject(g.projectId, `Manuscript group ${g.id}`));
   const recordType = new Map(b.records.map((r) => [r.id, r.type]));
   b.records.forEach((r) => {
     needProject(r.projectId, `Record ${r.id}`);
@@ -445,6 +540,16 @@ function checkInternalConsistency(b: WorkspaceBackupV1): Issue[] {
       issues.push(integrity(`Record ${r.id} belongs to missing record ${parentId}.`));
     } else if (!allowedParent(r.type, recordType.get(parentId)!)) {
       issues.push(integrity(`Record ${r.id} (${r.type}) cannot belong to a ${recordType.get(parentId)}.`));
+    }
+    if (r.groupId) {
+      if (!groupIds.has(r.groupId) || groupProject.get(r.groupId) !== r.projectId) {
+        issues.push(integrity(`Record ${r.id} references missing manuscript group ${r.groupId}.`));
+      } else if (r.type !== "manuscript_chapter" && r.type !== "manuscript_scene") {
+        issues.push(integrity(`Record ${r.id} (${r.type}) cannot belong to a manuscript group.`));
+      }
+    }
+    if (r.worldScope && r.type !== "character_dossier" && r.type !== "worldbuilding" && r.type !== "canon_decision" && r.type !== "continuity_note" && r.type !== "reference_note") {
+      issues.push(integrity(`Record ${r.id} (${r.type}) cannot have a World scope.`));
     }
   });
   recordLinksOf(b).forEach((l) => {
@@ -578,6 +683,9 @@ async function findCollisions(db: DbOrTx, b: WorkspaceBackupV1): Promise<Issue[]
   if (recordImagesOf(b).length) {
     await check("image", db.recordImage.count({ where: { id: { in: recordImagesOf(b).map((img) => img.id) } } }));
   }
+  if (manuscriptGroupsOf(b).length) {
+    await check("manuscript group", db.manuscriptGroup.count({ where: { id: { in: manuscriptGroupsOf(b).map((g) => g.id) } } }));
+  }
   return issues;
 }
 
@@ -696,6 +804,7 @@ export async function restoreWorkspaceBackup(db: Db, input: string | unknown, op
   dictionaryEntriesOf(b).forEach((d) => assign(d.id, "dic"));
   recordLinksOf(b).forEach((l) => assign(l.id, "lnk"));
   recordImagesOf(b).forEach((img) => assign(img.id, "img"));
+  manuscriptGroupsOf(b).forEach((g) => assign(g.id, "grp"));
 
   const workspaceName =
     options.workspaceName?.trim() || (remap ? `${b.workspace.name} (restored ${b.createdAt.slice(0, 10)})` : b.workspace.name);
@@ -724,6 +833,10 @@ export async function restoreWorkspaceBackup(db: Db, input: string | unknown, op
             title: p.title,
             createdAt: new Date(p.createdAt),
             trashedAt: dateOrNull(p.trashedAt),
+            seriesName: p.seriesName ?? null,
+            bookName: p.bookName ?? null,
+            draftKind: p.draftKind ?? null,
+            assignmentRevision: p.assignmentRevision ?? 0,
           })),
         });
         await tx.source.createMany({
@@ -739,6 +852,19 @@ export async function restoreWorkspaceBackup(db: Db, input: string | unknown, op
             createdAt: new Date(s.createdAt),
           })),
         });
+        const groups = manuscriptGroupsOf(b);
+        if (groups.length) {
+          await tx.manuscriptGroup.createMany({
+            data: groups.map((g) => ({
+              id: m(g.id),
+              projectId: m(g.projectId),
+              label: g.label,
+              position: g.position,
+              draftKind: g.draftKind,
+              createdAt: new Date(g.createdAt),
+            })),
+          });
+        }
         await tx.record.createMany({
           data: b.records.map((r) => ({
             id: m(r.id),
@@ -752,6 +878,8 @@ export async function restoreWorkspaceBackup(db: Db, input: string | unknown, op
             protected: r.protected,
             parentRecordId: mn(r.parentRecordId ?? null),
             position: r.position ?? null,
+            groupId: r.groupId ? m(r.groupId) : null,
+            worldScope: r.worldScope ?? null,
             currentRevision: r.currentRevision,
             trashedAt: dateOrNull(r.trashedAt),
             trashBatchId: r.trashBatchId ?? null,

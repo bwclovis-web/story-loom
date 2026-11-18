@@ -26,8 +26,37 @@ export const workspaceBackupV1Schema = z
     /** `trashedAt` (added with the Trash) is present only for items in the Trash. */
     workspace: z.object({ id, name: z.string().min(1), createdAt: timestamp, trashedAt: timestamp.optional() }).strict(),
     projects: z.array(
-      z.object({ id, workspaceId: id, title: z.string().min(1), createdAt: timestamp, trashedAt: timestamp.optional() }).strict(),
+      z
+        .object({
+          id,
+          workspaceId: id,
+          title: z.string().min(1),
+          createdAt: timestamp,
+          trashedAt: timestamp.optional(),
+          /** Optional Series/Book/Draft assignments; omitted when unassigned. */
+          seriesName: z.string().min(1).optional(),
+          bookName: z.string().min(1).optional(),
+          draftKind: z.enum(["zero_draft", "author_manuscript"]).optional(),
+          /** Omitted when 0 (never assigned or cleared). */
+          assignmentRevision: z.number().int().min(0).optional(),
+        })
+        .strict(),
     ),
+    /** Manuscript groups; omitted in backups written before Series/Book/Draft assignments. */
+    manuscriptGroups: z
+      .array(
+        z
+          .object({
+            id,
+            projectId: id,
+            label: z.string().min(1),
+            position: z.number().int().min(0),
+            draftKind: z.enum(["zero_draft", "author_manuscript"]).nullable(),
+            createdAt: timestamp,
+          })
+          .strict(),
+      )
+      .optional(),
     records: z.array(
       z
         .object({
@@ -44,6 +73,10 @@ export const workspaceBackupV1Schema = z
           parentRecordId: id.nullable().optional(),
           /** Book order; written only for chapters and scenes the author has moved. */
           position: z.number().int().min(0).optional(),
+          /** Manuscript group; omitted when unassigned. */
+          groupId: id.optional(),
+          /** World scope: book | series; omitted when unassigned. */
+          worldScope: z.enum(["book", "series"]).optional(),
           currentRevision: z.number().int().min(1),
           trashedAt: timestamp.optional(),
           trashBatchId: id.optional(),
@@ -220,6 +253,7 @@ export const workspaceBackupV1Schema = z
         dictionaryEntries: z.number().int().optional(),
         recordLinks: z.number().int().optional(),
         recordImages: z.number().int().optional(),
+        manuscriptGroups: z.number().int().optional(),
       })
       .strict(),
     /** sha256 of the stable JSON serialization of every other top-level field. */

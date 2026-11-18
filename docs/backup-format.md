@@ -8,8 +8,9 @@ A complete copy of one workspace, produced by **Backup & restore** in the app,
 
 | Field | What it preserves |
 | --- | --- |
-| `workspace`, `projects` | IDs, names, creation times, and `trashedAt` when it is in the Trash (optional; absent means not in the Trash) |
-| `records` | Current content, type, canon status (`authorityStatus`), superseded-by link, protection flag, current revision, and `parentRecordId` (the chapter of a scene, or the chapter or scene of a scene note; optional, and treated as none in backups made before scenes existed), and `position` (book order of a chapter or scene the author has moved; omitted otherwise, and such records follow positioned ones in creation order). A record in the Trash also has `trashedAt` and `trashBatchId` (the records moved together, restored together); both are omitted otherwise |
+| `workspace`, `projects` | IDs, names, creation times, and `trashedAt` when it is in the Trash (optional; absent means not in the Trash). Optional Series/Book/Draft fields on a project (`seriesName`, `bookName`, `draftKind`, `assignmentRevision`) are written only when set; older backups omit them and restore as unassigned |
+| `manuscriptGroups` | Named chapter groups for optional manuscript assignments: `id`, `projectId`, `label`, `position`, `draftKind`, `createdAt`. Optional: backups made before assignments existed omit it and restore with no groups |
+| `records` | Current content, type, canon status (`authorityStatus`), superseded-by link, protection flag, current revision, and `parentRecordId` (the chapter of a scene, or the chapter or scene of a scene note; optional, and treated as none in backups made before scenes existed), and `position` (book order of a chapter or scene the author has moved; omitted otherwise, and such records follow positioned ones in creation order), and optional `groupId` / `worldScope` (Series/Book/Draft assignments; omitted when unassigned). A record in the Trash also has `trashedAt` and `trashBatchId` (the records moved together, restored together); both are omitted otherwise |
 | `revisions` | Every revision's full snapshot, content hash, and the provenance source that created it |
 | `sources` | Provenance: kind (ui / change_package / markdown_import), actor, conversation label, URL, package ID, original filename |
 | `changePackages` | Applied package identity: (`projectId`, `packageId`), content hash, the exact raw JSON, and the stored result |
@@ -19,7 +20,7 @@ A complete copy of one workspace, produced by **Backup & restore** in the app,
 | `dictionaryEntries` | The author's dictionary: word, match-case flag, note, origin, and `projectId` (null for a workspace-wide word). Optional: backups made before the dictionary existed omit it and restore with an empty dictionary |
 | `recordLinks` | Reference links from a chapter or scene to a reference record: `id`, `projectId`, `fromRecordId`, `toRecordId`, `createdAt`. Optional: backups made before scenes existed omit it and restore with no links |
 | `recordImages` | Images on reference documents: `id`, `projectId`, `recordId`, `name` (unique within the record; the text refers to it as `image:<name>`), `originalFilename`, `mimeType` (PNG, JPEG, GIF or WebP), `byteSize`, `width`, `height`, `contentHash` (sha256 of the file), `dataBase64` (the file itself), `caption`, `altText`, `position`, `createdAt`, `updatedAt`. Optional: backups made before images existed omit it and restore with no images |
-| `counts`, `checksum` | Row counts (`dictionaryEntries`, `recordLinks` and `recordImages` optional, as above), and a sha256 over the stable serialization of every other field |
+| `counts`, `checksum` | Row counts (`dictionaryEntries`, `recordLinks`, `recordImages` and `manuscriptGroups` optional, as above), and a sha256 over the stable serialization of every other field |
 | `app.migrations` | Schema migrations known to the app that wrote the file |
 
 Other connections between records are stored inside records
