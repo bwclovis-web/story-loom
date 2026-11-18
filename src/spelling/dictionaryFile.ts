@@ -99,7 +99,7 @@ export function parseDictionaryImport(text: string): ParsedImport {
     const parsed = dictionaryFileSchema.safeParse(raw);
     if (!parsed.success) {
       const first = parsed.error.issues[0];
-      return { ok: false, message: `Not a Wordly dictionary file (${first.path.join(".") || "file"}: ${first.message}).` };
+      return { ok: false, message: `Not a Story Loom dictionary file (${first.path.join(".") || "file"}: ${first.message}).` };
     }
     return {
       ok: true,

@@ -25,7 +25,7 @@ export function spellingCookie(language: SpellingLanguage): string {
 }
 
 export const SPELL_CHECKERS = [
-  { code: "app", label: "Wordly (uses your dictionary)" },
+  { code: "app", label: "Story Loom (uses your dictionary)" },
   { code: "browser", label: "Browser" },
 ] as const;
 

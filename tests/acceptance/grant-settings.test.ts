@@ -32,7 +32,7 @@ describe("ChatGPT connection settings", () => {
     const loaded = await readGrantFile(grantFile);
     expect(loaded).toEqual({
       ok: true,
-      grant: { id: "grn_local_app", label: "Set in Wordly Editor", status: "active", projectIds: [IDS.project], capabilities: ["read"], manuscriptRead: false },
+      grant: { id: "grn_local_app", label: "Set in Story Loom", status: "active", projectIds: [IDS.project], capabilities: ["read"], manuscriptRead: false },
     });
 
     await saveGrantSettings(t.db, env, dir, { active: false, projectIds: [IDS.project], manuscriptRead: true });

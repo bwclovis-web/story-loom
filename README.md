@@ -1,4 +1,4 @@
-# Wordly Editor
+# Story Loom
 
 A local, authoritative store for a novel's project state: manuscript chapters
 and scenes, outlines, character dossiers, worldbuilding, canon decisions, and continuity

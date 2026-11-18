@@ -56,7 +56,7 @@ export function createPdf(info: { title: string; subject: string }): PDFKit.PDFD
     bufferPages: true,
     autoFirstPage: true,
     font: fontPath(FONTS.body),
-    info: { Title: info.title, Subject: info.subject, Creator: "Wordly Editor", Producer: "Wordly Editor (PDFKit)" },
+    info: { Title: info.title, Subject: info.subject, Creator: "Story Loom", Producer: "Story Loom (PDFKit)" },
     displayTitle: true,
     lang: "en",
   });

@@ -149,10 +149,10 @@ export function AppShell({
           </button>
           <Link href="/" className="brand" aria-label={NAV.brand}>
             <span className="brand-mark" aria-hidden="true">
-              W
+              S
             </span>
             <span className="brand-text" aria-hidden="true">
-              Wordly<span className="brand-accent">Editor</span>
+              Story<span className="brand-accent">Loom</span>
             </span>
           </Link>
         </div>

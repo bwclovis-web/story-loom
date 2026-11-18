@@ -1,6 +1,6 @@
 {
   "$id": "https://wordly-editor.local/schemas/change-package.v1.json",
-  "title": "Wordly change package v1",
+  "title": "Story Loom change package v1 (wordly.change-package)",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "properties": {

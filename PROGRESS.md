@@ -1571,3 +1571,40 @@ change, no migration, no change to app behavior, routes or Help.
   ignored. It is still in history and on the remote.
 - Other tracked text files are also CRLF in this working tree; only the one
   test fixture was rewritten.
+
+## Display name: Story Loom (Nov 17, 2026)
+
+Requested: rename the user-facing app to Story Loom across the shell, page
+titles, Help and install metadata, while keeping supported Wordly routes,
+config keys, database paths and `.wordly*` formats working. No schema change
+and no migration.
+
+### Implemented
+
+- Display name `APP_NAME` / `NAV.brand` is **Story Loom** (`src/ui/labels.ts`).
+  Shell brand mark `S`, brand text Story/Loom, document title, Help, spelling
+  and dictionary labels, PDF metadata, assistant and proofreading prompts,
+  MCP instructions and stderr, grant default label, `package.json` name
+  `story-loom`, README and related docs.
+- Unchanged for compatibility: `wordly.workspace-backup` / change-package /
+  context-bundle / dictionary formats, backup `app.name: "wordly-editor"`,
+  MCP server name `wordly-editor`, `WORDLY_*` env keys, `wordly-*` cookies,
+  `prisma/dev.db`, routes, and frozen legacy fixtures.
+
+### Verification results
+
+| Check | Result |
+| --- | --- |
+| `pnpm db:info` | Opens `prisma/dev.db`; 10 migrations; 2 workspaces, 2 projects, 145 records |
+| `tests/acceptance/legacy-baseline.test.ts` | 10/10 passed (restore, inventory match, protected/stale/duplicate packages, earliest v1 shape) |
+| Live app | Dev server still serving; home/help return 200; page title and Help show Story Loom; a `wordly.change-package` import on the working project succeeded during the run |
+| `pnpm typecheck` | pass |
+| `pnpm test` | 52 files, 448 tests passed |
+| `pnpm build` | pass; same 31 routes |
+
+### Limitations
+
+- Historical PROGRESS entries and the Step 0 baseline doc still say
+  "Wordly Editor" where they describe past work.
+- Package and MCP protocol identifiers remain `wordly-*` / `wordly-editor` on
+  purpose so older backups, grants and clients keep working.

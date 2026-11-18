@@ -70,12 +70,12 @@ Write tools, staged change sets, tunnels, and OAuth are not implemented.
 | Develop ideas | ChatGPT. The adapter is not required. |
 | Ask for current records | ChatGPT, once a connection exists, through the read tools. Until then, a context export. |
 | Review a concrete set of updates | ChatGPT can show a proposal. That display is not authorization. |
-| Authorize and save that set | WordlyEditor, on one page. Today that page is **Import change package**: validate, preview, and **Apply package** together. A future remote change set uses that same shape: one preview and one apply. It is not built. |
+| Authorize and save that set | Story Loom, on one page. Today that page is **Import change package**: validate, preview, and **Apply package** together. A future remote change set uses that same shape: one preview and one apply. It is not built. |
 | Summary of saved changes | The apply result on that page, and **History & review**. After a connection exists, ChatGPT may read that history and summarise it. The summary is a report, not another approval. |
 
 ChatGPT's confirmation prompt, **Allow all actions**, and any model-written
-"approved" flag are not authorization. Wordly cannot see whether a person
-clicked them. After the author applies a specific change set on the Wordly
+"approved" flag are not authorization. Story Loom cannot see whether a person
+clicked them. After the author applies a specific change set on the Story Loom
 page, that set is not approved a second time. A different set, or the same
 set after it has gone stale, is prepared and reviewed again.
 
@@ -83,10 +83,10 @@ set after it has gone stale, is prepared and reviewed again.
 
 | | In-app assistant ([assistant.md](assistant.md)) | ChatGPT connection (this plan) |
 | --- | --- | --- |
-| Who runs the model | Wordly's server calls the OpenAI Responses API | ChatGPT, under the author's ChatGPT account |
+| Who runs the model | Story Loom's server calls the OpenAI Responses API | ChatGPT, under the author's ChatGPT account |
 | Who pays for model use | The OpenAI API project behind `WORDLY_OPENAI_API_KEY`, per token | The author's ChatGPT plan (app use may count toward plan limits) |
-| Direction | Wordly sends the context the author ticks | ChatGPT calls Wordly's tools and pulls what it asks for |
-| Where you chat | The Assistant page in Wordly | ChatGPT (web), with its own memory, projects and data controls |
+| Direction | Story Loom sends the context the author ticks | ChatGPT calls Story Loom's tools and pulls what it asks for |
+| Where you chat | The Assistant page in Story Loom | ChatGPT (web), with its own memory, projects and data controls |
 | Credentials | `WORDLY_OPENAI_API_KEY` (server-only) | ChatGPT connection settings, plus a separate tunnel key if a tunnel is used. `WORDLY_OPENAI_API_KEY` is not used |
 | Approval | **Apply** button on a shown proposal | Author approval bound to a previewed change set (see [Approval binding](#approval-binding)) |
 | Network | Outbound HTTPS to OpenAI only | ChatGPT must reach the MCP server (see [Reachability](#reachability)) |
@@ -106,7 +106,7 @@ use the assistant's key, settings or history.
   toggle is no longer needed: you acknowledge a risk warning for each server
   instead. Account and workspace policies still apply. [1][2][3]
 - The "Apps SDK" documentation has been reorganised as **Plugins**. A plugin
-  can bundle an MCP server, skills and optional UI. Wordly needs only an MCP
+  can bundle an MCP server, skills and optional UI. Story Loom needs only an MCP
   server with tools; UI and skills are optional. [4][5]
 - Custom MCP servers are available on **ChatGPT web only**, not mobile. [2]
 - After connecting, ChatGPT uses a snapshot of the tool list. Changes to tool
@@ -289,7 +289,7 @@ code execution.
 cannot verify that a person clicked anything in ChatGPT. A model-supplied
 approved flag is not approval.
 
-The trusted step is one page in WordlyEditor. Today that page is **Import
+The trusted step is one page in Story Loom. Today that page is **Import
 change package**: the preview and **Apply package** are the same action.
 A future remote change set, when writes are built, must work the same way:
 the author previews that set and applies it there, including the canon tick
@@ -320,7 +320,7 @@ shown proposal, and canon changes need the author's confirmation.
 
 ## Credentials and permissions
 
-- **Grants (new, managed in Wordly's local UI):** label, workspace, allowed
+- **Grants (new, managed in Story Loom's local UI):** label, workspace, allowed
   project IDs, capabilities (`read`, `prepare`, `apply`; `manuscript:read`
   optional), created, last used, revoked. Revoking takes effect on the next
   call.
@@ -328,7 +328,7 @@ shown proposal, and canon changes need the author's confirmation.
   with a grant ID from local configuration. The protection then comes from
   three layers: the ChatGPT account (a personal plugin is visible only to its
   creator), the tunnel's workspace association, and the tunnel runtime key.
-  This is the simplest setup, but Wordly cannot tell users apart. It suits a
+  This is the simplest setup, but Story Loom cannot tell users apart. It suits a
   single author only.
 - **With OAuth:** use an identity provider reachable from the author's browser
   and from ChatGPT, typically hosted, with CIMD and PKCE. The local server
@@ -338,7 +338,7 @@ shown proposal, and canon changes need the author's confirmation.
   the tunnel is unverified (see the OAuth caveat above).
 - **Secrets:** the tunnel runtime key lives only in the `tunnel-client`
   configuration or the OS secret store. It is a restricted key with Tunnels
-  Read + Use, separate from `WORDLY_OPENAI_API_KEY`, and never stored in Wordly's
+  Read + Use, separate from `WORDLY_OPENAI_API_KEY`, and never stored in Story Loom's
   database, the repository, logs, tool results or chat. Rotate it on
   suspicion; stopping `tunnel-client` cuts off access immediately.
 - **Kill switches:** an environment flag that disables the MCP server, grant
@@ -424,7 +424,7 @@ restore from backup).
 
 Decided for this stage:
 
-4. **Approval location.** Preview and apply happen together on one Wordly
+4. **Approval location.** Preview and apply happen together on one Story Loom
    page. ChatGPT does not apply afterward. See [Author workflow](#author-workflow).
 5. **Process model.** Separate stdio process (option A). SQLite stays in
    `delete` journal mode. A second process can read while the UI is open;

@@ -12,13 +12,14 @@ import { getDb } from "@/server/db";
 import { listProjectSummaries } from "@/server/services/projectService";
 import { listRecordNav } from "@/server/services/recordService";
 import { parseTextAppearance, TEXT_COOKIE, textAppearanceVars } from "@/ui/textAppearance";
+import { APP_NAME } from "@/ui/labels";
 import { parseTheme, THEME_COOKIE } from "@/ui/theme";
 import "./globals.css";
 
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Wordly Editor",
+  title: APP_NAME,
   description: "Local project store for manuscript and reference records",
 };
 

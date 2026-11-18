@@ -8,7 +8,7 @@ export function changePackageJsonSchema(): Record<string, unknown> {
   if (!cached) {
     cached = {
       $id: "https://wordly-editor.local/schemas/change-package.v1.json",
-      title: "Wordly change package v1",
+      title: "Story Loom change package v1 (wordly.change-package)",
       ...(z.toJSONSchema(changePackageV1Schema, { io: "input" }) as Record<string, unknown>),
     };
   }

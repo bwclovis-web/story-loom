@@ -76,10 +76,10 @@ export function GlobalNav({
     <nav aria-label={SHELL.mainNav} className="global-nav">
       <Link href="/" className={`brand ${tip}`} aria-label={NAV.brand} data-tooltip={NAV.brand}>
         <span className="brand-mark" aria-hidden="true">
-          W
+          S
         </span>
         <span className="label brand-text" aria-hidden="true">
-          Wordly<span className="brand-accent">Editor</span>
+          Story<span className="brand-accent">Loom</span>
         </span>
       </Link>
 

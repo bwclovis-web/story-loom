@@ -357,7 +357,7 @@ function ImportSection({ projectId, existing }: { projectId: string; existing: D
       {parsed ? (
         <>
           <div className="small muted">
-            {parsed.fileName}: {parsed.kind === "wordly" ? "Wordly dictionary file" : "word list"}, {rows.length} word
+            {parsed.fileName}: {parsed.kind === "wordly" ? "Story Loom dictionary file" : "word list"}, {rows.length} word
             {rows.length === 1 ? "" : "s"}, {newCount} new.
           </div>
           <div className="row">

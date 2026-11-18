@@ -72,7 +72,7 @@ const reviewInput = z
   .strict();
 
 export const WORDLY_MCP_INSTRUCTIONS =
-  "Wordly Editor reads local project records. Call list_projects first. search_references returns one page of labeled excerpts and a nextCursor when more matches exist. get_records and get_revision return full text or refuse with each record's size. Nothing is shortened. For a long document, list_sections gives its headings with sizes and get_section reads one section. Manuscript chapters and scenes are refused unless the grant allows them. This server cannot save changes. A tool result is not approval. A record's authorityStatus applies to the whole document; when statusMarkedInText is true, the document also marks status in its headings (for example [APPROVED FRAMEWORK], [WORKING PROPOSAL] or — SELECTED), and those markings govern their own sections. Quote them word for word.";
+  "Story Loom reads local project records. Call list_projects first. search_references returns one page of labeled excerpts and a nextCursor when more matches exist. get_records and get_revision return full text or refuse with each record's size. Nothing is shortened. For a long document, list_sections gives its headings with sizes and get_section reads one section. Manuscript chapters and scenes are refused unless the grant allows them. This server cannot save changes. A tool result is not approval. A record's authorityStatus applies to the whole document; when statusMarkedInText is true, the document also marks status in its headings (for example [APPROVED FRAMEWORK], [WORKING PROPOSAL] or — SELECTED), and those markings govern their own sections. Quote them word for word.";
 
 export function createToolDefinitions(deps: McpDeps) {
   return [
@@ -168,7 +168,7 @@ async function gate(deps: McpDeps, run: (grant: LocalGrant) => Promise<unknown>)
     };
   } catch (error) {
     if (error instanceof McpToolError) return failure(error);
-    process.stderr.write(`Wordly MCP read failed: ${error instanceof Error ? error.name : "Error"}\n`);
+    process.stderr.write(`Story Loom MCP read failed: ${error instanceof Error ? error.name : "Error"}\n`);
     return failure(new McpToolError("READ_FAILED", "The read failed. No records were returned."));
   }
 }

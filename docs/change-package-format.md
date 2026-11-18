@@ -2,7 +2,7 @@
 
 A change package is a JSON document describing a bounded set of edits to a
 project's records. It is how decisions approved in a ChatGPT conversation are
-brought into Wordly Editor without replacing whole reference-file collections.
+brought into Story Loom without replacing whole reference-file collections.
 
 - Machine-readable schema: [`schemas/change-package.v1.schema.json`](schemas/change-package.v1.schema.json)
   (regenerate with `pnpm schema:export`; source of truth is `src/changePackage/schema.v1.ts`).

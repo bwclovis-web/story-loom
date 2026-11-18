@@ -4,7 +4,7 @@ import { compareBookOrder } from "@/domain/bookOrder";
 import { sha256, sha256Bytes, stableStringify } from "@/domain/json";
 
 /*
- * Read-only inventory of a Wordly SQLite file, for comparing a database before
+ * Read-only inventory of a Story Loom SQLite file, for comparing a database before
  * and after a migration or a restore. It holds IDs, structure, counts and
  * sha256 hashes, never titles or text, so it can be shared in a report.
  * It reads with plain SQL on a read-only connection inside one read

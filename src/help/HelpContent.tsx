@@ -45,7 +45,7 @@ import { APP_URL, HELP_SECTIONS, helpHref, STATUS_DESCRIPTIONS, type HelpAnchor,
  */
 
 export const CHATGPT_INSTRUCTION =
-  "Use this WordlyEditor context export as the current source. Keep proposed ideas separate from approved decisions. " +
+  "Use this Story Loom context export as the current source. Keep proposed ideas separate from approved decisions. " +
   "When I ask you to prepare updates, follow the included package format and use the supplied record IDs and " +
   "saved-version numbers. Do not change manuscript prose unless I explicitly request it.";
 
@@ -99,7 +99,7 @@ export function HelpContent() {
     <div className="help-body">
       <Section id="quick-start">
         <ol>
-          <li>Open a terminal in the WordlyEditor folder.</li>
+          <li>Open a terminal in the Story Loom folder.</li>
           <li>
             Run <Cmd script="dev" />. Leave this terminal open while you work.
           </li>
@@ -128,14 +128,14 @@ export function HelpContent() {
 
       <Section id="getting-started">
         <p>
-          WordlyEditor keeps your novel&apos;s working material in one place: manuscript chapters, outlines, character
+          Story Loom keeps your novel&apos;s working material in one place: manuscript chapters, outlines, character
           dossiers, worldbuilding, canon decisions, continuity notes, and reference notes. Each item is called a{" "}
           <em>record</em>. Every time you save a record, the earlier saved versions are kept.
         </p>
         <h3>Where your work is stored</h3>
         <p>
           Everything is stored in one database file on this computer. By default it is <code>prisma/dev.db</code>{" "}
-          inside the WordlyEditor folder. The <code>.env</code> file says which file is used. To see the exact path,
+          inside the Story Loom folder. The <code>.env</code> file says which file is used. To see the exact path,
           run <Cmd script="db:info" />. It only reads; it changes nothing.
         </p>
         <p>
@@ -145,7 +145,7 @@ export function HelpContent() {
         <h3>Opening the app</h3>
         <p>The app must be running before the page will load.</p>
         <ol>
-          <li>Open a terminal in the WordlyEditor folder.</li>
+          <li>Open a terminal in the Story Loom folder.</li>
           <li>
             Run <Cmd script="dev" /> (<code>npm run dev</code> also works).
           </li>
@@ -1452,7 +1452,7 @@ export function HelpContent() {
             </li>
           </ul>
           <p>Only one checker underlines the text at a time. The choice is saved in this browser.</p>
-          <h4>Checking with Wordly</h4>
+          <h4>Checking with Story Loom</h4>
           <ol>
             <li>
               Click an underlined word, or choose <L>{SPELLING.next}</L> or <L>{SPELLING.previous}</L> to select the
@@ -1500,7 +1500,7 @@ export function HelpContent() {
               text on a reference document); ticking either ticks both. Ignoring and adding words still work.
             </li>
             <li>
-              If the Wordly checker cannot start, the box says so and the browser&apos;s checker is used instead.
+              If the Story Loom checker cannot start, the box says so and the browser&apos;s checker is used instead.
             </li>
           </ul>
           <h4>Spelling language</h4>
@@ -1518,7 +1518,7 @@ export function HelpContent() {
             </li>
           </ol>
           <p>
-            The choice is saved in this browser. Wordly checks with the matching US or UK word list. Record titles, and
+            The choice is saved in this browser. Story Loom checks with the matching US or UK word list. Record titles, and
             the text in <L>{RECORD.newRecordHeading}</L>, are always checked by the browser, which is told the language
             you chose.
           </p>
@@ -1532,7 +1532,7 @@ export function HelpContent() {
 
         <Sub id="dictionary">
           <p>
-            Your dictionary holds invented names and words that are spelled correctly, so the Wordly checker stops
+            Your dictionary holds invented names and words that are spelled correctly, so the Story Loom checker stops
             underlining them and AI proofreading leaves them alone. Open it with <L>{NAV.dictionary}</L> in a
             project&apos;s menu, or <L>{SPELLING.manageDictionary}</L> in the <L>{WRITING.toolsHeading}</L> box.
           </p>
@@ -1852,7 +1852,7 @@ export function HelpContent() {
         <Sub id="assistant-setup">
           <p>
             The assistant uses an OpenAI API key, which is separate from a ChatGPT subscription and billed separately by
-            OpenAI. Setup happens in the <code>.env</code> file in the WordlyEditor folder, never in the app.
+            OpenAI. Setup happens in the <code>.env</code> file in the Story Loom folder, never in the app.
           </p>
           <ol>
             <li>Create an API key in your OpenAI API account (platform.openai.com).</li>
@@ -1876,7 +1876,7 @@ export function HelpContent() {
             <code>NEXT_PUBLIC_</code>; the assistant refuses to run if one is set.
           </p>
           <p>
-            Wordly Editor uses only its own key. A key in the general <code>OPENAI_API_KEY</code> variable, which other
+            Story Loom uses only its own key. A key in the general <code>OPENAI_API_KEY</code> variable, which other
             apps on the computer may share, is ignored, and the assistant stays off until <code>WORDLY_OPENAI_API_KEY</code>{" "}
             is set. A separate key also lets you see this app&apos;s usage and spending on its own in your OpenAI account.
             Other shared OpenAI settings (organisation, project and server address) are not used either; if{" "}
@@ -2119,7 +2119,7 @@ export function HelpContent() {
           <li>Ask ChatGPT to prepare a change package for the approved changes, using the format in the export.</li>
           <li>Save ChatGPT&apos;s answer as a .json file, or copy its text.</li>
           <li>
-            In WordlyEditor, import the package with <L>{NAV.importPackage}</L>. See{" "}
+            In Story Loom, import the package with <L>{NAV.importPackage}</L>. See{" "}
             <See anchor="change-package-import" />.
           </li>
           <li>Review the differences.</li>
@@ -2163,11 +2163,11 @@ export function HelpContent() {
           <p>The page has two parts:</p>
           <ul>
             <li>
-              <L>{CONNECTIONS.assistantHeading}</L> is the optional assistant inside WordlyEditor. See{" "}
+              <L>{CONNECTIONS.assistantHeading}</L> is the optional assistant inside Story Loom. See{" "}
               <See anchor="assistant" />.
             </li>
             <li>
-              <L>{CONNECTIONS.chatgptHeading}</L> is ChatGPT calling WordlyEditor. It shows the{" "}
+              <L>{CONNECTIONS.chatgptHeading}</L> is ChatGPT calling Story Loom. It shows the{" "}
               <L>{CONNECTIONS.localAdapter}</L> and <L>{CONNECTIONS.chatgpt}</L> separately.
             </li>
           </ul>
@@ -2477,7 +2477,7 @@ export function HelpContent() {
           </ul>
           <p>
             Before deleting anything permanently, the app writes a full backup to a new folder under <code>backups/</code>{" "}
-            in the WordlyEditor folder, named with the date and <code>before-permanent-delete</code>. It holds a copy of
+            in the Story Loom folder, named with the date and <code>before-permanent-delete</code>. It holds a copy of
             the database file and one backup file per workspace, including everything in the Trash. If the backup cannot
             be written, nothing is deleted. When deletion finishes, the page names the folder. To get something back, restore
             its workspace from that folder on the <L>{SHELL.backups}</L> page (see <See anchor="restore" />).
@@ -2515,7 +2515,7 @@ export function HelpContent() {
             <summary>Backing up every workspace at once</summary>
             <p>
               Run <Cmd script="db:backup" />. It only reads your data. It writes a folder under <code>backups/</code>{" "}
-              in the WordlyEditor folder with a copy of the database file and one backup file per workspace.
+              in the Story Loom folder with a copy of the database file and one backup file per workspace.
             </p>
           </details>
           <p>Make a backup before importing many files, before applying a large package, and at the end of a work session.</p>
@@ -2563,7 +2563,7 @@ export function HelpContent() {
         <dl>
           <dt>The app will not open</dt>
           <dd>
-            If the browser cannot connect, the app is not running. Run <Cmd script="dev" /> in the WordlyEditor folder,
+            If the browser cannot connect, the app is not running. Run <Cmd script="dev" /> in the Story Loom folder,
             wait until it is ready, then open the address the terminal shows (normally <a href={APP_URL}>{APP_URL}</a>).
             If that address ends in a port other than 3000, something else is using port 3000. Often it is the app
             itself, still running in another terminal; use that copy, or stop it with <kbd>Ctrl</kbd>+<kbd>C</kbd> there
@@ -2750,7 +2750,7 @@ export function HelpContent() {
             time. There is no style or continuity review. Suggestions are not kept after you leave the page.
           </li>
           <li>
-            Spelling is checked in US or UK English only. The Wordly checker and your dictionary apply to a record&apos;s
+            Spelling is checked in US or UK English only. The Story Loom checker and your dictionary apply to a record&apos;s
             text box; titles and <L>{RECORD.newRecordHeading}</L> use the browser&apos;s checker. There is no grammar
             checking while you type.
           </li>

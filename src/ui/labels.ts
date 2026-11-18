@@ -9,8 +9,14 @@ import type { TidyReport } from "@/writing/tidy";
 
 type Count = number | string;
 
+/**
+ * User-facing product name. Format identifiers, config keys, routes and
+ * database paths keep their Wordly names for compatibility.
+ */
+export const APP_NAME = "Story Loom";
+
 export const NAV = {
-  brand: "Wordly Editor",
+  brand: APP_NAME,
   backup: "Backup & restore",
   help: "How to use",
   records: "All records",
@@ -517,14 +523,14 @@ export const SPELLING = {
   similarNote: (words: string) =>
     `Close to ${words} in your dictionary. Near matches are not accepted, so check whether this is a different name or a typo.`,
   manageDictionary: "Manage dictionary",
-  failed: "The Wordly spell checker could not start, so the browser's spell checker is used instead.",
+  failed: `The ${APP_NAME} spell checker could not start, so the browser's spell checker is used instead.`,
   protectedNote: "This record is protected, so changing a word needs this tick first.",
 } as const;
 
 export const DICTIONARY = {
   heading: "Project dictionary",
   intro:
-    "Words here are accepted by the Wordly spell checker and AI proofreading. A word in the dictionary is never underlined, but a similar word is still flagged, so a misspelled name stays visible.",
+    `Words here are accepted by the ${APP_NAME} spell checker and AI proofreading. A word in the dictionary is never underlined, but a similar word is still flagged, so a misspelled name stays visible.`,
   addHeading: "Add a word",
   word: "Word",
   scope: "Dictionary",
@@ -544,7 +550,7 @@ export const DICTIONARY = {
   exportScope: (label: string) => `Download ${label} dictionary`,
   importHeading: "Import",
   importNote:
-    "Choose a Wordly dictionary file (.json) or a plain word list (.txt or .dic, one word per line). Nothing is added until you tick words and choose Add.",
+    `Choose a ${APP_NAME} dictionary file (.json) or a plain word list (.txt or .dic, one word per line). Nothing is added until you tick words and choose Add.`,
   importFile: "Dictionary file",
   selectAllNew: "Select all new words",
   selectNone: "Select none",

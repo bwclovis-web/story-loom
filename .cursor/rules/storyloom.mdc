@@ -1,0 +1,25 @@
+---
+alwaysApply: true
+---
+
+# Story Loom project rules
+
+- Before editing, read AGENTS.md, PROJECT_RULES.md, and the code and tests
+  relevant to the task. Check the working tree and preserve unrelated work.
+  Use the current checkout as the baseline.
+- Extend the existing Next.js, TypeScript, Prisma, and SQLite app in place.
+  Reuse existing services and UI patterns. Story Loom is the display name.
+  Preserve legacy routes, config keys, and identifiers that callers depend on.
+- Preserve record IDs, exact prose, unknown fields, revisions, provenance,
+  protection, canon status, scene parents and order, links, images, Trash,
+  and applied-package history.
+- Keep supported Wordly backups and .wordly.json packages readable. Preserve
+  stale-revision checks, protection, atomic apply, and idempotency. Version new
+  formats when needed and reject unsupported versions before writing.
+- Verify migrations and restores against isolated databases. Use invented
+  fixtures in the repo and private restored copies for real manuscript data.
+  Back up the working database and verify restore before migrating it.
+  Never reset or reseed the working database.
+- Implement the requested milestone. Run the relevant checks and report
+  actual results, compatibility limits, and rollback steps. Update Help and
+  PROGRESS.md when behavior changes. Push or deploy only when requested.

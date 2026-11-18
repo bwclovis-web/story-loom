@@ -15,7 +15,7 @@ app is unaffected.
 
 ### This app's own key
 
-Wordly Editor is responsible for its own key, usage and billing. It reads only
+Story Loom is responsible for its own key, usage and billing. It reads only
 `WORDLY_OPENAI_API_KEY`. The general `OPENAI_API_KEY`, which is often set for
 the whole computer and shared by other apps, is never used: when it is set and
 `WORDLY_OPENAI_API_KEY` is not, the assistant stays off and the page explains

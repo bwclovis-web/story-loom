@@ -4,7 +4,7 @@ import { isMcpDisabled, parseGrant, readGrantFile, resolveGrantPath, type GrantL
 import type { DbOrTx } from "@/server/db";
 
 const DEFAULT_ID = "grn_local_app";
-const DEFAULT_LABEL = "Set in Wordly Editor";
+const DEFAULT_LABEL = "Set in Story Loom";
 const MAX_PROJECTS = 100;
 
 export interface GrantSettingsInput {

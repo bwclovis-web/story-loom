@@ -148,7 +148,7 @@ export async function buildReferencesPdf(db: DbOrTx, projectId: string, recordId
   );
   const single = records.length === 1 ? records[0] : null;
   const title = single ? `${single.title} (${project})` : `${project}: references`;
-  const doc = createPdf({ title, subject: "Reference documents exported from Wordly Editor" });
+  const doc = createPdf({ title, subject: "Reference documents exported from Story Loom" });
   const generated = `Saved versions as of ${now.toLocaleString("en-GB", { dateStyle: "long", timeStyle: "short" })}`;
   const ctx: RenderContext = { images: EMPTY_IMAGES, embedded: 0 };
 
@@ -226,7 +226,7 @@ export async function buildManuscriptPdf(
   const rows = await db.record.findMany({ where: { projectId, id: { in: ids }, trashedAt: null } });
   const byId = new Map(rows.map((r) => [r.id, toRecordView(r)]));
 
-  const doc = createPdf({ title: project, subject: "Manuscript exported from Wordly Editor" });
+  const doc = createPdf({ title: project, subject: "Manuscript exported from Story Loom" });
   const generated = `Saved versions as of ${now.toLocaleString("en-GB", { dateStyle: "long", timeStyle: "short" })}`;
   drawTitlePage(doc, project, "Manuscript", generated, []);
   const ctx: RenderContext = { images: EMPTY_IMAGES, embedded: 0 };

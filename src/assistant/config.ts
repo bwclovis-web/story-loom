@@ -33,7 +33,7 @@ export const LIMIT_SPECS: Record<keyof AssistantLimits, LimitSpec> = {
 };
 
 /**
- * Wordly Editor's own key. The generic OPENAI_API_KEY is never used: it is
+ * Story Loom's own key. The generic OPENAI_API_KEY is never used: it is
  * often set for the whole computer and shared by other apps, and this app is
  * responsible for its own key, usage and billing.
  */
@@ -80,14 +80,14 @@ export function readAssistantConfig(env: Env): AssistantConfig {
 
   if (!apiKey && env[SHARED_API_KEY_ENV]?.trim()) {
     problems.push(
-      `${API_KEY_ENV} is not set. ${SHARED_API_KEY_ENV} is set, but that name is shared with other apps on this computer, so Wordly Editor does not use it. Put a key for this app in ${API_KEY_ENV} in this folder's .env file.`,
+      `${API_KEY_ENV} is not set. ${SHARED_API_KEY_ENV} is set, but that name is shared with other apps on this computer, so Story Loom does not use it. Put a key for this app in ${API_KEY_ENV} in this folder's .env file.`,
     );
   } else if (!apiKey) {
     problems.push(`${API_KEY_ENV} is not set.`);
   }
   if (env[SHARED_HEADERS_ENV]?.trim()) {
     problems.push(
-      `${SHARED_HEADERS_ENV} is set. The OpenAI library would add those headers to this app's requests, so remove it from the environment Wordly Editor runs in.`,
+      `${SHARED_HEADERS_ENV} is set. The OpenAI library would add those headers to this app's requests, so remove it from the environment Story Loom runs in.`,
     );
   }
   if (!model) problems.push(`${MODEL_ENV} is not set. Choose a text model your API project can use with the Responses API.`);

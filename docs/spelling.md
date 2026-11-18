@@ -11,7 +11,7 @@ differently, so it cannot know invented names. The editor therefore has two
 modes, chosen per browser with the `wordly-spellchecker` cookie
 (`src/writing/spelling.ts`):
 
-- `app` (default): Wordly checks the record text box itself with
+- `app` (default): Story Loom checks the record text box itself with
   [typo-js](https://github.com/cfinke/Typo.js) 1.4 and the Hunspell English
   word lists below, plus the author's dictionary. The textarea's `spellcheck`
   attribute is turned off so the browser draws no second set of underlines.
@@ -154,7 +154,7 @@ copying and redistribution are allowed provided the copyright and permission
 notices accompany copies, and the Ispell portion keeps its BSD conditions
 (retain the notice, mark modifications, no endorsement).
 
-Wordly does not copy or modify the word lists. They are installed by
+Story Loom does not copy or modify the word lists. They are installed by
 `pnpm install` into `node_modules` (not committed) and served only to the
 local browser. Anyone who redistributes the app bundled with these files must
 include those licence notices. The typo-js package's own bundled dictionaries

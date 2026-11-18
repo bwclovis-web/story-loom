@@ -10,18 +10,18 @@ import { createWordlyMcpServer } from "./server";
  */
 export async function main(): Promise<void> {
   if (isMcpDisabled(process.env)) {
-    process.stderr.write("Wordly MCP adapter is disabled (WORDLY_MCP_DISABLED). No protocol output was started.\n");
+    process.stderr.write("Story Loom MCP adapter is disabled (WORDLY_MCP_DISABLED). No protocol output was started.\n");
     process.exit(1);
   }
   const grantPath = resolveGrantPath(process.env, process.cwd());
   const grants = fileGrantSource(grantPath);
   const loaded = await grants.load();
   if (!loaded.ok) {
-    process.stderr.write(`Wordly MCP adapter is not configured. ${loaded.problems.join(" ")} No protocol output was started.\n`);
+    process.stderr.write(`Story Loom MCP adapter is not configured. ${loaded.problems.join(" ")} No protocol output was started.\n`);
     process.exit(1);
   }
   if (loaded.grant.status !== "active") {
-    process.stderr.write(`Wordly MCP adapter grant "${loaded.grant.label}" is revoked. No protocol output was started.\n`);
+    process.stderr.write(`Story Loom MCP adapter grant "${loaded.grant.label}" is revoked. No protocol output was started.\n`);
     process.exit(1);
   }
   const db = createDb(fileUrl(databaseFilePath()));

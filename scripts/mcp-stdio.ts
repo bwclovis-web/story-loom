@@ -6,6 +6,6 @@ redirectConsoleToStderr();
 void import("../src/mcp/stdioMain")
   .then(({ main }) => main())
   .catch((error: unknown) => {
-    process.stderr.write(`Wordly MCP adapter failed to start: ${error instanceof Error ? error.name : "Error"}\n`);
+    process.stderr.write(`Story Loom MCP adapter failed to start: ${error instanceof Error ? error.name : "Error"}\n`);
     process.exit(1);
   });
