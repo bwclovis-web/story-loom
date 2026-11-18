@@ -60,6 +60,14 @@ function manuscriptGroupsOf(b: WorkspaceBackupV1) {
   return b.manuscriptGroups ?? [];
 }
 
+function manuscriptDraftsOf(b: WorkspaceBackupV1) {
+  return b.manuscriptDrafts ?? [];
+}
+
+function rewriteSourceLinksOf(b: WorkspaceBackupV1) {
+  return b.rewriteSourceLinks ?? [];
+}
+
 /** P2021: table missing. P2022: column missing. */
 function isMissingSchemaError(error: unknown, code: "P2021" | "P2022"): boolean {
   return error instanceof Prisma.PrismaClientKnownRequestError && error.code === code;
@@ -109,11 +117,16 @@ async function workspaceRow(db: DbOrTx, workspaceId: string) {
 
 async function projectRows(db: DbOrTx, workspaceId: string) {
   const query = { where: { workspaceId }, orderBy: { id: "asc" as const } };
+  const draftDefaults = {
+    defaultReadingDraftId: null as string | null,
+    defaultExportDraftId: null as string | null,
+  };
   const assignmentDefaults = {
     seriesName: null as string | null,
     bookName: null as string | null,
     draftKind: null as string | null,
     assignmentRevision: 0,
+    ...draftDefaults,
   };
   try {
     return await db.project.findMany({
@@ -128,8 +141,29 @@ async function projectRows(db: DbOrTx, workspaceId: string) {
         bookName: true,
         draftKind: true,
         assignmentRevision: true,
+        defaultReadingDraftId: true,
+        defaultExportDraftId: true,
       },
     });
+  } catch (error) {
+    if (!isMissingSchemaError(error, "P2022")) throw error;
+  }
+  try {
+    const rows = await db.project.findMany({
+      ...query,
+      select: {
+        id: true,
+        workspaceId: true,
+        title: true,
+        createdAt: true,
+        trashedAt: true,
+        seriesName: true,
+        bookName: true,
+        draftKind: true,
+        assignmentRevision: true,
+      },
+    });
+    return rows.map((p) => ({ ...p, ...draftDefaults }));
   } catch (error) {
     if (!isMissingSchemaError(error, "P2022")) throw error;
   }
@@ -143,6 +177,30 @@ async function projectRows(db: DbOrTx, workspaceId: string) {
     if (!isMissingSchemaError(error, "P2022")) throw error;
     const rows = await db.project.findMany({ ...query, select: { id: true, workspaceId: true, title: true, createdAt: true } });
     return rows.map((p) => ({ ...p, trashedAt: null, ...assignmentDefaults }));
+  }
+}
+
+async function manuscriptDraftRows(db: DbOrTx, projectIds: string[]) {
+  try {
+    return await db.manuscriptDraft.findMany({
+      where: { projectId: { in: projectIds } },
+      orderBy: [{ projectId: "asc" }, { kind: "asc" }, { id: "asc" }],
+    });
+  } catch (error) {
+    if (isMissingSchemaError(error, "P2021")) return [];
+    throw error;
+  }
+}
+
+async function rewriteSourceLinkRows(db: DbOrTx, projectIds: string[]) {
+  try {
+    return await db.rewriteSourceLink.findMany({
+      where: { projectId: { in: projectIds } },
+      orderBy: [{ projectId: "asc" }, { fromRecordId: "asc" }, { position: "asc" }, { id: "asc" }],
+    });
+  } catch (error) {
+    if (isMissingSchemaError(error, "P2021")) return [];
+    throw error;
   }
 }
 
@@ -175,8 +233,10 @@ const RECORD_COLUMNS = {
 
 async function recordRows(db: DbOrTx, projectIds: string[]) {
   const query = { where: { projectId: { in: projectIds } }, orderBy: { id: "asc" as const } };
-  const assignmentCols = { groupId: true as const, worldScope: true as const };
-  const noAssignment = { groupId: null as string | null, worldScope: null as string | null };
+  const draftCols = { draftId: true as const };
+  const assignmentCols = { groupId: true as const, worldScope: true as const, ...draftCols };
+  const noDraft = { draftId: null as string | null };
+  const noAssignment = { groupId: null as string | null, worldScope: null as string | null, ...noDraft };
   try {
     return await db.record.findMany({
       ...query,
@@ -189,6 +249,23 @@ async function recordRows(db: DbOrTx, projectIds: string[]) {
         ...assignmentCols,
       },
     });
+  } catch (error) {
+    if (!isMissingSchemaError(error, "P2022")) throw error;
+  }
+  try {
+    const rows = await db.record.findMany({
+      ...query,
+      select: {
+        ...RECORD_COLUMNS,
+        parentRecordId: true,
+        trashedAt: true,
+        trashBatchId: true,
+        position: true,
+        groupId: true,
+        worldScope: true,
+      },
+    });
+    return rows.map((r) => ({ ...r, ...noDraft }));
   } catch (error) {
     if (!isMissingSchemaError(error, "P2022")) throw error;
   }
@@ -245,6 +322,8 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
     recordLinks,
     recordImages,
     manuscriptGroups,
+    manuscriptDrafts,
+    rewriteSourceLinks,
   ] = await Promise.all([
     recordRows(db, projectIds),
     db.source.findMany({ where: inProjects, orderBy: { id: "asc" } }),
@@ -256,6 +335,8 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
     recordLinkRows(db, projectIds),
     recordImageRows(db, projectIds),
     manuscriptGroupRows(db, projectIds),
+    manuscriptDraftRows(db, projectIds),
+    rewriteSourceLinkRows(db, projectIds),
   ]);
   const revisions = await db.revision.findMany({
     where: { recordId: { in: records.map((r) => r.id) } },
@@ -278,6 +359,8 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
       ...(p.bookName ? { bookName: p.bookName } : {}),
       ...(p.draftKind === "zero_draft" || p.draftKind === "author_manuscript" ? { draftKind: p.draftKind } : {}),
       ...(p.assignmentRevision > 0 ? { assignmentRevision: p.assignmentRevision } : {}),
+      ...(p.defaultReadingDraftId ? { defaultReadingDraftId: p.defaultReadingDraftId } : {}),
+      ...(p.defaultExportDraftId ? { defaultExportDraftId: p.defaultExportDraftId } : {}),
     })),
     ...(manuscriptGroups.length
       ? {
@@ -289,6 +372,18 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
             draftKind:
               g.draftKind === "zero_draft" || g.draftKind === "author_manuscript" ? g.draftKind : null,
             createdAt: iso(g.createdAt),
+          })),
+        }
+      : {}),
+    ...(manuscriptDrafts.length
+      ? {
+          manuscriptDrafts: manuscriptDrafts.map((d) => ({
+            id: d.id,
+            projectId: d.projectId,
+            kind: d.kind as "zero_draft" | "author_manuscript",
+            label: d.label,
+            completedAt: isoOrNull(d.completedAt),
+            createdAt: iso(d.createdAt),
           })),
         }
       : {}),
@@ -305,6 +400,7 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
       parentRecordId: r.parentRecordId,
       ...(r.position !== null ? { position: r.position } : {}),
       ...(r.groupId ? { groupId: r.groupId } : {}),
+      ...(r.draftId ? { draftId: r.draftId } : {}),
       ...(r.worldScope === "book" || r.worldScope === "series" ? { worldScope: r.worldScope } : {}),
       currentRevision: r.currentRevision,
       ...trashFields(r),
@@ -402,6 +498,19 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
       toRecordId: l.toRecordId,
       createdAt: iso(l.createdAt),
     })),
+    ...(rewriteSourceLinks.length
+      ? {
+          rewriteSourceLinks: rewriteSourceLinks.map((l) => ({
+            id: l.id,
+            projectId: l.projectId,
+            fromRecordId: l.fromRecordId,
+            toRecordId: l.toRecordId,
+            toRevisionNumber: l.toRevisionNumber,
+            position: l.position,
+            createdAt: iso(l.createdAt),
+          })),
+        }
+      : {}),
     recordImages: recordImages.map((img) => ({
       id: img.id,
       projectId: img.projectId,
@@ -433,6 +542,8 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
       recordLinks: recordLinks.length,
       recordImages: recordImages.length,
       ...(manuscriptGroups.length ? { manuscriptGroups: manuscriptGroups.length } : {}),
+      ...(manuscriptDrafts.length ? { manuscriptDrafts: manuscriptDrafts.length } : {}),
+      ...(rewriteSourceLinks.length ? { rewriteSourceLinks: rewriteSourceLinks.length } : {}),
     },
   };
   return { ...body, checksum: backupChecksum(body) };
@@ -485,6 +596,8 @@ function checkInternalConsistency(b: WorkspaceBackupV1): Issue[] {
     recordLinks: recordLinksOf(b).length,
     recordImages: recordImagesOf(b).length,
     manuscriptGroups: manuscriptGroupsOf(b).length,
+    manuscriptDrafts: manuscriptDraftsOf(b).length,
+    rewriteSourceLinks: rewriteSourceLinksOf(b).length,
   };
   for (const key of Object.keys(actualCounts) as (keyof BackupCounts)[]) {
     if (actualCounts[key] !== (b.counts[key] ?? 0)) {
@@ -511,6 +624,18 @@ function checkInternalConsistency(b: WorkspaceBackupV1): Issue[] {
   checkUnique(recordImagesOf(b).map((img) => img.id), "image", issues);
   checkUnique(recordImagesOf(b).map((img) => `${img.recordId}/${img.name}`), "image name", issues);
   checkUnique(manuscriptGroupsOf(b).map((g) => g.id), "manuscript group", issues);
+  checkUnique(manuscriptDraftsOf(b).map((d) => d.id), "manuscript draft", issues);
+  checkUnique(
+    manuscriptDraftsOf(b).map((d) => `${d.projectId}/${d.kind}`),
+    "manuscript draft kind",
+    issues,
+  );
+  checkUnique(rewriteSourceLinksOf(b).map((l) => l.id), "rewrite source link", issues);
+  checkUnique(
+    rewriteSourceLinksOf(b).map((l) => `${l.fromRecordId}/${l.toRecordId}`),
+    "rewrite source link pair",
+    issues,
+  );
 
   const projectIds = new Set(b.projects.map((p) => p.id));
   const recordIds = new Set(b.records.map((r) => r.id));
@@ -518,14 +643,24 @@ function checkInternalConsistency(b: WorkspaceBackupV1): Issue[] {
   const recordProject = new Map(b.records.map((r) => [r.id, r.projectId]));
   const groupIds = new Set(manuscriptGroupsOf(b).map((g) => g.id));
   const groupProject = new Map(manuscriptGroupsOf(b).map((g) => [g.id, g.projectId]));
+  const draftIds = new Set(manuscriptDraftsOf(b).map((d) => d.id));
+  const draftProject = new Map(manuscriptDraftsOf(b).map((d) => [d.id, d.projectId]));
+  const revisionKeys = new Set(b.revisions.map((r) => `${r.recordId}/${r.revisionNumber}`));
 
   for (const p of b.projects) {
     if (p.workspaceId !== b.workspace.id) issues.push(integrity(`Project ${p.id} belongs to another workspace.`));
+    if (p.defaultReadingDraftId && (!draftIds.has(p.defaultReadingDraftId) || draftProject.get(p.defaultReadingDraftId) !== p.id)) {
+      issues.push(integrity(`Project ${p.id} default reading draft ${p.defaultReadingDraftId} is missing.`));
+    }
+    if (p.defaultExportDraftId && (!draftIds.has(p.defaultExportDraftId) || draftProject.get(p.defaultExportDraftId) !== p.id)) {
+      issues.push(integrity(`Project ${p.id} default export draft ${p.defaultExportDraftId} is missing.`));
+    }
   }
   const needProject = (pid: string, what: string) => {
     if (!projectIds.has(pid)) issues.push(integrity(`${what} references missing project ${pid}.`));
   };
   manuscriptGroupsOf(b).forEach((g) => needProject(g.projectId, `Manuscript group ${g.id}`));
+  manuscriptDraftsOf(b).forEach((d) => needProject(d.projectId, `Manuscript draft ${d.id}`));
   const recordType = new Map(b.records.map((r) => [r.id, r.type]));
   b.records.forEach((r) => {
     needProject(r.projectId, `Record ${r.id}`);
@@ -548,6 +683,13 @@ function checkInternalConsistency(b: WorkspaceBackupV1): Issue[] {
         issues.push(integrity(`Record ${r.id} (${r.type}) cannot belong to a manuscript group.`));
       }
     }
+    if (r.draftId) {
+      if (!draftIds.has(r.draftId) || draftProject.get(r.draftId) !== r.projectId) {
+        issues.push(integrity(`Record ${r.id} references missing manuscript draft ${r.draftId}.`));
+      } else if (r.type !== "manuscript_chapter" && r.type !== "manuscript_scene") {
+        issues.push(integrity(`Record ${r.id} (${r.type}) cannot belong to a manuscript draft.`));
+      }
+    }
     if (r.worldScope && r.type !== "character_dossier" && r.type !== "worldbuilding" && r.type !== "canon_decision" && r.type !== "continuity_note" && r.type !== "reference_note") {
       issues.push(integrity(`Record ${r.id} (${r.type}) cannot have a World scope.`));
     }
@@ -563,6 +705,27 @@ function checkInternalConsistency(b: WorkspaceBackupV1): Issue[] {
     const toType = recordType.get(l.toRecordId);
     if (fromType && toType && (!isManuscriptType(fromType) || !isLinkableReferenceType(toType))) {
       issues.push(integrity(`Reference link ${l.id} must go from a chapter or scene to a reference record.`));
+    }
+  });
+  rewriteSourceLinksOf(b).forEach((l) => {
+    needProject(l.projectId, `Rewrite source link ${l.id}`);
+    for (const end of [l.fromRecordId, l.toRecordId]) {
+      if (!recordIds.has(end) || recordProject.get(end) !== l.projectId) {
+        issues.push(integrity(`Rewrite source link ${l.id} references missing record ${end}.`));
+      }
+    }
+    const fromType = recordType.get(l.fromRecordId);
+    const toType = recordType.get(l.toRecordId);
+    if (fromType && !isManuscriptType(fromType)) {
+      issues.push(integrity(`Rewrite source link ${l.id} must start from a chapter or scene.`));
+    }
+    if (toType && !isManuscriptType(toType)) {
+      issues.push(integrity(`Rewrite source link ${l.id} must point to a chapter or scene.`));
+    }
+    if (!revisionKeys.has(`${l.toRecordId}/${l.toRevisionNumber}`)) {
+      issues.push(
+        integrity(`Rewrite source link ${l.id} pins missing revision ${l.toRevisionNumber} of ${l.toRecordId}.`),
+      );
     }
   });
   recordImagesOf(b).forEach((img) => {
@@ -686,6 +849,15 @@ async function findCollisions(db: DbOrTx, b: WorkspaceBackupV1): Promise<Issue[]
   if (manuscriptGroupsOf(b).length) {
     await check("manuscript group", db.manuscriptGroup.count({ where: { id: { in: manuscriptGroupsOf(b).map((g) => g.id) } } }));
   }
+  if (manuscriptDraftsOf(b).length) {
+    await check("manuscript draft", db.manuscriptDraft.count({ where: { id: { in: manuscriptDraftsOf(b).map((d) => d.id) } } }));
+  }
+  if (rewriteSourceLinksOf(b).length) {
+    await check(
+      "rewrite source link",
+      db.rewriteSourceLink.count({ where: { id: { in: rewriteSourceLinksOf(b).map((l) => l.id) } } }),
+    );
+  }
   return issues;
 }
 
@@ -805,6 +977,8 @@ export async function restoreWorkspaceBackup(db: Db, input: string | unknown, op
   recordLinksOf(b).forEach((l) => assign(l.id, "lnk"));
   recordImagesOf(b).forEach((img) => assign(img.id, "img"));
   manuscriptGroupsOf(b).forEach((g) => assign(g.id, "grp"));
+  manuscriptDraftsOf(b).forEach((d) => assign(d.id, "drf"));
+  rewriteSourceLinksOf(b).forEach((l) => assign(l.id, "rsl"));
 
   const workspaceName =
     options.workspaceName?.trim() || (remap ? `${b.workspace.name} (restored ${b.createdAt.slice(0, 10)})` : b.workspace.name);
@@ -837,6 +1011,9 @@ export async function restoreWorkspaceBackup(db: Db, input: string | unknown, op
             bookName: p.bookName ?? null,
             draftKind: p.draftKind ?? null,
             assignmentRevision: p.assignmentRevision ?? 0,
+            // Defaults set after drafts exist (FK).
+            defaultReadingDraftId: null,
+            defaultExportDraftId: null,
           })),
         });
         await tx.source.createMany({
@@ -865,6 +1042,19 @@ export async function restoreWorkspaceBackup(db: Db, input: string | unknown, op
             })),
           });
         }
+        const drafts = manuscriptDraftsOf(b);
+        if (drafts.length) {
+          await tx.manuscriptDraft.createMany({
+            data: drafts.map((d) => ({
+              id: m(d.id),
+              projectId: m(d.projectId),
+              kind: d.kind,
+              label: d.label,
+              completedAt: dateOrNull(d.completedAt ?? undefined),
+              createdAt: new Date(d.createdAt),
+            })),
+          });
+        }
         await tx.record.createMany({
           data: b.records.map((r) => ({
             id: m(r.id),
@@ -879,6 +1069,7 @@ export async function restoreWorkspaceBackup(db: Db, input: string | unknown, op
             parentRecordId: mn(r.parentRecordId ?? null),
             position: r.position ?? null,
             groupId: r.groupId ? m(r.groupId) : null,
+            draftId: r.draftId ? m(r.draftId) : null,
             worldScope: r.worldScope ?? null,
             currentRevision: r.currentRevision,
             trashedAt: dateOrNull(r.trashedAt),
@@ -887,6 +1078,16 @@ export async function restoreWorkspaceBackup(db: Db, input: string | unknown, op
             updatedAt: new Date(r.updatedAt),
           })),
         });
+        for (const p of b.projects) {
+          if (!p.defaultReadingDraftId && !p.defaultExportDraftId) continue;
+          await tx.project.update({
+            where: { id: m(p.id) },
+            data: {
+              defaultReadingDraftId: p.defaultReadingDraftId ? m(p.defaultReadingDraftId) : null,
+              defaultExportDraftId: p.defaultExportDraftId ? m(p.defaultExportDraftId) : null,
+            },
+          });
+        }
         await tx.revision.createMany({
           data: b.revisions.map((r) => {
             const supersededByRecordId = mn(r.supersededByRecordId);
@@ -991,6 +1192,20 @@ export async function restoreWorkspaceBackup(db: Db, input: string | unknown, op
             createdAt: new Date(l.createdAt),
           })),
         });
+        const rewriteLinks = rewriteSourceLinksOf(b);
+        if (rewriteLinks.length) {
+          await tx.rewriteSourceLink.createMany({
+            data: rewriteLinks.map((l) => ({
+              id: m(l.id),
+              projectId: m(l.projectId),
+              fromRecordId: m(l.fromRecordId),
+              toRecordId: m(l.toRecordId),
+              toRevisionNumber: l.toRevisionNumber,
+              position: l.position,
+              createdAt: new Date(l.createdAt),
+            })),
+          });
+        }
         // One at a time: a batch of large images would be one very large statement.
         for (const img of recordImagesOf(b)) {
           await tx.recordImage.create({

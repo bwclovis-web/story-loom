@@ -216,11 +216,13 @@ export async function buildReferencesPdf(db: DbOrTx, projectId: string, recordId
 export async function buildManuscriptPdf(
   db: DbOrTx,
   projectId: string,
-  options: { sceneTitles: boolean },
+  options: { sceneTitles: boolean; draftId?: string | null; hasDrafts?: boolean },
   now = new Date(),
 ): Promise<PdfFile> {
   const project = await projectTitle(db, projectId);
-  const tree = buildManuscriptTree(await listRecordNav(db, projectId));
+  const tree = buildManuscriptTree(
+    await listRecordNav(db, projectId, { draftId: options.draftId, hasDrafts: options.hasDrafts }),
+  );
   if (!tree.chapters.length && !tree.unplaced.length) throw new NotFoundError("This project has no chapters yet.");
   const ids = [...tree.chapters.flatMap((c) => [c.id, ...c.scenes.map((s) => s.id)]), ...tree.unplaced.map((s) => s.id)];
   const rows = await db.record.findMany({ where: { projectId, id: { in: ids }, trashedAt: null } });

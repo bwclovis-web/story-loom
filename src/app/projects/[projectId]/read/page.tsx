@@ -1,10 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { DraftDefaultsPanel, VisitDraftSwitcher, type DraftOption } from "@/components/drafts/DraftControls";
 import { MarkdownView } from "@/components/MarkdownView";
 import { TextAppearanceMenu } from "@/components/TextAppearanceMenu";
 import { getDb } from "@/server/db";
+import { resolveReadingDraftId } from "@/server/draftSelection";
+import { getDraftDefaults, listManuscriptDrafts } from "@/server/services/draftService";
 import { listRecordNav } from "@/server/services/recordService";
-import { NAV, READ_BOOK } from "@/ui/labels";
+import { DRAFT, NAV, READ_BOOK } from "@/ui/labels";
 import { buildManuscriptTree } from "@/ui/manuscriptTree";
 import { parseMarkdown } from "@/writing/markdownParse";
 import { countWords, formatWordCount } from "@/writing/wordCount";
@@ -18,10 +21,26 @@ function withoutTitleHeading(body: string, title: string): string {
   return m && m[1].trim().toLowerCase() === title.trim().toLowerCase() ? body.slice(m[0].length) : body;
 }
 
-export default async function ReadBookPage({ params }: { params: Promise<{ projectId: string }> }) {
+export default async function ReadBookPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ projectId: string }>;
+  searchParams: Promise<{ draft?: string }>;
+}) {
   const { projectId } = await params;
+  const query = await searchParams;
   const db = getDb();
-  const tree = buildManuscriptTree(await listRecordNav(db, projectId));
+  const [drafts, defaults] = await Promise.all([listManuscriptDrafts(db, projectId), getDraftDefaults(db, projectId)]);
+  const hasDrafts = drafts.length > 0;
+  const selectedDraftId = resolveReadingDraftId(drafts, defaults, query.draft ?? null);
+  const draftOptions: DraftOption[] = drafts.map((d) => ({
+    id: d.id,
+    kind: d.kind,
+    label: d.label,
+    completedAt: d.completedAt?.toISOString() ?? null,
+  }));
+  const tree = buildManuscriptTree(await listRecordNav(db, projectId, { hasDrafts, draftId: selectedDraftId }));
   const ids = [...tree.chapters.flatMap((c) => [c.id, ...c.scenes.map((s) => s.id)]), ...tree.unplaced.map((s) => s.id)];
   const rows = await db.record.findMany({
     where: { projectId, id: { in: ids }, trashedAt: null },
@@ -32,6 +51,7 @@ export default async function ReadBookPage({ params }: { params: Promise<{ proje
   const base = `/projects/${encodeURIComponent(projectId)}`;
   const editHref = (id: string) => `${base}/records/${encodeURIComponent(id)}`;
   const anchor = (id: string) => `read-${id}`;
+  const selectedLabel = drafts.find((d) => d.id === selectedDraftId)?.label;
 
   const Part = ({ id, level }: { id: string; level: 2 | 3 }) => {
     const record = byId.get(id);
@@ -64,12 +84,42 @@ export default async function ReadBookPage({ params }: { params: Promise<{ proje
         </div>
         <TextAppearanceMenu />
       </div>
-      {ids.length === 0 ? (
+      {hasDrafts ? (
+        <section className="panel stack">
+          <VisitDraftSwitcher
+            drafts={draftOptions}
+            selectedDraftId={selectedDraftId}
+            basePath={`${base}/read`}
+            label={DRAFT.readingDraft}
+          />
+          <p className="small muted">
+            {defaults.defaultReadingDraftId
+              ? DRAFT.defaultReadingIs(drafts.find((d) => d.id === defaults.defaultReadingDraftId)?.label ?? defaults.defaultReadingDraftId)
+              : DRAFT.noDefaultReading}
+          </p>
+          <DraftDefaultsPanel
+            projectId={projectId}
+            drafts={draftOptions}
+            selectedDraftId={selectedDraftId}
+            defaultReadingDraftId={defaults.defaultReadingDraftId}
+            defaultExportDraftId={defaults.defaultExportDraftId}
+            mode="reading"
+          />
+        </section>
+      ) : null}
+      {hasDrafts && !selectedDraftId ? (
+        <p className="muted">{DRAFT.chooseDraftFirst}</p>
+      ) : ids.length === 0 ? (
         <p className="muted">
           {READ_BOOK.empty} <Link href={`${base}/import-chapters`}>{NAV.importChapters}</Link>
         </p>
       ) : (
         <>
+          {selectedLabel ? (
+            <p className="small muted">
+              {DRAFT.readingDraft}: {selectedLabel}
+            </p>
+          ) : null}
           <nav className="panel book-contents" aria-labelledby="book-contents-heading">
             <h2 id="book-contents-heading">{READ_BOOK.contents}</h2>
             <p className="small muted">

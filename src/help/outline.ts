@@ -41,6 +41,7 @@ export const HELP_SECTIONS = [
     title: "Writing chapters and scenes",
     children: [
       { id: "manuscript-panel", title: "Chapters and scenes" },
+      { id: "author-rewrite", title: "Author rewrite" },
       { id: "book-order", title: "Changing the book order" },
       { id: "manuscript-search", title: "Searching the manuscript" },
       { id: "import-chapters", title: "Importing chapters from files" },
@@ -48,7 +49,7 @@ export const HELP_SECTIONS = [
       { id: "tidy-text", title: "Tidying a chapter" },
       { id: "text-appearance", title: "Fonts and text size" },
       { id: "write-page", title: "The writing page" },
-      { id: "scene-context", title: "References, notes and proofreading" },
+      { id: "scene-context", title: "References, notes, source and proofreading" },
       { id: "panels-focus", title: "Panels and focus mode" },
     ],
   },

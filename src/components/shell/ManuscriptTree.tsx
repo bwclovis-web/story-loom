@@ -15,10 +15,13 @@ export function ManuscriptTree({
   projectId,
   records,
   currentRecordId,
+  draftId = null,
 }: {
   projectId: string;
   records: RecordNavEntry[];
   currentRecordId: string | null;
+  /** Active Write draft; new chapters/scenes join this draft when set. */
+  draftId?: string | null;
 }) {
   const idPrefix = useId();
   const base = `/projects/${encodeURIComponent(projectId)}/records/`;
@@ -92,6 +95,7 @@ export function ManuscriptTree({
             projectId={projectId}
             chapters={tree.chapters}
             defaultChapter={currentChapter}
+            draftId={draftId}
             onDone={() => setCreating(null)}
           />
         ) : null}
@@ -191,12 +195,14 @@ function CreateForm({
   projectId,
   chapters,
   defaultChapter,
+  draftId,
   onDone,
 }: {
   kind: "chapter" | "scene";
   projectId: string;
   chapters: { id: string; title: string }[];
   defaultChapter: string | null;
+  draftId: string | null;
   onDone: () => void;
 }) {
   const router = useRouter();
@@ -227,6 +233,7 @@ function CreateForm({
       kind,
       title: String(data.get("title") ?? ""),
       parentRecordId: kind === "scene" ? String(data.get("chapter") ?? "") : undefined,
+      draftId,
     });
     setPending(false);
     if (!result.ok) {

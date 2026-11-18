@@ -1,9 +1,12 @@
 import Link from "next/link";
+import { StartAuthorRewriteButton } from "@/components/drafts/DraftControls";
 import { RECORD_TYPE_LABELS } from "@/domain/recordTypes";
 import { getDb } from "@/server/db";
+import { readWriteDraftCookie, resolveWriteDraftId } from "@/server/draftSelection";
+import { listManuscriptDrafts } from "@/server/services/draftService";
 import { listRecordNav, listRecords } from "@/server/services/recordService";
 import { searchManuscript, type ManuscriptHit } from "@/server/services/searchService";
-import { GROUP_PAGES, MANUSCRIPT_SEARCH, NAV, SHELL } from "@/ui/labels";
+import { DRAFT, GROUP_PAGES, MANUSCRIPT_SEARCH, NAV, SHELL } from "@/ui/labels";
 import { buildManuscriptTree, type TreeScene } from "@/ui/manuscriptTree";
 import { RECORD_GROUPS } from "@/ui/navigation";
 import { countWords } from "@/writing/wordCount";
@@ -25,10 +28,13 @@ export default async function WritePage({
   const matchCase = query.case === "1";
   const base = `/projects/${encodeURIComponent(projectId)}`;
   const db = getDb();
+  const drafts = await listManuscriptDrafts(db, projectId);
+  const activeDraftId = resolveWriteDraftId(drafts, await readWriteDraftCookie());
+  const hasDrafts = drafts.length > 0;
   const [nav, records, search] = await Promise.all([
-    listRecordNav(db, projectId),
+    listRecordNav(db, projectId, { hasDrafts, draftId: activeDraftId }),
     listRecords(db, projectId),
-    q ? searchManuscript(db, { projectId, query: q, matchCase }) : null,
+    q ? searchManuscript(db, { projectId, query: q, matchCase, hasDrafts, draftId: activeDraftId }) : null,
   ]);
 
   const byId = new Map(records.map((r) => [r.id, r]));
@@ -40,6 +46,7 @@ export default async function WritePage({
   const chapters = tree.chapters.map((c) => ({ ...item(c), scenes: c.scenes.map(item) }));
   const unplaced = tree.unplaced.map(item);
   const bookWords = [...chapters.flatMap((c) => [c, ...c.scenes]), ...unplaced].reduce((sum, r) => sum + r.words, 0);
+  const activeDraft = drafts.find((d) => d.id === activeDraftId) ?? null;
 
   return (
     <RecordListPage
@@ -60,6 +67,18 @@ export default async function WritePage({
         </p>
       }
     >
+      {hasDrafts && activeDraft ? (
+        <p className="small muted">
+          {DRAFT.writeDraft}: {activeDraft.label}
+          {activeDraft.completedAt ? ` · ${DRAFT.completed}` : ""}
+        </p>
+      ) : null}
+      {!hasDrafts ? (
+        <section className="panel">
+          <h2 style={{ marginTop: 0 }}>{DRAFT.startRewrite}</h2>
+          <StartAuthorRewriteButton projectId={projectId} />
+        </section>
+      ) : null}
       <form role="search" method="get" action={`${base}/write`} className="panel manuscript-search" aria-label={MANUSCRIPT_SEARCH.label}>
         <label className="sr-only" htmlFor="manuscript-search-q">
           {MANUSCRIPT_SEARCH.label}

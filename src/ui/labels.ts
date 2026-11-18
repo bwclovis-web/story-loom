@@ -206,6 +206,7 @@ export const WRITE = {
   hideContext: "Hide context panel",
   closeContext: "Close context panel",
   contextPanel: "Scene context",
+  sourcePanel: "Zero draft source",
   inChapter: "In chapter",
   // Save status, from the server's answer to the last save.
   saving: "Saving...",
@@ -897,6 +898,47 @@ export const BACKUP = {
   restoreHeading: "Restore a backup as a new workspace",
   restore: "Restore as new workspace",
   cannotRestore: "This backup cannot be restored. Nothing was written.",
+} as const;
+
+/** Same-project Zero draft / Author manuscript and rewrite source pins. */
+export const DRAFT = {
+  heading: "Manuscript drafts",
+  zeroDraft: "Zero draft",
+  authorManuscript: "Author manuscript",
+  startRewrite: "Start author rewrite",
+  startingRewrite: "Starting rewrite...",
+  startRewriteLead:
+    "Creates blank Author manuscript pages with the Zero draft's chapter and scene titles, hierarchy and order. Each page is pinned to the exact source revision. Your default reading and export drafts do not change.",
+  alreadyStarted: "Author manuscript already exists. Opening it in Write.",
+  started: (n: Count) => `Started Author manuscript with ${n} blank page${n === 1 ? "" : "s"}.`,
+  draftLabel: "Draft",
+  selectDraft: "Choose a draft",
+  writeDraft: "Writing draft",
+  readingDraft: "Reading draft",
+  exportDraft: "Export draft",
+  setDefaultReading: "Set as default reading draft",
+  setDefaultExport: "Set as default export draft",
+  clearDefaultReading: "Clear default reading draft",
+  clearDefaultExport: "Clear default export draft",
+  defaultReadingIs: (label: string) => `Default reading draft: ${label}`,
+  defaultExportIs: (label: string) => `Default export draft: ${label}`,
+  noDefaultReading: "No default reading draft set.",
+  noDefaultExport: "No default export draft set.",
+  markComplete: "Mark rewrite complete",
+  markIncomplete: "Clear rewrite completion",
+  completed: "Rewrite marked complete",
+  notCompleted: "Rewrite not marked complete",
+  sourceTab: "Source",
+  sourceHeading: "Zero draft source",
+  noSources: "No Zero draft sources pinned to this page yet.",
+  attachSource: "Attach source",
+  detachSource: "Detach",
+  sourceRevision: (n: Count) => `Revision ${n}`,
+  sourceNewer: "Source has a newer saved revision; this pin stays on the revision from when it was linked.",
+  openSourcePreview: "Show source",
+  closeSourcePreview: "Close source",
+  chooseDraftFirst: "Choose a manuscript draft to show chapters and scenes.",
+  legacyNote: "This project has a single manuscript (no Zero draft / Author manuscript split yet).",
 } as const;
 
 /** Optional Series, Book and Draft assignments (Upgrade this project). */

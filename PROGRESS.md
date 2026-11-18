@@ -1656,3 +1656,48 @@ round trip on isolated copies.
 ### Rollback
 
 Restore the SQLite snapshot from `backups/2026-11-18T02-16-46-563Z-pre-series-book-draft/` (or the pre-migrate folder above) and check out the pre-feature commit. Workspace JSON backups written after this migration list the new migration; older app builds refuse them.
+
+## Author rewrite (same-project drafts) (Nov 17, 2026)
+
+Requested: Start author rewrite for a selected Zero draft in the same project;
+create blank Author manuscript pages with the chosen chapter/scene structure
+pinned to exact source revisions; support new scenes and multiple sources on
+one rewrite scene; show Zero draft in the Write right rail without losing
+unsaved text/cursor/undo; author writes prose and marks completion; scope
+Write/Read/word counts/reviews/PDF to the selected draft; defaults change only
+on an explicit action; Start is idempotent; drafts and pins survive backup;
+legacy single-draft projects still open and export without setup.
+
+### Implemented
+
+- Migration `20261118050000_manuscript_drafts`: `ManuscriptDraft`,
+  `RewriteSourceLink`, `Record.draftId`, `Project.defaultReadingDraftId` /
+  `defaultExportDraftId`.
+- `draftService`: promote legacy manuscript → Zero draft, idempotent Start
+  (blank pages via `mutationService`, pins at current revision), attach/detach
+  sources, completion, reading/export defaults.
+- Draft-scoped nav, Write, Read, word counts, history review items, manuscript
+  PDF; legacy path when no drafts exist. Write draft cookie; Start opens Write
+  on Author manuscript without changing defaults.
+- Write context **Source** tab previews pinned revisions in-panel (editor stays
+  keyed by record id).
+- Backup v1 optional `manuscriptDrafts`, `rewriteSourceLinks`, `draftId`,
+  default draft IDs. Help, labels, `PROJECT_RULES.md`.
+
+### Verification
+
+| Check | Result |
+| --- | --- |
+| Pre-feature backup | `backups/2026-11-18T02-45-32-692Z-pre-manuscript-drafts/` |
+| `pnpm db:deploy` | Applied `20261118050000_manuscript_drafts` |
+| `pnpm typecheck` | pass |
+| `pnpm exec vitest run tests/acceptance/author-rewrite.test.ts` | 2/2 passed |
+| `pnpm exec vitest run tests/unit/help.test.ts` | 4/4 passed |
+| `pnpm build` | pass (Next.js 16.4.3 security reminder on first attempt; retry succeeded) |
+| Rollback | Restore that SQLite snapshot and check out the pre-feature commit |
+
+### Limitations
+
+- At most one Zero draft and one Author manuscript per project.
+- Omit is Trash (no separate “hide from draft” without deleting).
+- Combining scenes is attach sources + Trash of extras; no automatic prose merge.

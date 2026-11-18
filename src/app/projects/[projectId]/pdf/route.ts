@@ -1,5 +1,7 @@
 import { isManuscriptType, isRecordType } from "@/domain/recordTypes";
 import { getDb } from "@/server/db";
+import { resolveExportDraftId } from "@/server/draftSelection";
+import { getDraftDefaults, listManuscriptDrafts } from "@/server/services/draftService";
 import { NotFoundError } from "@/server/services/errors";
 import { buildManuscriptPdf, buildReferencesPdf } from "@/server/services/pdfExportService";
 
@@ -8,7 +10,7 @@ export const dynamic = "force-dynamic";
 /*
  * Downloads a PDF built from saved records:
  *   ?kind=references&record=<id>&record=<id>&type=<record type>
- *   ?kind=manuscript&sceneTitles=1
+ *   ?kind=manuscript&sceneTitles=1&draft=<draftId>
  * Nothing is stored; every request builds the file again.
  */
 export async function GET(request: Request, { params }: { params: Promise<{ projectId: string }> }) {
@@ -18,7 +20,17 @@ export async function GET(request: Request, { params }: { params: Promise<{ proj
   try {
     let file;
     if (query.get("kind") === "manuscript") {
-      file = await buildManuscriptPdf(db, projectId, { sceneTitles: query.get("sceneTitles") === "1" });
+      const [drafts, defaults] = await Promise.all([listManuscriptDrafts(db, projectId), getDraftDefaults(db, projectId)]);
+      const hasDrafts = drafts.length > 0;
+      const draftId = resolveExportDraftId(drafts, defaults, query.get("draft"));
+      if (hasDrafts && !draftId) {
+        return new Response("Choose a manuscript draft for the PDF.", { status: 400 });
+      }
+      file = await buildManuscriptPdf(db, projectId, {
+        sceneTitles: query.get("sceneTitles") === "1",
+        hasDrafts,
+        draftId,
+      });
     } else if (query.get("kind") === "references") {
       const types = query.getAll("type").filter((t) => isRecordType(t) && !isManuscriptType(t));
       const ids = new Set(query.getAll("record"));

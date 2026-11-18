@@ -20,6 +20,12 @@ import {
   type RevisionWithSource,
 } from "@/server/services/recordService";
 import { listOpenReviewItemsForRecord } from "@/server/services/reviewService";
+import {
+  listAttachableRewriteSources,
+  listManuscriptDrafts,
+  listRewriteSources,
+  resolveDraftScope,
+} from "@/server/services/draftService";
 import { manuscriptWordCounts, sumWordCounts } from "@/server/services/wordCountService";
 import { dictionaryWordsForProject } from "@/server/services/dictionaryService";
 import { getSpellChecker, getSpellingLanguage } from "@/server/spelling";
@@ -49,9 +55,15 @@ export default async function RecordPage({
     throw e;
   });
   const manuscript = isManuscriptType(record.type);
+  const drafts = await listManuscriptDrafts(db, projectId);
+  const recordDraftId = (await db.record.findFirst({
+    where: { id: record.id, projectId },
+    select: { draftId: true },
+  }))?.draftId ?? null;
+  const wordScope = resolveDraftScope(drafts.length > 0, recordDraftId);
   const [revisions, bookWords, spellingLanguage, spellChecker, dictionaryWords, parent, inside, crossRefs] = await Promise.all([
     listRevisions(db, record.id),
-    manuscript ? manuscriptWordCounts(db, projectId) : null,
+    manuscript ? manuscriptWordCounts(db, projectId, wordScope) : null,
     getSpellingLanguage(),
     getSpellChecker(),
     dictionaryWordsForProject(db, projectId),
@@ -71,10 +83,12 @@ export default async function RecordPage({
   };
 
   if (manuscript) {
-    const [notes, linked, choices] = await Promise.all([
+    const [notes, linked, choices, sources, attachableSources] = await Promise.all([
       listNotes(db, projectId, record.id),
       listLinkedReferences(db, projectId, record.id),
       listReferenceChoices(db, projectId),
+      listRewriteSources(db, projectId, record.id),
+      listAttachableRewriteSources(db, projectId, record.id),
     ]);
     return (
       <WriteEditor
@@ -106,6 +120,15 @@ export default async function RecordPage({
         }))}
         linked={linked.map((l) => ({ recordId: l.recordId, title: l.title, type: l.type, authorityStatus: l.authorityStatus }))}
         choices={choices}
+        sources={sources.map((s) => ({
+          toRecordId: s.toRecordId,
+          toRevisionNumber: s.toRevisionNumber,
+          title: s.title,
+          type: s.type,
+          newerThanPin: s.newerThanPin,
+          currentRevision: s.currentRevision,
+        }))}
+        attachableSources={attachableSources}
         details={
           <RecordDetails
             projectId={projectId}

@@ -20,7 +20,9 @@ export type IdPrefix =
   | "lnk" // record link
   | "img" // record image
   | "trb" // records moved to the Trash together
-  | "grp"; // manuscript group
+  | "grp" // manuscript group
+  | "drf" // manuscript draft (zero draft / author manuscript)
+  | "rsl"; // rewrite source link
 
 export function newId(prefix: IdPrefix): string {
   return `${prefix}_${ulid()}`;

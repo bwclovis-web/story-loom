@@ -20,7 +20,7 @@ export type CreateManuscriptResult = { ok: true; recordId: string } | { ok: fals
 /** New chapter, or new scene inside a chapter. Starts as an empty draft; the editor opens it. */
 export async function createManuscriptAction(
   projectId: string,
-  input: { kind: "chapter" | "scene"; title: string; parentRecordId?: string },
+  input: { kind: "chapter" | "scene"; title: string; parentRecordId?: string; draftId?: string | null },
 ): Promise<CreateManuscriptResult> {
   try {
     const batch = await createRecord(getDb(), projectId, {
@@ -29,6 +29,7 @@ export async function createManuscriptAction(
       body: "",
       authorityStatus: "draft",
       parentRecordId: input.kind === "scene" ? (input.parentRecordId ?? null) : null,
+      draftId: input.draftId ?? null,
     });
     revalidatePath(`/projects/${projectId}`, "layout");
     return { ok: true, recordId: batch.outcomes[0].recordId };

@@ -78,6 +78,13 @@ rewritten automatically, so do not put project rules inside it.
   preview → confirm → one transaction, stale-preview detection, idempotent
   reruns. They are not revisioned content: applying them never rewrites
   record text, revisions, images or links. Audited as `project.assign`.
+- Manuscript drafts (`ManuscriptDraft`, `Record.draftId`, rewrite source pins,
+  `Project.defaultReadingDraftId` / `defaultExportDraftId`) are optional
+  structural metadata for same-project Zero draft / Author manuscript trees.
+  Null `draftId` means the legacy single manuscript. Start author rewrite,
+  source pins, completion and defaults go through `draftService`; blank rewrite
+  pages are created only via `mutationService`. Defaults change only on an
+  explicit author action. Audited; never revisioned content.
 - Change-package idempotency is per project: (projectId, packageId) + content hash.
 
 ## In-app help

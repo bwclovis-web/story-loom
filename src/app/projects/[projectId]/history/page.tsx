@@ -1,27 +1,60 @@
 import Link from "next/link";
+import { VisitDraftSwitcher, type DraftOption } from "@/components/drafts/DraftControls";
 import { HelpHint } from "@/components/HelpHint";
 import { getDb } from "@/server/db";
+import { readWriteDraftCookie, resolveWriteDraftId } from "@/server/draftSelection";
 import { listAudit } from "@/server/services/auditService";
 import { listChangePackages } from "@/server/services/changePackageService";
+import { listManuscriptDrafts } from "@/server/services/draftService";
 import { listReviewItems } from "@/server/services/reviewService";
-import { HISTORY } from "@/ui/labels";
+import { DRAFT, HISTORY } from "@/ui/labels";
 import { resolveReviewItemAction } from "../actions";
 
 export const dynamic = "force-dynamic";
 
-export default async function HistoryPage({ params }: { params: Promise<{ projectId: string }> }) {
+export default async function HistoryPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ projectId: string }>;
+  searchParams: Promise<{ draft?: string }>;
+}) {
   const { projectId } = await params;
+  const query = await searchParams;
   const db = getDb();
+  const drafts = await listManuscriptDrafts(db, projectId);
+  const hasDrafts = drafts.length > 0;
+  const selectedDraftId =
+    (query.draft && drafts.some((d) => d.id === query.draft) ? query.draft : null) ??
+    resolveWriteDraftId(drafts, await readWriteDraftCookie());
+  const draftOptions: DraftOption[] = drafts.map((d) => ({
+    id: d.id,
+    kind: d.kind,
+    label: d.label,
+    completedAt: d.completedAt?.toISOString() ?? null,
+  }));
   const [reviewItems, packages, audit] = await Promise.all([
-    listReviewItems(db, projectId, "open"),
+    listReviewItems(db, projectId, "open", { hasDrafts, draftId: selectedDraftId }),
     listChangePackages(db, projectId),
     listAudit(db, projectId),
   ]);
   const recordLink = (id: string, label?: string) => <Link href={`/projects/${projectId}/records/${id}`}>{label ?? id}</Link>;
 
+  const base = `/projects/${encodeURIComponent(projectId)}`;
+
   return (
     <>
       <h1>{HISTORY.heading}</h1>
+      {hasDrafts ? (
+        <section className="panel">
+          <VisitDraftSwitcher
+            drafts={draftOptions}
+            selectedDraftId={selectedDraftId}
+            basePath={`${base}/history`}
+            label={DRAFT.draftLabel}
+          />
+        </section>
+      ) : null}
 
       <section className="panel">
         <h2 style={{ marginTop: 0 }}>

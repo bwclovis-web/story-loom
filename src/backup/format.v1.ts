@@ -39,6 +39,9 @@ export const workspaceBackupV1Schema = z
           draftKind: z.enum(["zero_draft", "author_manuscript"]).optional(),
           /** Omitted when 0 (never assigned or cleared). */
           assignmentRevision: z.number().int().min(0).optional(),
+          /** Explicit default drafts for Read / PDF; omitted when unset. */
+          defaultReadingDraftId: id.optional(),
+          defaultExportDraftId: id.optional(),
         })
         .strict(),
     ),
@@ -52,6 +55,21 @@ export const workspaceBackupV1Schema = z
             label: z.string().min(1),
             position: z.number().int().min(0),
             draftKind: z.enum(["zero_draft", "author_manuscript"]).nullable(),
+            createdAt: timestamp,
+          })
+          .strict(),
+      )
+      .optional(),
+    /** Zero draft / Author manuscript trees; omitted in older backups. */
+    manuscriptDrafts: z
+      .array(
+        z
+          .object({
+            id,
+            projectId: id,
+            kind: z.enum(["zero_draft", "author_manuscript"]),
+            label: z.string().min(1),
+            completedAt: timestamp.nullable(),
             createdAt: timestamp,
           })
           .strict(),
@@ -75,6 +93,8 @@ export const workspaceBackupV1Schema = z
           position: z.number().int().min(0).optional(),
           /** Manuscript group; omitted when unassigned. */
           groupId: id.optional(),
+          /** Manuscript draft; omitted when unassigned (legacy single manuscript). */
+          draftId: id.optional(),
           /** World scope: book | series; omitted when unassigned. */
           worldScope: z.enum(["book", "series"]).optional(),
           currentRevision: z.number().int().min(1),
@@ -214,6 +234,22 @@ export const workspaceBackupV1Schema = z
           .strict(),
       )
       .optional(),
+    /** Author-rewrite pins to exact Zero-draft revisions; omitted in older backups. */
+    rewriteSourceLinks: z
+      .array(
+        z
+          .object({
+            id,
+            projectId: id,
+            fromRecordId: id,
+            toRecordId: id,
+            toRevisionNumber: z.number().int().min(1),
+            position: z.number().int().min(0),
+            createdAt: timestamp,
+          })
+          .strict(),
+      )
+      .optional(),
     /** Added with images; a backup without it restores with no images. */
     recordImages: z
       .array(
@@ -254,6 +290,8 @@ export const workspaceBackupV1Schema = z
         recordLinks: z.number().int().optional(),
         recordImages: z.number().int().optional(),
         manuscriptGroups: z.number().int().optional(),
+        manuscriptDrafts: z.number().int().optional(),
+        rewriteSourceLinks: z.number().int().optional(),
       })
       .strict(),
     /** sha256 of the stable JSON serialization of every other top-level field. */

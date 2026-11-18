@@ -38,8 +38,15 @@ model Project {
   createdAt              DateTime                @default(now())
   /// Set while the project is in the Trash.
   trashedAt              DateTime?
+  /// Explicit default draft for Read the book. Null = unset (legacy / picker).
+  defaultReadingDraftId  String?
+  defaultReadingDraft    ManuscriptDraft?        @relation("DefaultReadingDraft", fields: [defaultReadingDraftId], references: [id])
+  /// Explicit default draft for manuscript PDF export. Null = unset.
+  defaultExportDraftId   String?
+  defaultExportDraft     ManuscriptDraft?        @relation("DefaultExportDraft", fields: [defaultExportDraftId], references: [id])
   records                Record[]
   manuscriptGroups       ManuscriptGroup[]
+  manuscriptDrafts       ManuscriptDraft[]       @relation("ProjectDrafts")
   sources                Source[]
   changePackages         ChangePackage[]
   auditEntries           AuditEntry[]
@@ -50,8 +57,29 @@ model Project {
   dictionaryEntries      DictionaryEntry[]
   recordLinks            RecordLink[]
   recordImages           RecordImage[]
+  rewriteSourceLinks     RewriteSourceLink[]
 
   @@index([workspaceId])
+}
+
+/// A Zero draft or Author manuscript tree within a project. Not revisioned content.
+/// At most one draft per kind per project. Null Record.draftId means legacy unscoped manuscript.
+model ManuscriptDraft {
+  id        String    @id
+  projectId String
+  project   Project   @relation("ProjectDrafts", fields: [projectId], references: [id])
+  /// zero_draft | author_manuscript
+  kind      String
+  label     String
+  /// Set when the author explicitly marks the rewrite complete; null = not marked.
+  completedAt DateTime?
+  createdAt DateTime  @default(now())
+  records   Record[]
+  readingDefaultFor Project[] @relation("DefaultReadingDraft")
+  exportDefaultFor  Project[] @relation("DefaultExportDraft")
+
+  @@unique([projectId, kind])
+  @@index([projectId])
 }
 
 /// A named group of chapters (and their scenes) within a project's manuscript.
@@ -123,6 +151,9 @@ model Record {
   /// Optional manuscript group for a chapter or scene. Not revisioned content.
   groupId               String?
   group                 ManuscriptGroup?       @relation(fields: [groupId], references: [id])
+  /// Optional manuscript draft (Zero draft or Author manuscript). Not revisioned content.
+  draftId               String?
+  draft                 ManuscriptDraft?       @relation(fields: [draftId], references: [id])
   /// For World reference records: book | series | null (unassigned = project-local as today).
   worldScope            String?
   currentRevision       Int
@@ -141,11 +172,35 @@ model Record {
   linksFrom             RecordLink[]           @relation("LinkFrom")
   linksTo               RecordLink[]           @relation("LinkTo")
   images                RecordImage[]
+  rewriteSourcesFrom    RewriteSourceLink[]    @relation("RewriteFrom")
+  rewriteSourcesTo      RewriteSourceLink[]    @relation("RewriteTo")
 
   @@index([projectId, type])
   @@index([parentRecordId])
   @@index([trashBatchId])
   @@index([groupId])
+  @@index([draftId])
+}
+
+/// Pins a rewrite chapter/scene to an exact Zero-draft revision. Not revisioned
+/// content: adding or removing one is audited and never changes either record.
+/// Many source scenes may feed one rewrite scene.
+model RewriteSourceLink {
+  id               String   @id
+  projectId        String
+  project          Project  @relation(fields: [projectId], references: [id])
+  fromRecordId     String
+  from             Record   @relation("RewriteFrom", fields: [fromRecordId], references: [id])
+  toRecordId       String
+  to               Record   @relation("RewriteTo", fields: [toRecordId], references: [id])
+  toRevisionNumber Int
+  /// Order among sources on the same rewrite record.
+  position         Int
+  createdAt        DateTime @default(now())
+
+  @@unique([fromRecordId, toRecordId])
+  @@index([projectId])
+  @@index([toRecordId])
 }
 
 /// A manuscript chapter or scene linked to a reference record it draws on.

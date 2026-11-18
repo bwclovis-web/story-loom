@@ -110,22 +110,34 @@ export interface ManuscriptSearch {
  */
 export async function searchManuscript(
   db: DbOrTx,
-  input: { projectId: string; query: string; matchCase: boolean },
+  input: { projectId: string; query: string; matchCase: boolean; draftId?: string | null; hasDrafts?: boolean },
 ): Promise<ManuscriptSearch> {
   const query = input.query.trim();
   if (!query) return { hits: [], totalMatches: 0 };
+  const manuscriptFilter =
+    input.hasDrafts === true
+      ? input.draftId
+        ? { type: { in: [...MANUSCRIPT_TYPES] }, draftId: input.draftId }
+        : { type: { in: [...MANUSCRIPT_TYPES] }, id: { in: [] as string[] } }
+      : { type: { in: [...MANUSCRIPT_TYPES] } };
   const rows = await db.record.findMany({
-    where: { projectId: input.projectId, trashedAt: null, type: { in: [...MANUSCRIPT_TYPES, "scene_note"] } },
-    select: { id: true, type: true, title: true, body: true, parentRecordId: true, position: true, createdAt: true },
+    where: {
+      projectId: input.projectId,
+      trashedAt: null,
+      OR: [manuscriptFilter, { type: "scene_note" }],
+    },
+    select: { id: true, type: true, title: true, body: true, parentRecordId: true, position: true, createdAt: true, draftId: true },
   });
-  const byId = new Map(rows.map((r) => [r.id, r]));
+  const manuscriptIds = new Set(rows.filter((r) => r.type !== "scene_note").map((r) => r.id));
+  const scoped = rows.filter((r) => r.type !== "scene_note" || (r.parentRecordId && manuscriptIds.has(r.parentRecordId)));
+  const byId = new Map(scoped.map((r) => [r.id, r]));
   const tree = buildManuscriptTree(
-    rows.flatMap((r) =>
-      isRecordType(r.type) ? [{ ...r, type: r.type, createdAt: r.createdAt.toISOString() }] : [],
+    scoped.flatMap((r) =>
+      isRecordType(r.type) && r.type !== "scene_note" ? [{ ...r, type: r.type, createdAt: r.createdAt.toISOString() }] : [],
     ),
   );
   const notesOn = new Map<string, string[]>();
-  for (const r of [...rows].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime() || (a.id < b.id ? -1 : 1))) {
+  for (const r of [...scoped].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime() || (a.id < b.id ? -1 : 1))) {
     if (r.type === "scene_note" && r.parentRecordId) notesOn.set(r.parentRecordId, [...(notesOn.get(r.parentRecordId) ?? []), r.id]);
   }
   const order: string[] = [];

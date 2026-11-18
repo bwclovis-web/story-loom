@@ -7,6 +7,8 @@
 export const NAV_COOKIE = "wordly-nav";
 export const PROJECT_COOKIE = "wordly-project";
 export const LAYOUT_COOKIE = "wordly-layout";
+/** Active Write manuscript draft for this browser (draft id, or empty when unset). */
+export const WRITE_DRAFT_COOKIE = "wordly-write-draft";
 
 /** "auto" collapses the navigation on medium-width windows and expands it on wide ones. */
 export type NavPreference = "auto" | "collapsed" | "expanded";
@@ -23,8 +25,15 @@ export function writePreference(name: string, value: string) {
 export const SECONDARY_WIDTH = { min: 208, max: 360, initial: 240 } as const;
 export const CONTEXT_WIDTH = { min: 288, max: 480, initial: 328 } as const;
 
-export const CONTEXT_TABS = ["references", "notes", "proofread"] as const;
+export const CONTEXT_TABS = ["source", "references", "notes", "proofread"] as const;
 export type ContextTab = (typeof CONTEXT_TABS)[number];
+
+export function parseWriteDraftPreference(value: string | undefined): string | null {
+  if (!value) return null;
+  const raw = value.startsWith("%") ? decodeURIComponent(value) : value;
+  const trimmed = raw.trim();
+  return trimmed.length ? trimmed : null;
+}
 
 export interface LayoutPreference {
   secondaryWidth: number;

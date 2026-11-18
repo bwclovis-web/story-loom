@@ -3,8 +3,14 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useId, useMemo, useState } from "react";
+import {
+  MarkRewriteCompleteButton,
+  StartAuthorRewriteButton,
+  WriteDraftSwitcher,
+  type DraftOption,
+} from "@/components/drafts/DraftControls";
 import { RECORD_TYPE_LABELS } from "@/domain/recordTypes";
-import { NAV, SHELL, WRITE } from "@/ui/labels";
+import { DRAFT, NAV, SHELL, WRITE } from "@/ui/labels";
 import { groupForProjectPath, parseProjectPath, RECORD_GROUPS, type RecordNavEntry } from "@/ui/navigation";
 import { Drawer } from "./Drawer";
 import { PanelLeftIcon } from "./icons";
@@ -25,10 +31,14 @@ export function ProjectNav({
   project,
   records,
   openReviewItems,
+  drafts = [],
+  activeDraftId = null,
 }: {
   project: ProjectInfo;
   records: RecordNavEntry[];
   openReviewItems: number;
+  drafts?: DraftOption[];
+  activeDraftId?: string | null;
 }) {
   const pathname = usePathname();
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -41,7 +51,7 @@ export function ProjectNav({
   const writing = parsed ? groupForProjectPath(parsed.rest, typeOf) === "write" : false;
   const showLabel = writing ? WRITE.showNavigation : WRITE.showProjectPanel;
   const hideLabel = writing ? WRITE.hideNavigation : WRITE.hideProjectPanel;
-  const contentProps = { project, records, openReviewItems, pathname };
+  const contentProps = { project, records, openReviewItems, pathname, drafts, activeDraftId };
 
   return (
     <>
@@ -110,12 +120,16 @@ function ProjectNavContent({
   records,
   openReviewItems,
   pathname,
+  drafts,
+  activeDraftId,
   hideButton,
 }: {
   project: ProjectInfo;
   records: RecordNavEntry[];
   openReviewItems: number;
   pathname: string;
+  drafts: DraftOption[];
+  activeDraftId: string | null;
   hideButton?: React.ReactNode;
 }) {
   const base = `/projects/${encodeURIComponent(project.id)}`;
@@ -128,6 +142,9 @@ function ProjectNavContent({
   const currentRecordId = parsed?.rest[0] === "records" ? (parsed.rest[1] ?? null) : null;
   const current = (href: string) => (pathname === href ? "page" : undefined);
   const idPrefix = useId();
+  const activeDraft = drafts.find((d) => d.id === activeDraftId) ?? null;
+  const hasAuthor = drafts.some((d) => d.kind === "author_manuscript");
+  const showStart = group === "write" && !hasAuthor;
 
   const tools = [
     { href: `${base}/import`, label: NAV.importPackage },
@@ -160,8 +177,36 @@ function ProjectNavContent({
         </li>
       </ul>
 
+      {group === "write" && drafts.length > 0 ? (
+        <div className="nav-section draft-nav">
+          <p className="nav-subheading">{DRAFT.heading}</p>
+          <WriteDraftSwitcher projectId={project.id} drafts={drafts} activeDraftId={activeDraftId} />
+          {activeDraft?.kind === "author_manuscript" ? (
+            <div className="row" style={{ marginTop: "0.5rem" }}>
+              <MarkRewriteCompleteButton
+                projectId={project.id}
+                draftId={activeDraft.id}
+                completed={!!activeDraft.completedAt}
+              />
+            </div>
+          ) : null}
+          {showStart ? <StartAuthorRewriteButton projectId={project.id} /> : null}
+        </div>
+      ) : null}
+      {group === "write" && drafts.length === 0 ? (
+        <div className="nav-section draft-nav">
+          <p className="nav-subheading">{DRAFT.heading}</p>
+          <StartAuthorRewriteButton projectId={project.id} />
+        </div>
+      ) : null}
+
       {group === "write" ? (
-        <ManuscriptTree projectId={project.id} records={records} currentRecordId={currentRecordId} />
+        <ManuscriptTree
+          projectId={project.id}
+          records={records}
+          currentRecordId={currentRecordId}
+          draftId={activeDraftId}
+        />
       ) : group === "world" ? (
         <WorldNav projectId={project.id} records={records} onWorldPage={parsed?.rest[0] === "world"} currentRecordId={currentRecordId} />
       ) : group ? (

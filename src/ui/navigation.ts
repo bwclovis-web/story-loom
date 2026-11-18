@@ -40,6 +40,8 @@ export interface RecordNavEntry {
   position: number | null;
   /** ISO time; orders records that have no position. */
   createdAt: string;
+  /** Manuscript draft when drafts exist; null for legacy or non-draft records. */
+  draftId?: string | null;
 }
 
 const PROJECT_PATH = /^\/projects\/([^/]+)(?:\/(.*))?$/;

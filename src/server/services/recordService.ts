@@ -46,6 +46,7 @@ export async function createRecord(
     authorityStatus: AuthorityStatus;
     recordId?: string;
     parentRecordId?: string | null;
+    draftId?: string | null;
   },
 ): Promise<AppliedBatch> {
   return applyMutations(
@@ -61,6 +62,7 @@ export async function createRecord(
         fields: input.fields ?? {},
         authorityStatus: input.authorityStatus,
         parentRecordId: input.parentRecordId ?? null,
+        draftId: input.draftId ?? null,
       },
     ],
     { action: "record.create", summary: `Created ${RECORD_TYPE_LABELS[input.type]} "${input.title}"` },
@@ -177,11 +179,39 @@ export async function listRecords(db: DbOrTx, projectId: string): Promise<Record
 }
 
 /** IDs, titles and types for navigation, without loading record text. All projects when no ID is given. */
-export async function listRecordNav(db: DbOrTx, projectId?: string): Promise<RecordNavEntry[]> {
+/**
+ * Navigation records for a project (or all projects). When `hasDrafts` is true,
+ * manuscript chapters/scenes are limited to `draftId` (or none if draftId is
+ * null); reference records are always included. Legacy projects omit the filter.
+ */
+export async function listRecordNav(
+  db: DbOrTx,
+  projectId?: string,
+  options?: { draftId?: string | null; hasDrafts?: boolean },
+): Promise<RecordNavEntry[]> {
+  const hasDrafts = options?.hasDrafts === true;
+  const draftId = options?.draftId ?? null;
+  const manuscriptTypes = ["manuscript_chapter", "manuscript_scene"];
+  const manuscriptScope = hasDrafts
+    ? draftId
+      ? { type: { in: manuscriptTypes }, draftId }
+      : { type: { in: manuscriptTypes }, id: { in: [] as string[] } }
+    : null;
+
+  const where = projectId
+    ? hasDrafts
+      ? {
+          projectId,
+          trashedAt: null,
+          OR: [{ type: { notIn: manuscriptTypes } }, manuscriptScope!],
+        }
+      : { projectId, trashedAt: null }
+    : LIVE_RECORD;
+
   const rows = await db.record.findMany({
-    where: projectId ? { projectId, trashedAt: null } : LIVE_RECORD,
+    where,
     orderBy: [{ type: "asc" }, { title: "asc" }],
-    select: { id: true, title: true, type: true, parentRecordId: true, position: true, createdAt: true },
+    select: { id: true, title: true, type: true, parentRecordId: true, position: true, createdAt: true, draftId: true },
   });
   return rows.flatMap((r) =>
     isRecordType(r.type)
@@ -193,10 +223,21 @@ export async function listRecordNav(db: DbOrTx, projectId?: string): Promise<Rec
             parentRecordId: r.parentRecordId,
             position: r.position,
             createdAt: r.createdAt.toISOString(),
+            draftId: r.draftId,
           },
         ]
       : [],
   );
+}
+
+/** Manuscript chapters and scenes only, under a draft scope (or whole project when legacy). */
+export async function listManuscriptNav(
+  db: DbOrTx,
+  projectId: string,
+  options?: { draftId?: string | null; hasDrafts?: boolean },
+): Promise<RecordNavEntry[]> {
+  const all = await listRecordNav(db, projectId, options);
+  return all.filter((r) => r.type === "manuscript_chapter" || r.type === "manuscript_scene");
 }
 
 /** Scene notes on a chapter or scene, oldest first. */

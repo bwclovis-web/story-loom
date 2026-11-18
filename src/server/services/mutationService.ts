@@ -35,6 +35,8 @@ export interface CreateRecordMutation {
   protected?: boolean;
   /** Required for scenes and scene notes (see PARENT_TYPES); refused for every other type. */
   parentRecordId?: string | null;
+  /** Optional manuscript draft. Structural only; not part of the revision snapshot. */
+  draftId?: string | null;
   operationIndex?: number;
 }
 
@@ -86,6 +88,8 @@ export interface PlannedMutation {
   protected: boolean;
   /** Set only on creation; existing records keep the parent they were created with. */
   parentRecordId: string | null;
+  /** Set only on creation; existing records keep the draft they were created with. */
+  draftId: string | null;
   before: RecordSnapshot | null;
   beforeRevision: number | null;
   after: RecordSnapshot;
@@ -136,7 +140,7 @@ function referencedIds(mutations: readonly Mutation[]): string[] {
 
 function checkParent(
   m: CreateRecordMutation,
-  inProject: (id: string) => RecordView | undefined,
+  parentTypeOf: (id: string) => RecordType | undefined,
   at: { operationIndex: number; path: string },
 ): Issue[] {
   const label = RECORD_TYPE_LABELS[m.type];
@@ -147,12 +151,12 @@ function checkParent(
   if (!m.parentRecordId) {
     return [errorIssue("INVALID_PARENT", `A ${label} must be created inside a ${allowed}, from the Write page.`, at)];
   }
-  const parent = inProject(m.parentRecordId);
-  if (!parent) {
+  const parentType = parentTypeOf(m.parentRecordId);
+  if (!parentType) {
     return [errorIssue("INVALID_PARENT", `Parent record ${m.parentRecordId} does not exist in this project.`, at)];
   }
-  if (!allowedParent(m.type, parent.type)) {
-    return [errorIssue("INVALID_PARENT", `A ${label} can only be inside a ${allowed}, not a ${RECORD_TYPE_LABELS[parent.type]}.`, at)];
+  if (!allowedParent(m.type, parentType)) {
+    return [errorIssue("INVALID_PARENT", `A ${label} can only be inside a ${allowed}, not a ${RECORD_TYPE_LABELS[parentType]}.`, at)];
   }
   return [];
 }
@@ -187,7 +191,7 @@ export async function planMutations(
   const rows = await db.record.findMany({ where: { id: { in: referencedIds(mutations) } } });
   const existing = new Map<string, RecordView>(rows.map((r) => [r.id, toRecordView(r)]));
   const trashed = new Set(rows.filter((r) => r.trashedAt && r.projectId === ctx.projectId).map((r) => r.id));
-  const createdIds = new Set<string>();
+  const createdTypes = new Map<string, RecordType>();
   const targeted = new Set<string>();
 
   /** Records in the Trash count as absent, except for ID conflicts. */
@@ -195,8 +199,22 @@ export async function planMutations(
     const rec = existing.get(id);
     return rec && rec.projectId === ctx.projectId && !trashed.has(id) ? rec : undefined;
   };
+  /** Live records plus earlier creates in this batch (so scenes can parent to new chapters). */
+  const parentTypeOf = (id: string): RecordType | undefined => inProject(id)?.type ?? createdTypes.get(id);
   const inTrash = (id: string, at: { operationIndex: number; path: string }) =>
     errorIssue("IN_TRASH", `Record ${id} is in the Trash. Restore it from the Trash first.`, { ...at, recordId: id });
+
+  const draftIds = [
+    ...new Set(mutations.flatMap((m) => (m.kind === "create_record" && m.draftId ? [m.draftId] : []))),
+  ];
+  const draftRows =
+    draftIds.length === 0
+      ? []
+      : await db.manuscriptDraft.findMany({
+          where: { id: { in: draftIds }, projectId: ctx.projectId },
+          select: { id: true },
+        });
+  const draftsInProject = new Set(draftRows.map((d) => d.id));
 
   mutations.forEach((m, index) => {
     const opIndex = m.operationIndex ?? index;
@@ -224,15 +242,18 @@ export async function planMutations(
         );
       }
       targeted.add(recordId);
-      createdIds.add(recordId);
+      createdTypes.set(recordId, m.type);
       issues.push(...checkCreateAllowed(m.type, ctx, at()));
       if (!m.title.trim()) {
         issues.push(errorIssue("INVALID_CHANGE", "Title must not be empty.", at("title")));
       }
+      if (m.draftId && !draftsInProject.has(m.draftId)) {
+        issues.push(errorIssue("INVALID_CHANGE", `Draft ${m.draftId} does not exist in this project.`, at("draftId")));
+      }
       if (m.parentRecordId && trashed.has(m.parentRecordId)) {
         issues.push(inTrash(m.parentRecordId, at("parentRecordId")));
       } else {
-        issues.push(...checkParent(m, inProject, at("parentRecordId")));
+        issues.push(...checkParent(m, parentTypeOf, at("parentRecordId")));
       }
       planned.push({
         index: opIndex,
@@ -241,6 +262,7 @@ export async function planMutations(
         type: m.type,
         protected: m.protected === true || defaultProtectedFor(m.type),
         parentRecordId: m.parentRecordId ?? null,
+        draftId: m.draftId ?? null,
         before: null,
         beforeRevision: null,
         after: {
@@ -384,6 +406,7 @@ export async function planMutations(
       type: record.type,
       protected: record.protected,
       parentRecordId: record.parentRecordId,
+      draftId: null,
       before,
       beforeRevision: record.currentRevision,
       after,
@@ -459,6 +482,7 @@ export async function applyMutationsInTx(
           type: p.type,
           protected: p.protected,
           parentRecordId: p.parentRecordId,
+          draftId: p.draftId,
           currentRevision: newRevision,
           ...data,
         },
@@ -593,16 +617,25 @@ export async function moveInBookInTx(tx: Tx, input: MoveInBookInput): Promise<Mo
     if (!input.parentRecordId) reject("A scene must be inside a chapter.");
     const parent = await tx.record.findFirst({
       where: { id: input.parentRecordId!, projectId: input.projectId, trashedAt: null },
-      select: { type: true, title: true },
+      select: { type: true, title: true, draftId: true },
     });
     if (!parent || parent.type !== "manuscript_chapter") reject("A scene can only move into a chapter of this project.");
+    if ((parent!.draftId ?? null) !== (record.draftId ?? null)) {
+      reject("A scene can only move into a chapter of the same draft.");
+    }
     chapterTitle = parent!.title;
   } else {
     reject("Only chapters and scenes have a place in the book.");
   }
 
   const siblings = await tx.record.findMany({
-    where: { projectId: input.projectId, type: record.type, parentRecordId: input.parentRecordId, trashedAt: null },
+    where: {
+      projectId: input.projectId,
+      type: record.type,
+      parentRecordId: input.parentRecordId,
+      trashedAt: null,
+      draftId: record.draftId,
+    },
     select: { id: true, position: true, createdAt: true },
   });
   const before = siblings
@@ -825,6 +858,7 @@ export async function deleteTrashedRecordsInTx(
 export async function deleteRecordRowsInTx(tx: Tx, recordIds: readonly string[]): Promise<void> {
   if (recordIds.length === 0) return;
   const ids = { in: [...recordIds] };
+  await tx.rewriteSourceLink.deleteMany({ where: { OR: [{ fromRecordId: ids }, { toRecordId: ids }] } });
   await tx.recordLink.deleteMany({ where: { OR: [{ fromRecordId: ids }, { toRecordId: ids }] } });
   await tx.recordImage.deleteMany({ where: { recordId: ids } });
   await tx.reviewItem.deleteMany({ where: { recordId: ids } });

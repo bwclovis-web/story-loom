@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useId, useMemo, useRef, useState, useTransition, type KeyboardEvent, type ReactNode } from "react";
 import { StatusBadge } from "@/components/Badges";
 import { IssueList } from "@/components/IssueList";
@@ -12,7 +13,12 @@ import { submitWithoutReset } from "@/components/submitWithoutReset";
 import type { Issue } from "@/domain/issues";
 import { RECORD_TYPE_LABELS, type RecordType } from "@/domain/recordTypes";
 import type { AuthorityStatus } from "@/domain/statuses";
-import { RECORD, WRITE } from "@/ui/labels";
+import { DRAFT, RECORD, WRITE } from "@/ui/labels";
+import {
+  attachRewriteSourceAction,
+  detachRewriteSourceAction,
+  previewRewriteSourceAction,
+} from "../../drafts/actions";
 import { saveRecordAction, type FormResult } from "../../actions";
 import {
   createNoteAction,
@@ -46,7 +52,24 @@ export interface ChoiceItem {
   authorityStatus: AuthorityStatus;
 }
 
+export interface SourceItem {
+  toRecordId: string;
+  toRevisionNumber: number;
+  title: string;
+  type: string;
+  newerThanPin: boolean;
+  currentRevision: number;
+}
+
+export interface AttachableSource {
+  id: string;
+  title: string;
+  type: string;
+  currentRevision: number;
+}
+
 const TAB_LABELS: Record<ContextTab, string> = {
+  source: DRAFT.sourceTab,
   references: WRITE.references,
   notes: WRITE.notes,
   proofread: WRITE.proofread,
@@ -63,6 +86,8 @@ export function WriteContext({
   notes,
   linked,
   choices,
+  sources,
+  attachableSources,
   proofreader,
   overlay,
   onClose,
@@ -75,6 +100,8 @@ export function WriteContext({
   notes: NoteItem[];
   linked: LinkedItem[];
   choices: ChoiceItem[];
+  sources: SourceItem[];
+  attachableSources: AttachableSource[];
   proofreader: ReactNode;
   /** Shown over the page on narrow screens; closes with Escape. */
   overlay: boolean;
@@ -140,12 +167,16 @@ export function WriteContext({
             onClick={() => choose(t)}
           >
             {TAB_LABELS[t]}
+            {t === "source" && sources.length ? <span className="nav-count"> {sources.length}</span> : null}
             {t === "notes" && notes.length ? <span className="nav-count"> {notes.length}</span> : null}
             {t === "references" && linked.length ? <span className="nav-count"> {linked.length}</span> : null}
           </button>
         ))}
       </div>
       {/* Every panel stays mounted, so switching tabs never discards a note being written or a proofreading run. */}
+      <div role="tabpanel" id={`${idPrefix}-panel-source`} aria-labelledby={`${idPrefix}-tab-source`} hidden={tab !== "source"} className="context-body">
+        <Sources projectId={projectId} recordId={recordId} sources={sources} attachable={attachableSources} />
+      </div>
       <div role="tabpanel" id={`${idPrefix}-panel-references`} aria-labelledby={`${idPrefix}-tab-references`} hidden={tab !== "references"} className="context-body">
         <References projectId={projectId} recordId={recordId} isProtected={isProtected} linked={linked} choices={choices} />
       </div>
@@ -155,6 +186,129 @@ export function WriteContext({
       <div role="tabpanel" id={`${idPrefix}-panel-proofread`} aria-labelledby={`${idPrefix}-tab-proofread`} hidden={tab !== "proofread"} className="context-body">
         {proofreader}
       </div>
+    </div>
+  );
+}
+
+function Sources({
+  projectId,
+  recordId,
+  sources,
+  attachable,
+}: {
+  projectId: string;
+  recordId: string;
+  sources: SourceItem[];
+  attachable: AttachableSource[];
+}) {
+  const idPrefix = useId();
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const [preview, setPreview] = useState<{
+    toRecordId: string;
+    title: string;
+    body: string;
+    revisionNumber: number;
+    currentRevision: number;
+  } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const open = (s: SourceItem) => {
+    setError(null);
+    startTransition(async () => {
+      const result = await previewRewriteSourceAction(projectId, s.toRecordId, s.toRevisionNumber);
+      if (!result.ok) {
+        setError(result.issues.map((i) => i.message).join(" "));
+        return;
+      }
+      setPreview({
+        toRecordId: s.toRecordId,
+        title: result.title,
+        body: result.body,
+        revisionNumber: result.revisionNumber,
+        currentRevision: result.currentRevision,
+      });
+    });
+  };
+
+  return (
+    <div className="stack">
+      <section aria-labelledby={`${idPrefix}-sources`}>
+        <h3 id={`${idPrefix}-sources`}>{DRAFT.sourceHeading}</h3>
+        {sources.length === 0 ? (
+          <p className="small muted">{DRAFT.noSources}</p>
+        ) : (
+          <ul className="nav-list">
+            {sources.map((s) => (
+              <li key={s.toRecordId} className="row" style={{ flexWrap: "wrap", gap: "0.35rem" }}>
+                <span>
+                  {s.title}{" "}
+                  <span className="small muted">{DRAFT.sourceRevision(s.toRevisionNumber)}</span>
+                  {s.newerThanPin ? <span className="small muted"> · {DRAFT.sourceNewer}</span> : null}
+                </span>
+                <button type="button" className="secondary small-button" disabled={pending} onClick={() => open(s)}>
+                  {DRAFT.openSourcePreview}
+                </button>
+                <button
+                  type="button"
+                  className="secondary small-button"
+                  disabled={pending}
+                  onClick={() => {
+                    startTransition(async () => {
+                      await detachRewriteSourceAction(projectId, recordId, s.toRecordId);
+                      setPreview((p) => (p?.toRecordId === s.toRecordId ? null : p));
+                      router.refresh();
+                    });
+                  }}
+                >
+                  {DRAFT.detachSource}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+      {preview ? (
+        <section className="reference-preview" aria-label={preview.title}>
+          <div className="row">
+            <strong>{preview.title}</strong>
+            <span className="small muted">{DRAFT.sourceRevision(preview.revisionNumber)}</span>
+            <button type="button" className="secondary small-button" onClick={() => setPreview(null)}>
+              {DRAFT.closeSourcePreview}
+            </button>
+          </div>
+          <div className="reference-text document">{preview.body || WRITE.noLinkedReferences}</div>
+        </section>
+      ) : null}
+      {attachable.length ? (
+        <section aria-labelledby={`${idPrefix}-attach`}>
+          <h3 id={`${idPrefix}-attach`}>{DRAFT.attachSource}</h3>
+          <ul className="nav-list">
+            {attachable.map((a) => (
+              <li key={a.id} className="row">
+                <span>
+                  {a.title}{" "}
+                  <span className="small muted">{DRAFT.sourceRevision(a.currentRevision)}</span>
+                </span>
+                <button
+                  type="button"
+                  className="secondary small-button"
+                  disabled={pending}
+                  onClick={() => {
+                    startTransition(async () => {
+                      await attachRewriteSourceAction(projectId, recordId, a.id);
+                      router.refresh();
+                    });
+                  }}
+                >
+                  {DRAFT.attachSource}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+      {error ? <p className="issue error">{error}</p> : null}
     </div>
   );
 }

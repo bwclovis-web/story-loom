@@ -10,6 +10,7 @@ import {
   CHAPTER_IMPORT,
   CONNECTIONS,
   DICTIONARY,
+  DRAFT,
   EXPORT,
   HISTORY,
   HOME,
@@ -682,8 +683,45 @@ export function HelpContent() {
           <p>
             A scene needs a chapter, so create a chapter first. Scenes and scene notes cannot be added with{" "}
             <L>{RECORD.newRecordHeading}</L>, imports or change packages. A new chapter goes at the end of the book, and a
-            new scene at the end of its chapter.
+            new scene at the end of its chapter. When the project has manuscript drafts, new chapters and scenes join the
+            draft selected under <L>{DRAFT.writeDraft}</L>.
           </p>
+        </Sub>
+
+        <Sub id="author-rewrite">
+          <p>
+            <L>{DRAFT.startRewrite}</L> creates an Author manuscript beside the Zero draft in the same project. Projects
+            without drafts yet promote the current chapters and scenes into a Zero draft first, then create blank Author
+            manuscript pages with the same titles, hierarchy and book order. Each new page is pinned to the exact source
+            revision at that moment. The author writes the rewrite prose and marks completion; nothing is filled in
+            automatically.
+          </p>
+          <ul>
+            <li>
+              Choosing <L>{DRAFT.startRewrite}</L> again opens the existing Author manuscript and does not create a second
+              copy.
+            </li>
+            <li>
+              Starting a rewrite opens <L>{SHELL.write}</L> on the Author manuscript. It does not change the default
+              reading or export draft.
+            </li>
+            <li>
+              After creation, add, omit (Trash), reorder, or attach more Zero draft sources to one rewrite scene under the{" "}
+              <L>{DRAFT.sourceTab}</L> tab. A combined scene can pin several source revisions.
+            </li>
+            <li>
+              <L>{DRAFT.markComplete}</L> / <L>{DRAFT.markIncomplete}</L> set a draft-level completion mark only; they do
+              not change record text or status.
+            </li>
+            <li>
+              <L>{NAV.readBook}</L>, word counts, open review items for manuscript records, and manuscript PDF export use
+              the selected draft. Set defaults explicitly with <L>{DRAFT.setDefaultReading}</L> and{" "}
+              <L>{DRAFT.setDefaultExport}</L>.
+            </li>
+            <li>
+              Projects that never start a rewrite keep a single manuscript and open and export as before.
+            </li>
+          </ul>
         </Sub>
 
         <Sub id="book-order">
@@ -789,6 +827,11 @@ export function HelpContent() {
             text begins with a heading that repeats its title, that heading is shown only once. The
             list of chapters at the top jumps to each one, and <L>{READ_BOOK.edit}</L> beside a heading opens that chapter
             or scene for editing. Printing the page leaves out the list and the Edit links.
+          </p>
+          <p>
+            When the project has Zero draft and Author manuscript trees, choose the <L>{DRAFT.readingDraft}</L> for this
+            visit. <L>{DRAFT.setDefaultReading}</L> remembers the default for next time; starting a rewrite does not change
+            it.
           </p>
         </Sub>
 
@@ -937,9 +980,21 @@ export function HelpContent() {
 
         <Sub id="scene-context">
           <p>
-            The panel to the right of the text, <L>{WRITE.contextPanel}</L>, has three tabs. Choose a tab, or move
-            between them with the arrow keys.
+            The panel to the right of the text, <L>{WRITE.contextPanel}</L>, has four tabs. Choose a tab, or move
+            between them with the arrow keys. Opening a source or reference in the panel does not leave the writing page,
+            so unsaved text, the cursor and undo stay as they are.
           </p>
+          <h4>{DRAFT.sourceTab}</h4>
+          <ul>
+            <li>
+              <L>{DRAFT.sourceHeading}</L> lists Zero draft chapters and scenes pinned to this rewrite page, each at the
+              exact revision from when it was linked.
+            </li>
+            <li>
+              <L>{DRAFT.openSourcePreview}</L> shows that pinned text in the panel. <L>{DRAFT.attachSource}</L> and{" "}
+              <L>{DRAFT.detachSource}</L> add or remove pins so one rewrite scene can draw on several sources.
+            </li>
+          </ul>
           <h4>{WRITE.references}</h4>
           <ul>
             <li>

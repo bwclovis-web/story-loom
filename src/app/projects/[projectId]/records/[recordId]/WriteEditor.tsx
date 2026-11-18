@@ -40,7 +40,14 @@ import { minimalEdit, toggleInline } from "@/writing/markdownFormat";
 import { tidyText } from "@/writing/tidy";
 import type { SpellChecker, SpellingLanguage } from "@/writing/spelling";
 import { saveRecordAction, type FormResult } from "../../actions";
-import { WriteContext, type ChoiceItem, type LinkedItem, type NoteItem } from "./WriteContext";
+import {
+  WriteContext,
+  type AttachableSource,
+  type ChoiceItem,
+  type LinkedItem,
+  type NoteItem,
+  type SourceItem,
+} from "./WriteContext";
 
 /** At this viewport width and above the context panel sits beside the text; below it opens over the page. */
 const WIDE_QUERY = "(min-width: 1200px)";
@@ -81,6 +88,8 @@ export function WriteEditor(props: {
   notes: NoteItem[];
   linked: LinkedItem[];
   choices: ChoiceItem[];
+  sources: SourceItem[];
+  attachableSources: AttachableSource[];
   /** Status, protection, history and compare, rendered by the server below the text. */
   details: ReactNode;
 }) {
@@ -583,6 +592,8 @@ export function WriteEditor(props: {
           notes={props.notes}
           linked={props.linked}
           choices={props.choices}
+          sources={props.sources}
+          attachableSources={props.attachableSources}
           overlay={!wide}
           onClose={closeOverlay}
           proofreader={

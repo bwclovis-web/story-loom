@@ -2,12 +2,25 @@ import type { Db, DbOrTx } from "../db";
 import { writeAudit } from "./auditService";
 import { NotFoundError } from "./errors";
 
-export async function listReviewItems(db: DbOrTx, projectId: string, status: "open" | "resolved" | "all" = "open") {
-  return db.reviewItem.findMany({
-    where: { projectId, record: { trashedAt: null }, ...(status === "all" ? {} : { status }) },
+export async function listReviewItems(
+  db: DbOrTx,
+  projectId: string,
+  status: "open" | "resolved" | "all" = "open",
+  options?: { draftId?: string | null; hasDrafts?: boolean },
+) {
+  const manuscriptTypes = ["manuscript_chapter", "manuscript_scene"];
+  const recordFilter =
+    options?.hasDrafts === true
+      ? options.draftId
+        ? { trashedAt: null, OR: [{ draftId: options.draftId }, { type: { notIn: manuscriptTypes } }] }
+        : { trashedAt: null, type: { notIn: manuscriptTypes } }
+      : { trashedAt: null };
+  const rows = await db.reviewItem.findMany({
+    where: { projectId, record: recordFilter, ...(status === "all" ? {} : { status }) },
     orderBy: { createdAt: "desc" },
-    include: { record: { select: { id: true, title: true, type: true } } },
+    include: { record: { select: { id: true, title: true, type: true, draftId: true } } },
   });
+  return rows;
 }
 
 export async function listOpenReviewItemsForRecord(db: DbOrTx, projectId: string, recordId: string) {

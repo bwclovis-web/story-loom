@@ -16,6 +16,11 @@ export function isDraftKind(value: string | null | undefined): value is DraftKin
   return !!value && (DRAFT_KINDS as readonly string[]).includes(value);
 }
 
+/** Default display labels when creating a ManuscriptDraft row. */
+export function defaultDraftLabel(kind: DraftKind): string {
+  return DRAFT_KIND_LABELS[kind];
+}
+
 /** Where a World reference applies: this book, or the whole series. */
 export const WORLD_SCOPES = ["book", "series"] as const;
 export type WorldScope = (typeof WORLD_SCOPES)[number];
