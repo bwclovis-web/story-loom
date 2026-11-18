@@ -11,6 +11,7 @@ import type { Issue } from "@/domain/issues";
 import type { BoardCardView, BoardView } from "@/server/services/boardService";
 import { WORLD, WRITE } from "@/ui/labels";
 import { previewReferenceAction, type ReferencePreview } from "../../write/actions";
+import { AskAboutBoard } from "./AskAboutBoard";
 import {
   addImageCardAction,
   addNoteCardAction,
@@ -182,6 +183,7 @@ export function BoardCanvas({
 
         <p className="small muted">{WORLD.dragHint}</p>
         <IssueList issues={issues} />
+        <AskAboutBoard projectId={projectId} boardId={board.id} />
 
         <div className="board-toolbar row" style={{ flexWrap: "wrap", gap: "0.5rem" }}>
           <label>

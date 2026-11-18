@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { ContentClassBadge, ProtectionBadge, RevisionBadge, StatusBadge } from "@/components/Badges";
 import type { RecordView } from "@/domain/records";
-import { isManuscriptType, RECORD_TYPE_LABELS } from "@/domain/recordTypes";
+import { isManuscriptType, isRecordType, RECORD_TYPE_LABELS } from "@/domain/recordTypes";
 import { PROOFREAD_INSTRUCTIONS } from "@/proofread/prompt";
 import { getAssistantConfig } from "@/server/assistantConfig";
 import { getDb } from "@/server/db";
@@ -9,6 +9,7 @@ import { listPendingProposalsForRecord } from "@/server/services/assistantPropos
 import { NotFoundError } from "@/server/services/errors";
 import { listLinkedReferences, listLinkingRecords } from "@/server/services/linkService";
 import { listRecordImages } from "@/server/services/imageService";
+import { listEstablishedFactsForSubject } from "@/server/services/establishedFactService";
 import { listPlaceRelationsForRecord } from "@/server/services/placeRelationService";
 import { listReadingPins, resolvePinScope } from "@/server/services/readingPinService";
 import { listImportedFilesForRecord } from "@/server/services/markdownImportService";
@@ -154,7 +155,7 @@ export default async function RecordPage({
     projectId,
     drafts.find((d) => d.kind === "author_manuscript")?.id ?? drafts[0]?.id ?? null,
   );
-  const [linking, reviewItems, proposals, importedFiles, images, supersededBy, worldPins, placeRelations, referenceChoices] =
+  const [linking, reviewItems, proposals, importedFiles, images, supersededBy, worldPins, placeRelations, referenceChoices, establishedFacts] =
     await Promise.all([
       listLinkingRecords(db, projectId, record.id),
       listOpenReviewItemsForRecord(db, projectId, record.id),
@@ -167,12 +168,53 @@ export default async function RecordPage({
       listReadingPins(db, projectId, worldPinScope),
       listPlaceRelationsForRecord(db, projectId, record.id).catch(() => ({ outgoing: [], incoming: [] })),
       listReferenceChoices(db, projectId),
+      listEstablishedFactsForSubject(db, projectId, record.id).catch(() => [] as Awaited<ReturnType<typeof listEstablishedFactsForSubject>>),
     ]);
   const chapterIds = [...new Set(linking.flatMap((l) => (l.parentRecordId ? [l.parentRecordId] : [])))];
   const chapters = chapterIds.length
     ? await db.record.findMany({ where: { projectId, id: { in: chapterIds }, trashedAt: null }, select: { id: true, title: true } })
     : [];
   const chapterTitle = new Map(chapters.map((c) => [c.id, c.title]));
+
+  const evidenceSourceIds = [...new Set(linking.map((l) => l.recordId))];
+  const planSources = await db.record.findMany({
+    where: {
+      projectId,
+      trashedAt: null,
+      type: { in: ["chapter_outline", "story_architecture"] },
+    },
+    select: { id: true, title: true, type: true, body: true },
+    orderBy: [{ title: "asc" }, { id: "asc" }],
+  });
+  const linkedSources = evidenceSourceIds.length
+    ? await db.record.findMany({
+        where: { projectId, id: { in: evidenceSourceIds }, trashedAt: null },
+        select: { id: true, title: true, type: true, body: true },
+      })
+    : [];
+  const evidenceById = new Map([...linkedSources, ...planSources].map((r) => [r.id, r]));
+  const evidenceSources = [...evidenceById.values()].flatMap((r) => {
+    if (!isRecordType(r.type)) return [];
+    if (!isManuscriptType(r.type) && r.type !== "chapter_outline" && r.type !== "story_architecture") return [];
+    return [
+      {
+        id: r.id,
+        title: r.title,
+        typeLabel: RECORD_TYPE_LABELS[r.type],
+        bodyLength: r.body.length,
+      },
+    ];
+  });
+
+  const manuscriptScenes = await db.record.findMany({
+    where: {
+      projectId,
+      trashedAt: null,
+      type: { in: ["manuscript_chapter", "manuscript_scene"] },
+    },
+    select: { id: true, title: true, type: true, draftId: true },
+    orderBy: [{ title: "asc" }, { id: "asc" }],
+  });
 
   return (
     <ReferenceView
@@ -199,6 +241,20 @@ export default async function RecordPage({
         title: c.title,
         typeLabel: RECORD_TYPE_LABELS[c.type],
       }))}
+      establishedFacts={establishedFacts}
+      evidenceSources={evidenceSources}
+      manuscriptDrafts={drafts.map((d) => ({ id: d.id, label: d.label, kind: d.kind }))}
+      manuscriptScenes={manuscriptScenes.flatMap((s) => {
+        if (!isRecordType(s.type) || !isManuscriptType(s.type)) return [];
+        return [
+          {
+            id: s.id,
+            title: s.title,
+            draftId: s.draftId,
+            typeLabel: RECORD_TYPE_LABELS[s.type],
+          },
+        ];
+      })}
       editor={{ spellingLanguage, spellChecker, dictionaryWords, proofread }}
     />
   );

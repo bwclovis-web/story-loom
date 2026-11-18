@@ -34,8 +34,15 @@ import {
   TrashSection,
   type InsideRecord,
 } from "./RecordSections";
+import type { EstablishedFactView } from "@/server/services/establishedFactService";
 import type { PlaceRelationView } from "@/server/services/placeRelationService";
 import type { ReadingPinView } from "@/server/services/readingPinService";
+import {
+  EstablishedInRail,
+  type DraftChoice,
+  type EvidenceSourceChoice,
+  type SceneChoice,
+} from "./EstablishedInRail";
 import { PlaceRelations } from "./PlaceRelations";
 import { WorldContextAside, WorldContextProvider, WorldContextToggle } from "./WorldContextRail";
 import { WorldPins } from "./WorldPins";
@@ -88,6 +95,10 @@ export interface ReferenceViewProps {
   initialPins: ReadingPinView[];
   placeRelations: { outgoing: PlaceRelationView[]; incoming: PlaceRelationView[] } | null;
   placeChoices: Array<{ id: string; title: string; typeLabel: string }>;
+  establishedFacts: EstablishedFactView[] | null;
+  evidenceSources: EvidenceSourceChoice[];
+  manuscriptDrafts: DraftChoice[];
+  manuscriptScenes: SceneChoice[];
   editor: {
     spellingLanguage: SpellingLanguage;
     spellChecker: SpellChecker;
@@ -365,6 +376,18 @@ export function ReferenceView(props: ReferenceViewProps) {
             initialPins={props.initialPins}
             canPinCurrent={linkable}
           />
+
+          {linkable && props.establishedFacts ? (
+            <EstablishedInRail
+              projectId={projectId}
+              subjectRecordId={record.id}
+              recordType={record.type}
+              initialFacts={props.establishedFacts}
+              evidenceSources={props.evidenceSources}
+              drafts={props.manuscriptDrafts}
+              scenes={props.manuscriptScenes}
+            />
+          ) : null}
 
           {!editing && doc.headings.length ? (
             <ContextSection title={WORLD.contents} className="contents-section">

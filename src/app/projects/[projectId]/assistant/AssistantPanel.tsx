@@ -79,6 +79,14 @@ export function AssistantPanel(props: {
   draftScopeId?: string | null;
   /** Manuscript record id from Write “Find relevant context” deep link. */
   seedRecordId?: string | null;
+  /** World board deep link: preselect linked records/sections and suggest a prompt. */
+  boardSeed?: {
+    boardId: string;
+    boardTitle: string;
+    suggestedPrompt: string;
+    selectedRefs: string[];
+    sectionPicks: Record<string, string[]>;
+  } | null;
 }) {
   const { projectId, conversation, records } = props;
   const router = useRouter();
@@ -178,6 +186,16 @@ export function AssistantPanel(props: {
     // Intentionally once per seed id when the panel mounts / seed changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [props.seedRecordId]);
+
+  useEffect(() => {
+    if (!props.boardSeed) return;
+    setSelectedRefs(props.boardSeed.selectedRefs);
+    setSectionPicks(props.boardSeed.sectionPicks);
+    setQuestion(props.boardSeed.suggestedPrompt);
+    setContextOpen(true);
+    // Intentionally once per board seed when the panel mounts / board changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [props.boardSeed?.boardId]);
 
   const takePassage = () => {
     const box = chapterBoxRef.current;

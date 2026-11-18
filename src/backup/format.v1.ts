@@ -447,6 +447,43 @@ export const workspaceBackupV1Schema = z
           .strict(),
       )
       .optional(),
+    /** Established-in facts; omitted in older backups → none. */
+    establishedFacts: z
+      .array(
+        z
+          .object({
+            id,
+            projectId: id,
+            subjectRecordId: id,
+            statement: z.string().min(1),
+            status: z.enum(["pending", "accepted", "dismissed"]),
+            evidenceKind: z.enum(["planned", "zero_draft", "author_rewrite"]),
+            createdAt: timestamp,
+            updatedAt: timestamp,
+          })
+          .strict(),
+      )
+      .optional(),
+    factEvidence: z
+      .array(
+        z
+          .object({
+            id,
+            factId: id,
+            projectId: id,
+            sourceRecordId: id,
+            revisionNumber: z.number().int().min(1),
+            passageStart: z.number().int().min(0),
+            passageEnd: z.number().int().min(0),
+            passageExcerpt: z.string(),
+            contentHash: z.string().regex(/^[0-9a-f]{64}$/),
+            evidenceKind: z.enum(["planned", "zero_draft", "author_rewrite"]),
+            needsRecheck: z.boolean(),
+            createdAt: timestamp,
+          })
+          .strict(),
+      )
+      .optional(),
     /** Added with images; a backup without it restores with no images. */
     recordImages: z
       .array(
@@ -501,6 +538,8 @@ export const workspaceBackupV1Schema = z
         weaveSetupPayoffs: z.number().int().optional(),
         weaveTemplates: z.number().int().optional(),
         weaveTemplateBeats: z.number().int().optional(),
+        establishedFacts: z.number().int().optional(),
+        factEvidence: z.number().int().optional(),
       })
       .strict(),
     /** sha256 of the stable JSON serialization of every other top-level field. */

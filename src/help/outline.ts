@@ -67,6 +67,7 @@ export const HELP_SECTIONS = [
     title: "World references",
     children: [
       { id: "world-boards", title: "Boards" },
+      { id: "established-in", title: "Established in" },
       { id: "world-maps", title: "Maps" },
       { id: "place-relations", title: "Place relationships" },
       { id: "world-nav", title: "Finding references" },

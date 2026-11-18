@@ -68,6 +68,8 @@ model Project {
   weaveBeats             WeaveBeat[]
   weaveBeatWorldRefs     WeaveBeatWorldRef[]
   weaveTemplates         WeaveTemplate[]
+  establishedFacts       EstablishedFact[]
+  factEvidence           FactEvidence[]
 
   @@index([workspaceId])
 }
@@ -191,6 +193,8 @@ model Record {
   placeRelationsTo      PlaceRelation[] @relation("PlaceTo")
   weaveBeatsManuscript  WeaveBeat[]           @relation("WeaveManuscript")
   weaveBeatWorldRefs    WeaveBeatWorldRef[]
+  establishedFacts      EstablishedFact[]     @relation("FactSubject")
+  factEvidenceSources   FactEvidence[]        @relation("FactEvidenceSource")
 
   @@index([projectId, type])
   @@index([parentRecordId])
@@ -509,6 +513,56 @@ model WeaveTemplateBeat {
   position   Int           @default(0)
 
   @@index([templateId])
+}
+
+/// A fact about a reference record ("Established in"). Not revisioned content:
+/// accepting or dismissing is audited. Evidence links cite exact manuscript
+/// (or plan) passages at a revision. Kinds stay distinct: planned | zero_draft |
+/// author_rewrite. Extracted facts stay pending until the author accepts them.
+model EstablishedFact {
+  id              String         @id
+  projectId       String
+  project         Project        @relation(fields: [projectId], references: [id])
+  subjectRecordId String
+  subject         Record         @relation("FactSubject", fields: [subjectRecordId], references: [id])
+  statement       String
+  /// pending | accepted | dismissed
+  status          String         @default("pending")
+  /// Primary stream this fact belongs to: planned | zero_draft | author_rewrite
+  evidenceKind    String
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  evidence        FactEvidence[]
+
+  @@index([projectId])
+  @@index([subjectRecordId])
+  @@index([projectId, status])
+}
+
+/// Passage-level evidence for an EstablishedFact. Moving cards/pins never
+/// creates these. When the cited source revision changes, needsRecheck is set.
+model FactEvidence {
+  id                   String          @id
+  factId               String
+  fact                 EstablishedFact @relation(fields: [factId], references: [id], onDelete: Cascade)
+  projectId            String
+  project              Project         @relation(fields: [projectId], references: [id])
+  sourceRecordId       String
+  source               Record          @relation("FactEvidenceSource", fields: [sourceRecordId], references: [id])
+  revisionNumber       Int
+  passageStart         Int
+  passageEnd           Int
+  passageExcerpt       String
+  contentHash          String
+  /// planned | zero_draft | author_rewrite
+  evidenceKind         String
+  needsRecheck         Boolean         @default(false)
+  createdAt            DateTime        @default(now())
+
+  @@index([factId])
+  @@index([projectId])
+  @@index([sourceRecordId])
+  @@index([sourceRecordId, needsRecheck])
 }
 
 model Revision {

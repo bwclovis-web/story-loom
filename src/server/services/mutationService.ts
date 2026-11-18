@@ -16,6 +16,10 @@ import type { Db, DbOrTx, Tx } from "../db";
 import { writeAudit } from "./auditService";
 import { MutationRejectedError, NotFoundError, StaleRevisionError } from "./errors";
 import { checkCreateAllowed, checkWriteAllowed } from "./protection";
+import {
+  deleteFactsForRecordsInTx,
+  markEvidenceNeedsRecheckForSourceInTx,
+} from "./establishedFactService";
 import { clearWeaveForDeletedRecordsInTx } from "./weaveService";
 
 /*
@@ -504,6 +508,9 @@ export async function applyMutationsInTx(
       }
     }
     await writeRevision(tx, p.recordId, newRevision, p.after, sourceId);
+    if (p.beforeRevision !== null) {
+      await markEvidenceNeedsRecheckForSourceInTx(tx, ctx.projectId, p.recordId, newRevision);
+    }
     outcomes.push({
       index: p.index,
       kind: p.mutation.kind,
@@ -865,6 +872,7 @@ export async function deleteRecordRowsInTx(tx: Tx, recordIds: readonly string[])
   await tx.worldMapPin.deleteMany({ where: { recordId: ids } });
   await tx.placeRelation.deleteMany({ where: { OR: [{ fromRecordId: ids }, { toRecordId: ids }] } });
   await clearWeaveForDeletedRecordsInTx(tx, recordIds);
+  await deleteFactsForRecordsInTx(tx, recordIds);
   await tx.recordLink.deleteMany({ where: { OR: [{ fromRecordId: ids }, { toRecordId: ids }] } });
   // Clear board image cards and maps that use these images before deleting the bytes.
   const images = await tx.recordImage.findMany({ where: { recordId: ids }, select: { id: true } });

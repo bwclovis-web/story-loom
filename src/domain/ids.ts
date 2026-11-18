@@ -34,7 +34,9 @@ export type IdPrefix =
   | "wvr" // weave beat world ref
   | "wvs" // weave setup/payoff
   | "wvt" // weave template
-  | "wvx"; // weave template beat
+  | "wvx" // weave template beat
+  | "fct" // established fact
+  | "fev"; // fact evidence
 
 export function newId(prefix: IdPrefix): string {
   return `${prefix}_${ulid()}`;

@@ -15,6 +15,7 @@ import {
   usageSummary,
   type ConversationView,
 } from "@/server/services/assistantService";
+import { previewBoardAskContext, type BoardAskPreview } from "@/server/services/establishedFactService";
 import { listManuscriptDrafts } from "@/server/services/draftService";
 import { resolvePinScope } from "@/server/services/readingPinService";
 import { ASSISTANT } from "@/ui/labels";
@@ -28,10 +29,10 @@ export default async function AssistantPage({
   searchParams,
 }: {
   params: Promise<{ projectId: string }>;
-  searchParams: Promise<{ c?: string; seed?: string }>;
+  searchParams: Promise<{ c?: string; seed?: string; board?: string }>;
 }) {
   const { projectId } = await params;
-  const { c, seed } = await searchParams;
+  const { c, seed, board } = await searchParams;
   const db = getDb();
   const project = await findProject(db, projectId);
   if (!project) notFound();
@@ -45,9 +46,19 @@ export default async function AssistantPage({
   ]);
   const draftScopeId = await resolvePinScope(db, projectId, drafts.find((d) => d.kind === "author_manuscript")?.id ?? drafts[0]?.id ?? null);
 
+  let boardPreview: BoardAskPreview | null = null;
+  if (board) {
+    try {
+      boardPreview = await previewBoardAskContext(db, projectId, board);
+    } catch {
+      boardPreview = null;
+    }
+  }
+
   let conversation: ConversationView | null = null;
   let proposals: Record<string, ProposalView> = {};
-  const conversationId = c ?? (seed && conversations[0] ? conversations[0].id : undefined);
+  const conversationId =
+    c ?? ((seed || boardPreview) && conversations[0] ? conversations[0].id : undefined);
   if (conversationId) {
     try {
       conversation = await getConversationView(db, projectId, conversationId, status.limits);
@@ -130,6 +141,18 @@ export default async function AssistantPage({
             proposalExtraChars={fixedChars("proposal", PROPOSAL_SCHEMA_CHARS) - ASSISTANT_INSTRUCTIONS.length}
             draftScopeId={draftScopeId === "" ? null : draftScopeId}
             seedRecordId={seed ?? null}
+            boardSeed={
+              boardPreview
+                ? {
+                    boardId: boardPreview.boardId,
+                    boardTitle: boardPreview.boardTitle,
+                    suggestedPrompt: boardPreview.suggestedPrompt,
+                    // Whole linked records; the board preview still lists sections for review.
+                    selectedRefs: boardPreview.records.map((r) => r.recordId),
+                    sectionPicks: {},
+                  }
+                : null
+            }
           />
         ) : (
           <section className="panel">
@@ -137,6 +160,15 @@ export default async function AssistantPage({
             {seed ? (
               <p className="small muted">
                 Open or start a conversation to find relevant context for the scene you came from.
+              </p>
+            ) : null}
+            {board && !boardPreview ? (
+              <p className="small muted">That board was not found in this project.</p>
+            ) : null}
+            {boardPreview ? (
+              <p className="small muted">
+                Open or start a conversation to ask about the board &quot;{boardPreview.boardTitle}&quot;. Proposed
+                updates still go through Review and Apply.
               </p>
             ) : null}
           </section>

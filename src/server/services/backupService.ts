@@ -116,6 +116,14 @@ function weaveTemplateBeatsOf(b: WorkspaceBackupV1) {
   return b.weaveTemplateBeats ?? [];
 }
 
+function establishedFactsOf(b: WorkspaceBackupV1) {
+  return b.establishedFacts ?? [];
+}
+
+function factEvidenceOf(b: WorkspaceBackupV1) {
+  return b.factEvidence ?? [];
+}
+
 /** P2021: table missing. P2022: column missing. */
 function isMissingSchemaError(error: unknown, code: "P2021" | "P2022"): boolean {
   return error instanceof Prisma.PrismaClientKnownRequestError && error.code === code;
@@ -410,6 +418,32 @@ async function weaveTemplateBeatRows(db: DbOrTx, templateIds: string[]) {
   }
 }
 
+async function establishedFactRows(db: DbOrTx, projectIds: string[]) {
+  if (!("establishedFact" in db) || !(db as { establishedFact?: { findMany: unknown } }).establishedFact) return [];
+  try {
+    return await db.establishedFact.findMany({
+      where: { projectId: { in: projectIds } },
+      orderBy: [{ projectId: "asc" }, { id: "asc" }],
+    });
+  } catch (error) {
+    if (isMissingSchemaError(error, "P2021")) return [];
+    throw error;
+  }
+}
+
+async function factEvidenceRows(db: DbOrTx, projectIds: string[]) {
+  if (!("factEvidence" in db) || !(db as { factEvidence?: { findMany: unknown } }).factEvidence) return [];
+  try {
+    return await db.factEvidence.findMany({
+      where: { projectId: { in: projectIds } },
+      orderBy: [{ factId: "asc" }, { id: "asc" }],
+    });
+  } catch (error) {
+    if (isMissingSchemaError(error, "P2021")) return [];
+    throw error;
+  }
+}
+
 async function manuscriptGroupRows(db: DbOrTx, projectIds: string[]) {
   try {
     return await db.manuscriptGroup.findMany({
@@ -541,6 +575,8 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
     weaveBeatWorldRefs,
     weaveSetupPayoffs,
     weaveTemplates,
+    establishedFacts,
+    factEvidence,
   ] = await Promise.all([
     recordRows(db, projectIds),
     db.source.findMany({ where: inProjects, orderBy: { id: "asc" } }),
@@ -565,6 +601,8 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
     weaveBeatWorldRefRows(db, projectIds),
     weaveSetupPayoffRows(db, workspaceId),
     weaveTemplateRows(db, projectIds),
+    establishedFactRows(db, projectIds),
+    factEvidenceRows(db, projectIds),
   ]);
   const weaveTemplateBeats = await weaveTemplateBeatRows(
     db,
@@ -908,6 +946,38 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
           })),
         }
       : {}),
+    ...(establishedFacts.length
+      ? {
+          establishedFacts: establishedFacts.map((f) => ({
+            id: f.id,
+            projectId: f.projectId,
+            subjectRecordId: f.subjectRecordId,
+            statement: f.statement,
+            status: f.status as "pending" | "accepted" | "dismissed",
+            evidenceKind: f.evidenceKind as "planned" | "zero_draft" | "author_rewrite",
+            createdAt: iso(f.createdAt),
+            updatedAt: iso(f.updatedAt),
+          })),
+        }
+      : {}),
+    ...(factEvidence.length
+      ? {
+          factEvidence: factEvidence.map((e) => ({
+            id: e.id,
+            factId: e.factId,
+            projectId: e.projectId,
+            sourceRecordId: e.sourceRecordId,
+            revisionNumber: e.revisionNumber,
+            passageStart: e.passageStart,
+            passageEnd: e.passageEnd,
+            passageExcerpt: e.passageExcerpt,
+            contentHash: e.contentHash,
+            evidenceKind: e.evidenceKind as "planned" | "zero_draft" | "author_rewrite",
+            needsRecheck: e.needsRecheck,
+            createdAt: iso(e.createdAt),
+          })),
+        }
+      : {}),
     recordImages: recordImages.map((img) => ({
       id: img.id,
       projectId: img.projectId,
@@ -953,6 +1023,8 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
       ...(weaveSetupPayoffs.length ? { weaveSetupPayoffs: weaveSetupPayoffs.length } : {}),
       ...(weaveTemplates.length ? { weaveTemplates: weaveTemplates.length } : {}),
       ...(weaveTemplateBeats.length ? { weaveTemplateBeats: weaveTemplateBeats.length } : {}),
+      ...(establishedFacts.length ? { establishedFacts: establishedFacts.length } : {}),
+      ...(factEvidence.length ? { factEvidence: factEvidence.length } : {}),
     },
   };
   return { ...body, checksum: backupChecksum(body) };
@@ -1019,6 +1091,8 @@ function checkInternalConsistency(b: WorkspaceBackupV1): Issue[] {
     weaveSetupPayoffs: weaveSetupPayoffsOf(b).length,
     weaveTemplates: weaveTemplatesOf(b).length,
     weaveTemplateBeats: weaveTemplateBeatsOf(b).length,
+    establishedFacts: establishedFactsOf(b).length,
+    factEvidence: factEvidenceOf(b).length,
   };
   for (const key of Object.keys(actualCounts) as (keyof BackupCounts)[]) {
     if (actualCounts[key] !== (b.counts[key] ?? 0)) {
@@ -1081,6 +1155,8 @@ function checkInternalConsistency(b: WorkspaceBackupV1): Issue[] {
   checkUnique(weaveSetupPayoffsOf(b).map((x) => `${x.fromBeatId}/${x.toBeatId}`), "weave setup/payoff pair", issues);
   checkUnique(weaveTemplatesOf(b).map((x) => x.id), "weave template", issues);
   checkUnique(weaveTemplateBeatsOf(b).map((x) => x.id), "weave template beat", issues);
+  checkUnique(establishedFactsOf(b).map((x) => x.id), "established fact", issues);
+  checkUnique(factEvidenceOf(b).map((x) => x.id), "fact evidence", issues);
 
   const projectIds = new Set(b.projects.map((p) => p.id));
   const recordIds = new Set(b.records.map((r) => r.id));
@@ -1304,6 +1380,25 @@ function checkInternalConsistency(b: WorkspaceBackupV1): Issue[] {
       issues.push(integrity(`Weave template beat ${beat.id} references missing template ${beat.templateId}.`));
     }
   });
+  const establishedFactIds = new Set(establishedFactsOf(b).map((x) => x.id));
+  establishedFactsOf(b).forEach((f) => {
+    needProject(f.projectId, `Established fact ${f.id}`);
+    if (!recordIds.has(f.subjectRecordId) || recordProject.get(f.subjectRecordId) !== f.projectId) {
+      issues.push(integrity(`Established fact ${f.id} references missing subject ${f.subjectRecordId}.`));
+    }
+  });
+  factEvidenceOf(b).forEach((e) => {
+    needProject(e.projectId, `Fact evidence ${e.id}`);
+    if (!establishedFactIds.has(e.factId)) {
+      issues.push(integrity(`Fact evidence ${e.id} references missing fact ${e.factId}.`));
+    }
+    if (!recordIds.has(e.sourceRecordId) || recordProject.get(e.sourceRecordId) !== e.projectId) {
+      issues.push(integrity(`Fact evidence ${e.id} references missing source ${e.sourceRecordId}.`));
+    }
+    if (e.passageEnd < e.passageStart) {
+      issues.push(integrity(`Fact evidence ${e.id} has an empty or inverted passage range.`));
+    }
+  });
   recordImagesOf(b).forEach((img) => {
     needProject(img.projectId, `Image ${img.id}`);
     if (!recordIds.has(img.recordId) || recordProject.get(img.recordId) !== img.projectId) {
@@ -1479,6 +1574,15 @@ async function findCollisions(db: DbOrTx, b: WorkspaceBackupV1): Promise<Issue[]
       db.weaveTemplateBeat.count({ where: { id: { in: weaveTemplateBeatsOf(b).map((x) => x.id) } } }),
     );
   }
+  if (establishedFactsOf(b).length) {
+    await check(
+      "established fact",
+      db.establishedFact.count({ where: { id: { in: establishedFactsOf(b).map((x) => x.id) } } }),
+    );
+  }
+  if (factEvidenceOf(b).length) {
+    await check("fact evidence", db.factEvidence.count({ where: { id: { in: factEvidenceOf(b).map((x) => x.id) } } }));
+  }
   return issues;
 }
 
@@ -1612,6 +1716,8 @@ export async function restoreWorkspaceBackup(db: Db, input: string | unknown, op
   weaveSetupPayoffsOf(b).forEach((x) => assign(x.id, "wvs"));
   weaveTemplatesOf(b).forEach((x) => assign(x.id, "wvt"));
   weaveTemplateBeatsOf(b).forEach((x) => assign(x.id, "wvx"));
+  establishedFactsOf(b).forEach((x) => assign(x.id, "fct"));
+  factEvidenceOf(b).forEach((x) => assign(x.id, "fev"));
 
   const workspaceName =
     options.workspaceName?.trim() || (remap ? `${b.workspace.name} (restored ${b.createdAt.slice(0, 10)})` : b.workspace.name);
@@ -2036,6 +2142,40 @@ export async function restoreWorkspaceBackup(db: Db, input: string | unknown, op
               toBeatId: m(link.toBeatId),
               note: link.note,
               createdAt: new Date(link.createdAt),
+            })),
+          });
+        }
+        const facts = establishedFactsOf(b);
+        if (facts.length) {
+          await tx.establishedFact.createMany({
+            data: facts.map((f) => ({
+              id: m(f.id),
+              projectId: m(f.projectId),
+              subjectRecordId: m(f.subjectRecordId),
+              statement: f.statement,
+              status: f.status,
+              evidenceKind: f.evidenceKind,
+              createdAt: new Date(f.createdAt),
+              updatedAt: new Date(f.updatedAt),
+            })),
+          });
+        }
+        const evidence = factEvidenceOf(b);
+        if (evidence.length) {
+          await tx.factEvidence.createMany({
+            data: evidence.map((e) => ({
+              id: m(e.id),
+              factId: m(e.factId),
+              projectId: m(e.projectId),
+              sourceRecordId: m(e.sourceRecordId),
+              revisionNumber: e.revisionNumber,
+              passageStart: e.passageStart,
+              passageEnd: e.passageEnd,
+              passageExcerpt: e.passageExcerpt,
+              contentHash: e.contentHash,
+              evidenceKind: e.evidenceKind,
+              needsRecheck: e.needsRecheck,
+              createdAt: new Date(e.createdAt),
             })),
           });
         }

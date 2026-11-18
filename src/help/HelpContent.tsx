@@ -1158,6 +1158,33 @@ export function HelpContent() {
           <p>
             Boards and cards are included in workspace backups. Older backups that omit them restore with no boards.
           </p>
+          <p>
+            <L>{WORLD.askAboutBoard}</L> previews the linked records and their sections, then opens the assistant with
+            those records included. Any proposed updates still go through the usual Review and Apply flow (see{" "}
+            <See anchor="assistant-proposals" />
+            ).
+          </p>
+        </Sub>
+
+        <Sub id="established-in">
+          <p>
+            On a reference page, the context rail&apos;s <L>{WORLD.establishedIn}</L> links facts to exact manuscript or
+            plan passages at a saved revision. Planned material, zero-draft evidence, and author-rewrite evidence stay
+            distinct. Offering extracted facts creates pending items you can accept or dismiss — nothing is accepted
+            until you review it.
+          </p>
+          <ul>
+            <li>
+              Linking a passage stores the source revision, offsets, and excerpt. If that source is edited later, the
+              evidence is flagged for recheck.
+            </li>
+            <li>
+              On a character dossier, <L>{WORLD.characterKnowledgeCheck}</L> scans a chosen draft and chapter or scene
+              for the character&apos;s names, lists the passages checked, and reports which accepted facts lack coverage
+              there.
+            </li>
+          </ul>
+          <p>Established facts and evidence are included in workspace backups. Older backups that omit them restore with none.</p>
         </Sub>
 
         <Sub id="world-maps">
@@ -1194,7 +1221,8 @@ export function HelpContent() {
           </p>
           <p>
             Soft-trashed ends are hidden from the list; permanent delete of either end removes the relationship. Place
-            relationships are included in workspace backups.
+            relationships are included in workspace backups. See also <See anchor="established-in" /> for facts linked to
+            manuscript passages.
           </p>
         </Sub>
 

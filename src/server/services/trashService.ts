@@ -266,6 +266,8 @@ async function deleteProjectRowsInTx(tx: Tx, projectId: string) {
     await tx.weaveTemplateBeat.deleteMany({ where: { templateId: { in: templates.map((t) => t.id) } } });
   }
   await tx.weaveTemplate.deleteMany({ where: { projectId } });
+  await tx.factEvidence.deleteMany({ where: { projectId } });
+  await tx.establishedFact.deleteMany({ where: { projectId } });
   await tx.project.update({
     where: { id: projectId },
     data: { defaultReadingDraftId: null, defaultExportDraftId: null },

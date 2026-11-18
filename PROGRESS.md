@@ -1840,3 +1840,35 @@ editable beat templates that apply as independent plan copies.
 ### Rollback
 
 Restore that pre-migrate SQLite snapshot and check out the pre-feature commit.
+
+## Established in / knowledge check / Ask about board (Nov 18, 2026)
+
+Requested: “Established in” on the reference rail; link facts to exact manuscript
+passages and revisions; extracted facts for review before saving; keep planned /
+zero-draft / author-rewrite evidence distinct; flag evidence for recheck when its
+source changes; on-demand character-knowledge check (draft + scene, passages +
+gaps); “Ask about this board” via the existing assistant with preview of linked
+records/sections and proposals through Review and Apply.
+
+### Implemented
+
+- Migration `20261118160000_established_facts`: `EstablishedFact`, `FactEvidence`.
+- `establishedFactService`: extract/accept/dismiss; passage evidence with revision
+  + offsets; recheck on source revision bump (via `mutationService`); character
+  knowledge check; board ask preview. Facts/evidence are audited, not revisioned.
+- Reference rail UI + character knowledge check; board “Ask about this board”
+  preview → `/assistant?board=`; optional backup arrays. Help + acceptance tests.
+
+### Verification
+
+| Check | Result |
+| --- | --- |
+| Pre-migrate backup | `backups/2026-11-18T12-14-43-977Z-pre-migrate` |
+| `pnpm db:deploy` | Applied `20261118160000_established_facts` |
+| `pnpm exec vitest run tests/acceptance/established-facts.test.ts tests/unit/help.test.ts` | 9/9 passed |
+| `pnpm typecheck` | pass |
+| `pnpm build` | pass (Next.js security reminder on first attempt; retry succeeded) |
+
+### Rollback
+
+Restore that pre-migrate SQLite snapshot and check out the pre-feature commit.

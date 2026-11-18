@@ -16,6 +16,7 @@ import {
   updateNoteCard,
   type BoardTemplateKey,
 } from "@/server/services/boardService";
+import { previewBoardAskContext, type BoardAskPreview } from "@/server/services/establishedFactService";
 import { MutationRejectedError, NotFoundError } from "@/server/services/errors";
 
 function failure(error: unknown): { ok: false; issues: Issue[] } {
@@ -153,6 +154,18 @@ export async function removeBoardCardAction(projectId: string, boardId: string, 
     await removeBoardCard(getDb(), projectId, boardId, cardId);
     revalidateBoards(projectId, boardId);
     return { ok: true as const };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+export async function previewBoardAskAction(
+  projectId: string,
+  boardId: string,
+): Promise<{ ok: true; preview: BoardAskPreview } | { ok: false; issues: Issue[] }> {
+  try {
+    const preview = await previewBoardAskContext(getDb(), projectId, boardId);
+    return { ok: true, preview };
   } catch (error) {
     return failure(error);
   }
