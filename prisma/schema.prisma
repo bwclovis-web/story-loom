@@ -64,6 +64,10 @@ model Project {
   worldMaps              WorldMap[]
   worldMapPins           WorldMapPin[]
   placeRelations         PlaceRelation[]
+  weaveGrids             WeaveGrid[]
+  weaveBeats             WeaveBeat[]
+  weaveBeatWorldRefs     WeaveBeatWorldRef[]
+  weaveTemplates         WeaveTemplate[]
 
   @@index([workspaceId])
 }
@@ -185,6 +189,8 @@ model Record {
   worldMapPins          WorldMapPin[]
   placeRelationsFrom    PlaceRelation[] @relation("PlaceFrom")
   placeRelationsTo      PlaceRelation[] @relation("PlaceTo")
+  weaveBeatsManuscript  WeaveBeat[]           @relation("WeaveManuscript")
+  weaveBeatWorldRefs    WeaveBeatWorldRef[]
 
   @@index([projectId, type])
   @@index([parentRecordId])
@@ -389,6 +395,120 @@ model PlaceRelation {
   @@unique([fromRecordId, toRecordId, kind])
   @@index([projectId])
   @@index([toRecordId])
+}
+
+/// A Plan Weave grid: Original plan, Zero-draft story map, or Author rewrite plan.
+/// Not revisioned. Beat positions are weave-local; moving a beat never reorders
+/// manuscript chapters or scenes. Legacy projects have none until created.
+model WeaveGrid {
+  id               String     @id
+  projectId        String
+  project          Project    @relation(fields: [projectId], references: [id])
+  title            String
+  /// original | zero_draft_map | author_rewrite
+  viewKind         String
+  /// Provenance only when created from a template; not a live link.
+  sourceTemplateId String?
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+  beats            WeaveBeat[]
+
+  @@index([projectId])
+  @@index([projectId, viewKind])
+}
+
+/// A beat on a Weave grid. Optional manuscript link (chapter/scene) and World
+/// references. Decision: keep | cut | move | combine | rebuild | "".
+model WeaveBeat {
+  id                   String              @id
+  gridId               String
+  grid                 WeaveGrid           @relation(fields: [gridId], references: [id], onDelete: Cascade)
+  projectId            String
+  project              Project             @relation(fields: [projectId], references: [id])
+  title                String
+  body                 String              @default("")
+  /// keep | cut | move | combine | rebuild | ""
+  decision             String              @default("")
+  manuscriptRecordId   String?
+  manuscriptRecord     Record?             @relation("WeaveManuscript", fields: [manuscriptRecordId], references: [id])
+  x                    Int
+  y                    Int
+  width                Int                 @default(220)
+  height               Int                 @default(140)
+  zIndex               Int                 @default(0)
+  createdAt            DateTime            @default(now())
+  worldRefs            WeaveBeatWorldRef[]
+  setupsFrom           WeaveSetupPayoff[]  @relation("SetupFrom")
+  payoffsTo            WeaveSetupPayoff[]  @relation("PayoffTo")
+
+  @@index([gridId])
+  @@index([projectId])
+  @@index([manuscriptRecordId])
+}
+
+/// A World (or other linkable reference) record cited by a beat.
+model WeaveBeatWorldRef {
+  id        String    @id
+  beatId    String
+  beat      WeaveBeat @relation(fields: [beatId], references: [id], onDelete: Cascade)
+  projectId String
+  project   Project   @relation(fields: [projectId], references: [id])
+  recordId  String
+  record    Record    @relation(fields: [recordId], references: [id])
+  createdAt DateTime  @default(now())
+
+  @@unique([beatId, recordId])
+  @@index([projectId])
+  @@index([recordId])
+}
+
+/// Series setup → payoff between beats. May span projects in the same workspace
+/// so a later reveal can point back to an earlier book. Independent of beat moves.
+model WeaveSetupPayoff {
+  id          String    @id
+  workspaceId String
+  fromBeatId  String
+  fromBeat    WeaveBeat @relation("SetupFrom", fields: [fromBeatId], references: [id], onDelete: Cascade)
+  toBeatId    String
+  toBeat      WeaveBeat @relation("PayoffTo", fields: [toBeatId], references: [id], onDelete: Cascade)
+  note        String    @default("")
+  createdAt   DateTime  @default(now())
+
+  @@unique([fromBeatId, toBeatId])
+  @@index([workspaceId])
+  @@index([toBeatId])
+}
+
+/// Editable beat template. Applying it creates an independent Weave grid copy.
+model WeaveTemplate {
+  id          String             @id
+  projectId   String
+  project     Project            @relation(fields: [projectId], references: [id])
+  title       String
+  description String             @default("")
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  beats       WeaveTemplateBeat[]
+
+  @@index([projectId])
+}
+
+model WeaveTemplateBeat {
+  id         String        @id
+  templateId String
+  template   WeaveTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  title      String
+  body       String        @default("")
+  /// keep | cut | move | combine | rebuild | ""
+  decision   String        @default("")
+  x          Int
+  y          Int
+  width      Int           @default(220)
+  height     Int           @default(140)
+  zIndex     Int           @default(0)
+  position   Int           @default(0)
+
+  @@index([templateId])
 }
 
 model Revision {

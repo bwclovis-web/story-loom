@@ -10,7 +10,7 @@ import {
   type DraftOption,
 } from "@/components/drafts/DraftControls";
 import { RECORD_TYPE_LABELS } from "@/domain/recordTypes";
-import { DRAFT, NAV, SHELL, WRITE } from "@/ui/labels";
+import { DRAFT, NAV, SHELL, WEAVE, WRITE } from "@/ui/labels";
 import { groupForProjectPath, parseProjectPath, RECORD_GROUPS, type RecordNavEntry } from "@/ui/navigation";
 import { Drawer } from "./Drawer";
 import { PanelLeftIcon } from "./icons";
@@ -224,35 +224,54 @@ function ProjectNavContent({
           boards={boards}
           maps={maps}
         />
-      ) : group ? (
-        RECORD_GROUPS[group].map((type) => {
-          const ofType = records.filter((r) => r.type === type);
-          const headingId = `${idPrefix}-${type}`;
-          return (
-            <div key={type} className="nav-section">
-              <p className="nav-subheading" id={headingId}>
-                {RECORD_TYPE_LABELS[type]}
-                <span className="nav-count">{ofType.length}</span>
-              </p>
-              {ofType.length === 0 ? (
-                <p className="nav-empty">None yet</p>
-              ) : (
-                <ul className="nav-list record-list" aria-labelledby={headingId}>
-                  {ofType.map((r) => {
-                    const href = `${base}/records/${encodeURIComponent(r.id)}`;
-                    return (
+      ) : group === "plan" ? (
+        <>
+          <p className="nav-subheading" id={`${idPrefix}-weave`}>
+            {WEAVE.heading}
+          </p>
+          <ul className="nav-list" aria-labelledby={`${idPrefix}-weave`}>
+            <li>
+              <Link
+                href={`${base}/plan/weave`}
+                aria-current={pathname.includes("/plan/weave") && !pathname.includes("/templates") ? "page" : undefined}
+              >
+                {WEAVE.heading}
+              </Link>
+            </li>
+            <li>
+              <Link
+                href={`${base}/plan/weave/templates`}
+                aria-current={pathname.includes("/plan/weave/templates") ? "page" : undefined}
+              >
+                {WEAVE.templates}
+              </Link>
+            </li>
+          </ul>
+          {RECORD_GROUPS.plan.map((type) => {
+            const ofType = records.filter((r) => r.type === type);
+            const headingId = `${idPrefix}-${type}`;
+            return (
+              <div key={type} className="nav-section">
+                <p className="nav-subheading" id={headingId}>
+                  {RECORD_TYPE_LABELS[type]}
+                </p>
+                {ofType.length === 0 ? (
+                  <p className="nav-empty">None yet</p>
+                ) : (
+                  <ul className="nav-list record-list" aria-labelledby={headingId}>
+                    {ofType.map((r) => (
                       <li key={r.id}>
-                        <Link href={href} aria-current={current(href)}>
+                        <Link href={`${base}/records/${encodeURIComponent(r.id)}`} aria-current={r.id === currentRecordId ? "page" : undefined}>
                           {r.title}
                         </Link>
                       </li>
-                    );
-                  })}
-                </ul>
-              )}
-            </div>
-          );
-        })
+                    ))}
+                  </ul>
+                )}
+              </div>
+            );
+          })}
+        </>
       ) : null}
 
       <p className="nav-heading" id={`${idPrefix}-tools`}>

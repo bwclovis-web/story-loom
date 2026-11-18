@@ -30,6 +30,7 @@ import {
   THEME,
   TRASH,
   UPGRADE,
+  WEAVE,
   WORLD,
   WRITE,
   WRITING,
@@ -1072,6 +1073,44 @@ export function HelpContent() {
             <L>{WRITE.showContext}</L> to open it, and <L>{WRITE.closeContext}</L> or <kbd>Esc</kbd> to close it. On a
             narrow window, such as a phone-sized one, the manuscript column is in <L>{SHELL.openProjectMenu}</L>.
           </p>
+        </Sub>
+      </Section>
+
+      <Section id="plan">
+        <p>
+          <L>{SHELL.plan}</L> keeps the existing <code>/plan</code> route for chapter outlines and story architecture,
+          and extends it with <L>{WEAVE.heading}</L>: story grids that do not rewrite manuscript text.
+        </p>
+
+        <Sub id="plan-weave">
+          <p>
+            Create separate <L>{WEAVE.viewOriginal}</L>, <L>{WEAVE.viewZeroDraft}</L>, and{" "}
+            <L>{WEAVE.viewAuthorRewrite}</L> grids. Add beats, link each beat to an existing chapter or scene, and cite
+            World records. Decisions include <L>{WEAVE.decisionKeep}</L>, <L>{WEAVE.decisionCut}</L>,{" "}
+            <L>{WEAVE.decisionMove}</L>, <L>{WEAVE.decisionCombine}</L>, and <L>{WEAVE.decisionRebuild}</L>.
+          </p>
+          <p>
+            Dragging a beat repositions it on the Weave grid only. It never changes book order or a scene&apos;s
+            chapter (see <See anchor="book-order" />). Soft-trashed linked records stay on the beat as unavailable until
+            restore or permanent delete.
+          </p>
+        </Sub>
+
+        <Sub id="weave-setup-payoff">
+          <p>
+            <L>{WEAVE.setupPayoff}</L> links an earlier setup beat to a later payoff. Links may span books in the same
+            workspace so you can work backward from a reveal in a later book to a plant in an earlier one. Moving beats
+            does not create or change these links.
+          </p>
+        </Sub>
+
+        <Sub id="weave-templates">
+          <p>
+            Once a grid is stable, <L>{WEAVE.saveGridAsTemplate}</L> (or <L>{WEAVE.newTemplate}</L>) stores an editable
+            beat layout. <L>{WEAVE.applyTemplate}</L> creates an independent Weave grid copy; later template edits do not
+            change that copy.
+          </p>
+          <p>Weave grids, beats, setup→payoff links and templates are included in workspace backups.</p>
         </Sub>
       </Section>
 

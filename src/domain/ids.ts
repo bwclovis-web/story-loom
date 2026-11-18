@@ -28,7 +28,13 @@ export type IdPrefix =
   | "bcd" // board card
   | "wmp" // world map
   | "wpn" // world map pin
-  | "plr"; // place relation
+  | "plr" // place relation
+  | "wvg" // weave grid
+  | "wvb" // weave beat
+  | "wvr" // weave beat world ref
+  | "wvs" // weave setup/payoff
+  | "wvt" // weave template
+  | "wvx"; // weave template beat
 
 export function newId(prefix: IdPrefix): string {
   return `${prefix}_${ulid()}`;

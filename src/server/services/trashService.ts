@@ -251,6 +251,21 @@ async function deleteProjectRowsInTx(tx: Tx, projectId: string) {
   await tx.worldMapPin.deleteMany({ where: { projectId } });
   await tx.worldMap.deleteMany({ where: { projectId } });
   await tx.placeRelation.deleteMany({ where: { projectId } });
+  const weaveBeats = await tx.weaveBeat.findMany({ where: { projectId }, select: { id: true } });
+  if (weaveBeats.length) {
+    const beatIds = weaveBeats.map((b) => b.id);
+    await tx.weaveSetupPayoff.deleteMany({
+      where: { OR: [{ fromBeatId: { in: beatIds } }, { toBeatId: { in: beatIds } }] },
+    });
+  }
+  await tx.weaveBeatWorldRef.deleteMany({ where: { projectId } });
+  await tx.weaveBeat.deleteMany({ where: { projectId } });
+  await tx.weaveGrid.deleteMany({ where: { projectId } });
+  const templates = await tx.weaveTemplate.findMany({ where: { projectId }, select: { id: true } });
+  if (templates.length) {
+    await tx.weaveTemplateBeat.deleteMany({ where: { templateId: { in: templates.map((t) => t.id) } } });
+  }
+  await tx.weaveTemplate.deleteMany({ where: { projectId } });
   await tx.project.update({
     where: { id: projectId },
     data: { defaultReadingDraftId: null, defaultExportDraftId: null },

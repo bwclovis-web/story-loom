@@ -16,6 +16,7 @@ import type { Db, DbOrTx, Tx } from "../db";
 import { writeAudit } from "./auditService";
 import { MutationRejectedError, NotFoundError, StaleRevisionError } from "./errors";
 import { checkCreateAllowed, checkWriteAllowed } from "./protection";
+import { clearWeaveForDeletedRecordsInTx } from "./weaveService";
 
 /*
  * The only code path that writes Record and Revision rows. The UI, the
@@ -863,6 +864,7 @@ export async function deleteRecordRowsInTx(tx: Tx, recordIds: readonly string[])
   await tx.boardCard.deleteMany({ where: { recordId: ids } });
   await tx.worldMapPin.deleteMany({ where: { recordId: ids } });
   await tx.placeRelation.deleteMany({ where: { OR: [{ fromRecordId: ids }, { toRecordId: ids }] } });
+  await clearWeaveForDeletedRecordsInTx(tx, recordIds);
   await tx.recordLink.deleteMany({ where: { OR: [{ fromRecordId: ids }, { toRecordId: ids }] } });
   // Clear board image cards and maps that use these images before deleting the bytes.
   const images = await tx.recordImage.findMany({ where: { recordId: ids }, select: { id: true } });

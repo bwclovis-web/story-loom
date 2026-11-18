@@ -1807,3 +1807,36 @@ backup round-trip.
 ### Rollback
 
 Restore that pre-migrate SQLite snapshot and check out the pre-feature commit.
+
+## Plan → Weave (Nov 18, 2026)
+
+Requested: extend Plan into Weave while keeping `/plan`; separate Original plan,
+Zero-draft story map, and Author rewrite plan views; beats link to chapters/
+scenes and cite World records; Keep/Cut/Move/Combine/Rebuild decisions; moving
+a beat must not reorder manuscript; series setup→payoff links across books;
+editable beat templates that apply as independent plan copies.
+
+### Implemented
+
+- Migration `20261118140000_plan_weave`: `WeaveGrid`, `WeaveBeat`,
+  `WeaveBeatWorldRef`, `WeaveSetupPayoff`, `WeaveTemplate`, `WeaveTemplateBeat`.
+- `weaveService`: audited CRUD; `moveWeaveBeat` only updates weave positions
+  (never `Record.position` / parent). Setup→payoff may span projects in one
+  workspace. Template apply copies beats into a new grid (`sourceTemplateId`
+  provenance only).
+- UI: `/plan` hub + `/plan/weave`, `/plan/weave/[gridId]`, templates; Plan nav
+  links. Backup optional Weave arrays. Help + acceptance tests.
+
+### Verification
+
+| Check | Result |
+| --- | --- |
+| Pre-migrate backup | `backups/2026-11-18T12-01-20-053Z-pre-migrate` |
+| `pnpm db:deploy` | Applied `20261118140000_plan_weave` |
+| `pnpm exec vitest run tests/acceptance/plan-weave.test.ts tests/unit/help.test.ts` | 9/9 passed |
+| `pnpm typecheck` | pass |
+| `pnpm build` | pass (Next.js security reminder on first attempt; retry succeeded); routes `/plan/weave` present |
+
+### Rollback
+
+Restore that pre-migrate SQLite snapshot and check out the pre-feature commit.

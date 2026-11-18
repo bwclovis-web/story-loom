@@ -350,6 +350,103 @@ export const workspaceBackupV1Schema = z
           .strict(),
       )
       .optional(),
+    /** Plan Weave grids; omitted in older backups → no Weave. */
+    weaveGrids: z
+      .array(
+        z
+          .object({
+            id,
+            projectId: id,
+            title: z.string().min(1),
+            viewKind: z.enum(["original", "zero_draft_map", "author_rewrite"]),
+            sourceTemplateId: id.nullable().optional(),
+            createdAt: timestamp,
+            updatedAt: timestamp,
+          })
+          .strict(),
+      )
+      .optional(),
+    weaveBeats: z
+      .array(
+        z
+          .object({
+            id,
+            gridId: id,
+            projectId: id,
+            title: z.string().min(1),
+            body: z.string(),
+            decision: z.enum(["", "keep", "cut", "move", "combine", "rebuild"]),
+            manuscriptRecordId: id.nullable().optional(),
+            x: z.number().int(),
+            y: z.number().int(),
+            width: z.number().int().min(1),
+            height: z.number().int().min(1),
+            zIndex: z.number().int(),
+            createdAt: timestamp,
+          })
+          .strict(),
+      )
+      .optional(),
+    weaveBeatWorldRefs: z
+      .array(
+        z
+          .object({
+            id,
+            beatId: id,
+            projectId: id,
+            recordId: id,
+            createdAt: timestamp,
+          })
+          .strict(),
+      )
+      .optional(),
+    weaveSetupPayoffs: z
+      .array(
+        z
+          .object({
+            id,
+            workspaceId: id,
+            fromBeatId: id,
+            toBeatId: id,
+            note: z.string(),
+            createdAt: timestamp,
+          })
+          .strict(),
+      )
+      .optional(),
+    weaveTemplates: z
+      .array(
+        z
+          .object({
+            id,
+            projectId: id,
+            title: z.string().min(1),
+            description: z.string(),
+            createdAt: timestamp,
+            updatedAt: timestamp,
+          })
+          .strict(),
+      )
+      .optional(),
+    weaveTemplateBeats: z
+      .array(
+        z
+          .object({
+            id,
+            templateId: id,
+            title: z.string().min(1),
+            body: z.string(),
+            decision: z.enum(["", "keep", "cut", "move", "combine", "rebuild"]),
+            x: z.number().int(),
+            y: z.number().int(),
+            width: z.number().int().min(1),
+            height: z.number().int().min(1),
+            zIndex: z.number().int(),
+            position: z.number().int(),
+          })
+          .strict(),
+      )
+      .optional(),
     /** Added with images; a backup without it restores with no images. */
     recordImages: z
       .array(
@@ -398,6 +495,12 @@ export const workspaceBackupV1Schema = z
         worldMaps: z.number().int().optional(),
         worldMapPins: z.number().int().optional(),
         placeRelations: z.number().int().optional(),
+        weaveGrids: z.number().int().optional(),
+        weaveBeats: z.number().int().optional(),
+        weaveBeatWorldRefs: z.number().int().optional(),
+        weaveSetupPayoffs: z.number().int().optional(),
+        weaveTemplates: z.number().int().optional(),
+        weaveTemplateBeats: z.number().int().optional(),
       })
       .strict(),
     /** sha256 of the stable JSON serialization of every other top-level field. */
