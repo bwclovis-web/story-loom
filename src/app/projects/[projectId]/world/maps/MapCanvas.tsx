@@ -16,6 +16,14 @@ import type { LoadedInspector } from "@/server/services/referenceInspectorServic
 import type { WorldMapPinView, WorldMapView } from "@/server/services/worldMapService";
 import { WORLD, WRITE } from "@/ui/labels";
 import {
+  addShapePoint,
+  cancelShape,
+  editShape,
+  startShape,
+  type MarkerKind,
+  type ShapeDraft,
+} from "@/world/mapGeometry";
+import {
   MARKER_GROUPS,
   clampMapZoom,
   pushMapTrail,
@@ -39,8 +47,10 @@ import {
   moveWorldMapPinAction,
   removeWorldMapPinAction,
   renameWorldMapAction,
+  setWorldMapPinGeometryAction,
   updateWorldMapPinAction,
 } from "./actions";
+import { MapShapeEditor } from "./MapShapeEditor";
 
 export interface PlaceableRecord {
   id: string;
@@ -58,6 +68,20 @@ const GROUP_LABEL: Record<MarkerGroup, string> = {
   waterways: WORLD.markerGroupWaterways,
   transport: WORLD.markerGroupTransport,
   story: WORLD.markerGroupStory,
+};
+
+const KIND_LABEL: Record<MarkerKind, string> = {
+  point: WORLD.markerKindPoint,
+  route: WORLD.markerKindRoute,
+  area: WORLD.markerKindArea,
+  label: WORLD.markerKindLabel,
+};
+
+const SHAPE_STROKE: Record<MarkerGroup, string> = {
+  places: "var(--color-accent)",
+  waterways: "var(--color-ok, #2f6f4e)",
+  transport: "var(--color-warn, #a15c12)",
+  story: "var(--color-violet, #5b4b8a)",
 };
 
 export function MapCanvas({
@@ -101,6 +125,8 @@ export function MapCanvas({
   const [pendingMapId, setPendingMapId] = useState("");
   const [pendingGroup, setPendingGroup] = useState<MarkerGroup>("places");
   const [pendingLabel, setPendingLabel] = useState("");
+  const [tool, setTool] = useState<MarkerKind>("point");
+  const [draft, setDraft] = useState<ShapeDraft | null>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
   const viewRef = useRef(view);
@@ -114,6 +140,7 @@ export function MapCanvas({
     originY: number;
     xNorm: number;
     yNorm: number;
+    revision: number;
   } | null>(null);
   const panRef = useRef<{ startX: number; startY: number; originX: number; originY: number; moved: boolean } | null>(null);
 
@@ -198,6 +225,19 @@ export function MapCanvas({
   const changeMode = (next: "browse" | "edit") => {
     setMode(next);
     writeMapMode(next);
+    if (next === "browse") setDraft(null);
+  };
+
+  const chooseTool = (next: MarkerKind) => {
+    setTool(next);
+    setDraft(next === "point" ? null : startShape(next));
+  };
+
+  const cancelDraft = () => {
+    if (!draft) return;
+    const result = cancelShape(draft);
+    if (result.wrote) return;
+    setDraft(draft.pinId ? null : startShape(draft.kind));
   };
 
   const toggleGroup = (group: MarkerGroup) => {
@@ -223,6 +263,8 @@ export function MapCanvas({
     selectPin(pin);
     if (mode !== "edit") return;
     e.currentTarget.setPointerCapture(e.pointerId);
+    if (pin.kind === "route" || pin.kind === "area" || draft) return;
+    e.currentTarget.setPointerCapture(e.pointerId);
     dragRef.current = {
       pinId: pin.id,
       startX: e.clientX,
@@ -231,6 +273,7 @@ export function MapCanvas({
       originY: pin.yNorm,
       xNorm: pin.xNorm,
       yNorm: pin.yNorm,
+      revision: pin.revision,
     };
   };
 
@@ -257,10 +300,14 @@ export function MapCanvas({
       const result = await moveWorldMapPinAction(projectId, map.id, drag.pinId, {
         xNorm: drag.xNorm,
         yNorm: drag.yNorm,
+        expectedRevision: drag.revision,
       });
       if (!result.ok) {
         setIssues(result.issues);
-        setPins(initial.pins);
+        setPins((list) =>
+          list.map((pin) => (pin.id === drag.pinId ? { ...pin, xNorm: drag.originX, yNorm: drag.originY } : pin)),
+        );
+        if (result.issues.some((issue) => issue.code === "STALE_REVISION")) router.refresh();
         return;
       }
       setPins((list) => list.map((p) => (p.id === result.pin.id ? result.pin : p)));
@@ -289,6 +336,77 @@ export function MapCanvas({
       setIssues([]);
       setPins((list) => [...list, result.pin]);
       selectPin(result.pin);
+      router.refresh();
+    });
+  };
+
+  const saveDraft = () => {
+    if (!draft) return;
+    if (draft.kind === "label" && !draft.pinId && !pendingLabel.trim()) {
+      setIssues([errorIssue("INVALID_REFERENCE", WORLD.labelNeedsText)]);
+      return;
+    }
+    startTransition(async () => {
+      if (draft.pinId) {
+        const current = pins.find((pin) => pin.id === draft.pinId);
+        if (!current) return;
+        const result = await setWorldMapPinGeometryAction(projectId, map.id, draft.pinId, {
+          expectedRevision: current.revision,
+          points: draft.points,
+        });
+        if (!result.ok) {
+          setIssues(result.issues);
+          if (result.issues.some((issue) => issue.code === "STALE_REVISION")) {
+            setDraft(null);
+            router.refresh();
+          }
+          return;
+        }
+        setIssues([]);
+        setDraft(null);
+        setPins((list) => list.map((pin) => (pin.id === result.pin.id ? result.pin : pin)));
+        router.refresh();
+        return;
+      }
+      const anchor = draft.points[0] ?? { x: 0.5, y: 0.5 };
+      const result = await addWorldMapPinAction(projectId, map.id, {
+        kind: draft.kind,
+        points: draft.points,
+        xNorm: anchor.x,
+        yNorm: anchor.y,
+        recordId: pendingPlaceId || null,
+        targetMapId: pendingMapId || null,
+        markerGroup: pendingGroup,
+        label: pendingLabel,
+      });
+      if (!result.ok) {
+        setIssues(result.issues);
+        return;
+      }
+      setIssues([]);
+      setDraft(null);
+      setTool("point");
+      setPins((list) => [...list, result.pin]);
+      selectPin(result.pin);
+      router.refresh();
+    });
+  };
+
+  const deleteDraftShape = () => {
+    if (!draft?.pinId) return;
+    const current = pins.find((pin) => pin.id === draft.pinId);
+    if (!current) return;
+    startTransition(async () => {
+      const result = await removeWorldMapPinAction(projectId, map.id, current.id, current.revision);
+      if (!result.ok) {
+        setIssues(result.issues);
+        if (result.issues.some((issue) => issue.code === "STALE_REVISION")) router.refresh();
+        return;
+      }
+      setIssues([]);
+      setDraft(null);
+      setPins((list) => list.filter((pin) => pin.id !== current.id));
+      setSelectedId(null);
       router.refresh();
     });
   };
@@ -412,6 +530,23 @@ export function MapCanvas({
             </Button>
           </CanvasToolbarGroup>
           {mode === "edit" ? (
+            <CanvasToolbarGroup>
+              <span className="sr-only">{WORLD.markerTools}</span>
+              {(["point", "route", "area", "label"] as const).map((kind) => (
+                <Button
+                  key={kind}
+                  type="button"
+                  size="sm"
+                  variant={tool === kind ? "primary" : "secondary"}
+                  aria-pressed={tool === kind}
+                  onClick={() => chooseTool(kind)}
+                >
+                  {KIND_LABEL[kind]}
+                </Button>
+              ))}
+            </CanvasToolbarGroup>
+          ) : null}
+          {mode === "edit" ? (
             <CanvasToolbarGroup className="map-place-fields">
               <label>
                 <span className="sr-only">{WORLD.markerGroup}</span>
@@ -449,14 +584,16 @@ export function MapCanvas({
                 <span className="sr-only">{WORLD.markerLabel}</span>
                 <input value={pendingLabel} maxLength={120} placeholder={WORLD.markerLabel} onChange={(e) => setPendingLabel(e.target.value)} />
               </label>
-              <Button
-                type="button"
-                size="sm"
-                disabled={pending || (!pendingPlaceId && !pendingMapId)}
-                onClick={() => placePin(0.5, 0.5)}
-              >
-                {WORLD.addPin}
-              </Button>
+              {tool === "point" ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={pending || (!pendingPlaceId && !pendingMapId)}
+                  onClick={() => placePin(0.5, 0.5)}
+                >
+                  {WORLD.addPin}
+                </Button>
+              ) : null}
             </CanvasToolbarGroup>
           ) : null}
           <BoardOverflowMenu>
@@ -509,6 +646,16 @@ export function MapCanvas({
               )}
           </BoardOverflowMenu>
         </CanvasToolbar>
+        {draft ? (
+          <MapShapeEditor
+            draft={draft}
+            pending={pending}
+            onChange={setDraft}
+            onCancel={cancelDraft}
+            onSave={saveDraft}
+            onDelete={draft.pinId ? deleteDraftShape : null}
+          />
+        ) : null}
 
         <fieldset className="map-legend">
           <legend>{WORLD.markerLegend}</legend>
@@ -543,13 +690,20 @@ export function MapCanvas({
               aria-label={WORLD.mapCanvas}
               onClick={(e) => {
                 if (mode !== "edit") return;
-                if ((e.target as HTMLElement).closest("[data-pin-id]")) return;
-                if (!pendingPlaceId && !pendingMapId) {
-                  setSelectedId(null);
+                if ((e.target as HTMLElement).closest("[data-pin-id], .map-shape")) return;
+                const { xNorm, yNorm } = normFromClient(e.clientX, e.clientY);
+                if (tool === "point") {
+                  if (!pendingPlaceId && !pendingMapId) {
+                    setSelectedId(null);
+                    return;
+                  }
+                  placePin(xNorm, yNorm);
                   return;
                 }
-                const { xNorm, yNorm } = normFromClient(e.clientX, e.clientY);
-                placePin(xNorm, yNorm);
+                setDraft((current) => {
+                  const base = current && current.kind === tool && !current.pinId ? current : startShape(tool);
+                  return addShapePoint(base, { x: xNorm, y: yNorm });
+                });
               }}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -560,15 +714,62 @@ export function MapCanvas({
                 alt={map.imageName}
                 draggable={false}
               />
+              <svg className="map-geometry" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+                {shown
+                  .filter((pin) => pin.kind === "area" && pin.points.length >= 3 && draft?.pinId !== pin.id)
+                  .map((pin) => (
+                    <polygon
+                      key={pin.id}
+                      className={`map-shape map-shape-area${selectedId === pin.id ? " selected" : ""}`}
+                      points={pin.points.map((point) => `${point.x * 100},${point.y * 100}`).join(" ")}
+                      style={{ stroke: SHAPE_STROKE[pin.markerGroup] }}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        selectPin(pin);
+                      }}
+                    />
+                  ))}
+                {shown
+                  .filter((pin) => pin.kind === "route" && pin.points.length >= 2 && draft?.pinId !== pin.id)
+                  .map((pin) => (
+                    <polyline
+                      key={pin.id}
+                      className={`map-shape${selectedId === pin.id ? " selected" : ""}`}
+                      points={pin.points.map((point) => `${point.x * 100},${point.y * 100}`).join(" ")}
+                      style={{ stroke: SHAPE_STROKE[pin.markerGroup] }}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        selectPin(pin);
+                      }}
+                    />
+                  ))}
+                {draft && draft.kind === "area" && draft.points.length >= 3 ? (
+                  <polygon
+                    className="map-shape map-shape-area draft"
+                    points={draft.points.map((point) => `${point.x * 100},${point.y * 100}`).join(" ")}
+                  />
+                ) : null}
+                {draft && draft.kind === "route" && draft.points.length >= 2 ? (
+                  <polyline
+                    className="map-shape draft"
+                    points={draft.points.map((point) => `${point.x * 100},${point.y * 100}`).join(" ")}
+                  />
+                ) : null}
+              </svg>
               {shown.map((pin) => (
                 <button
                   key={pin.id}
                   type="button"
                   data-pin-id={pin.id}
                   data-group={pin.markerGroup}
+                  data-kind={pin.kind}
                   className={`map-pin${selectedId === pin.id ? " selected" : ""}${pin.unavailable || pin.targetUnavailable ? " unavailable" : ""}`}
                   style={{ left: `${pin.xNorm * 100}%`, top: `${pin.yNorm * 100}%` }}
-                  aria-label={pin.unavailable ? `${pin.title} (${WORLD.pinUnavailable})` : pin.title}
+                  aria-label={
+                    pin.unavailable
+                      ? `${pin.title}, ${KIND_LABEL[pin.kind]} (${WORLD.pinUnavailable})`
+                      : `${pin.title}, ${KIND_LABEL[pin.kind]}`
+                  }
                   aria-pressed={selectedId === pin.id}
                   onPointerDown={(e) => onPinPointerDown(e, pin)}
                   onPointerMove={onPinPointerMove}
@@ -629,7 +830,7 @@ export function MapCanvas({
                   >
                     <span>{pin.title}</span>
                     <span className="small muted">
-                      {GROUP_LABEL[pin.markerGroup]}
+                      {pin.kind === "point" ? GROUP_LABEL[pin.markerGroup] : `${KIND_LABEL[pin.kind]} · ${GROUP_LABEL[pin.markerGroup]}`}
                       {pin.typeLabel ? ` · ${pin.typeLabel}` : ""}
                       {pin.unavailable ? ` · ${WORLD.pinUnavailable}` : ""}
                       {pin.targetUnavailable ? ` · ${WORLD.targetMapUnavailable}` : ""}
@@ -674,7 +875,15 @@ export function MapCanvas({
               onRemoved={() => {
                 setPins((list) => list.filter((item) => item.id !== selected.id));
                 setSelectedId(null);
+                setDraft(null);
                 router.refresh();
+              }}
+              onEditShape={() => {
+                if (selected.kind !== "route" && selected.kind !== "area") return;
+                setTool(selected.kind);
+                setDraft(editShape(selected.kind, selected.id, selected.points));
+                setMode("edit");
+                writeMapMode("edit");
               }}
             />
           )}
@@ -698,6 +907,7 @@ function MarkerRail({
   onIssues,
   onUpdated,
   onRemoved,
+  onEditShape,
 }: {
   projectId: string;
   mapId: string;
@@ -712,11 +922,14 @@ function MarkerRail({
   onIssues: (issues: Issue[]) => void;
   onUpdated: (pin: WorldMapPinView) => void;
   onRemoved: () => void;
+  onEditShape: () => void;
 }) {
   const [recordId, setRecordId] = useState(pin.recordId ?? "");
   const [targetMapId, setTargetMapId] = useState(pin.targetMapId ?? "");
   const [group, setGroup] = useState<MarkerGroup>(pin.markerGroup);
   const [label, setLabel] = useState(pin.label);
+  const [xPercent, setXPercent] = useState(String(Math.round(pin.xNorm * 1000) / 10));
+  const [yPercent, setYPercent] = useState(String(Math.round(pin.yNorm * 1000) / 10));
   const [, startTransition] = useTransition();
 
   useEffect(() => {
@@ -724,7 +937,9 @@ function MarkerRail({
     setTargetMapId(pin.targetMapId ?? "");
     setGroup(pin.markerGroup);
     setLabel(pin.label);
-  }, [pin.id, pin.recordId, pin.targetMapId, pin.markerGroup, pin.label]);
+    setXPercent(String(Math.round(pin.xNorm * 1000) / 10));
+    setYPercent(String(Math.round(pin.yNorm * 1000) / 10));
+  }, [pin.id, pin.recordId, pin.targetMapId, pin.markerGroup, pin.label, pin.xNorm, pin.yNorm, pin.revision]);
 
   return (
     <div className="stack">
@@ -734,6 +949,11 @@ function MarkerRail({
         {pin.authorityStatus ? <StatusBadge status={pin.authorityStatus} /> : null}
         {pin.unavailable ? <p className="small muted">{WORLD.pinUnavailable}</p> : null}
         {pin.targetUnavailable ? <p className="small muted">{WORLD.targetMapUnavailable}</p> : null}
+        {pin.kind === "route" || pin.kind === "area" ? (
+          <p className="small muted">
+            {KIND_LABEL[pin.kind]} · {pin.points.length} points
+          </p>
+        ) : null}
       </div>
       <div className="row" style={{ gap: "0.4rem", flexWrap: "wrap" }}>
         {pin.recordId && !pin.unavailable ? (
@@ -767,6 +987,7 @@ function MarkerRail({
                 targetMapId: targetMapId || null,
                 markerGroup: group,
                 label,
+                expectedRevision: pin.revision,
               });
               if (!result.ok) {
                 onIssues(result.issues);
@@ -813,10 +1034,56 @@ function MarkerRail({
             {WORLD.markerLabel}
             <input value={label} maxLength={120} onChange={(e) => setLabel(e.target.value)} />
           </label>
-          <Button type="submit" size="sm" disabled={pending || (!recordId && !targetMapId)}>
+          <Button
+            type="submit"
+            size="sm"
+            disabled={pending || (pin.kind === "point" && !recordId && !targetMapId) || (pin.kind === "label" && !label.trim())}
+          >
             {WORLD.saveMarker}
           </Button>
         </form>
+      ) : null}
+      {mode === "edit" && (pin.kind === "point" || pin.kind === "label") ? (
+        <form
+          className="row"
+          style={{ gap: "0.35rem", flexWrap: "wrap" }}
+          onSubmit={(event) => {
+            event.preventDefault();
+            const x = Number(xPercent);
+            const y = Number(yPercent);
+            if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+            startTransition(async () => {
+              const result = await moveWorldMapPinAction(projectId, mapId, pin.id, {
+                xNorm: x / 100,
+                yNorm: y / 100,
+                expectedRevision: pin.revision,
+              });
+              if (!result.ok) {
+                onIssues(result.issues);
+                return;
+              }
+              onIssues([]);
+              onUpdated(result.pin);
+            });
+          }}
+        >
+          <label>
+            {WORLD.drawPointX}
+            <input type="number" min={0} max={100} step={0.1} value={xPercent} onChange={(event) => setXPercent(event.target.value)} />
+          </label>
+          <label>
+            {WORLD.drawPointY}
+            <input type="number" min={0} max={100} step={0.1} value={yPercent} onChange={(event) => setYPercent(event.target.value)} />
+          </label>
+          <Button type="submit" size="sm" variant="secondary" disabled={pending}>
+            {WORLD.savePosition}
+          </Button>
+        </form>
+      ) : null}
+      {mode === "edit" && (pin.kind === "route" || pin.kind === "area") ? (
+        <Button type="button" size="sm" variant="secondary" onClick={onEditShape}>
+          {WORLD.editShape}
+        </Button>
       ) : null}
       <p className="small muted">{WORLD.removePinNote}</p>
       <Button
@@ -826,7 +1093,7 @@ function MarkerRail({
         disabled={pending}
         onClick={() =>
           startTransition(async () => {
-            const result = await removeWorldMapPinAction(projectId, mapId, pin.id);
+            const result = await removeWorldMapPinAction(projectId, mapId, pin.id, pin.revision);
             if (!result.ok) {
               onIssues(result.issues);
               return;

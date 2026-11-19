@@ -335,6 +335,23 @@ export const workspaceBackupV1Schema = z
             markerGroup: z.enum(["places", "waterways", "transport", "story"]).optional(),
             /** Optional display name. Omitted means empty; the linked title is used. */
             label: z.string().optional(),
+            /** point | route | area | label. Omitted means a point pin. */
+            kind: z.enum(["point", "route", "area", "label"]).optional(),
+            /**
+             * Ordered image fractions for a route or area. Omitted on point pins
+             * and labels. Not a distance or a travel time.
+             */
+            points: z
+              .array(
+                z
+                  .object({
+                    x: z.number().min(0).max(1),
+                    y: z.number().min(0).max(1),
+                  })
+                  .strict(),
+              )
+              .max(64)
+              .optional(),
             xNorm: z.number().min(0).max(1),
             yNorm: z.number().min(0).max(1),
             createdAt: timestamp,

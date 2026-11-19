@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { PageEnter } from "@/components/shell/PageEnter";
 import { ProjectNav } from "@/components/shell/ProjectNav";
 import { ProjectOnboarding } from "@/components/shell/ProjectOnboarding";
 import { getDb } from "@/server/db";
@@ -53,7 +54,7 @@ export default async function ProjectLayout({
       />
       <main id="main" tabIndex={-1} className="workspace">
         <ProjectOnboarding projectId={project.id} />
-        {children}
+        <PageEnter>{children}</PageEnter>
       </main>
     </div>
   );

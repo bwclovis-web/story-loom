@@ -2346,6 +2346,11 @@ Restore WeaveCanvas / WeavePlotGrid / globals.css / labels / Help / page props f
 - `SearchPanel` (page) + `TreeSearch` (column): World hub, Write manuscript search, WorldNav, ManuscriptTree.
 - `RecordTableRow` / `WorldRecordTableRow` / `RecordFlexRow`: RecordListPage, World list table, BookOrder rows. ContinueWriting / History / Trash left as page-specific layouts.
 
+### Input polish + page enter (Nov 19, 2026)
+
+- Global text/search/select/textarea chrome: taller padding, `radius-md`, soft inset, muted placeholders, hover/focus accent ring; tree-search shell matches.
+- `PageEnter` (pathname-keyed) fades/slides main workspace content on route change; nav/rails stay still. `prefers-reduced-motion` disables both.
+
 ## Shared UI primitives from assistant rail (Nov 19, 2026)
 
 Extracted reusable pieces for app-wide use:
@@ -2444,3 +2449,72 @@ Requested: one inspector on reference pages, boards, and maps; board and map ite
 
 ### Rollback
 Revert the inspector, outline, placement, and World hub files, plus the Help and label copy for this behavior. No migration. Do not reset the working database.
+
+## Map markers, upload, and browse navigation (Nov 19, 2026)
+
+Requested: create a map from an upload or an existing image; markers that open a reference, another map, or both; breadcrumbs and restored zoom/pan; groups with a legend; a searchable marker list; Browse and Edit so panning does not move markers. Existing pins, coordinates, images, and backups stay readable.
+
+### Implemented
+- Create map offers Upload image or Choose existing image. Upload uses the same image validation, naming, and protection tick as reference images. The image and the map are written in one transaction, so a rejected title, file, or locked record leaves no image.
+- A marker may link a reference, another map, or both. Open reference and Open detailed map are separate actions. A path of maps is kept in the browser session, and each map restores its own zoom and pan. Positions stay fractions of the image (0–1).
+- Groups are Places, Waterways, Transport, and Story locations. The legend hides a group without deleting markers. Browse pans and zooms; Edit places and moves markers.
+- Backup format stays v1. New pin fields are optional. Older pins restore as Places at the same coordinates. A backup taken before this migration still reads the original pin columns.
+
+### Checks
+| Check | Result |
+| --- | --- |
+| `pnpm db:deploy` | Backup written, then migration `20261119180000_map_markers` applied |
+| `pnpm exec tsc --noEmit` | pass |
+| `vitest run` map markers, world maps, help, reference outlines, upgrade rehearsal | 5 files, 18 tests passed |
+| Upload failure | Empty title, a non-image file, and a protected record without the tick leave the image count unchanged. A confirmed upload creates the image and the map together |
+| Nested and missing targets | A marker can link a record and a map. A self-link is rejected. Trashing the detailed map’s host keeps the marker and marks the map unavailable. Deleting that map clears the link and keeps the marker and its coordinates |
+| Legacy backup | Pins that omit the new fields restore as Places with the same record and normalized coordinates |
+| Browser, Salt Archive demo | Create map shows upload and existing-image choices. Harbour quay sketch opens in Browse. Zoom in set the stage scale to 1.25 while the marker stayed at 42% / 55%. Edit shows group, reference, and detailed-map controls; Add marker stays disabled until a link is chosen. Hiding Places removed the marker and showing it restored the marker. Search for a missing name reported no match. The marker list is a listbox; ArrowDown kept the only marker selected. Open reference loaded The Salt Guild inspector |
+| Themes and mobile | Light and dark controls are readable. A 390px-wide layout wraps the zoom controls, legend, and marker list. Theme was returned to Light. Browse and the zoom reset were restored |
+| Demo data | No map, image, or marker was created, moved, or deleted on the demo database |
+
+### Limits
+- Freehand drawing is not available. Zoom is button and wheel, not pinch.
+- The demo has one map, so Open detailed map and a nested breadcrumb were checked on an isolated database, not in the browser.
+- The Next dev overlay still reports one hydration issue from `ProjectNav`. The map pages rendered and the controls above worked.
+- On a narrow window the inspector opens as an overlay over the map.
+
+### Screenshots
+`docs/screenshots/map-create-upload-light.png`, `map-controls-light.png`, `map-edit-light.png`, `map-controls-dark.png`, `map-controls-mobile.png`.
+
+### Rollback
+Revert the map service, canvas, create form, backup pin fields, Help, and labels. To undo the schema, restore the pre-migrate backup taken by `pnpm db:deploy` (`backups/2026-11-19T15-16-46-294Z-pre-migrate`). Do not reset the working database.
+
+## Route, area, and label markers (Nov 19, 2026)
+
+Requested: route, area, and label markers stored against the map image; edit, undo, cancel, and delete through validated services; links to existing World records; an ordered path and a closed boundary; keyboard alternatives; a compact toolbar with instructions only while drawing. Existing point pins and backups stay readable. Positions are not distance or travel time.
+
+### Implemented
+- A marker kind is `point`, `route`, `area`, or `label`. Routes store an ordered list of image fractions. Areas store a closed boundary (the last corner joins the first; the closing point is not stored twice). Labels are text at one fraction. Existing pins stay points at the same `xNorm` / `yNorm`.
+- Drawing is local until Save shape. Undo point and Cancel do not write. Save, move, link changes, and delete go through the map service and send the revision they read. A mismatch is refused and the stored geometry is left as it was.
+- Edit shows Point, Route, Area, and Label. The path form, with percent fields, reorder, and remove, appears only while a route, area, or label is being drawn. The marker list and those fields work without the pointer. A route or area can link a World reference. A label needs text and can link one too.
+- Backup format stays v1. Point pins omit the new fields. A route or area backup includes `kind` and `points`. Older backups restore as point pins.
+
+### Checks
+| Check | Result |
+| --- | --- |
+| `pnpm db:deploy` | Backup written (`backups/2026-11-19T15-46-21-514Z-pre-migrate`, demo pin included), then `20261119200000_map_geometry` applied |
+| `pnpm exec tsc --noEmit` | pass |
+| `vitest run` map geometry, map markers, world maps, help | 4 files, 20 tests passed |
+| Canceled and stale writes | Undo and cancel leave `wrote: false`. A geometry save with the wrong revision does not change points. A delete with the wrong revision does not remove the marker |
+| Resize | The same fractions map to the new pixel size. Changing the stored image size does not rewrite points. On the demo map the pin stayed at 42% / 55% when the image went from 888px to 606px wide |
+| Legacy pins | A backup without `kind` or `points` restores as a point, same record and position. A route round-trips in order |
+| Browser, Salt Archive demo | Edit shows Point, Route, Area, and Label. Route instructions and the percent form appear only for that tool. Two points (15,25 then 70,25) enabled Save shape. Undo removed the second point and disabled Save. Cancel cleared the path. The existing point still opens The Salt Guild, with Save position at 42 and 55. No shape was saved |
+| Demo data | The demo pin is still a point at 0.42 / 0.55, revision 0. Theme left on Light, mode returned to Browse |
+
+### Limits
+- Freehand drawing is not available. A route is straight segments between the points you place.
+- Positions are fractions of the image. The app does not compute length, distance, or travel time.
+- A backup that includes a route, area, or label will not restore on an older copy of the app. Point-only backups omit those fields.
+- The demo has no saved route, so nested navigation of a route was not exercised in the browser. The service tests cover save, stale rejection, resize of the stored image, and restore.
+
+### Screenshots
+`docs/screenshots/map-route-editor-light.png`
+
+### Rollback
+Revert the geometry helpers, map service, canvas, backup pin fields, Help, and labels. To undo the schema, restore `backups/2026-11-19T15-46-21-514Z-pre-migrate`. Do not reset the working database.

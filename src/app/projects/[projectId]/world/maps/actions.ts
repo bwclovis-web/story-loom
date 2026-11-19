@@ -19,6 +19,7 @@ import {
   moveWorldMapPin,
   removeWorldMapPin,
   renameWorldMap,
+  setWorldMapPinGeometry,
   updateWorldMapPin,
   type WorldMapPinLinks,
 } from "@/server/services/worldMapService";
@@ -106,7 +107,12 @@ export async function deleteWorldMapAction(
 export async function addWorldMapPinAction(
   projectId: string,
   mapId: string,
-  input: WorldMapPinLinks & { xNorm: number; yNorm: number },
+  input: WorldMapPinLinks & {
+    xNorm: number;
+    yNorm: number;
+    kind?: string | null;
+    points?: { x: number; y: number }[] | null;
+  },
 ) {
   try {
     const pin = await addWorldMapPin(getDb(), projectId, mapId, input);
@@ -136,7 +142,7 @@ export async function moveWorldMapPinAction(
   projectId: string,
   mapId: string,
   pinId: string,
-  input: { xNorm: number; yNorm: number },
+  input: { xNorm: number; yNorm: number; expectedRevision?: number | null },
 ) {
   try {
     const pin = await moveWorldMapPin(getDb(), projectId, mapId, pinId, input);
@@ -147,9 +153,29 @@ export async function moveWorldMapPinAction(
   }
 }
 
-export async function removeWorldMapPinAction(projectId: string, mapId: string, pinId: string) {
+export async function setWorldMapPinGeometryAction(
+  projectId: string,
+  mapId: string,
+  pinId: string,
+  input: { expectedRevision: number; points: { x: number; y: number }[] },
+) {
   try {
-    await removeWorldMapPin(getDb(), projectId, mapId, pinId);
+    const pin = await setWorldMapPinGeometry(getDb(), projectId, mapId, pinId, input);
+    revalidateMaps(projectId, mapId);
+    return { ok: true as const, pin };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+export async function removeWorldMapPinAction(
+  projectId: string,
+  mapId: string,
+  pinId: string,
+  expectedRevision?: number,
+) {
+  try {
+    await removeWorldMapPin(getDb(), projectId, mapId, pinId, expectedRevision);
     revalidateMaps(projectId, mapId);
     return { ok: true as const };
   } catch (error) {

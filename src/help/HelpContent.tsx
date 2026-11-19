@@ -1345,11 +1345,23 @@ export function HelpContent() {
               restored for the map you return to. The same place can appear on several maps.
             </li>
             <li>
-              <L>{WORLD.mapModeBrowse}</L> pans and zooms without moving markers. <L>{WORLD.mapModeEdit}</L> places and
-              drags them. Groups — <L>{WORLD.markerGroupPlaces}</L>, <L>{WORLD.markerGroupWaterways}</L>,{" "}
+              <L>{WORLD.mapModeBrowse}</L> pans and zooms without moving markers. <L>{WORLD.mapModeEdit}</L> uses a
+              compact tool for <L>{WORLD.markerKindPoint}</L>, <L>{WORLD.markerKindRoute}</L>,{" "}
+              <L>{WORLD.markerKindArea}</L>, or <L>{WORLD.markerKindLabel}</L>. A route is an ordered path. An area is a
+              closed boundary. A label is text at one position. Instructions appear only while one of those tools is in
+              use. <L>{WORLD.drawUndo}</L> and <L>{WORLD.drawCancel}</L> drop points that have not been saved.{" "}
+              <L>{WORLD.drawSave}</L> and <L>{WORLD.deleteShape}</L> go through the map service. If the marker was saved
+              again after you started, the write is refused and the stored shape stays as it was. The marker list and
+              the point fields (<L>{WORLD.drawPointX}</L>, <L>{WORLD.drawPointY}</L>, <L>{WORLD.drawMoveEarlier}</L>,{" "}
+              <L>{WORLD.drawMoveLater}</L>) select and edit a shape without the pointer. Each marker can still link a
+              World reference. Freehand drawing is not part of this screen, and positions are not distance or travel
+              time.
+            </li>
+            <li>
+              Groups — <L>{WORLD.markerGroupPlaces}</L>, <L>{WORLD.markerGroupWaterways}</L>,{" "}
               <L>{WORLD.markerGroupTransport}</L>, and <L>{WORLD.markerGroupStory}</L> — can be hidden from the legend.
               The marker list can be searched and moved with the keyboard. Selecting a marker opens the same inspector a
-              board card uses when it links a reference. Freehand drawing is not part of this screen.
+              board card uses when it links a reference.
             </li>
             <li>
               <L>{WORLD.removePin}</L> removes the marker from that map only. Moving a marker never creates or changes a
@@ -1365,7 +1377,10 @@ export function HelpContent() {
           <p>
             Maps and markers are included in workspace backups. Older backups that omit maps restore with none. Older
             backups that have pins but omit the newer marker fields restore those pins as Places, still linked to the
-            same records, at the same positions.
+            same records, at the same positions. A backup that omits route, area, or label geometry restores those
+            markers as point pins. Point pins in a new backup omit the geometry fields, so an older copy of the app can
+            still read a map that has only points. A backup that includes a route or an area will not restore on an
+            older copy that does not know those fields.
           </p>
         </Sub>
 
@@ -3199,7 +3214,8 @@ export function HelpContent() {
             or other subjects. Optional outlines add headings inside the document you already have; they do not change
             its type. The reference inspector has Overview, Sections, Images, Relationships, and Established in when
             the record supports it. There is no Open questions tab; open questions are a heading you can add with an
-            outline. Maps can be browsed, zoomed, and marked. Freehand drawing is not available.
+            outline. Maps can be browsed, zoomed, and marked with points, routes, areas, and labels. Freehand drawing
+            is not available, and marker positions are not distances or travel times.
           </li>
           <li>The browser&apos;s Back button does not warn about unsaved changes.</li>
           <li>Find and replace works on one record&apos;s text at a time, with literal text only.</li>

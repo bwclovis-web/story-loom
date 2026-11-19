@@ -2,6 +2,14 @@ import { newId } from "@/domain/ids";
 import { errorIssue } from "@/domain/issues";
 import { isLinkableReferenceType, isRecordType, RECORD_TYPE_LABELS } from "@/domain/recordTypes";
 import { isAuthorityStatus, type AuthorityStatus } from "@/domain/statuses";
+import {
+  isMarkerKind,
+  normalizeShape,
+  parseStoredPoints,
+  serializePoints,
+  type MarkerKind,
+  type NormPoint,
+} from "@/world/mapGeometry";
 import { isMarkerGroup, type MarkerGroup } from "@/world/mapMarkers";
 import type { Db, DbOrTx, Tx } from "../db";
 import { writeAudit } from "./auditService";
@@ -9,9 +17,12 @@ import { MutationRejectedError, NotFoundError } from "./errors";
 
 /*
  * World maps: a RecordImage backdrop with markers. A marker may link a
- * reference record, another map, or both. xNorm/yNorm are fractions of image
- * width/height (0–1) so alignment survives resize. Several maps may mark the
- * same place. Moving markers never creates or changes PlaceRelation rows.
+ * reference record, another map, or both. Points, route vertices, area
+ * corners, and label anchors are fractions of image width/height (0–1) so
+ * alignment survives resize. Those fractions are not distance or travel time.
+ * Several maps may mark the same place. Moving markers never creates or
+ * changes PlaceRelation rows. A geometry write sends the revision it read;
+ * a mismatch is refused and nothing is written.
  *
  * Trash:
  * - Soft-trashed image host record → map omitted from lists / NotFound on open.
@@ -46,6 +57,9 @@ export interface WorldMapPinView {
   targetUnavailable: boolean;
   markerGroup: MarkerGroup;
   label: string;
+  kind: MarkerKind;
+  points: NormPoint[];
+  revision: number;
   xNorm: number;
   yNorm: number;
   title: string;
@@ -60,6 +74,8 @@ export interface WorldMapPinLinks {
   targetMapId?: string | null;
   markerGroup?: string | null;
   label?: string | null;
+  /** When set, the write is refused if the marker was saved again since this revision. */
+  expectedRevision?: number | null;
 }
 
 export interface WorldMapView {
@@ -84,6 +100,23 @@ function rejected(message: string, recordId?: string): MutationRejectedError {
 function clampNorm(n: number): number {
   if (!Number.isFinite(n)) return 0.5;
   return Math.min(1, Math.max(0, n));
+}
+
+function staleMarker(): MutationRejectedError {
+  return new MutationRejectedError([
+    errorIssue("STALE_REVISION", "This marker was saved again after you started editing. The save was not applied."),
+  ]);
+}
+
+function kindOf(value: string): MarkerKind {
+  return isMarkerKind(value) ? value : "point";
+}
+
+function kindFallback(kind: MarkerKind): string {
+  if (kind === "route") return "Route";
+  if (kind === "area") return "Area";
+  if (kind === "label") return "Label";
+  return "Marker";
 }
 
 /** Lists maps whose backdrop image still belongs to a live (non-trashed) record. */
@@ -171,7 +204,8 @@ export async function getWorldMap(db: DbOrTx, projectId: string, mapId: string):
       const target = p.targetMap;
       const targetLive = Boolean(target && !target.image.record.trashedAt);
       const label = p.label.trim();
-      const title = label || linked?.title || target?.title || "Marker";
+      const kind = kindOf(p.kind);
+      const title = label || linked?.title || target?.title || kindFallback(kind);
       return [
         {
           id: p.id,
@@ -182,6 +216,9 @@ export async function getWorldMap(db: DbOrTx, projectId: string, mapId: string):
           targetUnavailable: Boolean(p.targetMapId) && !targetLive,
           markerGroup: isMarkerGroup(p.markerGroup) ? p.markerGroup : "places",
           label: p.label,
+          kind,
+          points: kind === "route" || kind === "area" ? parseStoredPoints(p.points) : [],
+          revision: p.revision,
           xNorm: p.xNorm,
           yNorm: p.yNorm,
           title,
@@ -304,14 +341,19 @@ export async function addWorldMapPin(
   db: Db,
   projectId: string,
   mapId: string,
-  input: WorldMapPinLinks & { xNorm: number; yNorm: number },
+  input: WorldMapPinLinks & {
+    xNorm: number;
+    yNorm: number;
+    kind?: string | null;
+    points?: { x: number; y: number }[] | null;
+  },
 ): Promise<WorldMapPinView> {
   return db.$transaction(async (tx) => {
     await requireLiveMap(tx, projectId, mapId);
-    const links = await resolvePinLinks(tx, projectId, mapId, input);
+    const kind = kindOf(input.kind ?? "point");
+    const links = await resolvePinLinks(tx, projectId, mapId, input, kind);
+    const shape = shapeForKind(kind, input.points, input.xNorm, input.yNorm);
     const id = newId("wpn");
-    const xNorm = clampNorm(input.xNorm);
-    const yNorm = clampNorm(input.yNorm);
     await tx.worldMapPin.create({
       data: {
         id,
@@ -321,8 +363,10 @@ export async function addWorldMapPin(
         targetMapId: links.targetMapId,
         markerGroup: links.markerGroup,
         label: links.label,
-        xNorm,
-        yNorm,
+        kind,
+        points: serializePoints(shape.points),
+        xNorm: shape.xNorm,
+        yNorm: shape.yNorm,
       },
     });
     await tx.worldMap.update({ where: { id: mapId }, data: { updatedAt: new Date() } });
@@ -331,14 +375,14 @@ export async function addWorldMapPin(
       action: "world_map_pin.add",
       actor: UI_ACTOR,
       summary: `Marked "${links.summary}" on a map`,
-      details: { mapId, pinId: id, recordId: links.recordId, targetMapId: links.targetMapId, xNorm, yNorm },
+      details: { mapId, pinId: id, recordId: links.recordId, targetMapId: links.targetMapId, kind, xNorm: shape.xNorm, yNorm: shape.yNorm, pointCount: shape.points.length },
     });
     const view = await getWorldMap(tx, projectId, mapId);
     return view.pins.find((p) => p.id === id)!;
   });
 }
 
-/** Changes what a marker opens. Coordinates stay put. */
+/** Changes what a marker opens. Geometry stays put. */
 export async function updateWorldMapPin(
   db: Db,
   projectId: string,
@@ -350,7 +394,8 @@ export async function updateWorldMapPin(
     await requireLiveMap(tx, projectId, mapId);
     const pin = await tx.worldMapPin.findFirst({ where: { id: pinId, mapId, projectId } });
     if (!pin) throw rejected("That pin is not on this map.");
-    const links = await resolvePinLinks(tx, projectId, mapId, input);
+    if (typeof input.expectedRevision === "number" && input.expectedRevision !== pin.revision) throw staleMarker();
+    const links = await resolvePinLinks(tx, projectId, mapId, input, kindOf(pin.kind));
     await tx.worldMapPin.update({
       where: { id: pinId },
       data: {
@@ -358,6 +403,7 @@ export async function updateWorldMapPin(
         targetMapId: links.targetMapId,
         markerGroup: links.markerGroup,
         label: links.label,
+        revision: { increment: 1 },
       },
     });
     await tx.worldMap.update({ where: { id: mapId }, data: { updatedAt: new Date() } });
@@ -375,21 +421,24 @@ export async function updateWorldMapPin(
   });
 }
 
-/** Repositions a pin. Never creates or changes PlaceRelation rows. */
+/** Repositions a point or a label. Never creates or changes PlaceRelation rows. */
 export async function moveWorldMapPin(
   db: Db,
   projectId: string,
   mapId: string,
   pinId: string,
-  input: { xNorm: number; yNorm: number },
+  input: { xNorm: number; yNorm: number; expectedRevision?: number | null },
 ): Promise<WorldMapPinView> {
   return db.$transaction(async (tx) => {
     await requireLiveMap(tx, projectId, mapId);
     const pin = await tx.worldMapPin.findFirst({ where: { id: pinId, mapId, projectId } });
     if (!pin) throw rejected("That pin is not on this map.");
+    const kind = kindOf(pin.kind);
+    if (kind === "route" || kind === "area") throw rejected("Edit the path to move a route or an area.");
+    if (typeof input.expectedRevision === "number" && input.expectedRevision !== pin.revision) throw staleMarker();
     const xNorm = clampNorm(input.xNorm);
     const yNorm = clampNorm(input.yNorm);
-    await tx.worldMapPin.update({ where: { id: pinId }, data: { xNorm, yNorm } });
+    await tx.worldMapPin.update({ where: { id: pinId }, data: { xNorm, yNorm, revision: { increment: 1 } } });
     await tx.worldMap.update({ where: { id: mapId }, data: { updatedAt: new Date() } });
     await writeAudit(tx, {
       projectId,
@@ -405,12 +454,61 @@ export async function moveWorldMapPin(
   });
 }
 
-/** Removes the pin from this map only; does not change the linked record or any PlaceRelation. */
-export async function removeWorldMapPin(db: Db, projectId: string, mapId: string, pinId: string): Promise<void> {
+/** Replaces a marker's geometry. Refuses the write when expectedRevision is stale. */
+export async function setWorldMapPinGeometry(
+  db: Db,
+  projectId: string,
+  mapId: string,
+  pinId: string,
+  input: { expectedRevision: number; points: { x: number; y: number }[] },
+): Promise<WorldMapPinView> {
+  return db.$transaction(async (tx) => {
+    await requireLiveMap(tx, projectId, mapId);
+    const pin = await tx.worldMapPin.findFirst({ where: { id: pinId, mapId, projectId } });
+    if (!pin) throw rejected("That pin is not on this map.");
+    if (pin.revision !== input.expectedRevision) throw staleMarker();
+    const kind = kindOf(pin.kind);
+    const normalized = normalizeShape(kind, input.points);
+    if (!normalized.ok) throw rejected(normalized.message);
+    const stored = kind === "route" || kind === "area" ? normalized.points : [];
+    const anchor = normalized.points[0]!;
+    await tx.worldMapPin.update({
+      where: { id: pinId },
+      data: {
+        points: serializePoints(stored),
+        xNorm: anchor.x,
+        yNorm: anchor.y,
+        revision: { increment: 1 },
+      },
+    });
+    await tx.worldMap.update({ where: { id: mapId }, data: { updatedAt: new Date() } });
+    await writeAudit(tx, {
+      projectId,
+      action: "world_map_pin.geometry",
+      actor: UI_ACTOR,
+      summary: `Updated a map ${kind}`,
+      details: { mapId, pinId, kind, pointCount: normalized.points.length },
+    });
+    const view = await getWorldMap(tx, projectId, mapId);
+    const found = view.pins.find((p) => p.id === pinId);
+    if (!found) throw rejected("That pin is not on this map.");
+    return found;
+  });
+}
+
+/** Removes the marker from this map only; does not change the linked record or any PlaceRelation. */
+export async function removeWorldMapPin(
+  db: Db,
+  projectId: string,
+  mapId: string,
+  pinId: string,
+  expectedRevision?: number,
+): Promise<void> {
   await db.$transaction(async (tx) => {
     await requireLiveMap(tx, projectId, mapId);
     const pin = await tx.worldMapPin.findFirst({ where: { id: pinId, mapId, projectId } });
     if (!pin) throw rejected("That pin is not on this map.");
+    if (typeof expectedRevision === "number" && expectedRevision !== pin.revision) throw staleMarker();
     await tx.worldMapPin.delete({ where: { id: pinId } });
     await tx.worldMap.update({ where: { id: mapId }, data: { updatedAt: new Date() } });
     await writeAudit(tx, {
@@ -458,18 +556,37 @@ async function detachDetailLinks(tx: Tx, mapIds: string[], titleFor: (mapId: str
     if (!pin.targetMapId) continue;
     await tx.worldMapPin.update({
       where: { id: pin.id },
-      data: { targetMapId: null, label: pin.label.trim() || titleFor(pin.targetMapId) },
+      data: {
+        targetMapId: null,
+        label: pin.label.trim() || titleFor(pin.targetMapId),
+        revision: { increment: 1 },
+      },
     });
   }
 }
 
-async function resolvePinLinks(tx: Tx, projectId: string, mapId: string, input: WorldMapPinLinks) {
+function shapeForKind(
+  kind: MarkerKind,
+  points: { x: number; y: number }[] | null | undefined,
+  xNorm: number,
+  yNorm: number,
+): { points: NormPoint[]; xNorm: number; yNorm: number } {
+  if (kind === "route" || kind === "area") {
+    const normalized = normalizeShape(kind, points ?? []);
+    if (!normalized.ok) throw rejected(normalized.message);
+    return { points: normalized.points, xNorm: normalized.points[0]!.x, yNorm: normalized.points[0]!.y };
+  }
+  return { points: [], xNorm: clampNorm(xNorm), yNorm: clampNorm(yNorm) };
+}
+
+async function resolvePinLinks(tx: Tx, projectId: string, mapId: string, input: WorldMapPinLinks, kind: MarkerKind) {
   const recordId = input.recordId?.trim() || null;
   const targetMapId = input.targetMapId?.trim() || null;
-  if (!recordId && !targetMapId) throw rejected("Link a reference, a detailed map, or both.");
+  const label = (input.label ?? "").trim().slice(0, 120);
+  if (kind === "point" && !recordId && !targetMapId) throw rejected("Link a reference, a detailed map, or both.");
+  if (kind === "label" && !label) throw rejected("Enter the label text.");
   if (targetMapId === mapId) throw rejected("A marker cannot open the map it is already on.");
   const markerGroup: MarkerGroup = isMarkerGroup(input.markerGroup) ? input.markerGroup : "places";
-  const label = (input.label ?? "").trim().slice(0, 120);
   let recordTitle = "";
   if (recordId) {
     const record = await tx.record.findFirst({

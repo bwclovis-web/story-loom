@@ -19,6 +19,7 @@ import {
   listWorldMaps,
   moveWorldMapPin,
   removeWorldMapPin,
+  setWorldMapPinGeometry,
 } from "@/server/services/worldMapService";
 import { createTestDb, IDS, seedProject, type TestDb } from "../helpers";
 import { makePng } from "../imageFixtures";
@@ -389,6 +390,8 @@ describe("World maps and place relationships", () => {
     expect(exported?.markerGroup).toBe("waterways");
     expect(exported?.recordId).toBe(RIVER);
     expect(exported?.xNorm).toBeCloseTo(0.25);
+    expect(exported?.kind).toBeUndefined();
+    expect(exported?.points).toBeUndefined();
     const target = await createTestDb();
     try {
       const restored = await restoreWorkspaceBackup(target.db, backup, { idStrategy: "remap" });
@@ -399,9 +402,171 @@ describe("World maps and place relationships", () => {
       const view = await getWorldMap(target.db, projectId, maps[0]!.id);
       const pin = view.pins.find((item) => item.title === "Silverwater mouth");
       expect(pin?.markerGroup).toBe("waterways");
+      expect(pin?.kind).toBe("point");
+      expect(pin?.points).toEqual([]);
       expect(pin?.targetMapId).toBeNull();
       expect(pin?.yNorm).toBeCloseTo(0.75);
       expect(pin?.xNorm).toBeCloseTo(0.25);
+    } finally {
+      await target.cleanup();
+    }
+  });
+
+  it("stores route, area, and label geometry and refuses a stale rewrite", async () => {
+    const [image] = await addRecordImages(
+      t.db,
+      IDS.project,
+      IDS.world,
+      [{ filename: "coast.png", bytes: makePng(80, 40) }],
+      { confirmProtected: false },
+    );
+    const map = await createWorldMap(t.db, IDS.project, { title: "Coast roads", imageId: image.id });
+    const route = await addWorldMapPin(t.db, IDS.project, map.id, {
+      kind: "route",
+      recordId: RIVER,
+      markerGroup: "transport",
+      label: "Salt road",
+      xNorm: 0,
+      yNorm: 0,
+      points: [
+        { x: 0.1, y: 0.2 },
+        { x: 0.5, y: 0.2 },
+        { x: 0.8, y: 0.7 },
+      ],
+    });
+    expect(route.kind).toBe("route");
+    expect(route.recordId).toBe(RIVER);
+    expect(route.points.map((point) => point.x)).toEqual([0.1, 0.5, 0.8]);
+    expect(route.xNorm).toBeCloseTo(0.1);
+    expect(route.revision).toBe(0);
+    expect(route).not.toHaveProperty("distance");
+
+    const area = await addWorldMapPin(t.db, IDS.project, map.id, {
+      kind: "area",
+      label: "Quay yard",
+      xNorm: 0,
+      yNorm: 0,
+      points: [
+        { x: 0.2, y: 0.2 },
+        { x: 0.4, y: 0.2 },
+        { x: 0.4, y: 0.5 },
+        { x: 0.2, y: 0.2 },
+      ],
+    });
+    expect(area.kind).toBe("area");
+    expect(area.recordId).toBeNull();
+    expect(area.points).toHaveLength(3);
+
+    const label = await addWorldMapPin(t.db, IDS.project, map.id, {
+      kind: "label",
+      label: "North dock",
+      recordId: RIVER,
+      xNorm: 0.3,
+      yNorm: 0.6,
+    });
+    expect(label.kind).toBe("label");
+    expect(label.title).toBe("North dock");
+    expect(label.points).toEqual([]);
+
+    await expect(
+      addWorldMapPin(t.db, IDS.project, map.id, {
+        kind: "route",
+        recordId: IDS.chapter,
+        xNorm: 0.2,
+        yNorm: 0.2,
+        points: [
+          { x: 0.2, y: 0.2 },
+          { x: 0.3, y: 0.3 },
+        ],
+      }),
+    ).rejects.toBeInstanceOf(MutationRejectedError);
+    await expect(
+      addWorldMapPin(t.db, IDS.project, map.id, { kind: "label", label: "  ", xNorm: 0.2, yNorm: 0.2 }),
+    ).rejects.toBeInstanceOf(MutationRejectedError);
+    await expect(
+      addWorldMapPin(t.db, IDS.project, map.id, {
+        kind: "area",
+        xNorm: 0.2,
+        yNorm: 0.2,
+        points: [
+          { x: 0.2, y: 0.2 },
+          { x: 0.3, y: 0.3 },
+        ],
+      }),
+    ).rejects.toBeInstanceOf(MutationRejectedError);
+
+    await expect(
+      setWorldMapPinGeometry(t.db, IDS.project, map.id, route.id, {
+        expectedRevision: 4,
+        points: [
+          { x: 0.9, y: 0.9 },
+          { x: 0.1, y: 0.1 },
+        ],
+      }),
+    ).rejects.toBeInstanceOf(MutationRejectedError);
+    const untouched = await t.db.worldMapPin.findFirst({ where: { id: route.id } });
+    expect(JSON.parse(untouched?.points ?? "[]")).toEqual([
+      { x: 0.1, y: 0.2 },
+      { x: 0.5, y: 0.2 },
+      { x: 0.8, y: 0.7 },
+    ]);
+    expect(untouched?.revision).toBe(0);
+
+    const saved = await setWorldMapPinGeometry(t.db, IDS.project, map.id, route.id, {
+      expectedRevision: 0,
+      points: [
+        { x: 0.2, y: 0.3 },
+        { x: 0.6, y: 0.4 },
+      ],
+    });
+    expect(saved.revision).toBe(1);
+    expect(saved.points).toEqual([
+      { x: 0.2, y: 0.3 },
+      { x: 0.6, y: 0.4 },
+    ]);
+    await expect(
+      setWorldMapPinGeometry(t.db, IDS.project, map.id, route.id, {
+        expectedRevision: 0,
+        points: [
+          { x: 0.9, y: 0.9 },
+          { x: 0.1, y: 0.1 },
+        ],
+      }),
+    ).rejects.toBeInstanceOf(MutationRejectedError);
+    const kept = await t.db.worldMapPin.findFirst({ where: { id: route.id } });
+    expect(JSON.parse(kept?.points ?? "[]")).toEqual([
+      { x: 0.2, y: 0.3 },
+      { x: 0.6, y: 0.4 },
+    ]);
+    await expect(removeWorldMapPin(t.db, IDS.project, map.id, route.id, 0)).rejects.toBeInstanceOf(MutationRejectedError);
+    expect(await t.db.worldMapPin.count({ where: { id: route.id } })).toBe(1);
+
+    await t.db.recordImage.update({ where: { id: image.id }, data: { width: 800, height: 200 } });
+    const resized = await getWorldMap(t.db, IDS.project, map.id);
+    expect(resized.imageWidth).toBe(800);
+    expect(resized.imageHeight).toBe(200);
+    expect(resized.pins.find((pin) => pin.id === route.id)?.points).toEqual(saved.points);
+
+    const backup = await createWorkspaceBackup(t.db, IDS.workspace);
+    const exported = backup.worldMapPins?.find((pin) => pin.label === "Salt road");
+    expect(exported?.kind).toBe("route");
+    expect(exported?.points?.map((point) => point.x)).toEqual([0.2, 0.6]);
+    expect(exported).not.toHaveProperty("distance");
+    const target = await createTestDb();
+    try {
+      const restored = await restoreWorkspaceBackup(target.db, backup, { idStrategy: "remap" });
+      expect(restored.ok).toBe(true);
+      if (!restored.ok) return;
+      const projectId = restored.projects[0]!.id;
+      const maps = await listWorldMaps(target.db, projectId);
+      const view = await getWorldMap(target.db, projectId, maps[0]!.id);
+      const again = view.pins.find((pin) => pin.title === "Salt road");
+      expect(again?.kind).toBe("route");
+      expect(again?.points).toEqual(saved.points);
+      expect(again?.recordId).toBeTruthy();
+      const yard = view.pins.find((pin) => pin.title === "Quay yard");
+      expect(yard?.kind).toBe("area");
+      expect(yard?.points).toHaveLength(3);
     } finally {
       await target.cleanup();
     }

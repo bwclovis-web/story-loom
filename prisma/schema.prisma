@@ -366,8 +366,15 @@ model WorldMap {
   @@index([imageId])
 }
 
-/// A marker on a World map. xNorm/yNorm are fractions of image width/height (0–1).
-/// recordId and targetMapId are each optional, but a new marker needs at least one.
+/// A marker on a World map. xNorm/yNorm and points are fractions of image
+/// width/height (0–1). They are not distance or travel time.
+/// kind is point | route | area | label. Existing rows are points.
+/// points is a JSON array of {x,y}. A route keeps that order. An area is a
+/// closed boundary (the last point joins the first; the closing point is not
+/// stored twice). A label is text at xNorm/yNorm and stores no path.
+/// A point needs a reference or another map. Route, area, and label may link
+/// a reference and can also stand on their geometry or text.
+/// revision increments on each saved change so a stale write is refused.
 /// markerGroup is places | waterways | transport | story. Moving a marker never
 /// creates or changes PlaceRelation rows.
 model WorldMapPin {
@@ -382,6 +389,11 @@ model WorldMapPin {
   targetMap   WorldMap? @relation("MapDetail", fields: [targetMapId], references: [id], onDelete: SetNull)
   markerGroup String    @default("places")
   label       String    @default("")
+  /// point | route | area | label
+  kind        String    @default("point")
+  /// JSON [{x,y}, ...] in 0–1 image space. "[]" for a point or a label.
+  points      String    @default("[]")
+  revision    Int       @default(0)
   xNorm       Float
   yNorm       Float
   createdAt   DateTime  @default(now())

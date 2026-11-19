@@ -14,6 +14,7 @@ import { sniffImage } from "@/images/imageFormat";
 import { snapshotHash, snapshotOf, type RecordSnapshot } from "@/domain/records";
 import { allowedParent, isLinkableReferenceType, isManuscriptType, requiresParent } from "@/domain/recordTypes";
 import { Prisma } from "@/generated/prisma/client";
+import { parseStoredPoints } from "@/world/mapGeometry";
 import { validateDictionaryWord, wordKey } from "@/spelling/dictionary";
 import type { Db, DbOrTx, Tx } from "../db";
 import { writeAudit } from "./auditService";
@@ -348,15 +349,40 @@ async function worldMapPinRows(db: DbOrTx, projectIds: string[]) {
     if (isMissingSchemaError(error, "P2021")) return [];
     // Pre-migrate backup: the marker columns are not on disk yet. Read the
     // original pin columns so existing markers are not dropped from the backup.
-    if (isMissingSchemaError(error, "P2022")) {
-      const rows = await db.worldMapPin.findMany({
-        where: { projectId: { in: projectIds } },
-        orderBy: [{ mapId: "asc" }, { id: "asc" }],
-        select: { id: true, mapId: true, projectId: true, recordId: true, xNorm: true, yNorm: true, createdAt: true },
-      });
-      return rows.map((row) => ({ ...row, targetMapId: null, markerGroup: "places", label: "" }));
-    }
+    if (isMissingSchemaError(error, "P2022")) return worldMapPinRowsBeforeGeometry(db, projectIds);
     throw error;
+  }
+}
+
+/** Backup taken before geometry columns, or before the earlier marker columns, exist. */
+async function worldMapPinRowsBeforeGeometry(db: DbOrTx, projectIds: string[]) {
+  const blank = { kind: "point", points: "[]", revision: 0 };
+  try {
+    const rows = await db.worldMapPin.findMany({
+      where: { projectId: { in: projectIds } },
+      orderBy: [{ mapId: "asc" }, { id: "asc" }],
+      select: {
+        id: true,
+        mapId: true,
+        projectId: true,
+        recordId: true,
+        targetMapId: true,
+        markerGroup: true,
+        label: true,
+        xNorm: true,
+        yNorm: true,
+        createdAt: true,
+      },
+    });
+    return rows.map((row) => ({ ...row, ...blank }));
+  } catch (error) {
+    if (!isMissingSchemaError(error, "P2022")) throw error;
+    const rows = await db.worldMapPin.findMany({
+      where: { projectId: { in: projectIds } },
+      orderBy: [{ mapId: "asc" }, { id: "asc" }],
+      select: { id: true, mapId: true, projectId: true, recordId: true, xNorm: true, yNorm: true, createdAt: true },
+    });
+    return rows.map((row) => ({ ...row, targetMapId: null, markerGroup: "places", label: "", ...blank }));
   }
 }
 
@@ -964,20 +990,25 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
       : {}),
     ...(worldMapPins.length
       ? {
-          worldMapPins: worldMapPins.map((p) => ({
-            id: p.id,
-            mapId: p.mapId,
-            projectId: p.projectId,
-            recordId: p.recordId,
-            ...(p.targetMapId ? { targetMapId: p.targetMapId } : {}),
-            ...(p.markerGroup === "waterways" || p.markerGroup === "transport" || p.markerGroup === "story"
-              ? { markerGroup: p.markerGroup }
-              : {}),
-            ...(p.label ? { label: p.label } : {}),
-            xNorm: p.xNorm,
-            yNorm: p.yNorm,
-            createdAt: iso(p.createdAt),
-          })),
+          worldMapPins: worldMapPins.map((p) => {
+            const points = parseStoredPoints(p.points);
+            return {
+              id: p.id,
+              mapId: p.mapId,
+              projectId: p.projectId,
+              recordId: p.recordId,
+              ...(p.targetMapId ? { targetMapId: p.targetMapId } : {}),
+              ...(p.markerGroup === "waterways" || p.markerGroup === "transport" || p.markerGroup === "story"
+                ? { markerGroup: p.markerGroup }
+                : {}),
+              ...(p.label ? { label: p.label } : {}),
+              ...(p.kind === "route" || p.kind === "area" || p.kind === "label" ? { kind: p.kind } : {}),
+              ...(points.length ? { points } : {}),
+              xNorm: p.xNorm,
+              yNorm: p.yNorm,
+              createdAt: iso(p.createdAt),
+            };
+          }),
         }
       : {}),
     ...(placeRelations.length
@@ -1551,8 +1582,20 @@ function checkInternalConsistency(b: WorkspaceBackupV1): Issue[] {
     }
     const recordId = p.recordId ?? null;
     const targetMapId = p.targetMapId ?? null;
-    if (!recordId && !targetMapId && !p.label?.trim()) {
-      issues.push(integrity(`World map pin ${p.id} must link a reference, a map, or both.`));
+    const kind = p.kind ?? "point";
+    const points = p.points ?? [];
+    if (kind === "point") {
+      if (points.length) issues.push(integrity(`World map pin ${p.id} is a point and cannot store a path.`));
+      if (!recordId && !targetMapId && !p.label?.trim()) {
+        issues.push(integrity(`World map pin ${p.id} must link a reference, a map, or both.`));
+      }
+    } else if (kind === "label") {
+      if (points.length) issues.push(integrity(`World map pin ${p.id} is a label and cannot store a path.`));
+      if (!p.label?.trim()) issues.push(integrity(`World map pin ${p.id} needs label text.`));
+    } else if (kind === "route" && points.length < 2) {
+      issues.push(integrity(`World map pin ${p.id} route needs an ordered path of at least two points.`));
+    } else if (kind === "area" && points.length < 3) {
+      issues.push(integrity(`World map pin ${p.id} area needs a closed boundary of at least three points.`));
     }
     if (recordId) {
       if (!recordIds.has(recordId) || recordProject.get(recordId) !== p.projectId) {
@@ -2400,6 +2443,9 @@ export async function restoreWorkspaceBackup(db: Db, input: string | unknown, op
               targetMapId: p.targetMapId ? m(p.targetMapId) : null,
               markerGroup: p.markerGroup ?? "places",
               label: p.label ?? "",
+              kind: p.kind ?? "point",
+              points: JSON.stringify(p.points ?? []),
+              revision: 0,
               xNorm: p.xNorm,
               yNorm: p.yNorm,
               createdAt: new Date(p.createdAt),
