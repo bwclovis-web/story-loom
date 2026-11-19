@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { HelpHint } from "@/components/HelpHint";
 import { getDb } from "@/server/db";
 import { listRecordImages } from "@/server/services/imageService";
 import { listRecords } from "@/server/services/recordService";
@@ -42,6 +43,9 @@ export default async function WorldMapsPage({ params }: { params: Promise<{ proj
         <h1>{WORLD.maps}</h1>
       </header>
       <p className="page-lead">{WORLD.mapsLead}</p>
+      <HelpHint anchor="world-maps" topic="World maps">
+        Selecting a pin opens that place in the context rail. Moving pins never creates place relationships.
+      </HelpHint>
 
       <section className="panel" aria-labelledby="new-map-heading">
         <h2 id="new-map-heading">{WORLD.newMap}</h2>

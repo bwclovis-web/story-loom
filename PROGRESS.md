@@ -1841,6 +1841,66 @@ editable beat templates that apply as independent plan copies.
 
 Restore that pre-migrate SQLite snapshot and check out the pre-feature commit.
 
+## Help + skippable onboarding; Step 0 upgrade rehearsal (Nov 18, 2026)
+
+Requested: extend Help and skippable onboarding for project upgrades, reference
+pins, World Boards, maps, and author rewrites; rehearse the upgrade from the
+Step 0 baseline on a private restored copy; verify legacy packages, records/
+history, map pins → correct references, both drafts survive restore, and export
+uses the selected draft; report unverified paths and rollback.
+
+### Implemented
+
+- Help: new `optional-features` section (and children) plus stronger copy under
+  upgrade, scene-context pins, author rewrite / PDF draft selection, boards and
+  maps. Boards/maps pages get `HelpHint`s.
+- Skippable project checklist (`ProjectOnboarding`): optional next steps with
+  Skip / Don't show again (cookie `wordly-onboarding` / version
+  `storyloom-2026-11`); Show again restores it. No project data written.
+- Acceptance: `tests/acceptance/upgrade-rehearsal.test.ts` restores the frozen
+  legacy Step 0 fixture, checks history + package safety, then exercises drafts,
+  map pins, export draft resolution, PDF draft difference, and backup round-trip.
+
+### Private Step 0 restore (author workspace)
+
+| Item | Result |
+| --- | --- |
+| Source | `backups/2026-11-14T19-37-37-908Z-baseline-pre-storyloom/wsp_01M5WK5EMQP6QXFBFVWS9ZMQ67.wordly-backup.json` |
+| Private DB | `C:/repos/wordly-step0-rehearse-20261118.db` (all 17 migrations applied on create) |
+| Inventory | `backups/2026-11-18T12-30-00Z-step0-rehearse/inventory-after-restore.json` |
+| Author workspace vs baseline (`--ignore-not-in-backups`) | **0 differences** in records, revisions, links, packages, imports |
+| Expected extras vs full baseline snapshot | Migrations 10→17; demo workspace not restored (only author JSON); assistant tables empty (JSON backups never carry them) |
+
+### Verification
+
+| Check | Result |
+| --- | --- |
+| `pnpm exec vitest run tests/acceptance/upgrade-rehearsal.test.ts tests/unit/help.test.ts tests/acceptance/legacy-baseline.test.ts` | rehearsal + help 5/5; legacy baseline 10/10 (run earlier in suite) |
+| `pnpm typecheck` | pass |
+| Working `prisma/dev.db` | untouched (`pnpm db:info` still points at it) |
+
+### Verified paths
+
+- Legacy packages: already_applied / STALE_REVISION on restored Step 0 fixture (rehearsal + `legacy-baseline`).
+- Records and history: exact prose and revision hashes on fixture; author workspace inventory match on private restore.
+- Map pins → correct references: pin `recordId` / title after create and after remap restore (invented image on restored fixture; Step 0 JSON had no maps).
+- Both drafts survive restore: Zero + Author round-trip with default export draft remapped.
+- Export uses selected draft: `resolveExportDraftId` + distinct manuscript PDFs per draft.
+
+### Unverified / limits
+
+- Live UI click-through of onboarding dismiss on the author's working DB (cookie-only; no data risk).
+- Author baseline had no manuscript drafts, boards, or map pins; those paths were verified with invented data after restore / on the frozen fixture, not as content that existed at Step 0.
+- Demo workspace (`wsp_demo`) was not loaded into the private DB (only the author workspace file was restored).
+- Assistant history cannot round-trip via workspace JSON (by design); use the SQLite snapshot for that.
+- `pnpm db:verify-backup` on the baseline folder was blocked because `restore-check.db` already exists there; private restore + inventory compare used instead.
+
+### Rollback
+
+- Private rehearse DB: delete `C:/repos/wordly-step0-rehearse-20261118.db` (never pointed `DATABASE_URL` at it for the working app).
+- Working database: unchanged. If a mistaken migrate were needed: stop the app, move `prisma/dev.db` aside, copy `backups/2026-11-14T19-37-37-908Z-baseline-pre-storyloom/dev.db` (or the latest `-pre-migrate` snapshot) back, `pnpm db:info` must list the matching migrations, then start.
+- Code: detach/checkout the pre-feature commit; `pnpm install --frozen-lockfile`.
+
 ## Established in / knowledge check / Ask about board (Nov 18, 2026)
 
 Requested: “Established in” on the reference rail; link facts to exact manuscript

@@ -10,6 +10,14 @@ export const LAYOUT_COOKIE = "wordly-layout";
 /** Active Write manuscript draft for this browser (draft id, or empty when unset). */
 export const WRITE_DRAFT_COOKIE = "wordly-write-draft";
 
+/**
+ * Skippable project onboarding checklist. Value is the dismissed checklist
+ * version (or empty when still shown). Stored in this browser only.
+ */
+export const ONBOARDING_COOKIE = "wordly-onboarding";
+/** Bump when the checklist topics change so authors see the new list once. */
+export const ONBOARDING_VERSION = "storyloom-2026-11";
+
 /** "auto" collapses the navigation on medium-width windows and expands it on wide ones. */
 export type NavPreference = "auto" | "collapsed" | "expanded";
 

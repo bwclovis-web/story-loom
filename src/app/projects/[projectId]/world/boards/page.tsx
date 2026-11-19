@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { HelpHint } from "@/components/HelpHint";
 import { getDb } from "@/server/db";
 import { listBoards } from "@/server/services/boardService";
 import { SHELL, WORLD } from "@/ui/labels";
@@ -27,6 +28,10 @@ export default async function WorldBoardsPage({ params }: { params: Promise<{ pr
         <h1>{WORLD.boards}</h1>
       </div>
       <p className="page-lead">{WORLD.boardsLead}</p>
+      <HelpHint anchor="world-boards" topic="World boards">
+        Boards are optional. Removing a card only removes it from that board. Ask about this board previews linked
+        records before opening the assistant.
+      </HelpHint>
 
       <section className="panel stack" aria-labelledby="create-board-heading">
         <h2 id="create-board-heading">{WORLD.newBoard}</h2>

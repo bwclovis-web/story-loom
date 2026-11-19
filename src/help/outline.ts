@@ -14,6 +14,17 @@ export interface HelpSection {
 export const HELP_SECTIONS = [
   { id: "quick-start", title: "Quick start" },
   { id: "getting-started", title: "Getting started" },
+  {
+    id: "optional-features",
+    title: "Optional features (skippable)",
+    children: [
+      { id: "optional-upgrade", title: "Project upgrades" },
+      { id: "optional-pins", title: "Reference pins" },
+      { id: "optional-boards", title: "World Boards" },
+      { id: "optional-maps", title: "World maps" },
+      { id: "optional-rewrites", title: "Author rewrites" },
+    ],
+  },
   { id: "navigation", title: "Finding your way around" },
   {
     id: "workspaces",

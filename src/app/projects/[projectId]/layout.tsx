@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { ProjectNav } from "@/components/shell/ProjectNav";
+import { ProjectOnboarding } from "@/components/shell/ProjectOnboarding";
 import { getDb } from "@/server/db";
 import { readWriteDraftCookie, resolveWriteDraftId } from "@/server/draftSelection";
 import { getDraftDefaults, listManuscriptDrafts } from "@/server/services/draftService";
@@ -51,6 +52,7 @@ export default async function ProjectLayout({
         maps={maps.map((m) => ({ id: m.id, title: m.title }))}
       />
       <main id="main" tabIndex={-1} className="workspace">
+        <ProjectOnboarding projectId={project.id} />
         {children}
       </main>
     </div>

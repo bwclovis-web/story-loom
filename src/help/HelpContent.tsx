@@ -18,6 +18,7 @@ import {
   MANUSCRIPT_SEARCH,
   MARKDOWN_IMPORT,
   NAV,
+  ONBOARDING,
   PACKAGE_IMPORT,
   PDF,
   PROOFREAD,
@@ -127,6 +128,10 @@ export function HelpContent() {
         <p>
           To stop the app, press <kbd>Ctrl</kbd>+<kbd>C</kbd> in the terminal. Your work is already saved.
         </p>
+        <p>
+          After a project opens, a skippable checklist offers optional next steps (upgrade, pins, boards, maps, author
+          rewrite). See <See anchor="optional-features" />. You can skip it; nothing is required.
+        </p>
       </Section>
 
       <Section id="getting-started">
@@ -186,6 +191,58 @@ export function HelpContent() {
             </li>
           </ol>
         </details>
+      </Section>
+
+      <Section id="optional-features">
+        <p>
+          When a project is open, Story Loom can show a skippable checklist titled <L>{ONBOARDING.heading}</L>. It covers
+          optional features added after the Step 0 baseline: project upgrades, reference pins, World boards, World maps,
+          and author rewrites. Choose <L>{ONBOARDING.skip}</L> or <L>{ONBOARDING.dismiss}</L> anytime — nothing is
+          written to your records. <L>{ONBOARDING.showAgain}</L> brings the list back in this browser.
+        </p>
+        <p>
+          Older projects open and edit as before until you use these features. Change packages, backups and history keep
+          working the same way.
+        </p>
+
+        <Sub id="optional-upgrade">
+          <p>
+            <L>{NAV.upgradeProject}</L> under <L>{SHELL.projectTools}</L> is optional Series, Book and Draft metadata.
+            Preview first, then apply; text, revisions, images and links stay unchanged. Full steps:{" "}
+            <See anchor="upgrade-project" />.
+          </p>
+        </Sub>
+
+        <Sub id="optional-pins">
+          <p>
+            On <L>{SHELL.write}</L>, the <L>{WRITE.references}</L> tab&apos;s <L>{WRITE.pinnedReferences}</L> list keeps
+            dossiers and world notes handy beside the draft. Pins are not scene links and do not by themselves authorize
+            sending text to the assistant. Details: <See anchor="scene-context" />.
+          </p>
+        </Sub>
+
+        <Sub id="optional-boards">
+          <p>
+            <L>{WORLD.boards}</L> under <L>{SHELL.world}</L> place references, images and freeform notes on a board.
+            Selecting a card opens its source in the rail. Ask about a board previews linked records before the
+            assistant. Details: <See anchor="world-boards" />.
+          </p>
+        </Sub>
+
+        <Sub id="optional-maps">
+          <p>
+            <L>{WORLD.maps}</L> use a reference image as a backdrop. Pins link to World records; selecting a pin opens
+            that record. Moving a pin never creates a place relationship. Details: <See anchor="world-maps" />.
+          </p>
+        </Sub>
+
+        <Sub id="optional-rewrites">
+          <p>
+            <L>{DRAFT.startRewrite}</L> keeps a Zero draft and adds an Author manuscript beside it. Set{" "}
+            <L>{DRAFT.setDefaultReading}</L> and <L>{DRAFT.setDefaultExport}</L> explicitly so Read and PDF export use the
+            draft you intend. Details: <See anchor="author-rewrite" /> and <See anchor="pdf-export" />.
+          </p>
+        </Sub>
       </Section>
 
       <Section id="navigation">
@@ -352,6 +409,10 @@ export function HelpContent() {
             If the project changes between preview and apply (for example another edit updates assignments, or a chapter
             is removed), apply is refused and you preview again. Applying the same assignments a second time writes
             nothing.
+          </p>
+          <p>
+            Upgrading does not change how change packages apply: stale revisions, protection and idempotency still
+            refuse or accept packages the same way. See <See anchor="change-package-import" />.
           </p>
         </Sub>
       </Section>
@@ -717,7 +778,12 @@ export function HelpContent() {
             <li>
               <L>{NAV.readBook}</L>, word counts, open review items for manuscript records, and manuscript PDF export use
               the selected draft. Set defaults explicitly with <L>{DRAFT.setDefaultReading}</L> and{" "}
-              <L>{DRAFT.setDefaultExport}</L>.
+              <L>{DRAFT.setDefaultExport}</L>. On <L>{NAV.exportPdf}</L>, the manuscript draft picker (or the project
+              default export draft) chooses which chapters and scenes go into the PDF.
+            </li>
+            <li>
+              Both drafts travel in workspace backups. Restoring a backup that includes them brings Zero draft and Author
+              manuscript back with their source pins.
             </li>
             <li>
               Projects that never start a rewrite keep a single manuscript and open and export as before.
@@ -1025,6 +1091,11 @@ export function HelpContent() {
             ordered list per draft (or project-wide when there are no drafts). Adding or removing a link or pin is
             recorded in <L>{NAV.history}</L>.
           </p>
+          <p>
+            After you start an author rewrite, each draft has its own pin list. Switching the Write draft shows that
+            draft&apos;s pins. Soft-trashing a pinned reference hides it from the list until restore; permanently
+            deleting it removes the pin.
+          </p>
           <h4>{WRITE.notes}</h4>
           <ul>
             <li>
@@ -1196,7 +1267,7 @@ export function HelpContent() {
           <ul>
             <li>
               The same place can appear on several maps. Selecting a pin (on the image or in the keyboard-accessible pin
-              list) opens its source in the context rail.
+              list) opens that exact reference in the context rail — the same record the pin stores, not a guessed match.
             </li>
             <li>
               <L>{WORLD.removePin}</L> removes the pin from that map only. Moving a pin never creates or changes a place
@@ -1631,6 +1702,10 @@ export function HelpContent() {
             Open <L>{NAV.exportPdf}</L>.
           </li>
           <li>
+            If the project has manuscript drafts, choose which draft to export (or rely on{" "}
+            <L>{DRAFT.setDefaultExport}</L>). The PDF includes only that draft&apos;s chapters and scenes.
+          </li>
+          <li>
             Under <L>{PDF.manuscriptHeading}</L>, optionally tick <L>{PDF.sceneTitles}</L>.
           </li>
           <li>
@@ -1639,7 +1714,8 @@ export function HelpContent() {
         </ol>
         <p>
           Chapters are in book order, as under <L>{BOOK_ORDER.heading}</L> on <L>{SHELL.write}</L>, each starting on a new page, with its text followed by
-          its scenes. Notes and references are not included.
+          its scenes. Notes and references are not included. Projects without drafts export the whole manuscript as
+          before.
         </p>
         <h4>What a PDF contains</h4>
         <ul>

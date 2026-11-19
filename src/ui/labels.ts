@@ -121,6 +121,26 @@ export const GROUP_PAGES = {
   all: "Every record in this project, grouped by type.",
 } as const;
 
+/** Skippable project checklist for optional Story Loom features. */
+export const ONBOARDING = {
+  heading: "Optional next steps",
+  lead:
+    "These are optional. Skip anytime — your records stay as they are. Each step links into the app and to How to use.",
+  skip: "Skip for now",
+  dismiss: "Don't show again",
+  showAgain: "Show optional next steps",
+  upgrade: "Upgrade this project",
+  upgradeHint: "Optionally name the series and book, group chapters, and mark World scope.",
+  pins: "Pin references beside Write",
+  pinsHint: "Pins stay with the draft; they are not scene links and do not send text to the assistant by themselves.",
+  boards: "Try a World board",
+  boardsHint: "Place references, images and notes on a focused board without moving manuscript order.",
+  maps: "Try a World map",
+  mapsHint: "Pin places on a reference image; selecting a pin opens that record.",
+  rewrite: "Start an author rewrite",
+  rewriteHint: "Keep the Zero draft and write an Author manuscript beside it; set reading and export drafts explicitly.",
+} as const;
+
 /** Plan → Weave grids, beats, decisions, setup/payoff and templates. */
 export const WEAVE = {
   heading: "Weave",
