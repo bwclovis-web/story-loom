@@ -92,6 +92,53 @@ describe("Reading pins, context search, and Find relevant context", () => {
     await reorderReadingPins(t.db, IDS.project, authorScope, [worldId]);
   });
 
+  it("weights Find relevant from the open scene when there is no passage selection", async () => {
+    const started = await startAuthorRewrite(t.db, IDS.project);
+    const authorScope = await resolvePinScope(t.db, IDS.project, started.authorDraft.id);
+    const world = await createRecord(t.db, IDS.project, {
+      type: "worldbuilding",
+      title: "Lantern Keep",
+      body: "The keep above the quay.",
+      authorityStatus: "approved",
+      fields: { name: "Lantern Keep", aliases: ["The Keep"] },
+    });
+    const worldId = world.outcomes[0].recordId;
+    const authorChapter = (
+      await t.db.record.findMany({
+        where: { projectId: IDS.project, draftId: started.authorDraft.id, type: "manuscript_chapter" },
+      })
+    )[0]!;
+    await t.db.record.update({
+      where: { id: authorChapter.id },
+      data: { body: "Mara walked past Lantern Keep toward the quay." },
+    });
+    await linkReference(t.db, IDS.project, authorChapter.id, worldId);
+
+    const found = await findRelevantContext(t.db, {
+      projectId: IDS.project,
+      question: "Where is she?",
+      manuscript: { recordId: authorChapter.id },
+      draftScopeId: authorScope,
+      includePinnedZeroDraft: false,
+    });
+    const hit = found.candidates.find((c) => c.recordId === worldId);
+    expect(hit).toBeTruthy();
+    expect(hit!.labels).toContain("linked");
+    expect(hit!.labels).toContain("open_scene");
+    expect(hit!.labels).not.toContain("selection");
+
+    const withPassage = await findRelevantContext(t.db, {
+      projectId: IDS.project,
+      question: "Where is she?",
+      manuscript: { recordId: authorChapter.id, start: 0, end: 12 },
+      draftScopeId: authorScope,
+      includePinnedZeroDraft: false,
+    });
+    const passageHit = withPassage.candidates.find((c) => c.recordId === worldId);
+    expect(passageHit?.labels.includes("selection") || passageHit?.labels.includes("linked")).toBe(true);
+    expect(passageHit?.labels.includes("open_scene")).toBeFalsy();
+  });
+
   it("round-trips ordered reading pins in backups; omit restores empty", async () => {
     await addReadingPin(t.db, IDS.project, PROJECT_PIN_SCOPE, IDS.dossier);
     const world = await createRecord(t.db, IDS.project, {

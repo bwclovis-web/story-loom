@@ -154,18 +154,36 @@ function ProjectNavContent({
   const hasAuthor = drafts.some((d) => d.kind === "author_manuscript");
   const showStart = group === "write" && !hasAuthor;
 
-  const tools = [
-    { href: `${base}/import`, label: NAV.importPackage },
-    { href: `${base}/import-markdown`, label: NAV.importMarkdown },
-    { href: `${base}/import-chapters`, label: NAV.importChapters },
-    { href: `${base}/read`, label: NAV.readBook },
-    { href: `${base}/export`, label: NAV.exportContext },
-    { href: `${base}/export-pdf`, label: NAV.exportPdf },
-    { href: `${base}/history`, label: NAV.history, count: openReviewItems },
-    { href: `${base}/dictionary`, label: NAV.dictionary },
-    { href: `${base}/cross-references`, label: NAV.crossRefCheck },
-    { href: `${base}/upgrade`, label: NAV.upgradeProject },
-  ];
+  const toolGroups = [
+    {
+      id: "bring-in",
+      heading: SHELL.toolsBringIn,
+      items: [
+        { href: `${base}/import`, label: NAV.importPackage },
+        { href: `${base}/import-markdown`, label: NAV.importMarkdown },
+        { href: `${base}/import-chapters`, label: NAV.importChapters },
+      ],
+    },
+    {
+      id: "read-export",
+      heading: SHELL.toolsReadExport,
+      items: [
+        { href: `${base}/read`, label: NAV.readBook },
+        { href: `${base}/export`, label: NAV.exportContext },
+        { href: `${base}/export-pdf`, label: NAV.exportPdf },
+      ],
+    },
+    {
+      id: "maintain",
+      heading: SHELL.toolsMaintain,
+      items: [
+        { href: `${base}/history`, label: NAV.history, count: openReviewItems },
+        { href: `${base}/dictionary`, label: NAV.dictionary },
+        { href: `${base}/cross-references`, label: NAV.crossRefCheck },
+        { href: `${base}/upgrade`, label: NAV.upgradeProject },
+      ],
+    },
+  ] as const;
 
   return (
     <nav aria-label={SHELL.projectNav} className="project-nav">
@@ -277,21 +295,31 @@ function ProjectNavContent({
       <p className="nav-heading" id={`${idPrefix}-tools`}>
         {SHELL.projectTools}
       </p>
-      <ul className="nav-list" aria-labelledby={`${idPrefix}-tools`}>
-        {tools.map((t) => (
-          <li key={t.href}>
-            <Link href={t.href} aria-current={current(t.href)}>
-              {t.label}
-              {t.count ? (
-                <span className="nav-count attention">
-                  <span aria-hidden="true">{t.count}</span>
-                  <span className="sr-only">, {SHELL.openReviewItems(t.count)}</span>
-                </span>
-              ) : null}
-            </Link>
-          </li>
-        ))}
-      </ul>
+      {toolGroups.map((group) => {
+        const headingId = `${idPrefix}-tools-${group.id}`;
+        return (
+          <div key={group.id} className="nav-section">
+            <p className="nav-subheading" id={headingId}>
+              {group.heading}
+            </p>
+            <ul className="nav-list" aria-labelledby={headingId}>
+              {group.items.map((t) => (
+                <li key={t.href}>
+                  <Link href={t.href} aria-current={current(t.href)}>
+                    {t.label}
+                    {"count" in t && t.count ? (
+                      <span className="nav-count attention">
+                        <span aria-hidden="true">{t.count}</span>
+                        <span className="sr-only">, {SHELL.openReviewItems(t.count)}</span>
+                      </span>
+                    ) : null}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        );
+      })}
     </nav>
   );
 }

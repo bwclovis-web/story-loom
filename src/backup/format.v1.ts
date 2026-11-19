@@ -484,6 +484,98 @@ export const workspaceBackupV1Schema = z
           .strict(),
       )
       .optional(),
+    /** Assistant conversations (optional); older backups omit → none. Proofread runs stay SQLite-only. */
+    assistantConversations: z
+      .array(
+        z
+          .object({
+            id,
+            workspaceId: id,
+            projectId: id,
+            title: z.string().min(1),
+            summary: z.string().optional(),
+            createdAt: timestamp,
+            updatedAt: timestamp,
+          })
+          .strict(),
+      )
+      .optional(),
+    assistantMessages: z
+      .array(
+        z
+          .object({
+            id,
+            conversationId: id,
+            role: z.enum(["user", "assistant"]),
+            mode: z.enum(["chat", "proposal"]),
+            content: z.string(),
+            replyToId: id.optional(),
+            status: z.string().min(1),
+            errorCode: z.string().optional(),
+            errorMessage: z.string().optional(),
+            model: z.string().optional(),
+            providerResponseId: z.string().optional(),
+            inputTokens: z.number().int().optional(),
+            outputTokens: z.number().int().optional(),
+            totalTokens: z.number().int().optional(),
+            usageEstimated: z.boolean(),
+            includedMessageIds: z.array(id),
+            requestChars: z.number().int().optional(),
+            createdAt: timestamp,
+            completedAt: timestamp.optional(),
+          })
+          .strict(),
+      )
+      .optional(),
+    assistantContextItems: z
+      .array(
+        z
+          .object({
+            id,
+            messageId: id,
+            recordId: id,
+            revisionNumber: z.number().int().min(1),
+            kind: z.string().min(1),
+            passageStart: z.number().int().optional(),
+            passageEnd: z.number().int().optional(),
+            charCount: z.number().int().min(0),
+            contentHash: z.string().regex(/^[0-9a-f]{64}$/),
+          })
+          .strict(),
+      )
+      .optional(),
+    assistantProposals: z
+      .array(
+        z
+          .object({
+            id,
+            messageId: id,
+            workspaceId: id,
+            projectId: id,
+            packageId: id,
+            packageJson: z.string().min(1),
+            contentHash: z.string().regex(/^[0-9a-f]{64}$/),
+            operationCount: z.number().int().min(0),
+            status: z.enum(["proposed", "applied"]),
+            createdAt: timestamp,
+            appliedAt: timestamp.optional(),
+          })
+          .strict(),
+      )
+      .optional(),
+    projectAssistantSettings: z
+      .array(
+        z
+          .object({
+            id,
+            projectId: id,
+            autoIncludeRecent: z.boolean(),
+            recentContextBudgetChars: z.number().int().min(2000).max(50000),
+            updatedAt: timestamp,
+          })
+          .strict(),
+      )
+      .optional(),
     /** Added with images; a backup without it restores with no images. */
     recordImages: z
       .array(
@@ -540,6 +632,11 @@ export const workspaceBackupV1Schema = z
         weaveTemplateBeats: z.number().int().optional(),
         establishedFacts: z.number().int().optional(),
         factEvidence: z.number().int().optional(),
+        assistantConversations: z.number().int().optional(),
+        assistantMessages: z.number().int().optional(),
+        assistantContextItems: z.number().int().optional(),
+        assistantProposals: z.number().int().optional(),
+        projectAssistantSettings: z.number().int().optional(),
       })
       .strict(),
     /** sha256 of the stable JSON serialization of every other top-level field. */

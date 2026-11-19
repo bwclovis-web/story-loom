@@ -305,13 +305,12 @@ export function HelpContent() {
             ).
           </li>
           <li>
-            <L>{SHELL.projectTools}</L>: <L>{NAV.importPackage}</L>, <L>{NAV.importMarkdown}</L>,{" "}
-            <L>{NAV.importChapters}</L>, <L>{NAV.readBook}</L>, <L>{NAV.exportContext}</L>, <L>{NAV.exportPdf}</L>,{" "}
-            <L>{NAV.history}</L>, <L>{NAV.dictionary}</L>, <L>{NAV.crossRefCheck}</L> and <L>{NAV.upgradeProject}</L>{" "}
-            (see{" "}
-            <See anchor="cross-reference-check" />
-            ). A number beside{" "}
-            <L>{NAV.history}</L> is how many open review items the project has.
+            <L>{SHELL.projectTools}</L>, grouped as <L>{SHELL.toolsBringIn}</L> (
+            <L>{NAV.importPackage}</L>, <L>{NAV.importMarkdown}</L>, <L>{NAV.importChapters}</L>),{" "}
+            <L>{SHELL.toolsReadExport}</L> (<L>{NAV.readBook}</L>, <L>{NAV.exportContext}</L>, <L>{NAV.exportPdf}</L>), and{" "}
+            <L>{SHELL.toolsMaintain}</L> (<L>{NAV.history}</L>, <L>{NAV.dictionary}</L>, <L>{NAV.crossRefCheck}</L>,{" "}
+            <L>{NAV.upgradeProject}</L>; see <See anchor="cross-reference-check" />
+            ). A number beside <L>{NAV.history}</L> is how many open review items the project has.
           </li>
         </ul>
         <h3>Smaller windows</h3>
@@ -1250,9 +1249,14 @@ export function HelpContent() {
               evidence is flagged for recheck.
             </li>
             <li>
-              On a character dossier, <L>{WORLD.characterKnowledgeCheck}</L> scans a chosen draft and chapter or scene
-              for the character&apos;s names, lists the passages checked, and reports which accepted facts lack coverage
-              there.
+              On a character dossier, <L>{WORLD.characterKnowledgeCheck}</L> is a heuristic: it scans a chosen draft and
+              chapter or scene for the character&apos;s names, lists the passages checked, and compares accepted facts by
+              linked evidence in that scene and/or keyword overlap. That is not proof the character &ldquo;knows&rdquo; a
+              fact. Results split linked evidence from keyword-only matches.
+            </li>
+            <li>
+              <L>{WORLD.earlierSceneTracing}</L> (next increment): walk prior scenes in draft order with cited passages and
+              uncertainty. Not available yet — {WORLD.earlierSceneTracingNote}
             </li>
           </ul>
           <p>Established facts and evidence are included in workspace backups. Older backups that omit them restore with none.</p>
@@ -2197,24 +2201,27 @@ export function HelpContent() {
         <Sub id="assistant-context">
           <p>
             The conversation fills the middle of the page, with the question box directly under the latest message. What
-            to send is chosen in <L>{ASSISTANT.contextHeading}</L>, a panel on the right. <L>{ASSISTANT.hideContext}</L>{" "}
-            closes it and <L>{ASSISTANT.showContext}</L>, above the question box, opens it again; the app remembers your
-            choice on this computer. Closing the panel does not change what is sent. The line above the question box shows
-            how many items are included and the approximate size. On a narrow window the panel moves below the
-            conversation, and <L>{ASSISTANT.conversations}</L> moves to the bottom of the page.
+            to send is chosen in <L>{ASSISTANT.contextHeading}</L>, the shared context rail on the right (collapse, resize,
+            and overlay on a narrow window, same as Write). Closing the rail does not change what is sent. The line above
+            the question box shows how many items are included and the approximate size.{" "}
+            <L>{ASSISTANT.conversations}</L> stays in the left column of the assistant page.
           </p>
           <ol>
             <li>
               Under <L>{ASSISTANT.conversations}</L>, choose <L>{ASSISTANT.newConversation}</L>, or open an earlier
-              conversation.
+              conversation. You may edit <L>{ASSISTANT.conversationSummary}</L> and save it; a non-empty saved summary is
+              sent with the next question. Under <L>{ASSISTANT.assistantSettings}</L>, turn on{" "}
+              <L>{ASSISTANT.autoIncludeRecent}</L> only when you want recent complete messages filled into Include up to
+              your character budget — nothing is inferred.
             </li>
             <li>
-              Optionally choose <L>{ASSISTANT.findRelevantContext}</L> after you have a question and (from the assistant
-              page) an explicit manuscript, or after arriving from Write with the open scene. It ranks linked references,
-              matching reading pins, and title/alias/section hits. Preview the exact passages and saved revisions, remove
-              or replace items, then <L>{ASSISTANT.findRelevantConfirm}</L> to add them to Include — nothing is sent yet.
-              A reading pin alone never authorizes a send. You may tick <L>{ASSISTANT.includePinnedZeroDraft}</L> to also
-              consider pins from the Zero draft.
+              Optionally choose <L>{ASSISTANT.findRelevantContext}</L> after you have a question and an open chapter or
+              scene (whole text, or a selected passage). It derives soft terms from the open scene when there is no
+              passage selection, labels them distinctly from a true selection, and always surfaces linked references.
+              Preview the exact passages and saved revisions, remove or replace items, then{" "}
+              <L>{ASSISTANT.findRelevantConfirm}</L> to add them to Include — nothing is sent yet. A reading pin alone
+              never authorizes a send. You may tick <L>{ASSISTANT.includePinnedZeroDraft}</L> to also consider pins from
+              the Zero draft. Find still uses the saved manuscript body unless Write supplies an unsaved body.
             </li>
             <li>
               In <L>{ASSISTANT.contextHeading}</L>, under <L>{ASSISTANT.references}</L>, tick the records to include. Each shows its type, canon status, saved
@@ -2223,18 +2230,20 @@ export function HelpContent() {
               section unticks the whole document. See <See anchor="long-documents" />.
             </li>
             <li>
-              Under <L>{ASSISTANT.manuscript}</L>, choose a chapter, or leave <L>{ASSISTANT.noManuscript}</L>. Choose{" "}
-              <L>{ASSISTANT.wholeChapter}</L>, or <L>{ASSISTANT.passageOnly}</L>: select text in the chapter shown, then
-              choose <L>{ASSISTANT.usePassage}</L>. The chosen characters and the start of the passage are shown.
+              Under <L>{ASSISTANT.manuscript}</L>, choose a chapter (grouped by draft when drafts exist), or leave{" "}
+              <L>{ASSISTANT.noManuscript}</L>. Choose <L>{ASSISTANT.wholeChapter}</L>, or <L>{ASSISTANT.passageOnly}</L>:
+              select text in the chapter shown, then choose <L>{ASSISTANT.usePassage}</L>. The chosen characters and the
+              start of the passage are shown.
             </li>
             <li>
               To give the assistant earlier parts of the conversation, tick <L>{ASSISTANT.includeMessage}</L> on those
-              messages, or use <L>{ASSISTANT.includeAll}</L> and <L>{ASSISTANT.includeNone}</L>. Unticked messages are not
-              sent, so the assistant does not remember them.
+              messages, or use <L>{ASSISTANT.includeAll}</L> and <L>{ASSISTANT.includeNone}</L>. When auto-include is on,
+              the rail shows which messages the budget selected; you can still untick before send. Unticked messages are
+              not sent. Oversized requests are refused; there is no automatic retry.
             </li>
             <li>
               Check <L>{ASSISTANT.summaryHeading}</L>. It lists every item, its saved version, and its length, with an
-              approximate total against the limit.
+              approximate total against the limit (including a saved conversation summary when present).
             </li>
             <li>
               Type your question in the box under the conversation and choose <L>{ASSISTANT.send}</L>. The conversation
@@ -2249,6 +2258,11 @@ export function HelpContent() {
           <p>
             If a selected record is saved somewhere else after you selected it, the app refuses to send and reloads the
             list. Check the new version and send again.
+          </p>
+          <p>
+            Assistant conversations (including summaries), messages, context items, proposals, and project assistant
+            preferences can be included in workspace backups. Older backups that omit those keys restore with empty
+            conversations and default preferences. Proofread runs stay in SQLite only and are not in the backup file.
           </p>
         </Sub>
 

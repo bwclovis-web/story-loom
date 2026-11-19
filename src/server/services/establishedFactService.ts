@@ -388,6 +388,10 @@ export interface CharacterKnowledgeCheckResult {
   evidenceKind: EvidenceKind;
   passagesChecked: KnowledgePassage[];
   coveredFactIds: string[];
+  /** Accepted facts with linked evidence citing this scene (same evidence kind). */
+  coveredByEvidence: Array<{ factId: string; statement: string }>;
+  /** Accepted facts matched by keyword overlap only (no linked evidence in this scene). */
+  coveredByKeywords: Array<{ factId: string; statement: string }>;
   gaps: Array<{ factId: string; statement: string; evidenceKind: EvidenceKind }>;
   nameFormsUsed: string[];
 }
@@ -461,17 +465,25 @@ export async function runCharacterKnowledgeCheck(
   const hay = passages.map((p) => p.excerpt).join("\n").toLowerCase();
   const covered: string[] = [];
   const gaps: CharacterKnowledgeCheckResult["gaps"] = [];
+  const coveredByEvidence: CharacterKnowledgeCheckResult["coveredByEvidence"] = [];
+  const coveredByKeywords: CharacterKnowledgeCheckResult["coveredByKeywords"] = [];
   for (const fact of accepted) {
-    // A fact is "covered" in this scene if any of its evidence cites this scene,
-    // or a simple keyword overlap with checked passages (heuristic gap finder).
+    // Heuristic only: linked evidence in this scene, and/or keyword overlap — not proof of knowledge.
     const hasSceneEvidence = fact.evidence.some((e) => e.sourceRecordId === scene.id && e.evidenceKind === evidenceKind);
     const keywords = fact.statement
       .toLowerCase()
       .split(/[^a-z0-9']+/)
       .filter((w) => w.length >= 4);
     const overlap = keywords.length > 0 && keywords.filter((w) => hay.includes(w)).length >= Math.min(2, keywords.length);
-    if (hasSceneEvidence || overlap) covered.push(fact.id);
-    else gaps.push({ factId: fact.id, statement: fact.statement, evidenceKind: fact.evidenceKind });
+    if (hasSceneEvidence) {
+      covered.push(fact.id);
+      coveredByEvidence.push({ factId: fact.id, statement: fact.statement });
+    } else if (overlap) {
+      covered.push(fact.id);
+      coveredByKeywords.push({ factId: fact.id, statement: fact.statement });
+    } else {
+      gaps.push({ factId: fact.id, statement: fact.statement, evidenceKind: fact.evidenceKind });
+    }
   }
 
   return {
@@ -484,6 +496,8 @@ export async function runCharacterKnowledgeCheck(
     evidenceKind,
     passagesChecked: passages,
     coveredFactIds: covered,
+    coveredByEvidence,
+    coveredByKeywords,
     gaps,
     nameFormsUsed: forms,
   };

@@ -426,6 +426,26 @@ export function EstablishedInRail({
                 {check.coveredFactIds.length} of {check.coveredFactIds.length + check.gaps.length} accepted fact
                 {check.coveredFactIds.length + check.gaps.length === 1 ? "" : "s"}
               </p>
+              {check.coveredByEvidence.length ? (
+                <>
+                  <h4 className="small">{WORLD.coveredByEvidence}</h4>
+                  <ul className="context-links">
+                    {check.coveredByEvidence.map((f) => (
+                      <li key={f.factId}>{f.statement}</li>
+                    ))}
+                  </ul>
+                </>
+              ) : null}
+              {check.coveredByKeywords.length ? (
+                <>
+                  <h4 className="small">{WORLD.coveredByKeywords}</h4>
+                  <ul className="context-links">
+                    {check.coveredByKeywords.map((f) => (
+                      <li key={f.factId}>{f.statement}</li>
+                    ))}
+                  </ul>
+                </>
+              ) : null}
               <h3 className="small">{WORLD.knowledgeGaps}</h3>
               {check.gaps.length ? (
                 <ul className="context-links">
@@ -439,6 +459,9 @@ export function EstablishedInRail({
               ) : (
                 <p className="small muted">{WORLD.noKnowledgeGaps}</p>
               )}
+              <p className="small muted" style={{ marginTop: "0.75rem" }}>
+                <strong>{WORLD.earlierSceneTracing}:</strong> {WORLD.earlierSceneTracingNote}
+              </p>
             </div>
           ) : null}
         </ContextSection>

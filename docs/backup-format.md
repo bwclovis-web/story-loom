@@ -25,7 +25,12 @@ A complete copy of one workspace, produced by **Backup & restore** in the app,
 | `boards` | World boards: `id`, `projectId`, `title`, `templateKey` (`blank` \| `geography`), `createdAt`, `updatedAt`. Optional: older backups omit → no boards |
 | `boardCards` | Cards on boards: `id`, `boardId`, `projectId`, `kind` (`record` \| `image` \| `note`), optional `recordId` / `imageId`, `noteTitle`, `noteBody`, `x`, `y`, `width`, `height`, `zIndex`, `createdAt`. Optional: older backups omit → empty. Removing a card only removes this row |
 | `recordImages` | Images on reference documents: `id`, `projectId`, `recordId`, `name` (unique within the record; the text refers to it as `image:<name>`), `originalFilename`, `mimeType` (PNG, JPEG, GIF or WebP), `byteSize`, `width`, `height`, `contentHash` (sha256 of the file), `dataBase64` (the file itself), `caption`, `altText`, `position`, `createdAt`, `updatedAt`. Optional: backups made before images existed omit it and restore with no images |
-| `counts`, `checksum` | Row counts (`dictionaryEntries`, `recordLinks`, `recordImages`, `manuscriptGroups`, `manuscriptDrafts`, `rewriteSourceLinks`, `readingPins`, `boards` and `boardCards` optional, as above), and a sha256 over the stable serialization of every other field |
+| `assistantConversations` | In-app assistant threads: `id`, `workspaceId`, `projectId`, `title`, optional `summary`, `createdAt`, `updatedAt`. Optional: older backups omit → none |
+| `assistantMessages` | Messages in those threads (role, mode, content, status, usage, included message ids, timestamps). Optional |
+| `assistantContextItems` | Record/passage/section snapshots sent with a message. Optional |
+| `assistantProposals` | Prepared change proposals tied to assistant messages. Optional |
+| `projectAssistantSettings` | Per-project prefs (`autoIncludeRecent`, `recentContextBudgetChars`). Optional: omit → defaults. Proofread runs are not in the backup file |
+| `counts`, `checksum` | Row counts (optional arrays as above), and a sha256 over the stable serialization of every other field |
 | `app.migrations` | Schema migrations known to the app that wrote the file |
 
 Other connections between records are stored inside records

@@ -18,8 +18,19 @@ import { parseJsonObject } from "@/domain/json";
 import { contentClassOf, isRecordType, type ContentClass, type RecordType } from "@/domain/recordTypes";
 import { isAuthorityStatus, type AuthorityStatus } from "@/domain/statuses";
 import { hasSectionStatus, listSections, outermostSections, sectionPath, type DocSection } from "@/writing/sections";
-import type { Db } from "../db";
+import type { Db, DbOrTx } from "../db";
+import { writeAudit } from "./auditService";
 import { LIVE_PROJECT } from "./trashFilters";
+
+const UI_ACTOR = "author";
+const DEFAULT_RECENT_BUDGET = 8000;
+const MIN_RECENT_BUDGET = 2000;
+const MAX_RECENT_BUDGET = 50_000;
+
+export function clampRecentBudget(chars: number): number {
+  if (!Number.isFinite(chars)) return DEFAULT_RECENT_BUDGET;
+  return Math.min(MAX_RECENT_BUDGET, Math.max(MIN_RECENT_BUDGET, Math.floor(chars)));
+}
 
 /*
  * Assistant conversations. This service never writes records or revisions;
@@ -133,9 +144,20 @@ export interface ConversationView {
   workspaceId: string;
   projectId: string;
   title: string;
+  summary: string;
   createdAt: string;
   messages: MessageView[];
 }
+
+export interface AssistantSettingsView {
+  autoIncludeRecent: boolean;
+  recentContextBudgetChars: number;
+}
+
+export const DEFAULT_ASSISTANT_SETTINGS: AssistantSettingsView = {
+  autoIncludeRecent: false,
+  recentContextBudgetChars: DEFAULT_RECENT_BUDGET,
+};
 
 export interface SelectableRecord {
   id: string;
@@ -144,6 +166,8 @@ export interface SelectableRecord {
   contentClass: ContentClass;
   authorityStatus: AuthorityStatus;
   currentRevision: number;
+  /** Manuscript draft id when the project has drafts; null for legacy or references. */
+  draftId: string | null;
   /** Characters this record adds when selected whole. */
   chars: number;
   /** Reference documents only: sections by heading, for sending part of a long document. */
@@ -218,6 +242,102 @@ export async function deleteConversation(db: Db, projectId: string, conversation
   await db.assistantConversation.delete({ where: { id: conversationId } });
 }
 
+export async function getConversationSummary(db: DbOrTx, projectId: string, conversationId: string): Promise<string> {
+  const conv = await loadConversation(db as Db, projectId, conversationId);
+  return conv.summary;
+}
+
+export async function updateConversationSummary(
+  db: Db,
+  projectId: string,
+  conversationId: string,
+  summary: string,
+): Promise<string> {
+  const conv = await loadConversation(db, projectId, conversationId);
+  const next = summary.normalize("NFC");
+  await db.$transaction(async (tx) => {
+    await tx.assistantConversation.update({ where: { id: conv.id }, data: { summary: next } });
+    await writeAudit(tx, {
+      projectId,
+      action: "assistant.summary_update",
+      actor: UI_ACTOR,
+      summary: `Updated assistant conversation summary`,
+      details: { conversationId: conv.id, chars: next.length },
+    });
+  });
+  return next;
+}
+
+export async function getAssistantSettings(db: DbOrTx, projectId: string): Promise<AssistantSettingsView> {
+  const row = await db.projectAssistantSettings.findUnique({ where: { projectId } });
+  if (!row) return { ...DEFAULT_ASSISTANT_SETTINGS };
+  return {
+    autoIncludeRecent: row.autoIncludeRecent,
+    recentContextBudgetChars: clampRecentBudget(row.recentContextBudgetChars),
+  };
+}
+
+export async function updateAssistantSettings(
+  db: Db,
+  projectId: string,
+  input: { autoIncludeRecent: boolean; recentContextBudgetChars: number },
+): Promise<AssistantSettingsView> {
+  const project = await db.project.findFirst({ where: { id: projectId, ...LIVE_PROJECT } });
+  if (!project) throw new AssistantError("NOT_FOUND", "Project not found.");
+  const budget = clampRecentBudget(input.recentContextBudgetChars);
+  const autoIncludeRecent = input.autoIncludeRecent === true;
+  await db.$transaction(async (tx) => {
+    const existing = await tx.projectAssistantSettings.findUnique({ where: { projectId } });
+    if (existing) {
+      await tx.projectAssistantSettings.update({
+        where: { projectId },
+        data: { autoIncludeRecent, recentContextBudgetChars: budget },
+      });
+    } else {
+      await tx.projectAssistantSettings.create({
+        data: {
+          id: newId("pas"),
+          projectId,
+          autoIncludeRecent,
+          recentContextBudgetChars: budget,
+        },
+      });
+    }
+    await writeAudit(tx, {
+      projectId,
+      action: "assistant.settings_update",
+      actor: UI_ACTOR,
+      summary: `Updated assistant preferences`,
+      details: { autoIncludeRecent, recentContextBudgetChars: budget },
+    });
+  });
+  return { autoIncludeRecent, recentContextBudgetChars: budget };
+}
+
+/** Newest-first complete messages that fit within the character budget. */
+export function budgetRecentMessageIds(
+  messages: readonly { id: string; role: string; status: string; content: string }[],
+  budgetChars: number,
+): string[] {
+  const budget = clampRecentBudget(budgetChars);
+  const ids: string[] = [];
+  let used = 0;
+  for (const m of [...messages].reverse()) {
+    if (m.role === "assistant" && m.status !== "complete") continue;
+    if (m.role !== "user" && m.role !== "assistant") continue;
+    const len = m.content.length;
+    if (ids.length && used + len > budget) break;
+    if (!ids.length && len > budget) {
+      ids.push(m.id);
+      break;
+    }
+    ids.push(m.id);
+    used += len;
+    if (used >= budget) break;
+  }
+  return ids;
+}
+
 /** Marks answers left "streaming" by a stopped app as failed, so they can be retried. */
 async function markInterrupted(db: Db, limits: AssistantLimits, now: Date): Promise<void> {
   const before = new Date(now.getTime() - (limits.requestTimeoutSeconds + 60) * 1000);
@@ -251,6 +371,7 @@ export async function getConversationView(
     workspaceId: conv.workspaceId,
     projectId: conv.projectId,
     title: conv.title,
+    summary: conv.summary,
     createdAt: conv.createdAt.toISOString(),
     messages: messages.map((m) => {
       const contextItems: ContextItemView[] = m.contextItems.map((c) => ({
@@ -303,6 +424,7 @@ export async function listSelectableRecords(db: Db, projectId: string): Promise<
         contentClass,
         authorityStatus: r.authorityStatus,
         currentRevision: r.currentRevision,
+        draftId: r.draftId,
         chars: contentClass === "reference" ? referenceText(r.body, r.fields).length : r.body.length,
         sections:
           contentClass === "reference"
@@ -570,11 +692,20 @@ export async function prepareTurn(db: Db, runtime: AssistantRuntime, input: Turn
 
   const documents = await loadDocuments(db, input.projectId, refs, input.kind === "ask");
   const prior = await loadPriorMessages(db, conv.id, includeIds, existingUserMessage?.createdAt);
+  const conversationSummary = conv.summary?.trim() ? conv.summary : "";
   const boundary = chooseBoundary(
-    [...documents.map((d) => d.text), ...prior.map((p) => p.content), question],
+    [...documents.map((d) => d.text), ...prior.map((p) => p.content), question, conversationSummary],
     () => randomBytes(6).toString("hex"),
   );
-  const built = buildRequest({ documents, priorMessages: prior, question, boundary, mode, schemaChars: PROPOSAL_SCHEMA_CHARS });
+  const built = buildRequest({
+    documents,
+    priorMessages: prior,
+    question,
+    boundary,
+    mode,
+    schemaChars: PROPOSAL_SCHEMA_CHARS,
+    conversationSummary: conversationSummary || undefined,
+  });
 
   const size = checkSize(built, limits.maxInputChars);
   if (size) throw new AssistantError("TOO_LARGE", describeSizeProblem(size), size);

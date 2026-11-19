@@ -53,6 +53,7 @@ model Project {
   reviewItems            ReviewItem[]
   importedFiles          ImportedFile[]
   assistantConversations AssistantConversation[]
+  assistantSettings      ProjectAssistantSettings?
   proofreadRuns          ProofreadRun[]
   dictionaryEntries      DictionaryEntry[]
   recordLinks            RecordLink[]
@@ -681,6 +682,18 @@ model ImportedFile {
 /// A local discussion with the optional OpenAI assistant. It stores what was
 /// asked, answered and sent. It never writes records itself; prepared change
 /// proposals are applied only through the change-package pipeline.
+/// Author-approved assistant preferences for a project. Absent row = defaults.
+model ProjectAssistantSettings {
+  id                       String   @id
+  projectId                String   @unique
+  project                  Project  @relation(fields: [projectId], references: [id])
+  /// When true, recent complete messages fill Include up to the character budget.
+  autoIncludeRecent        Boolean  @default(false)
+  /// Character budget for auto-included recent messages (clamped in the service).
+  recentContextBudgetChars Int      @default(8000)
+  updatedAt                DateTime @updatedAt
+}
+
 model AssistantConversation {
   id          String             @id
   workspaceId String
@@ -688,6 +701,8 @@ model AssistantConversation {
   projectId   String
   project     Project            @relation(fields: [projectId], references: [id])
   title       String
+  /// Author-editable rolling summary; sent with the next question when non-empty.
+  summary     String             @default("")
   createdAt   DateTime           @default(now())
   updatedAt   DateTime           @updatedAt
   messages    AssistantMessage[]

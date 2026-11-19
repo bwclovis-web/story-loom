@@ -1,14 +1,17 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { DraftScopeChip, type DraftOption } from "@/components/drafts/DraftControls";
 import { HelpHint } from "@/components/HelpHint";
 import { getDb } from "@/server/db";
 import { getAssistantConfig } from "@/server/assistantConfig";
+import { readWriteDraftCookie, resolveWriteDraftId } from "@/server/draftSelection";
 import { findProject } from "@/server/services/projectService";
 import { ASSISTANT_INSTRUCTIONS, fixedChars } from "@/assistant/prompt";
 import { listProposalViews, type ProposalView } from "@/server/services/assistantProposalService";
 import {
   AssistantError,
   PROPOSAL_SCHEMA_CHARS,
+  getAssistantSettings,
   getConversationView,
   listConversations,
   listSelectableRecords,
@@ -20,7 +23,7 @@ import { listManuscriptDrafts } from "@/server/services/draftService";
 import { resolvePinScope } from "@/server/services/readingPinService";
 import { ASSISTANT } from "@/ui/labels";
 import { AssistantPanel } from "./AssistantPanel";
-import { NewConversationButton } from "./ConversationControls";
+import { AssistantSettingsPanel, NewConversationButton } from "./ConversationControls";
 
 export const dynamic = "force-dynamic";
 
@@ -38,13 +41,22 @@ export default async function AssistantPage({
   if (!project) notFound();
 
   const { status } = getAssistantConfig();
-  const [conversations, records, usage, drafts] = await Promise.all([
+  const [conversations, records, usage, drafts, settings] = await Promise.all([
     listConversations(db, projectId),
     listSelectableRecords(db, projectId),
     usageSummary(db, status.limits),
     listManuscriptDrafts(db, projectId),
+    getAssistantSettings(db, projectId),
   ]);
-  const draftScopeId = await resolvePinScope(db, projectId, drafts.find((d) => d.kind === "author_manuscript")?.id ?? drafts[0]?.id ?? null);
+  const writeDraftCookie = await readWriteDraftCookie();
+  const activeDraftId = resolveWriteDraftId(drafts, writeDraftCookie);
+  const draftScopeId = await resolvePinScope(db, projectId, activeDraftId);
+  const draftOptions: DraftOption[] = drafts.map((d) => ({
+    id: d.id,
+    kind: d.kind,
+    label: d.label,
+    completedAt: d.completedAt?.toISOString() ?? null,
+  }));
 
   let boardPreview: BoardAskPreview | null = null;
   if (board) {
@@ -71,6 +83,7 @@ export default async function AssistantPage({
   return (
     <div className="stack assistant-page">
       <h1>{ASSISTANT.heading}</h1>
+      <DraftScopeChip drafts={draftOptions} activeDraftId={activeDraftId} />
       <p className="assistant-notice small">{ASSISTANT.privacyNote}</p>
       <HelpHint anchor="assistant" topic="the assistant">
         {ASSISTANT.readOnlyNote} Answers do not use your ChatGPT account, memory, conversations or Projects.
@@ -105,6 +118,7 @@ export default async function AssistantPage({
               </li>
             ))}
           </ul>
+          <AssistantSettingsPanel projectId={projectId} initial={settings} />
           <div className="small">
             {status.configured ? (
               <p>
@@ -140,6 +154,8 @@ export default async function AssistantPage({
             proposals={proposals}
             proposalExtraChars={fixedChars("proposal", PROPOSAL_SCHEMA_CHARS) - ASSISTANT_INSTRUCTIONS.length}
             draftScopeId={draftScopeId === "" ? null : draftScopeId}
+            drafts={draftOptions}
+            settings={settings}
             seedRecordId={seed ?? null}
             boardSeed={
               boardPreview
@@ -147,7 +163,6 @@ export default async function AssistantPage({
                     boardId: boardPreview.boardId,
                     boardTitle: boardPreview.boardTitle,
                     suggestedPrompt: boardPreview.suggestedPrompt,
-                    // Whole linked records; the board preview still lists sections for review.
                     selectedRefs: boardPreview.records.map((r) => r.recordId),
                     sectionPicks: {},
                   }

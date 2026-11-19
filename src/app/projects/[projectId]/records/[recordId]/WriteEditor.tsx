@@ -16,6 +16,7 @@ import {
   type ReactNode,
 } from "react";
 import { IssueList } from "@/components/IssueList";
+import { DraftScopeChip, type DraftOption } from "@/components/drafts/DraftControls";
 import { ContextRail, ContextRailToggle, useContextRail } from "@/components/shell/ContextRail";
 import { HistoryIcon, MoreIcon } from "@/components/shell/icons";
 import { useLayout } from "@/components/shell/LayoutContext";
@@ -76,6 +77,7 @@ export function WriteEditor(props: {
   sources: SourceItem[];
   attachableSources: AttachableSource[];
   draftScopeId: string | null;
+  drafts?: DraftOption[];
   initialPins: import("@/server/services/readingPinService").ReadingPinView[];
   /** Status, protection, history and compare, rendered by the server below the text. */
   details: ReactNode;
@@ -300,6 +302,7 @@ export function WriteEditor(props: {
           <input type="hidden" name="authorityStatus" value={props.authorityStatus} />
 
           <header className="write-header">
+            <DraftScopeChip drafts={props.drafts ?? []} activeDraftId={props.draftScopeId} />
             <div className="write-title-row">
               <div className="write-title-block">
                 {props.parent ? (

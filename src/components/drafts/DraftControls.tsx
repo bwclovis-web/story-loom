@@ -187,6 +187,27 @@ export function MarkRewriteCompleteButton({
   );
 }
 
+/** Compact label for the active draft on Write, Assistant, and Export. */
+export function DraftScopeChip({
+  drafts,
+  activeDraftId,
+}: {
+  drafts: DraftOption[];
+  activeDraftId: string | null;
+}) {
+  if (drafts.length === 0) {
+    return <p className="small muted draft-scope-chip">{DRAFT.legacyScope}</p>;
+  }
+  const active = drafts.find((d) => d.id === activeDraftId) ?? null;
+  return (
+    <p className="small draft-scope-chip" aria-label={DRAFT.draftLabel}>
+      <span className="muted">{DRAFT.draftLabel}:</span> {active?.label ?? DRAFT.selectDraft}
+      {active?.kind === "zero_draft" ? ` (${DRAFT.zeroDraft})` : null}
+      {active?.kind === "author_manuscript" ? ` (${DRAFT.authorManuscript})` : null}
+    </p>
+  );
+}
+
 export function VisitDraftSwitcher({
   drafts,
   selectedDraftId,

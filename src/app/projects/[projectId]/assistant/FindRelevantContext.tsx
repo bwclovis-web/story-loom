@@ -17,6 +17,7 @@ const LABEL_TEXT: Record<string, string> = {
   pinned: ASSISTANT.labelPinned,
   search: ASSISTANT.labelSearch,
   selection: ASSISTANT.labelSelection,
+  open_scene: ASSISTANT.labelOpenScene,
 };
 
 /**

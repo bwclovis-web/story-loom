@@ -3,13 +3,22 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { SectionTagBadge, StatusBadge } from "@/components/Badges";
+import type { DraftOption } from "@/components/drafts/DraftControls";
+import { ContextRail, ContextRailToggle, useContextRail } from "@/components/shell/ContextRail";
 import { ASSISTANT_INSTRUCTIONS } from "@/assistant/prompt";
 import { RECORD_TYPE_LABELS } from "@/domain/recordTypes";
 import type { ProposalView } from "@/server/services/assistantProposalService";
-import type { ConversationView, MessageView, SelectableRecord, SelectableSection } from "@/server/services/assistantService";
-import { ASSISTANT } from "@/ui/labels";
+import {
+  budgetRecentMessageIds,
+  type AssistantSettingsView,
+  type ConversationView,
+  type MessageView,
+  type SelectableRecord,
+  type SelectableSection,
+} from "@/server/services/assistantService";
+import { ASSISTANT, DRAFT } from "@/ui/labels";
 import { loadManuscriptAction } from "./actions";
-import { DeleteConversation } from "./ConversationControls";
+import { ConversationSummaryEditor, DeleteConversation } from "./ConversationControls";
 import { FindRelevantContext } from "./FindRelevantContext";
 import { ProposalCard } from "./ProposalCard";
 
@@ -35,7 +44,6 @@ interface Live {
 
 /** Per-source labels and separators the server adds; the client total is an approximation. */
 const SOURCE_OVERHEAD = 250;
-const CONTEXT_PANEL_KEY = "wordly.assistant.contextPanel";
 const fmt = (n: number) => n.toLocaleString("en-US");
 
 /** Textareas report offsets with "\r\n" counted as one character; map them back to the stored text. */
@@ -77,6 +85,8 @@ export function AssistantPanel(props: {
   proposalExtraChars: number;
   /** Active Write draft for pin/discovery scope; null when the project has no drafts. */
   draftScopeId?: string | null;
+  drafts?: DraftOption[];
+  settings: AssistantSettingsView;
   /** Manuscript record id from Write “Find relevant context” deep link. */
   seedRecordId?: string | null;
   /** World board deep link: preselect linked records/sections and suggest a prompt. */
@@ -108,15 +118,10 @@ export function AssistantPanel(props: {
   const chapterBoxRef = useRef<HTMLTextAreaElement>(null);
   const transcriptRef = useRef<HTMLOListElement>(null);
   const contextId = useId();
-  const [contextOpen, setContextOpenState] = useState(true);
-
-  useEffect(() => {
-    if (localStorage.getItem(CONTEXT_PANEL_KEY) === "hidden") setContextOpenState(false);
-  }, []);
-  const setContextOpen = (open: boolean) => {
-    setContextOpenState(open);
-    localStorage.setItem(CONTEXT_PANEL_KEY, open ? "shown" : "hidden");
-  };
+  const contextTitleId = `${contextId}-heading`;
+  const rail = useContextRail();
+  const budgetAppliedRef = useRef<string | null>(null);
+  const [budgetedIds, setBudgetedIds] = useState<string[]>([]);
 
   // Keep the newest message in view unless the author has scrolled up to read.
   const messageCount = conversation.messages.length;
@@ -182,7 +187,7 @@ export function AssistantPanel(props: {
   useEffect(() => {
     if (!props.seedRecordId || chapter?.recordId === props.seedRecordId) return;
     void chooseChapter(props.seedRecordId);
-    setContextOpen(true);
+    if (!rail.visible) rail.toggle();
     // Intentionally once per seed id when the panel mounts / seed changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [props.seedRecordId]);
@@ -192,10 +197,24 @@ export function AssistantPanel(props: {
     setSelectedRefs(props.boardSeed.selectedRefs);
     setSectionPicks(props.boardSeed.sectionPicks);
     setQuestion(props.boardSeed.suggestedPrompt);
-    setContextOpen(true);
+    if (!rail.visible) rail.toggle();
     // Intentionally once per board seed when the panel mounts / board changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [props.boardSeed?.boardId]);
+
+  useEffect(() => {
+    if (!props.settings.autoIncludeRecent) {
+      setBudgetedIds([]);
+      budgetAppliedRef.current = null;
+      return;
+    }
+    const key = `${conversation.id}:${props.settings.recentContextBudgetChars}`;
+    const next = budgetRecentMessageIds(conversation.messages, props.settings.recentContextBudgetChars);
+    setBudgetedIds(next);
+    if (budgetAppliedRef.current === key) return;
+    budgetAppliedRef.current = key;
+    setIncludeIds((prev) => [...new Set([...prev, ...next])]);
+  }, [conversation.id, conversation.messages, props.settings.autoIncludeRecent, props.settings.recentContextBudgetChars]);
 
   const takePassage = () => {
     const box = chapterBoxRef.current;
@@ -225,6 +244,8 @@ export function AssistantPanel(props: {
     }
     const earlier = includeIds.map((id) => messageById.get(id)).filter((m): m is MessageView => !!m);
     const earlierChars = earlier.reduce((n, m) => n + m.content.length, 0);
+    const summaryChars = conversation.summary.trim().length;
+    if (summaryChars) items.push({ label: ASSISTANT.conversationSummary, chars: summaryChars });
     const total =
       ASSISTANT_INSTRUCTIONS.length +
       items.reduce((n, i) => n + i.chars + SOURCE_OVERHEAD, 0) +
@@ -232,7 +253,7 @@ export function AssistantPanel(props: {
       question.length +
       100;
     return { items, earlierCount: earlier.length, earlierChars, total };
-  }, [selectedRefs, sectionPicks, byId, chapter, mode, passage, includeIds, messageById, question]);
+  }, [selectedRefs, sectionPicks, byId, chapter, mode, passage, includeIds, messageById, question, conversation.summary]);
 
   const passageMissing = chapter !== null && mode === "passage" && !passage;
   const overLimit = summary.total > props.maxInputChars;
@@ -368,14 +389,43 @@ export function AssistantPanel(props: {
 
   const includableIds = conversation.messages.filter(includable).map((m) => m.id);
   const chosenCount = summary.items.length + summary.earlierCount;
+  const draftLabel =
+    props.drafts?.find((d) => d.id === props.draftScopeId)?.label ??
+    (props.drafts?.length ? DRAFT.selectDraft : ASSISTANT.draftScopeNone);
+  const chaptersByDraft = useMemo(() => {
+    const groups = new Map<string, SelectableRecord[]>();
+    for (const r of chapters) {
+      const key = r.draftId ?? "";
+      const list = groups.get(key) ?? [];
+      list.push(r);
+      groups.set(key, list);
+    }
+    return groups;
+  }, [chapters]);
+  const budgetUsed = budgetedIds.reduce((n, id) => n + (messageById.get(id)?.content.length ?? 0), 0);
 
   return (
-    <div className={`assistant-main${contextOpen ? "" : " context-hidden"}`}>
+    <div className={`assistant-main${rail.visible ? "" : " context-hidden"}`}>
     <section className="panel assistant-chat" aria-label={conversation.title}>
       <div className="row assistant-chat-head">
         <h2 style={{ margin: 0 }}>{conversation.title}</h2>
+        <ContextRailToggle
+          rail={rail}
+          controls={contextId}
+          showLabel={ASSISTANT.showContext}
+          hideLabel={ASSISTANT.hideContext}
+        />
         <DeleteConversation projectId={projectId} conversationId={conversation.id} />
       </div>
+      <p className="small muted">
+        {ASSISTANT.draftScope}: {draftLabel}
+      </p>
+      <ConversationSummaryEditor
+        projectId={projectId}
+        conversationId={conversation.id}
+        initialSummary={conversation.summary}
+        disabled={busy}
+      />
       <p className="small muted">{ASSISTANT.proposalsNote}</p>
 
       <ol className="transcript" aria-label="Conversation" ref={transcriptRef}>
@@ -470,9 +520,12 @@ export function AssistantPanel(props: {
             <span>
               {chosenCount ? ASSISTANT.composerIncluded(chosenCount) : ASSISTANT.composerNothing} {ASSISTANT.composerSize(fmt(summary.total), fmt(props.maxInputChars))}
             </span>
-            <button type="button" className="secondary small-button" aria-expanded={contextOpen} aria-controls={contextId} onClick={() => setContextOpen(!contextOpen)}>
-              {contextOpen ? ASSISTANT.hideContext : ASSISTANT.showContext}
-            </button>
+            <ContextRailToggle
+              rail={rail}
+              controls={contextId}
+              showLabel={ASSISTANT.showContext}
+              hideLabel={ASSISTANT.hideContext}
+            />
           </div>
           {overLimit ? (
             <p className="error-text small">Over the limit. Remove records or earlier messages, or use a shorter passage. Nothing is cut automatically.</p>
@@ -510,150 +563,171 @@ export function AssistantPanel(props: {
     </section>
 
       {props.configured ? (
-        <aside id={contextId} className="panel stack assistant-context" aria-labelledby={`${contextId}-heading`} hidden={!contextOpen}>
-          <div className="row assistant-context-head">
-            <h3 id={`${contextId}-heading`} style={{ margin: 0 }}>
-              {ASSISTANT.contextHeading}
-            </h3>
-            <button type="button" className="secondary small-button" aria-controls={contextId} aria-expanded onClick={() => setContextOpen(false)}>
-              {ASSISTANT.hideContext}
-            </button>
-          </div>
-          <FindRelevantContext
-            projectId={projectId}
-            question={question}
-            manuscript={
-              chapter
-                ? {
-                    recordId: chapter.recordId,
-                    start: mode === "passage" && passage ? passage.start : undefined,
-                    end: mode === "passage" && passage ? passage.end : undefined,
-                  }
-                : null
-            }
-            draftScopeId={props.draftScopeId}
-            disabled={busy}
-            onApply={({ selectedRefs: refs, sectionPicks: picks }) => {
-              const sectionIds = new Set(Object.keys(picks));
-              setSelectedRefs((prev) => [...new Set([...prev.filter((id) => !sectionIds.has(id)), ...refs.filter((id) => !sectionIds.has(id))])]);
-              setSectionPicks((prev) => {
-                const next = { ...prev };
-                for (const [id, sections] of Object.entries(picks)) {
-                  next[id] = [...new Set([...(prev[id] ?? []), ...sections])];
-                }
-                return next;
-              });
-              setContextOpen(true);
-            }}
-          />
-          <fieldset disabled={busy}>
-            <legend>{ASSISTANT.references}</legend>
-            {references.length === 0 ? <p className="small muted">No reference records in this project.</p> : null}
-            <ul className="pick-list">
-              {references.map((r) => (
-                <li key={r.id}>
-                  <label className="inline">
-                    <input type="checkbox" checked={selectedRefs.includes(r.id)} onChange={(e) => toggleRef(r.id, e.target.checked)} />
-                    {r.title}
-                  </label>{" "}
-                  <span className="small muted">{RECORD_TYPE_LABELS[r.type]}</span> <StatusBadge status={r.authorityStatus} />{" "}
-                  <span className="badge">rev {r.currentRevision}</span> <span className="small muted">{fmt(r.chars)} characters</span>
-                  {r.sections.length > 1 ? <SectionPicker record={r} picked={sectionPicks[r.id] ?? []} onToggle={toggleSection} /> : null}
-                </li>
-              ))}
-            </ul>
-          </fieldset>
-
-          <fieldset disabled={busy}>
-            <legend>{ASSISTANT.manuscript}</legend>
-            <label>
-              Chapter
-              <select value={chapter?.recordId ?? ""} onChange={(e) => void chooseChapter(e.target.value)}>
-                <option value="">{ASSISTANT.noManuscript}</option>
-                {chapters.map((r) => (
-                  <option key={r.id} value={r.id}>
-                    {r.title} (rev {r.currentRevision}, {fmt(r.chars)} characters)
-                  </option>
-                ))}
-              </select>
-            </label>
-            {chapter ? (
-              <div className="stack">
-                <div className="row">
-                  <label className="inline">
-                    <input type="radio" name="manuscript-mode" checked={mode === "whole"} onChange={() => setMode("whole")} />
-                    {ASSISTANT.wholeChapter}
-                  </label>
-                  <label className="inline">
-                    <input type="radio" name="manuscript-mode" checked={mode === "passage"} onChange={() => setMode("passage")} />
-                    {ASSISTANT.passageOnly}
-                  </label>
-                </div>
-                {mode === "passage" ? (
-                  <>
-                    <p className="small muted">{ASSISTANT.passageHint}</p>
-                    <textarea
-                      ref={chapterBoxRef}
-                      readOnly
-                      value={chapter.body}
-                      aria-label={`Text of ${chapter.title}, revision ${chapter.revision}`}
-                      style={{ minHeight: "10rem" }}
-                    />
-                    <div className="row">
-                      <button type="button" className="secondary" onClick={takePassage}>
-                        {ASSISTANT.usePassage}
-                      </button>
-                      {passage ? (
-                        <span className="small">
-                          Passage: characters {fmt(passage.start + 1)} to {fmt(passage.end)} ({fmt(passage.end - passage.start)}{" "}
-                          characters): &ldquo;{chapter.body.slice(passage.start, Math.min(passage.end, passage.start + 80))}
-                          {passage.end - passage.start > 80 ? "..." : ""}&rdquo;
-                        </span>
-                      ) : null}
-                    </div>
-                  </>
-                ) : null}
-              </div>
-            ) : null}
-            {chapterError ? <p className="small error-text">{chapterError}</p> : null}
-          </fieldset>
-
-          <fieldset disabled={busy}>
-            <legend>{ASSISTANT.earlierMessages}</legend>
-            <p className="small muted">
-              Tick {ASSISTANT.includeMessage} on messages in the conversation. {includeIds.length} of {includableIds.length} ticked.
-            </p>
-            <div className="row">
-              <button type="button" className="secondary" onClick={() => setIncludeIds(includableIds)} disabled={!includableIds.length}>
-                {ASSISTANT.includeAll}
-              </button>
-              <button type="button" className="secondary" onClick={() => setIncludeIds([])} disabled={!includeIds.length}>
-                {ASSISTANT.includeNone}
-              </button>
+        <ContextRail id={contextId} labelledBy={contextTitleId} rail={rail} className="assistant-context" focusOnOverlayOpen>
+          <div className="stack">
+            <div className="row assistant-context-head">
+              <h3 id={contextTitleId} style={{ margin: 0 }}>
+                {ASSISTANT.contextHeading}
+              </h3>
             </div>
-          </fieldset>
+            <FindRelevantContext
+              projectId={projectId}
+              question={question}
+              manuscript={
+                chapter
+                  ? {
+                      recordId: chapter.recordId,
+                      start: mode === "passage" && passage ? passage.start : undefined,
+                      end: mode === "passage" && passage ? passage.end : undefined,
+                    }
+                  : null
+              }
+              draftScopeId={props.draftScopeId}
+              disabled={busy}
+              onApply={({ selectedRefs: refs, sectionPicks: picks }) => {
+                const sectionIds = new Set(Object.keys(picks));
+                setSelectedRefs((prev) => [...new Set([...prev.filter((id) => !sectionIds.has(id)), ...refs.filter((id) => !sectionIds.has(id))])]);
+                setSectionPicks((prev) => {
+                  const next = { ...prev };
+                  for (const [id, sections] of Object.entries(picks)) {
+                    next[id] = [...new Set([...(prev[id] ?? []), ...sections])];
+                  }
+                  return next;
+                });
+                if (!rail.visible) rail.toggle();
+              }}
+            />
+            <fieldset disabled={busy}>
+              <legend>{ASSISTANT.references}</legend>
+              {references.length === 0 ? <p className="small muted">No reference records in this project.</p> : null}
+              <ul className="pick-list">
+                {references.map((r) => (
+                  <li key={r.id}>
+                    <label className="inline">
+                      <input type="checkbox" checked={selectedRefs.includes(r.id)} onChange={(e) => toggleRef(r.id, e.target.checked)} />
+                      {r.title}
+                    </label>{" "}
+                    <span className="small muted">{RECORD_TYPE_LABELS[r.type]}</span> <StatusBadge status={r.authorityStatus} />{" "}
+                    <span className="badge">rev {r.currentRevision}</span> <span className="small muted">{fmt(r.chars)} characters</span>
+                    {r.sections.length > 1 ? <SectionPicker record={r} picked={sectionPicks[r.id] ?? []} onToggle={toggleSection} /> : null}
+                  </li>
+                ))}
+              </ul>
+            </fieldset>
 
-          <div className="writing-tools small" aria-live="polite">
-            <strong>{ASSISTANT.summaryHeading}</strong>
-            <ul>
-              {summary.items.map((i) => (
-                <li key={i.label}>
-                  {i.label}: {fmt(i.chars)} characters
-                </li>
-              ))}
-              {summary.earlierCount ? (
-                <li>
-                  {summary.earlierCount} earlier message(s): {fmt(summary.earlierChars)} characters
-                </li>
+            <fieldset disabled={busy}>
+              <legend>{ASSISTANT.manuscript}</legend>
+              <label>
+                Chapter
+                <select value={chapter?.recordId ?? ""} onChange={(e) => void chooseChapter(e.target.value)}>
+                  <option value="">{ASSISTANT.noManuscript}</option>
+                  {props.drafts && props.drafts.length > 0
+                    ? props.drafts.map((d) => (
+                        <optgroup key={d.id} label={`${d.label}${d.kind === "zero_draft" ? ` (${DRAFT.zeroDraft})` : d.kind === "author_manuscript" ? ` (${DRAFT.authorManuscript})` : ""}`}>
+                          {(chaptersByDraft.get(d.id) ?? []).map((r) => (
+                            <option key={r.id} value={r.id}>
+                              {r.title} (rev {r.currentRevision}, {fmt(r.chars)} characters)
+                            </option>
+                          ))}
+                        </optgroup>
+                      ))
+                    : chapters.map((r) => (
+                        <option key={r.id} value={r.id}>
+                          {r.title} (rev {r.currentRevision}, {fmt(r.chars)} characters)
+                        </option>
+                      ))}
+                  {(chaptersByDraft.get("") ?? []).map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {r.title} (rev {r.currentRevision}, {fmt(r.chars)} characters)
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {chapter ? (
+                <div className="stack">
+                  <div className="row">
+                    <label className="inline">
+                      <input type="radio" name="manuscript-mode" checked={mode === "whole"} onChange={() => setMode("whole")} />
+                      {ASSISTANT.wholeChapter}
+                    </label>
+                    <label className="inline">
+                      <input type="radio" name="manuscript-mode" checked={mode === "passage"} onChange={() => setMode("passage")} />
+                      {ASSISTANT.passageOnly}
+                    </label>
+                  </div>
+                  {mode === "passage" ? (
+                    <>
+                      <p className="small muted">{ASSISTANT.passageHint}</p>
+                      <textarea
+                        ref={chapterBoxRef}
+                        readOnly
+                        value={chapter.body}
+                        aria-label={`Text of ${chapter.title}, revision ${chapter.revision}`}
+                        style={{ minHeight: "10rem" }}
+                      />
+                      <div className="row">
+                        <button type="button" className="secondary" onClick={takePassage}>
+                          {ASSISTANT.usePassage}
+                        </button>
+                        {passage ? (
+                          <span className="small">
+                            Passage: characters {fmt(passage.start + 1)} to {fmt(passage.end)} ({fmt(passage.end - passage.start)}{" "}
+                            characters): &ldquo;{chapter.body.slice(passage.start, Math.min(passage.end, passage.start + 80))}
+                            {passage.end - passage.start > 80 ? "..." : ""}&rdquo;
+                          </span>
+                        ) : null}
+                      </div>
+                    </>
+                  ) : null}
+                </div>
               ) : null}
-              <li>Your question and the fixed assistant instructions</li>
-            </ul>
-            <p>
-              About {fmt(summary.total)} of {fmt(props.maxInputChars)} characters (about {fmt(Math.ceil(summary.total / 4))} tokens,
-              estimate). A change proposal request adds fixed instructions and the proposal format: about {fmt(proposalTotal)} characters.
-            </p>
+              {chapterError ? <p className="small error-text">{chapterError}</p> : null}
+            </fieldset>
+
+            <fieldset disabled={busy}>
+              <legend>{ASSISTANT.earlierMessages}</legend>
+              <p className="small muted">
+                Tick {ASSISTANT.includeMessage} on messages in the conversation. {includeIds.length} of {includableIds.length} ticked.
+              </p>
+              {props.settings.autoIncludeRecent ? (
+                <p className="small muted">
+                  {ASSISTANT.budgetedRecent}: {budgetedIds.length} message
+                  {budgetedIds.length === 1 ? "" : "s"}, {fmt(budgetUsed)} of {fmt(props.settings.recentContextBudgetChars)} characters.
+                  You can still untick before sending.
+                </p>
+              ) : null}
+              <div className="row">
+                <button type="button" className="secondary" onClick={() => setIncludeIds(includableIds)} disabled={!includableIds.length}>
+                  {ASSISTANT.includeAll}
+                </button>
+                <button type="button" className="secondary" onClick={() => setIncludeIds([])} disabled={!includeIds.length}>
+                  {ASSISTANT.includeNone}
+                </button>
+              </div>
+            </fieldset>
+
+            <div className="writing-tools small" aria-live="polite">
+              <strong>{ASSISTANT.summaryHeading}</strong>
+              <ul>
+                {summary.items.map((i) => (
+                  <li key={i.label}>
+                    {i.label}: {fmt(i.chars)} characters
+                  </li>
+                ))}
+                {summary.earlierCount ? (
+                  <li>
+                    {summary.earlierCount} earlier message(s): {fmt(summary.earlierChars)} characters
+                  </li>
+                ) : null}
+                <li>Your question and the fixed assistant instructions</li>
+              </ul>
+              <p>
+                About {fmt(summary.total)} of {fmt(props.maxInputChars)} characters (about {fmt(Math.ceil(summary.total / 4))} tokens,
+                estimate). A change proposal request adds fixed instructions and the proposal format: about {fmt(proposalTotal)} characters.
+              </p>
+            </div>
           </div>
-        </aside>
+        </ContextRail>
       ) : null}
     </div>
   );

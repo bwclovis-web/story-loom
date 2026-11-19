@@ -236,6 +236,7 @@ async function deleteProjectRowsInTx(tx: Tx, projectId: string) {
   await tx.assistantContextItem.deleteMany({ where: { message: { conversation: { projectId } } } });
   await tx.assistantMessage.deleteMany({ where: { conversation: { projectId } } });
   await tx.assistantConversation.deleteMany({ where: { projectId } });
+  await tx.projectAssistantSettings.deleteMany({ where: { projectId } });
   await deleteRecordRowsInTx(
     tx,
     records.map((r) => r.id),

@@ -135,6 +135,12 @@ export default async function RecordPage({
         }))}
         attachableSources={attachableSources}
         draftScopeId={pinScopeId === "" ? null : pinScopeId}
+        drafts={drafts.map((d) => ({
+          id: d.id,
+          kind: d.kind,
+          label: d.label,
+          completedAt: d.completedAt?.toISOString() ?? null,
+        }))}
         initialPins={pins}
         details={
           <RecordDetails

@@ -326,8 +326,19 @@ limit or another reason), `cancelled` (partial text kept), `failed` (error code
 and message kept). A `streaming` message older than the timeout plus 60
 seconds is marked failed as interrupted. Proposal answers additionally use the
 error codes `refused`, `malformed_output` and `invalid_proposal`; none of them
-stores a proposal. Conversations and proposals are not part of the workspace
-backup format.
+stores a proposal. Conversation `summary` (author-editable) and project-level
+`ProjectAssistantSettings` (`autoIncludeRecent`, `recentContextBudgetChars`)
+are migration `20261118200000_assistant_memory`. Preferences are never
+inferred: auto-include stays off until the author turns it on. A non-empty
+saved summary is sent as a labeled preamble with the next question. When
+auto-include is on, recent complete messages fill Include up to the budget;
+explicit ticks still win, and oversized requests are refused with no automatic
+retry.
+
+Assistant conversations (including summaries), messages, context items,
+proposals, and project assistant settings are optional arrays in the workspace
+backup format. Older backups that omit them restore with none / defaults.
+Proofread runs stay SQLite-only.
 
 `ProofreadRun` (migration `20261025220000_proofread_runs`) stores one row per
 proofreading request: workspace, project, record, revision, scope, range,

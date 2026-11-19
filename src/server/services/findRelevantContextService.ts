@@ -17,7 +17,14 @@ import { searchContextReferences } from "./searchService";
  * must confirm into assistant selection before any API send. Pin alone never authorizes send.
  */
 
-export type FindContextLabel = "unsaved" | "zero_draft" | "linked" | "pinned" | "search" | "selection";
+export type FindContextLabel =
+  | "unsaved"
+  | "zero_draft"
+  | "linked"
+  | "pinned"
+  | "search"
+  | "selection"
+  | "open_scene";
 
 export type FindContextKind = "whole" | "sections" | "passage";
 
@@ -133,6 +140,9 @@ export async function findRelevantContext(db: Db, input: FindRelevantContextInpu
   };
 
   let selectionText = "";
+  let seedText = "";
+  /** True when seed terms come from a real passage selection (not the whole open scene). */
+  let fromPassage = false;
   let manuscriptBody = "";
   let manuscriptUnsaved = false;
 
@@ -154,14 +164,20 @@ export async function findRelevantContext(db: Db, input: FindRelevantContextInpu
     const end = input.manuscript.end;
     if (typeof start === "number" && typeof end === "number" && end > start) {
       selectionText = manuscriptBody.slice(start, end);
+      seedText = selectionText;
+      fromPassage = true;
+    } else {
+      seedText = manuscriptBody;
+      fromPassage = false;
     }
   }
 
-  const selectionTerms = termsFrom(selectionText);
+  const seedTerms = termsFrom(seedText);
+  const seedLabel: FindContextLabel | null = seedTerms.length ? (fromPassage ? "selection" : "open_scene") : null;
   const questionTerms = termsFrom(question);
-  const searchQuery = [question, selectionText].filter(Boolean).join(" ").trim();
+  const searchQuery = [question, seedText].filter(Boolean).join(" ").trim();
 
-  // (1) Selection-weighted: linked refs and pins that match selection terms first.
+  // (1) Seed-weighted: linked refs and pins that match selection/open-scene terms first.
   if (input.manuscript) {
     const linked = await listLinkedReferences(db, input.projectId, input.manuscript.recordId);
     for (const l of linked) {
@@ -174,12 +190,9 @@ export async function findRelevantContext(db: Db, input: FindRelevantContextInpu
         fields = {};
       }
       const hay = [rec.title, typeof fields.name === "string" ? fields.name : "", ...aliasesOf(fields), rec.body].join("\n");
-      const fromSelection = selectionTerms.length > 0 && textMatchesTerms(hay, selectionTerms);
+      const fromSeed = seedTerms.length > 0 && textMatchesTerms(hay, seedTerms);
       const labels: FindContextLabel[] = ["linked"];
-      if (fromSelection) labels.unshift("selection");
-      if (!fromSelection && selectionTerms.length > 0) {
-        // Still include linked refs (rank 2) even without selection match.
-      }
+      if (fromSeed && seedLabel) labels.unshift(seedLabel);
       bump({
         recordId: rec.id,
         title: rec.title,
@@ -191,7 +204,7 @@ export async function findRelevantContext(db: Db, input: FindRelevantContextInpu
     }
   }
 
-  // (3) Pins in scope that match question/selection.
+  // (3) Pins in scope that match question/seed.
   const pins = await listReadingPins(db, input.projectId, scopeDraftId);
   const zeroPins =
     input.includePinnedZeroDraft && zeroDraft && zeroDraft.id !== scopeDraftId
@@ -210,11 +223,11 @@ export async function findRelevantContext(db: Db, input: FindRelevantContextInpu
     const hay = [rec.title, typeof fields.name === "string" ? fields.name : "", ...aliasesOf(fields), ...listSections(rec.body).map((s) => s.title)].join(
       "\n",
     );
-    const terms = selectionTerms.length ? selectionTerms : questionTerms;
+    const terms = seedTerms.length ? seedTerms : questionTerms;
     if (terms.length && !textMatchesTerms(hay, terms) && !textMatchesTerms(hay, questionTerms)) continue;
     const labels: FindContextLabel[] = ["pinned"];
     if (zeroDraft && zeroPins.some((p) => p.recordId === pin.recordId)) labels.push("zero_draft");
-    if (selectionTerms.length && textMatchesTerms(hay, selectionTerms)) labels.unshift("selection");
+    if (seedTerms.length && seedLabel && textMatchesTerms(hay, seedTerms)) labels.unshift(seedLabel);
     bump({
       recordId: rec.id,
       title: rec.title,
@@ -225,7 +238,7 @@ export async function findRelevantContext(db: Db, input: FindRelevantContextInpu
     });
   }
 
-  // (4) Title/alias/section search on question (+ selection text).
+  // (4) Title/alias/section search on question (+ seed text).
   if (searchQuery) {
     const hits = await searchContextReferences(db, { projectId: input.projectId, query: searchQuery, limit: 16 });
     for (const hit of hits) {
@@ -250,7 +263,7 @@ export async function findRelevantContext(db: Db, input: FindRelevantContextInpu
     }
   }
 
-  // Optional: include manuscript passage itself as a labeled candidate for the preview list.
+  // Optional: manuscript passage itself as a labeled seed (not a reference candidate).
   if (input.manuscript && selectionText) {
     const ms = await loadRecord(db, input.projectId, input.manuscript.recordId);
     if (ms) {
@@ -261,9 +274,9 @@ export async function findRelevantContext(db: Db, input: FindRelevantContextInpu
     }
   }
 
-  // Stable order: selection > linked > pinned > search, then title.
+  // Stable order: selection/open_scene > linked > pinned > search, then title.
   const rank = (labels: FindContextLabel[]) => {
-    if (labels.includes("selection")) return 0;
+    if (labels.includes("selection") || labels.includes("open_scene")) return 0;
     if (labels.includes("linked")) return 1;
     if (labels.includes("pinned")) return 2;
     return 3;

@@ -120,6 +120,8 @@ export function buildRequest(input: {
   mode?: TurnMode;
   /** Length of the JSON Schema sent with proposal requests. */
   schemaChars?: number;
+  /** Author-saved conversation summary; sent only when non-empty. */
+  conversationSummary?: string;
 }): BuiltRequest {
   const { documents, priorMessages, question, boundary } = input;
   const mode = input.mode ?? "chat";
@@ -127,6 +129,12 @@ export function buildRequest(input: {
   const schemaChars = mode === "proposal" ? (input.schemaChars ?? 0) : 0;
   const items: SizeItem[] = [{ label: "Assistant instructions (fixed)", chars: instructions.length }];
   if (schemaChars) items.push({ label: "Proposal format (fixed)", chars: schemaChars });
+
+  const summaryText = input.conversationSummary?.trim() ?? "";
+  const summaryBlock = summaryText
+    ? `Conversation summary (saved by the author):\n${summaryText}`
+    : "";
+  if (summaryBlock) items.push({ label: "Conversation summary", chars: summaryBlock.length });
 
   const blocks = documents.map((doc) => {
     const block = sourceBlock(doc, boundary);
@@ -146,7 +154,7 @@ export function buildRequest(input: {
   const framing = sourceText.length - blocks.reduce((n, b) => n + b.length, 0);
   items.push({ label: "Labels and separators", chars: framing + 2 });
 
-  const finalMessage = `${sourceText}\n\n${questionText}`;
+  const finalMessage = [summaryBlock, sourceText, questionText].filter(Boolean).join("\n\n");
   const messages: ProviderMessage[] = [...priorMessages.map((m) => ({ role: m.role, content: m.content })), { role: "user", content: finalMessage }];
   const totalChars = instructions.length + schemaChars + messages.reduce((n, m) => n + m.content.length, 0);
 

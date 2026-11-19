@@ -36,7 +36,8 @@ export type IdPrefix =
   | "wvt" // weave template
   | "wvx" // weave template beat
   | "fct" // established fact
-  | "fev"; // fact evidence
+  | "fev" // fact evidence
+  | "pas"; // project assistant settings
 
 export function newId(prefix: IdPrefix): string {
   return `${prefix}_${ulid()}`;

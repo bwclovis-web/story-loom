@@ -124,6 +124,26 @@ function factEvidenceOf(b: WorkspaceBackupV1) {
   return b.factEvidence ?? [];
 }
 
+function assistantConversationsOf(b: WorkspaceBackupV1) {
+  return b.assistantConversations ?? [];
+}
+
+function assistantMessagesOf(b: WorkspaceBackupV1) {
+  return b.assistantMessages ?? [];
+}
+
+function assistantContextItemsOf(b: WorkspaceBackupV1) {
+  return b.assistantContextItems ?? [];
+}
+
+function assistantProposalsOf(b: WorkspaceBackupV1) {
+  return b.assistantProposals ?? [];
+}
+
+function projectAssistantSettingsOf(b: WorkspaceBackupV1) {
+  return b.projectAssistantSettings ?? [];
+}
+
 /** P2021: table missing. P2022: column missing. */
 function isMissingSchemaError(error: unknown, code: "P2021" | "P2022"): boolean {
   return error instanceof Prisma.PrismaClientKnownRequestError && error.code === code;
@@ -444,6 +464,68 @@ async function factEvidenceRows(db: DbOrTx, projectIds: string[]) {
   }
 }
 
+async function assistantConversationRows(db: DbOrTx, projectIds: string[]) {
+  try {
+    return await db.assistantConversation.findMany({
+      where: { projectId: { in: projectIds } },
+      orderBy: [{ projectId: "asc" }, { id: "asc" }],
+    });
+  } catch (error) {
+    if (isMissingSchemaError(error, "P2021") || isMissingSchemaError(error, "P2022")) return [];
+    throw error;
+  }
+}
+
+async function assistantMessageRows(db: DbOrTx, conversationIds: string[]) {
+  if (!conversationIds.length) return [];
+  try {
+    return await db.assistantMessage.findMany({
+      where: { conversationId: { in: conversationIds } },
+      orderBy: [{ conversationId: "asc" }, { createdAt: "asc" }, { id: "asc" }],
+    });
+  } catch (error) {
+    if (isMissingSchemaError(error, "P2021")) return [];
+    throw error;
+  }
+}
+
+async function assistantContextItemRows(db: DbOrTx, messageIds: string[]) {
+  if (!messageIds.length) return [];
+  try {
+    return await db.assistantContextItem.findMany({
+      where: { messageId: { in: messageIds } },
+      orderBy: [{ messageId: "asc" }, { id: "asc" }],
+    });
+  } catch (error) {
+    if (isMissingSchemaError(error, "P2021")) return [];
+    throw error;
+  }
+}
+
+async function assistantProposalRows(db: DbOrTx, projectIds: string[]) {
+  try {
+    return await db.assistantProposal.findMany({
+      where: { projectId: { in: projectIds } },
+      orderBy: [{ projectId: "asc" }, { id: "asc" }],
+    });
+  } catch (error) {
+    if (isMissingSchemaError(error, "P2021")) return [];
+    throw error;
+  }
+}
+
+async function projectAssistantSettingsRows(db: DbOrTx, projectIds: string[]) {
+  try {
+    return await db.projectAssistantSettings.findMany({
+      where: { projectId: { in: projectIds } },
+      orderBy: { projectId: "asc" },
+    });
+  } catch (error) {
+    if (isMissingSchemaError(error, "P2021")) return [];
+    throw error;
+  }
+}
+
 async function manuscriptGroupRows(db: DbOrTx, projectIds: string[]) {
   try {
     return await db.manuscriptGroup.findMany({
@@ -577,6 +659,9 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
     weaveTemplates,
     establishedFacts,
     factEvidence,
+    assistantConversations,
+    assistantProposals,
+    projectAssistantSettings,
   ] = await Promise.all([
     recordRows(db, projectIds),
     db.source.findMany({ where: inProjects, orderBy: { id: "asc" } }),
@@ -603,10 +688,21 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
     weaveTemplateRows(db, projectIds),
     establishedFactRows(db, projectIds),
     factEvidenceRows(db, projectIds),
+    assistantConversationRows(db, projectIds),
+    assistantProposalRows(db, projectIds),
+    projectAssistantSettingsRows(db, projectIds),
   ]);
   const weaveTemplateBeats = await weaveTemplateBeatRows(
     db,
     weaveTemplates.map((t) => t.id),
+  );
+  const assistantMessages = await assistantMessageRows(
+    db,
+    assistantConversations.map((c) => c.id),
+  );
+  const assistantContextItems = await assistantContextItemRows(
+    db,
+    assistantMessages.map((m) => m.id),
   );
   const revisions = await db.revision.findMany({
     where: { recordId: { in: records.map((r) => r.id) } },
@@ -978,6 +1074,87 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
           })),
         }
       : {}),
+    ...(assistantConversations.length
+      ? {
+          assistantConversations: assistantConversations.map((c) => ({
+            id: c.id,
+            workspaceId: c.workspaceId,
+            projectId: c.projectId,
+            title: c.title,
+            summary: c.summary || undefined,
+            createdAt: iso(c.createdAt),
+            updatedAt: iso(c.updatedAt),
+          })),
+        }
+      : {}),
+    ...(assistantMessages.length
+      ? {
+          assistantMessages: assistantMessages.map((m) => ({
+            id: m.id,
+            conversationId: m.conversationId,
+            role: m.role as "user" | "assistant",
+            mode: (m.mode === "proposal" ? "proposal" : "chat") as "chat" | "proposal",
+            content: m.content,
+            replyToId: m.replyToId ?? undefined,
+            status: m.status,
+            errorCode: m.errorCode ?? undefined,
+            errorMessage: m.errorMessage ?? undefined,
+            model: m.model ?? undefined,
+            providerResponseId: m.providerResponseId ?? undefined,
+            inputTokens: m.inputTokens ?? undefined,
+            outputTokens: m.outputTokens ?? undefined,
+            totalTokens: m.totalTokens ?? undefined,
+            usageEstimated: m.usageEstimated,
+            includedMessageIds: JSON.parse(m.includedMessageIds) as string[],
+            requestChars: m.requestChars ?? undefined,
+            createdAt: iso(m.createdAt),
+            completedAt: m.completedAt ? iso(m.completedAt) : undefined,
+          })),
+        }
+      : {}),
+    ...(assistantContextItems.length
+      ? {
+          assistantContextItems: assistantContextItems.map((c) => ({
+            id: c.id,
+            messageId: c.messageId,
+            recordId: c.recordId,
+            revisionNumber: c.revisionNumber,
+            kind: c.kind,
+            passageStart: c.passageStart ?? undefined,
+            passageEnd: c.passageEnd ?? undefined,
+            charCount: c.charCount,
+            contentHash: c.contentHash,
+          })),
+        }
+      : {}),
+    ...(assistantProposals.length
+      ? {
+          assistantProposals: assistantProposals.map((p) => ({
+            id: p.id,
+            messageId: p.messageId,
+            workspaceId: p.workspaceId,
+            projectId: p.projectId,
+            packageId: p.packageId,
+            packageJson: p.packageJson,
+            contentHash: p.contentHash,
+            operationCount: p.operationCount,
+            status: p.status as "proposed" | "applied",
+            createdAt: iso(p.createdAt),
+            appliedAt: p.appliedAt ? iso(p.appliedAt) : undefined,
+          })),
+        }
+      : {}),
+    ...(projectAssistantSettings.length
+      ? {
+          projectAssistantSettings: projectAssistantSettings.map((s) => ({
+            id: s.id,
+            projectId: s.projectId,
+            autoIncludeRecent: s.autoIncludeRecent,
+            recentContextBudgetChars: s.recentContextBudgetChars,
+            updatedAt: iso(s.updatedAt),
+          })),
+        }
+      : {}),
     recordImages: recordImages.map((img) => ({
       id: img.id,
       projectId: img.projectId,
@@ -1025,6 +1202,11 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
       ...(weaveTemplateBeats.length ? { weaveTemplateBeats: weaveTemplateBeats.length } : {}),
       ...(establishedFacts.length ? { establishedFacts: establishedFacts.length } : {}),
       ...(factEvidence.length ? { factEvidence: factEvidence.length } : {}),
+      ...(assistantConversations.length ? { assistantConversations: assistantConversations.length } : {}),
+      ...(assistantMessages.length ? { assistantMessages: assistantMessages.length } : {}),
+      ...(assistantContextItems.length ? { assistantContextItems: assistantContextItems.length } : {}),
+      ...(assistantProposals.length ? { assistantProposals: assistantProposals.length } : {}),
+      ...(projectAssistantSettings.length ? { projectAssistantSettings: projectAssistantSettings.length } : {}),
     },
   };
   return { ...body, checksum: backupChecksum(body) };
@@ -1093,6 +1275,11 @@ function checkInternalConsistency(b: WorkspaceBackupV1): Issue[] {
     weaveTemplateBeats: weaveTemplateBeatsOf(b).length,
     establishedFacts: establishedFactsOf(b).length,
     factEvidence: factEvidenceOf(b).length,
+    assistantConversations: assistantConversationsOf(b).length,
+    assistantMessages: assistantMessagesOf(b).length,
+    assistantContextItems: assistantContextItemsOf(b).length,
+    assistantProposals: assistantProposalsOf(b).length,
+    projectAssistantSettings: projectAssistantSettingsOf(b).length,
   };
   for (const key of Object.keys(actualCounts) as (keyof BackupCounts)[]) {
     if (actualCounts[key] !== (b.counts[key] ?? 0)) {
@@ -1157,6 +1344,13 @@ function checkInternalConsistency(b: WorkspaceBackupV1): Issue[] {
   checkUnique(weaveTemplateBeatsOf(b).map((x) => x.id), "weave template beat", issues);
   checkUnique(establishedFactsOf(b).map((x) => x.id), "established fact", issues);
   checkUnique(factEvidenceOf(b).map((x) => x.id), "fact evidence", issues);
+  checkUnique(assistantConversationsOf(b).map((x) => x.id), "assistant conversation", issues);
+  checkUnique(assistantMessagesOf(b).map((x) => x.id), "assistant message", issues);
+  checkUnique(assistantContextItemsOf(b).map((x) => x.id), "assistant context item", issues);
+  checkUnique(assistantProposalsOf(b).map((x) => x.id), "assistant proposal", issues);
+  checkUnique(assistantProposalsOf(b).map((x) => x.messageId), "assistant proposal message", issues);
+  checkUnique(projectAssistantSettingsOf(b).map((x) => x.id), "project assistant settings", issues);
+  checkUnique(projectAssistantSettingsOf(b).map((x) => x.projectId), "project assistant settings project", issues);
 
   const projectIds = new Set(b.projects.map((p) => p.id));
   const recordIds = new Set(b.records.map((r) => r.id));
@@ -1399,6 +1593,45 @@ function checkInternalConsistency(b: WorkspaceBackupV1): Issue[] {
       issues.push(integrity(`Fact evidence ${e.id} has an empty or inverted passage range.`));
     }
   });
+  const assistantConversationIds = new Set(assistantConversationsOf(b).map((x) => x.id));
+  const assistantMessageIds = new Set(assistantMessagesOf(b).map((x) => x.id));
+  assistantConversationsOf(b).forEach((c) => {
+    needProject(c.projectId, `Assistant conversation ${c.id}`);
+    if (c.workspaceId !== b.workspace.id) {
+      issues.push(integrity(`Assistant conversation ${c.id} belongs to a different workspace.`));
+    }
+  });
+  assistantMessagesOf(b).forEach((m) => {
+    if (!assistantConversationIds.has(m.conversationId)) {
+      issues.push(integrity(`Assistant message ${m.id} references missing conversation ${m.conversationId}.`));
+    }
+    if (m.replyToId && !assistantMessageIds.has(m.replyToId)) {
+      issues.push(integrity(`Assistant message ${m.id} references missing reply ${m.replyToId}.`));
+    }
+    for (const mid of m.includedMessageIds) {
+      if (!assistantMessageIds.has(mid)) {
+        issues.push(integrity(`Assistant message ${m.id} includes missing message ${mid}.`));
+      }
+    }
+  });
+  assistantContextItemsOf(b).forEach((c) => {
+    if (!assistantMessageIds.has(c.messageId)) {
+      issues.push(integrity(`Assistant context item ${c.id} references missing message ${c.messageId}.`));
+    }
+    if (!recordIds.has(c.recordId)) {
+      issues.push(integrity(`Assistant context item ${c.id} references missing record ${c.recordId}.`));
+    }
+  });
+  assistantProposalsOf(b).forEach((p) => {
+    needProject(p.projectId, `Assistant proposal ${p.id}`);
+    if (!assistantMessageIds.has(p.messageId)) {
+      issues.push(integrity(`Assistant proposal ${p.id} references missing message ${p.messageId}.`));
+    }
+    if (p.workspaceId !== b.workspace.id) {
+      issues.push(integrity(`Assistant proposal ${p.id} belongs to a different workspace.`));
+    }
+  });
+  projectAssistantSettingsOf(b).forEach((s) => needProject(s.projectId, `Assistant settings ${s.id}`));
   recordImagesOf(b).forEach((img) => {
     needProject(img.projectId, `Image ${img.id}`);
     if (!recordIds.has(img.recordId) || recordProject.get(img.recordId) !== img.projectId) {
@@ -1583,6 +1816,36 @@ async function findCollisions(db: DbOrTx, b: WorkspaceBackupV1): Promise<Issue[]
   if (factEvidenceOf(b).length) {
     await check("fact evidence", db.factEvidence.count({ where: { id: { in: factEvidenceOf(b).map((x) => x.id) } } }));
   }
+  if (assistantConversationsOf(b).length) {
+    await check(
+      "assistant conversation",
+      db.assistantConversation.count({ where: { id: { in: assistantConversationsOf(b).map((x) => x.id) } } }),
+    );
+  }
+  if (assistantMessagesOf(b).length) {
+    await check(
+      "assistant message",
+      db.assistantMessage.count({ where: { id: { in: assistantMessagesOf(b).map((x) => x.id) } } }),
+    );
+  }
+  if (assistantContextItemsOf(b).length) {
+    await check(
+      "assistant context item",
+      db.assistantContextItem.count({ where: { id: { in: assistantContextItemsOf(b).map((x) => x.id) } } }),
+    );
+  }
+  if (assistantProposalsOf(b).length) {
+    await check(
+      "assistant proposal",
+      db.assistantProposal.count({ where: { id: { in: assistantProposalsOf(b).map((x) => x.id) } } }),
+    );
+  }
+  if (projectAssistantSettingsOf(b).length) {
+    await check(
+      "project assistant settings",
+      db.projectAssistantSettings.count({ where: { id: { in: projectAssistantSettingsOf(b).map((x) => x.id) } } }),
+    );
+  }
   return issues;
 }
 
@@ -1718,6 +1981,11 @@ export async function restoreWorkspaceBackup(db: Db, input: string | unknown, op
   weaveTemplateBeatsOf(b).forEach((x) => assign(x.id, "wvx"));
   establishedFactsOf(b).forEach((x) => assign(x.id, "fct"));
   factEvidenceOf(b).forEach((x) => assign(x.id, "fev"));
+  assistantConversationsOf(b).forEach((x) => assign(x.id, "asc"));
+  assistantMessagesOf(b).forEach((x) => assign(x.id, "asm"));
+  assistantContextItemsOf(b).forEach((x) => assign(x.id, "aci"));
+  assistantProposalsOf(b).forEach((x) => assign(x.id, "apr"));
+  projectAssistantSettingsOf(b).forEach((x) => assign(x.id, "pas"));
 
   const workspaceName =
     options.workspaceName?.trim() || (remap ? `${b.workspace.name} (restored ${b.createdAt.slice(0, 10)})` : b.workspace.name);
@@ -2176,6 +2444,92 @@ export async function restoreWorkspaceBackup(db: Db, input: string | unknown, op
               evidenceKind: e.evidenceKind,
               needsRecheck: e.needsRecheck,
               createdAt: new Date(e.createdAt),
+            })),
+          });
+        }
+        const conversations = assistantConversationsOf(b);
+        if (conversations.length) {
+          await tx.assistantConversation.createMany({
+            data: conversations.map((c) => ({
+              id: m(c.id),
+              workspaceId,
+              projectId: m(c.projectId),
+              title: c.title,
+              summary: c.summary ?? "",
+              createdAt: new Date(c.createdAt),
+              updatedAt: new Date(c.updatedAt),
+            })),
+          });
+        }
+        const messages = assistantMessagesOf(b);
+        if (messages.length) {
+          await tx.assistantMessage.createMany({
+            data: messages.map((msg) => ({
+              id: m(msg.id),
+              conversationId: m(msg.conversationId),
+              role: msg.role,
+              mode: msg.mode,
+              content: msg.content,
+              replyToId: msg.replyToId ? m(msg.replyToId) : null,
+              status: msg.status,
+              errorCode: msg.errorCode ?? null,
+              errorMessage: msg.errorMessage ?? null,
+              model: msg.model ?? null,
+              providerResponseId: msg.providerResponseId ?? null,
+              inputTokens: msg.inputTokens ?? null,
+              outputTokens: msg.outputTokens ?? null,
+              totalTokens: msg.totalTokens ?? null,
+              usageEstimated: msg.usageEstimated,
+              includedMessageIds: JSON.stringify(msg.includedMessageIds.map((id) => m(id))),
+              requestChars: msg.requestChars ?? null,
+              createdAt: new Date(msg.createdAt),
+              completedAt: msg.completedAt ? new Date(msg.completedAt) : null,
+            })),
+          });
+        }
+        const contextItems = assistantContextItemsOf(b);
+        if (contextItems.length) {
+          await tx.assistantContextItem.createMany({
+            data: contextItems.map((c) => ({
+              id: m(c.id),
+              messageId: m(c.messageId),
+              recordId: m(c.recordId),
+              revisionNumber: c.revisionNumber,
+              kind: c.kind,
+              passageStart: c.passageStart ?? null,
+              passageEnd: c.passageEnd ?? null,
+              charCount: c.charCount,
+              contentHash: c.contentHash,
+            })),
+          });
+        }
+        const proposals = assistantProposalsOf(b);
+        if (proposals.length) {
+          await tx.assistantProposal.createMany({
+            data: proposals.map((p) => ({
+              id: m(p.id),
+              messageId: m(p.messageId),
+              workspaceId,
+              projectId: m(p.projectId),
+              packageId: p.packageId,
+              packageJson: rewriteJson(p.packageJson),
+              contentHash: p.contentHash,
+              operationCount: p.operationCount,
+              status: p.status,
+              createdAt: new Date(p.createdAt),
+              appliedAt: p.appliedAt ? new Date(p.appliedAt) : null,
+            })),
+          });
+        }
+        const settings = projectAssistantSettingsOf(b);
+        if (settings.length) {
+          await tx.projectAssistantSettings.createMany({
+            data: settings.map((s) => ({
+              id: m(s.id),
+              projectId: m(s.projectId),
+              autoIncludeRecent: s.autoIncludeRecent,
+              recentContextBudgetChars: s.recentContextBudgetChars,
+              updatedAt: new Date(s.updatedAt),
             })),
           });
         }

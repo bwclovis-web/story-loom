@@ -4,7 +4,14 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getDb } from "@/server/db";
 import { applyProposal, getProposalReview } from "@/server/services/assistantProposalService";
-import { AssistantError, createConversation, deleteConversation, getManuscriptText } from "@/server/services/assistantService";
+import {
+  AssistantError,
+  createConversation,
+  deleteConversation,
+  getManuscriptText,
+  updateAssistantSettings,
+  updateConversationSummary,
+} from "@/server/services/assistantService";
 import type { ApplyOutcome, PackagePreview } from "@/server/services/changePackageService";
 import { MutationRejectedError } from "@/server/services/errors";
 
@@ -61,6 +68,35 @@ export async function loadManuscriptAction(projectId: string, recordId: string) 
     return { ok: true as const, ...(await getManuscriptText(getDb(), projectId, recordId)) };
   } catch (error) {
     if (error instanceof AssistantError) return { ok: false as const, message: error.message };
+    throw error;
+  }
+}
+
+export async function saveConversationSummaryAction(
+  projectId: string,
+  conversationId: string,
+  summary: string,
+): Promise<{ ok: true; summary: string } | { ok: false; message: string }> {
+  try {
+    const saved = await updateConversationSummary(getDb(), projectId, conversationId, summary);
+    revalidatePath(`/projects/${projectId}/assistant`);
+    return { ok: true, summary: saved };
+  } catch (error) {
+    if (error instanceof AssistantError) return { ok: false, message: error.message };
+    throw error;
+  }
+}
+
+export async function saveAssistantSettingsAction(
+  projectId: string,
+  input: { autoIncludeRecent: boolean; recentContextBudgetChars: number },
+): Promise<{ ok: true; settings: { autoIncludeRecent: boolean; recentContextBudgetChars: number } } | { ok: false; message: string }> {
+  try {
+    const settings = await updateAssistantSettings(getDb(), projectId, input);
+    revalidatePath(`/projects/${projectId}/assistant`);
+    return { ok: true, settings };
+  } catch (error) {
+    if (error instanceof AssistantError) return { ok: false, message: error.message };
     throw error;
   }
 }

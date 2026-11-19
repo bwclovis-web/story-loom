@@ -1932,3 +1932,51 @@ records/sections and proposals through Review and Apply.
 ### Rollback
 
 Restore that pre-migrate SQLite snapshot and check out the pre-feature commit.
+
+## Usability and assistant-context pass (Nov 18–19, 2026)
+
+Requested: group Project tools; draft-scope visibility; assistant ContextRail;
+Find relevant from open scene without passage; conversation summary + budgeted
+recent messages + author preferences; optional assistant arrays in backup;
+honest character-knowledge wording; earlier-scene tracing as documented next
+increment only.
+
+### Implemented
+
+- Project tools nav groups: Bring in / Read and export / Maintain.
+- `DraftScopeChip` on Write, Assistant, Export; Export `?draft=` + filter;
+  Assistant manuscript select grouped by draft; draft scope from Write cookie.
+- Assistant Include panel uses shared `ContextRail` (collapse/resize/overlay).
+- Find relevant: `open_scene` seed terms from whole chapter/scene when no
+  passage offsets; linked refs still always surface.
+- Migration `20261118200000_assistant_memory`: `AssistantConversation.summary`,
+  `ProjectAssistantSettings`. Summary + settings audited; prepareTurn sends
+  saved summary; auto-include fills ticks within budget (author can untick;
+  no auto-retry).
+- Backup optional arrays: conversations/messages/context items/proposals/
+  settings. Proofread runs remain SQLite-only.
+- Knowledge check copy + evidence vs keyword split; tracing Help-only next
+  increment.
+
+### Verification
+
+| Check | Result |
+| --- | --- |
+| Pre-migrate backup | `backups/2026-11-19T01-18-09-049Z-pre-migrate` |
+| `pnpm db:deploy` | Applied `20261118200000_assistant_memory` |
+| `pnpm exec vitest run` (reading-pins-context, assistant-memory-backup, help, established-facts, legacy-baseline) | 24/24 passed |
+| `pnpm typecheck` | pass |
+| `pnpm build` | pass after Next.js security nudge retry; routes unchanged |
+
+### Limits / notes
+
+- Find relevant still uses the **saved** manuscript body unless Write later
+  passes `unsavedBody`.
+- Legacy projects with no drafts: draft chip says legacy; Find/Export unscoped.
+- Protected proposals and author-only retry unchanged.
+- Earlier-scene tracing is documentation only (no runtime).
+
+### Rollback
+
+Restore `backups/2026-11-19T01-18-09-049Z-pre-migrate` SQLite snapshot and check
+out the pre-feature commit.
