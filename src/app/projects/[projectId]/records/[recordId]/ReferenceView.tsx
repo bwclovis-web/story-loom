@@ -6,6 +6,7 @@ import { ContextSection } from "@/components/ContextSection";
 import { CrossRefsPanel, xrefHref } from "@/components/CrossRefsPanel";
 import { MarkdownView, type AttachedImages } from "@/components/MarkdownView";
 import { TextAppearanceMenu } from "@/components/TextAppearanceMenu";
+import { ButtonAnchor, ButtonLink } from "@/components/ui/ButtonLink";
 import type { ProofreadConfig } from "@/components/writing/Proofreader";
 import type { JsonValue } from "@/domain/json";
 import type { RecordView } from "@/domain/records";
@@ -37,12 +38,10 @@ import {
 import type { EstablishedFactView } from "@/server/services/establishedFactService";
 import type { PlaceRelationView } from "@/server/services/placeRelationService";
 import type { ReadingPinView } from "@/server/services/readingPinService";
-import {
-  EstablishedInRail,
-  type DraftChoice,
-  type EvidenceSourceChoice,
-  type SceneChoice,
-} from "./EstablishedInRail";
+import { type DraftChoice, type EvidenceSourceChoice, type SceneChoice } from "./EstablishedInRail";
+import { ReferenceInspector } from "@/components/world/ReferenceInspector";
+import { buildReferenceInspectorModel, type RecordPlacement } from "@/world/inspectorModel";
+import { OutlineReview } from "./OutlineReview";
 import { PlaceRelations } from "./PlaceRelations";
 import { WorldContextAside, WorldContextProvider, WorldContextToggle } from "./WorldContextRail";
 import { WorldPins } from "./WorldPins";
@@ -99,6 +98,7 @@ export interface ReferenceViewProps {
   evidenceSources: EvidenceSourceChoice[];
   manuscriptDrafts: DraftChoice[];
   manuscriptScenes: SceneChoice[];
+  placements: RecordPlacement[];
   editor: {
     spellingLanguage: SpellingLanguage;
     spellChecker: SpellChecker;
@@ -197,7 +197,47 @@ export function ReferenceView(props: ReferenceViewProps) {
   const attached: AttachedImages = new Map(gallery.map((g) => [g.name, g]));
   const namesInText = imageNamesInText(record.body);
   const refs = crossRefsFor(props.crossRefs, record.id);
-  const xrefCount = refs.defined.length + refs.files.length + refs.ids.length + refs.mentionedBy.length;
+  const inspector = buildReferenceInspectorModel({
+    id: record.id,
+    title: record.title,
+    type: record.type,
+    authorityStatus: record.authorityStatus,
+    revision: record.currentRevision,
+    protected: record.protected,
+    body: record.body,
+    fieldKeys: Object.keys(record.fields),
+    images: gallery.map((image) => ({
+      id: image.id,
+      name: image.name,
+      altText: image.altText,
+      caption: image.caption,
+    })),
+    relations: [
+      ...(props.placeRelations?.outgoing ?? []).map((relation) => ({
+        id: relation.id,
+        direction: "from" as const,
+        kindLabel: relation.kindLabel,
+        otherRecordId: relation.toRecordId,
+        otherTitle: relation.toTitle,
+        otherTypeLabel: relation.toTypeLabel,
+      })),
+      ...(props.placeRelations?.incoming ?? []).map((relation) => ({
+        id: relation.id,
+        direction: "to" as const,
+        kindLabel: relation.kindLabel,
+        otherRecordId: relation.fromRecordId,
+        otherTitle: relation.fromTitle,
+        otherTypeLabel: relation.fromTypeLabel,
+      })),
+    ],
+    manuscriptLinks: props.linking.map((link) => ({
+      recordId: link.recordId,
+      title: link.title,
+      typeLabel: RECORD_TYPE_LABELS[link.type],
+      chapterTitle: link.chapterTitle,
+    })),
+    placements: props.placements,
+  });
 
   return (
     <div className="reference-page">
@@ -205,15 +245,15 @@ export function ReferenceView(props: ReferenceViewProps) {
       <div className="page-head">
         <h1 className="reference-title">{record.title}</h1>
         <div className="page-actions">
-          <Link className="button-link secondary" href={`${base}/import-markdown`}>
+          <ButtonLink variant="secondary" href={`${base}/import-markdown`}>
             {WORLD.importReferences}
-          </Link>
-          <Link className="button-link secondary" href={`${base}/export?record=${encodeURIComponent(record.id)}`}>
+          </ButtonLink>
+          <ButtonLink variant="secondary" href={`${base}/export?record=${encodeURIComponent(record.id)}`}>
             {WORLD.exportForChatGpt}
-          </Link>
-          <a className="button-link secondary" href={`${base}/pdf?kind=references&record=${encodeURIComponent(record.id)}`} download>
+          </ButtonLink>
+          <ButtonAnchor variant="secondary" href={`${base}/pdf?kind=references&record=${encodeURIComponent(record.id)}`} download>
             {WORLD.downloadPdf}
-          </a>
+          </ButtonAnchor>
         </div>
       </div>
 
@@ -253,20 +293,20 @@ export function ReferenceView(props: ReferenceViewProps) {
         <div className="reference-main write-main">
           <div className="doc-toolbar">
             {editing ? (
-              <Link className="button-link" href={recordHref}>
+              <ButtonLink href={recordHref}>
                 {WORLD.doneEditing}
-              </Link>
+              </ButtonLink>
             ) : (
-              <Link className="button-link" href={`${recordHref}?edit=1`}>
+              <ButtonLink href={`${recordHref}?edit=1`}>
                 {WORLD.edit}
-              </Link>
+              </ButtonLink>
             )}
-            <a className="button-link secondary" href="#history">
+            <ButtonAnchor variant="secondary" href="#history">
               {WORLD.history}
-            </a>
-            <a className="button-link secondary" href="#record-status">
+            </ButtonAnchor>
+            <ButtonAnchor variant="secondary" href="#record-status">
               {WORLD.statusAndProtection}
-            </a>
+            </ButtonAnchor>
             <div className="doc-toolbar-end">
               <TextAppearanceMenu />
               <WorldContextToggle />

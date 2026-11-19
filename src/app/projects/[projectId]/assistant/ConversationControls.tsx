@@ -2,6 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
+import { Banner } from "@/components/ui/Banner";
+import { Button } from "@/components/ui/Button";
 import { ASSISTANT } from "@/ui/labels";
 import {
   deleteConversationAction,
@@ -13,9 +15,9 @@ import {
 export function NewConversationButton({ projectId }: { projectId: string }) {
   const [pending, startTransition] = useTransition();
   return (
-    <button type="button" disabled={pending} onClick={() => startTransition(() => newConversationAction(projectId))}>
+    <Button disabled={pending} onClick={() => startTransition(() => newConversationAction(projectId))}>
       {ASSISTANT.newConversation}
-    </button>
+    </Button>
   );
 }
 
@@ -43,10 +45,10 @@ export function DeleteConversation({ projectId, conversationId }: { projectId: s
         <input type="checkbox" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} />
         {ASSISTANT.confirmDelete}
       </label>{" "}
-      <button type="button" className="secondary" disabled={!confirmed || pending} onClick={remove}>
+      <Button type="button" variant="secondary" disabled={!confirmed || pending} onClick={remove}>
         {ASSISTANT.deleteConversation}
-      </button>
-      {message ? <div className="banner error">{message}</div> : null}
+      </Button>
+      {message ? <Banner tone="error">{message}</Banner> : null}
     </details>
   );
 }
@@ -82,9 +84,9 @@ export function ConversationSummaryEditor({
       <p className="small muted" style={{ margin: 0 }}>
         {ASSISTANT.conversationSummaryHint}
       </p>
-      <button
+      <Button
         type="button"
-        className="secondary small-button"
+        variant="secondary" size="sm"
         disabled={disabled || pending || text === saved}
         onClick={() =>
           startTransition(async () => {
@@ -100,7 +102,7 @@ export function ConversationSummaryEditor({
         }
       >
         {ASSISTANT.saveSummary}
-      </button>
+      </Button>
       {message ? <p className="error-text small">{message}</p> : null}
     </div>
   );
@@ -147,9 +149,9 @@ export function AssistantSettingsPanel({
           onChange={(e) => setBudget(e.target.value)}
         />
       </label>
-      <button
+      <Button
         type="button"
-        className="secondary small-button"
+        variant="secondary" size="sm"
         disabled={pending}
         onClick={() =>
           startTransition(async () => {
@@ -170,7 +172,7 @@ export function AssistantSettingsPanel({
         }
       >
         {ASSISTANT.saveSettings}
-      </button>
+      </Button>
       {message ? <p className="error-text small">{message}</p> : null}
       {savedNote ? <p className="small muted">{savedNote}</p> : null}
     </details>

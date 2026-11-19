@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { CanonBadge, ProtectionStateBadge, SavedVersionBadge } from "@/components/Badges";
 import { OverflowDisclosure } from "@/components/shell/OverflowDisclosure";
-import { WorkspaceToolsChooser } from "@/components/shell/WorkspaceToolsChooser";
+import { ButtonLink } from "@/components/ui/ButtonLink";
+import { WorldSurfaceNav } from "@/components/world/WorldSurfaceNav";
 import { stableStringify } from "@/domain/json";
 import { getDb } from "@/server/db";
 import { listRecords } from "@/server/services/recordService";
@@ -18,12 +19,13 @@ export default async function WorldPage({
   searchParams,
 }: {
   params: Promise<{ projectId: string }>;
-  searchParams: Promise<{ type?: string; q?: string }>;
+  searchParams: Promise<{ type?: string; q?: string; list?: string }>;
 }) {
   const { projectId } = await params;
   const query = await searchParams;
   const type = isWorldType(query.type) ? query.type : null;
   const q = (query.q ?? "").trim();
+  const list = query.list === "1";
   const db = getDb();
   const base = `/projects/${encodeURIComponent(projectId)}`;
   const [records, hits, spellingLanguage] = await Promise.all([
@@ -31,7 +33,12 @@ export default async function WorldPage({
     q ? searchProjectRecords(db, { projectId, query: q, types: WORLD_TYPES, includeManuscript: false }) : null,
     getSpellingLanguage(),
   ]);
-  const listed = records.filter((r) => (type ? r.type === type : isWorldType(r.type)));
+  const worldRecords = records.filter((r) => isWorldType(r.type));
+  const listed = type ? worldRecords.filter((r) => r.type === type) : worldRecords;
+  const recent = [...worldRecords]
+    .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime() || a.title.localeCompare(b.title))
+    .slice(0, 8);
+  const showHub = !type && !q && !list;
   const byId = new Map(records.map((r) => [r.id, r]));
   const startsMidText = (hit: SearchHit): boolean => {
     const record = byId.get(hit.id);
@@ -42,38 +49,72 @@ export default async function WorldPage({
   const selection = type ? `type=${type}` : "group=world";
   const exportHref = `${base}/export?${selection}`;
   const pdfHref = `${base}/export-pdf?${selection}`;
+  const crumb = q ? WORLD.search : type ? WORLD_CATEGORY_LABELS[type] : WORLD.allReferencesList;
 
   return (
     <>
-      {type || q ? (
+      {type || q || list ? (
         <nav aria-label={WORLD.breadcrumb} className="breadcrumbs">
           <ol>
             <li>
               <Link href={worldHref(projectId)}>{SHELL.world}</Link>
             </li>
             <li>
-              <span aria-current="page">{type ? WORLD_CATEGORY_LABELS[type] : WORLD.search}</span>
+              <span aria-current="page">{crumb}</span>
             </li>
           </ol>
         </nav>
       ) : null}
       <div className="page-head">
-        <h1>{q ? WORLD.resultsFor(q) : type ? WORLD_CATEGORY_LABELS[type] : SHELL.world}</h1>
+        <h1>{q ? WORLD.resultsFor(q) : type ? WORLD_CATEGORY_LABELS[type] : list ? WORLD.allReferencesList : SHELL.world}</h1>
       </div>
-      <p className="page-lead">{GROUP_PAGES.world}</p>
-      <WorkspaceToolsChooser projectId={projectId} />
+      <p className="page-lead">{showHub ? WORLD.hubLead : GROUP_PAGES.world}</p>
+      <WorldSurfaceNav projectId={projectId} current="references" />
+
+      {showHub ? (
+        <>
+          <form role="search" action={worldHref(projectId)} method="get" className="panel world-hub-search" aria-label={WORLD.searchReferences}>
+            <label htmlFor="world-hub-q">{WORLD.searchReferences}</label>
+            <div className="row">
+              <input id="world-hub-q" type="search" name="q" placeholder={WORLD.searchReferences} />
+              <button type="submit">{WORLD.search}</button>
+            </div>
+            <p className="small muted">{WORLD.searchHint}</p>
+          </form>
+          <section className="panel" aria-labelledby="world-recent-heading">
+            <h2 id="world-recent-heading">{WORLD.recentReferences}</h2>
+            {recent.length === 0 ? (
+              <p className="muted">{WORLD.noRecent}</p>
+            ) : (
+              <ul className="world-recent">
+                {recent.map((r) => (
+                  <li key={r.id}>
+                    <Link href={`${base}/records/${encodeURIComponent(r.id)}`}>{r.title}</Link>
+                    <span className="small muted">{categoryLabel(r.type)}</span>
+                    <CanonBadge status={r.authorityStatus} />
+                    <span className="small muted">{r.updatedAt.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <p className="small">
+              <Link href={worldHref(projectId, { list: true })}>{WORLD.allReferencesList}</Link>
+            </p>
+          </section>
+        </>
+      ) : null}
 
       <OverflowDisclosure summary={SHELL.exportAndImport}>
         <div className="row" style={{ flexWrap: "wrap", gap: "0.5rem" }}>
-          <Link className="button-link secondary" href={`${base}/import-markdown`}>
+          <ButtonLink variant="secondary" href={`${base}/import-markdown`}>
             {WORLD.importReferences}
-          </Link>
-          <Link className="button-link secondary" href={exportHref}>
+          </ButtonLink>
+          <ButtonLink variant="secondary" href={exportHref}>
             {WORLD.exportForChatGpt}
-          </Link>
-          <Link className="button-link secondary" href={pdfHref}>
+          </ButtonLink>
+          <ButtonLink variant="secondary" href={pdfHref}>
             {WORLD.exportPdf}
-          </Link>
+          </ButtonLink>
         </div>
       </OverflowDisclosure>
 
@@ -112,7 +153,9 @@ export default async function WorldPage({
             </ul>
           )}
         </section>
-      ) : (
+      ) : null}
+
+      {!q && (type || list) ? (
         <section className="panel" aria-labelledby="world-list-heading">
           <h2 id="world-list-heading" className="sr-only">
             {type ? WORLD_CATEGORY_LABELS[type] : WORLD.allReferences}
@@ -152,7 +195,7 @@ export default async function WorldPage({
             </table>
           )}
         </section>
-      )}
+      ) : null}
 
       <OverflowDisclosure summary={SHELL.newRecord} className="panel">
         <h2 className="sr-only">{RECORD.newRecordHeading}</h2>

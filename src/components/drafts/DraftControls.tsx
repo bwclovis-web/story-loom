@@ -9,6 +9,7 @@ import {
   startAuthorRewriteAction,
 } from "@/app/projects/[projectId]/drafts/actions";
 import { WRITE_DRAFT_COOKIE, writePreference } from "@/components/shell/preferences";
+import { Button } from "@/components/ui/Button";
 import type { DraftKind } from "@/domain/assignments";
 import { DRAFT } from "@/ui/labels";
 
@@ -124,9 +125,9 @@ export function DraftDefaultsPanel({
 
   return (
     <div className="row draft-defaults">
-      <button
-        type="button"
-        className="secondary small-button"
+      <Button
+        variant="secondary"
+        size="sm"
         disabled={pending || !selected || !!isDefault}
         onClick={() => {
           if (!selected) return;
@@ -138,11 +139,11 @@ export function DraftDefaultsPanel({
         }}
       >
         {mode === "reading" ? DRAFT.setDefaultReading : DRAFT.setDefaultExport}
-      </button>
+      </Button>
       {defaultId ? (
-        <button
-          type="button"
-          className="secondary small-button"
+        <Button
+          variant="secondary"
+          size="sm"
           disabled={pending}
           onClick={() => {
             startTransition(async () => {
@@ -153,7 +154,7 @@ export function DraftDefaultsPanel({
           }}
         >
           {mode === "reading" ? DRAFT.clearDefaultReading : DRAFT.clearDefaultExport}
-        </button>
+        </Button>
       ) : null}
     </div>
   );
@@ -171,9 +172,9 @@ export function MarkRewriteCompleteButton({
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   return (
-    <button
-      type="button"
-      className="secondary small-button"
+    <Button
+      variant="secondary"
+      size="sm"
       disabled={pending}
       onClick={() => {
         startTransition(async () => {
@@ -183,7 +184,7 @@ export function MarkRewriteCompleteButton({
       }}
     >
       {completed ? DRAFT.markIncomplete : DRAFT.markComplete}
-    </button>
+    </Button>
   );
 }
 

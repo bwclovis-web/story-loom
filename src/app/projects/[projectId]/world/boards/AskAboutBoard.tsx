@@ -7,6 +7,8 @@ import type { Issue } from "@/domain/issues";
 import type { BoardAskPreview } from "@/server/services/establishedFactService";
 import { WORLD } from "@/ui/labels";
 import { previewBoardAskAction } from "./actions";
+import { Button } from "@/components/ui/Button";
+import { ButtonLink } from "@/components/ui/ButtonLink";
 
 export function AskAboutBoard({ projectId, boardId }: { projectId: string; boardId: string }) {
   const [pending, startTransition] = useTransition();
@@ -16,9 +18,10 @@ export function AskAboutBoard({ projectId, boardId }: { projectId: string; board
 
   return (
     <div className="stack">
-      <button
+      <Button
         type="button"
-        className="secondary small-button"
+        variant="secondary"
+        size="sm"
         disabled={pending}
         onClick={() =>
           startTransition(async () => {
@@ -36,7 +39,7 @@ export function AskAboutBoard({ projectId, boardId }: { projectId: string; board
         }
       >
         {WORLD.askAboutBoard}
-      </button>
+      </Button>
 
       {open ? (
         <section className="panel stack" aria-label={WORLD.askAboutBoardPreview}>
@@ -76,18 +79,13 @@ export function AskAboutBoard({ projectId, boardId }: { projectId: string; board
                 </>
               ) : null}
               {preview.records.length ? (
-                <Link
-                  className="button-link"
-                  href={`/projects/${encodeURIComponent(projectId)}/assistant?board=${encodeURIComponent(boardId)}`}
-                >
-                  {WORLD.openAssistantWithBoard}
-                </Link>
+                <ButtonLink href={`/projects/${encodeURIComponent(projectId)}/assistant?board=${encodeURIComponent(boardId)}`}>{WORLD.openAssistantWithBoard}</ButtonLink>
               ) : null}
             </>
           ) : null}
-          <button type="button" className="secondary small-button" onClick={() => setOpen(false)}>
+          <Button type="button" variant="secondary" size="sm" onClick={() => setOpen(false)}>
             Close
-          </button>
+          </Button>
         </section>
       ) : null}
     </div>

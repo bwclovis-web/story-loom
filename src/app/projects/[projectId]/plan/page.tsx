@@ -7,6 +7,7 @@ import { GROUP_PAGES, WEAVE, WORKSPACE_TOOLS } from "@/ui/labels";
 import { RECORD_GROUPS } from "@/ui/navigation";
 import { RecordListPage } from "../RecordListPage";
 import { CreateWeaveGridForm } from "./weave/CreateWeaveGridForm";
+import { ButtonLink } from "@/components/ui/ButtonLink";
 
 export const dynamic = "force-dynamic";
 
@@ -26,13 +27,13 @@ export default async function PlanPage({ params }: { params: Promise<{ projectId
         <WorkspaceToolsChooser projectId={projectId} emphasize="weave" />
         <p className="row" style={{ gap: "0.75rem", flexWrap: "wrap", marginBottom: "1rem" }}>
           {primaryGrid ? (
-            <Link className="button-link" href={`${base}/weave/${encodeURIComponent(primaryGrid.id)}`}>
+            <ButtonLink href={`${base}/weave/${encodeURIComponent(primaryGrid.id)}`}>
               {WEAVE.openGrid}: {primaryGrid.title}
-            </Link>
+            </ButtonLink>
           ) : (
-            <Link className="button-link" href={`${base}/weave`}>
+            <ButtonLink href={`${base}/weave`}>
               {WORKSPACE_TOOLS.openWeave}
-            </Link>
+            </ButtonLink>
           )}
         </p>
         <OverflowDisclosure summary={WEAVE.newGrid} defaultOpen={!grids.length}>

@@ -52,8 +52,9 @@ export function WorldNav({
   const counts = useMemo(() => worldCounts(records), [records]);
   const currentRecord = currentRecordId ? records.find((r) => r.id === currentRecordId) : undefined;
   const pageType = onWorldPage && !onSpecial ? params.get("type") : null;
+  const listMode = onWorldPage && !onSpecial && params.get("list") === "1";
   const category: WorldType | null = isWorldType(pageType) ? pageType : currentRecord && isWorldType(currentRecord.type) ? currentRecord.type : null;
-  const allCurrent = onWorldPage && !onSpecial && !isWorldType(pageType) && !urlQuery;
+  const allCurrent = listMode && !isWorldType(pageType) && !urlQuery;
 
   const searching = query.trim() !== "";
   const listed = useMemo(() => filterWorldTitles(records, query, searching ? null : category), [records, query, searching, category]);
@@ -141,7 +142,7 @@ export function WorldNav({
 
       <ul className="nav-list world-categories" aria-label={WORLD.categories}>
         <li>
-          <Link href={worldHref(projectId)} aria-current={allCurrent ? "page" : undefined}>
+          <Link href={worldHref(projectId, { list: true })} aria-current={allCurrent ? "page" : undefined}>
             {WORLD.allReferences}
             <span className="nav-count">{counts.all}</span>
           </Link>

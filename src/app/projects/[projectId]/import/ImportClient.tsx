@@ -7,6 +7,7 @@ import type { PackagePreview } from "@/server/services/changePackageService";
 import { PACKAGE_IMPORT, REVIEW } from "@/ui/labels";
 import type { ApplyResponse } from "@/ui/packageReview";
 import { applyPackageAction, previewPackageAction, reviewPackageAction } from "../actions";
+import { Banner } from "@/components/ui/Banner";
 
 interface OpenReview {
   /** The exact text that was validated; checks and Apply always use it. */
@@ -115,9 +116,9 @@ export function ImportClient({ projectId }: { projectId: string }) {
           </button>
         </div>
         {failed ? (
-          <div className="banner error" role="alert">
+          <Banner tone="error" role="alert">
             {PACKAGE_IMPORT.validateFailed}
-          </div>
+          </Banner>
         ) : null}
       </div>
     </div>

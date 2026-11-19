@@ -24,6 +24,8 @@ import {
   type ValidationState,
 } from "@/ui/packageReview";
 import { ReviewDiff } from "./ReviewDiff";
+import { ButtonLink } from "@/components/ui/ButtonLink";
+import { Button } from "@/components/ui/Button";
 
 /*
  * The change review screen. It shows exactly what the validated package would
@@ -67,13 +69,13 @@ function stateLabel(state: ValidationState, errorCount: number): string {
 
 function BackControl({ back }: { back: ReviewBack }) {
   return "href" in back ? (
-    <Link className="button-link secondary" href={back.href}>
+    <ButtonLink variant="secondary" href={back.href}>
       {back.label}
-    </Link>
+    </ButtonLink>
   ) : (
-    <button type="button" className="secondary" onClick={back.onClick}>
+    <Button type="button" variant="secondary" onClick={back.onClick}>
       {back.label}
-    </button>
+    </Button>
   );
 }
 
@@ -354,20 +356,20 @@ export function PackageReviewView(props: PackageReviewViewProps) {
           <section className="review-main panel" aria-labelledby={diffHeadingId}>
             {records.length > 1 ? (
               <div className="review-pager">
-                <button type="button" className="secondary" onClick={() => dispatch({ type: "move", by: -1 })} disabled={selectedIndex <= 0}>
+                <Button type="button" variant="secondary" onClick={() => dispatch({ type: "move", by: -1 })} disabled={selectedIndex <= 0}>
                   <span aria-hidden="true">&lsaquo;</span> {REVIEW.previous}
-                </button>
+                </Button>
                 <span className="small" aria-live="polite">
                   {REVIEW.position(selectedIndex + 1, records.length)}
                 </span>
-                <button
+                <Button
                   type="button"
-                  className="secondary"
+                  variant="secondary"
                   onClick={() => dispatch({ type: "move", by: 1 })}
                   disabled={selectedIndex >= records.length - 1}
                 >
                   {REVIEW.next} <span aria-hidden="true">&rsaquo;</span>
-                </button>
+                </Button>
               </div>
             ) : null}
             {selected ? (

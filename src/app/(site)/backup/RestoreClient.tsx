@@ -6,6 +6,7 @@ import { IssueList } from "@/components/IssueList";
 import type { RestoreOutcome } from "@/server/services/backupService";
 import { BACKUP } from "@/ui/labels";
 import { checkBackupAction, restoreBackupAction, type BackupCheck } from "./actions";
+import { Banner } from "@/components/ui/Banner";
 
 export function RestoreClient() {
   const [raw, setRaw] = useState("");
@@ -83,7 +84,7 @@ export function RestoreClient() {
 
       {check && !check.ok ? (
         <div className="panel">
-          <div className="banner error">{BACKUP.cannotRestore}</div>
+          <Banner tone="error">{BACKUP.cannotRestore}</Banner>
           <IssueList issues={check.issues} />
         </div>
       ) : null}
@@ -104,18 +105,18 @@ export function RestoreClient() {
       ) : null}
 
       {outcome?.ok ? (
-        <div className="banner ok">
+        <Banner tone="ok">
           Restored &ldquo;{outcome.workspaceName}&rdquo;.{" "}
           {outcome.projects.map((p) => (
             <span key={p.id}>
               <Link href={`/projects/${p.id}`}>{p.title}</Link>{" "}
             </span>
           ))}
-        </div>
+        </Banner>
       ) : null}
       {outcome && !outcome.ok ? (
         <div className="panel">
-          <div className="banner error">Restore rejected. Nothing was written.</div>
+          <Banner tone="error">Restore rejected. Nothing was written.</Banner>
           <IssueList issues={outcome.issues} />
         </div>
       ) : null}

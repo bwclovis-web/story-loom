@@ -3,6 +3,8 @@
 import { useActionState, useState, type ReactNode } from "react";
 import type { Issue } from "@/domain/issues";
 import { TRASH } from "@/ui/labels";
+import { Banner } from "@/components/ui/Banner";
+import { Button } from "@/components/ui/Button";
 import { IssueList } from "./IssueList";
 
 export interface ConfirmResult {
@@ -15,9 +17,9 @@ function Result({ state }: { state: ConfirmResult }) {
   return (
     <>
       {state.message ? (
-        <div className={`banner ${state.ok ? "ok" : "error"}`} role="status">
+        <Banner tone={state.ok ? "ok" : "error"} className="mb-0 mt-2.5">
           {state.message}
-        </div>
+        </Banner>
       ) : null}
       <IssueList issues={state.issues ?? []} />
     </>
@@ -39,9 +41,9 @@ export function ActionButton({
   const [state, formAction, pending] = useActionState(action, { ok: true });
   return (
     <form action={formAction} className="confirm-action">
-      <button type="submit" className={small ? "small-button" : undefined} disabled={pending}>
+      <Button type="submit" size={small ? "sm" : "md"} disabled={pending}>
         {pending ? pendingLabel : label}
-      </button>
+      </Button>
       <Result state={state} />
     </form>
   );
@@ -74,7 +76,7 @@ export function ConfirmAction({
 }) {
   const [state, formAction, pending] = useActionState(action, { ok: true });
   const [confirming, setConfirming] = useState(false);
-  const size = small ? " small-button" : "";
+  const size = small ? "sm" : "md";
 
   return (
     <form action={formAction} className="confirm-action">
@@ -87,18 +89,18 @@ export function ConfirmAction({
             </label>
           ) : null}
           <div className="row">
-            <button type="submit" className={`${danger ? "danger" : ""}${size}`} disabled={pending}>
+            <Button type="submit" variant={danger ? "danger" : "primary"} size={size} disabled={pending}>
               {pending ? pendingLabel : confirmLabel}
-            </button>
-            <button type="button" className={`secondary${size}`} disabled={pending} onClick={() => setConfirming(false)}>
+            </Button>
+            <Button type="button" variant="secondary" size={size} disabled={pending} onClick={() => setConfirming(false)}>
               {TRASH.cancel}
-            </button>
+            </Button>
           </div>
         </div>
       ) : (
-        <button type="button" className={`secondary${size}`} onClick={() => setConfirming(true)}>
+        <Button type="button" variant="secondary" size={size} onClick={() => setConfirming(true)}>
           {label}
-        </button>
+        </Button>
       )}
       <Result state={state} />
     </form>

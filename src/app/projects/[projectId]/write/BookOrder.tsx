@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useState, useTransition } from "react";
 import { ProtectionBadge, StatusBadge } from "@/components/Badges";
+import { Button } from "@/components/ui/Button";
+import { ButtonLink } from "@/components/ui/ButtonLink";
 import type { AuthorityStatus } from "@/domain/statuses";
 import { BOOK_ORDER, WRITING } from "@/ui/labels";
 import { formatWordCount } from "@/writing/wordCount";
@@ -147,29 +149,29 @@ function OrderRow({
         <span className="muted">{formatWordCount(item.words)}</span>
       </span>
       <span className="book-order-actions">
-        <Link className="small-button" href={href}>
+        <ButtonLink size="sm" href={href}>
           {BOOK_ORDER.open}
-        </Link>
+        </ButtonLink>
         {onUp || onDown ? (
           <>
-            <button
+            <Button
               type="button"
-              className="secondary small-button"
+              variant="secondary" size="sm"
               onClick={onUp ?? undefined}
               disabled={pending || !onUp}
               aria-label={BOOK_ORDER.moveUpLabel(item.title)}
             >
               {BOOK_ORDER.moveUp}
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
-              className="secondary small-button"
+              variant="secondary" size="sm"
               onClick={onDown ?? undefined}
               disabled={pending || !onDown}
               aria-label={BOOK_ORDER.moveDownLabel(item.title)}
             >
               {BOOK_ORDER.moveDown}
-            </button>
+            </Button>
           </>
         ) : null}
         {otherChapters && otherChapters.length > 0 && onMoveTo ? (
@@ -182,9 +184,9 @@ function OrderRow({
                 </option>
               ))}
             </select>
-            <button
+            <Button
               type="button"
-              className="secondary small-button"
+              variant="secondary" size="sm"
               disabled={pending || !target}
               onClick={() => {
                 onMoveTo(target);
@@ -192,7 +194,7 @@ function OrderRow({
               }}
             >
               {BOOK_ORDER.moveTo}
-            </button>
+            </Button>
           </span>
         ) : null}
       </span>

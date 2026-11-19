@@ -105,7 +105,7 @@ From `pnpm build` (all dynamic): `/`, `/backup`, `/backup/[workspaceId]`,
 routes above. Query parameters in links and bookmarks: `?c=` (assistant
 conversation), `records/[id]?from=&to=&edit=&find=&case=`, `write?q=&case=`,
 `world?type=&q=`, `export` and `export-pdf?record=&type=&group=`. The app
-listens on `127.0.0.1:3000` (`pnpm start`) or the dev port.
+listens on `127.0.0.1:2112` (`pnpm dev` and `pnpm start`).
 
 ## Configuration keys and identifiers
 

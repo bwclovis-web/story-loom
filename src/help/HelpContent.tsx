@@ -165,8 +165,8 @@ export function HelpContent() {
           </li>
         </ol>
         <p>
-          If port 3000 is already taken, the app uses the next free port, up to 3010. The terminal shows the address it
-          used, for example <code>http://127.0.0.1:3001</code>; open that address instead.
+          If port 2112 is already taken, the terminal says so and the app does not start on another port. Stop whatever
+          is using 2112, then run the command again.
         </p>
         <p>
           If the terminal says another dev server is already running, the app is already open from an earlier start.
@@ -2968,7 +2968,7 @@ export function HelpContent() {
           <dd>
             If the browser cannot connect, the app is not running. Run <Cmd script="dev" /> in the Story Loom folder,
             wait until it is ready, then open the address the terminal shows (normally <a href={APP_URL}>{APP_URL}</a>).
-            If that address ends in a port other than 3000, something else is using port 3000. Often it is the app
+            If the terminal says port 2112 is in use, something else is using that port. Often it is the app
             itself, still running in another terminal; use that copy, or stop it with <kbd>Ctrl</kbd>+<kbd>C</kbd> there
             and start again, rather than keeping two copies running. If an error mentions the database, run{" "}
             <Cmd script="db:info" /> to see which file is used and check <code>.env</code>. Do not delete the database.

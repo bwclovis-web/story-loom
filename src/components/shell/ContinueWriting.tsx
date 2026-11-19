@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ButtonLink } from "@/components/ui/ButtonLink";
 import { CONTINUE_WRITING, NAV } from "@/ui/labels";
 
 export interface ContinueWritingItem {
@@ -25,9 +26,9 @@ export function ContinueWriting({
         <div className="stack">
           <p className="muted">{CONTINUE_WRITING.empty}</p>
           <p className="small muted">{CONTINUE_WRITING.emptyHint}</p>
-          <Link className="button-link" href={`${base}/import-chapters`}>
+          <ButtonLink href={`${base}/import-chapters`}>
             {CONTINUE_WRITING.importChapters}
-          </Link>
+          </ButtonLink>
         </div>
       ) : (
         <ul className="continue-writing-list">
@@ -41,9 +42,9 @@ export function ContinueWriting({
                   <span className="small muted"> · {item.kind === "chapter" ? "Chapter" : "Scene"}</span>
                 )}
               </div>
-              <Link className="button-link" href={`${base}/records/${encodeURIComponent(item.id)}`}>
+              <ButtonLink href={`${base}/records/${encodeURIComponent(item.id)}`}>
                 {CONTINUE_WRITING.open(item.title)}
-              </Link>
+              </ButtonLink>
             </li>
           ))}
         </ul>

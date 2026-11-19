@@ -11,6 +11,7 @@ import { SPELL_CHECKERS, spellCheckerCookie, type SpellChecker } from "@/writing
 import { ProtectionTick } from "./ProtectionTick";
 import { applyTextareaEdit, selectRange } from "./textareaEdit";
 import type { Spellcheck } from "./useSpellcheck";
+import { Button } from "@/components/ui/Button";
 
 /** The flagged word the selection is in, if any. */
 export function flagAt(flags: readonly SpellFlag[], selection: { start: number; end: number }): SpellFlag | null {
@@ -73,9 +74,9 @@ function Suggestions({
     <div className="row small">
       <span className="muted">{SPELLING.suggestions}:</span>
       {all.map((s) => (
-        <button key={s} type="button" className="secondary" disabled={disabled} onClick={() => onPick(s)}>
+        <Button key={s} type="button" variant="secondary" disabled={disabled} onClick={() => onPick(s)}>
           {s}
-        </button>
+        </Button>
       ))}
       {standard === null ? <span className="muted">{SPELLING.findingSuggestions}</span> : null}
       {standard !== null && all.length === 0 ? <span className="muted">{SPELLING.noSuggestions}</span> : null}
@@ -115,12 +116,12 @@ function AddWord({
 
   return (
     <div className="row small">
-      <button type="button" className="secondary" disabled={busy} onClick={() => add("project")}>
+      <Button type="button" variant="secondary" disabled={busy} onClick={() => add("project")}>
         {SPELLING.addToProject}
-      </button>
-      <button type="button" className="secondary" disabled={busy} onClick={() => add("workspace")}>
+      </Button>
+      <Button type="button" variant="secondary" disabled={busy} onClick={() => add("workspace")}>
         {SPELLING.addToWorkspace}
-      </button>
+      </Button>
       <label className="inline">
         <input type="checkbox" checked={matchCase} onChange={(e) => setMatchCase(e.target.checked)} />
         {SPELLING.matchCase}
@@ -201,12 +202,12 @@ export function SpellingPanel({
         ) : null}
         {checker === "app" && spell.status === "ready" && flags.length > 0 ? (
           <>
-            <button type="button" className="secondary" onClick={() => go(-1)}>
+            <Button type="button" variant="secondary" onClick={() => go(-1)}>
               {SPELLING.previous}
-            </button>
-            <button type="button" className="secondary" onClick={() => go(1)}>
+            </Button>
+            <Button type="button" variant="secondary" onClick={() => go(1)}>
               {SPELLING.next}
-            </button>
+            </Button>
           </>
         ) : null}
         <Link className="small" href={`/projects/${projectId}/dictionary`}>
@@ -225,9 +226,9 @@ export function SpellingPanel({
           <Suggestions word={current.word} words={words} spell={spell} disabled={!editable} onPick={replace} />
           {!editable ? <ProtectionTick note={SPELLING.protectedNote} onUnlock={onUnlock} /> : null}
           <div className="row small">
-            <button type="button" className="secondary" onClick={() => spell.ignoreOnce(current, text)}>
+            <Button type="button" variant="secondary" onClick={() => spell.ignoreOnce(current, text)}>
               {SPELLING.ignoreOnce}
-            </button>
+            </Button>
           </div>
           <AddWord
             key={dictionaryForm}

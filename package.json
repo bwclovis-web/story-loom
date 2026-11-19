@@ -3,9 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev -H 127.0.0.1",
+    "dev": "next dev -H 127.0.0.1 -p 2112",
     "build": "next build",
-    "start": "next start -H 127.0.0.1 -p 3000",
+    "start": "next start -H 127.0.0.1 -p 2112",
     "db:setup": "tsx scripts/db-deploy.ts && prisma generate && tsx prisma/seed.ts",
     "db:info": "tsx scripts/db-info.ts",
     "db:backup": "tsx scripts/db-backup.ts",

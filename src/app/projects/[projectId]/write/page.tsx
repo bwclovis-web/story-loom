@@ -14,6 +14,7 @@ import { RECORD_GROUPS } from "@/ui/navigation";
 import { countWords } from "@/writing/wordCount";
 import { RecordListPage } from "../RecordListPage";
 import { BookOrder, type OrderItem } from "./BookOrder";
+import { ButtonLink } from "@/components/ui/ButtonLink";
 
 export const dynamic = "force-dynamic";
 
@@ -72,12 +73,12 @@ export default async function WritePage({
       actions={
         <OverflowDisclosure summary={SHELL.createAndImport}>
           <p className="row" style={{ flexWrap: "wrap", gap: "0.5rem" }}>
-            <Link className="button-link secondary" href={`${base}/read`}>
+            <ButtonLink variant="secondary" href={`${base}/read`}>
               {NAV.readBook}
-            </Link>
-            <Link className="button-link secondary" href={`${base}/import-chapters`}>
+            </ButtonLink>
+            <ButtonLink variant="secondary" href={`${base}/import-chapters`}>
               {NAV.importChapters}
-            </Link>
+            </ButtonLink>
           </p>
         </OverflowDisclosure>
       }

@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { CopyButton } from "@/components/CopyButton";
 import { ResultSummary } from "@/components/PackagePreview";
+import { Banner } from "@/components/ui/Banner";
+import { ButtonLink } from "@/components/ui/ButtonLink";
 import type { ProposalView } from "@/server/services/assistantProposalService";
 import { ASSISTANT } from "@/ui/labels";
 import { reviewRecords, validationState } from "@/ui/packageReview";
@@ -26,9 +28,9 @@ export function ProposalCard({ projectId, proposal }: { projectId: string; propo
 
       {result ? (
         <>
-          <div className="banner ok">
+          <Banner tone="ok">
             {ASSISTANT.proposalApplied} <Link href={`/projects/${projectId}/history`}>History &amp; review</Link>
-          </div>
+          </Banner>
           <ResultSummary result={result} projectId={projectId} />
         </>
       ) : preview ? (
@@ -45,9 +47,7 @@ export function ProposalCard({ projectId, proposal }: { projectId: string; propo
             ))}
           </ul>
           <div>
-            <Link className="button-link" href={reviewHref}>
-              {ASSISTANT.reviewProposal}
-            </Link>
+            <ButtonLink href={reviewHref}>{ASSISTANT.reviewProposal}</ButtonLink>
           </div>
         </>
       ) : null}

@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { ButtonLink } from "@/components/ui/ButtonLink";
 import { WORKSPACE_TOOLS } from "@/ui/labels";
 
 /** Concise chooser so authors can tell map / board / plot grid apart without Help. */
@@ -47,9 +47,9 @@ export function WorkspaceToolsChooser({
                 {item.hint}
               </p>
             </div>
-            <Link className={emphasize === item.key ? "button-link" : "button-link secondary"} href={item.href}>
+            <ButtonLink variant={emphasize === item.key ? "primary" : "secondary"} href={item.href}>
               {item.cta}
-            </Link>
+            </ButtonLink>
           </li>
         ))}
       </ul>

@@ -345,9 +345,9 @@ export function WriteAssistantRail({
             ))}
           </select>
         </label>
-        <button
+        <Button
           type="button"
-          className="small-button"
+          size="sm"
           disabled={pending || live !== null}
           onClick={() => {
             startTransition(async () => {
@@ -361,7 +361,7 @@ export function WriteAssistantRail({
           }}
         >
           {ASSISTANT.newConversation}
-        </button>
+        </Button>
       </div>
 
       <div className="assistant-scope-row">
@@ -385,12 +385,12 @@ export function WriteAssistantRail({
           <p className="small muted">{ASSISTANT.conversationSummaryHint}</p>
           <textarea rows={4} value={summary} onChange={(e) => setSummary(e.target.value)} aria-label={ASSISTANT.conversationSummary} />
           <div className="row">
-            <button type="button" className="small-button" disabled={pending} onClick={saveMemory}>
+            <Button type="button" size="sm" disabled={pending} onClick={saveMemory}>
               {ASSISTANT.saveSummary}
-            </button>
-            <button type="button" className="small-button" onClick={() => setMemoryOpen(false)}>
+            </Button>
+            <Button type="button" size="sm" onClick={() => setMemoryOpen(false)}>
               {ASSISTANT.cancel}
-            </button>
+            </Button>
           </div>
         </div>
       ) : null}

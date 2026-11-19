@@ -7,6 +7,7 @@ import { IssueList } from "@/components/IssueList";
 import type { Issue } from "@/domain/issues";
 import { WORLD } from "@/ui/labels";
 import { createWorldMapAction } from "./actions";
+import { ButtonLink } from "@/components/ui/ButtonLink";
 
 export function CreateMapForm({
   projectId,
@@ -28,9 +29,9 @@ export function CreateMapForm({
         <p className="muted" style={{ margin: 0 }}>
           {WORLD.mapsNeedImage}
         </p>
-        <Link className="button-link" href={worldHref}>
+        <ButtonLink href={worldHref}>
           {WORLD.mapsBrowseWorld}
-        </Link>
+        </ButtonLink>
       </div>
     );
   }

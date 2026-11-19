@@ -2310,6 +2310,14 @@ Restore WeaveCanvas / WeavePlotGrid / globals.css / labels / Help / page props f
 - First consumers: `ActionChip`, `CopyButton`, Write assistant Send/Stop/Attach, `ProposalSummaryCard` review link via `buttonVariants`.
 - Restart `pnpm dev` after PostCSS config changes.
 
+### Batch A migration (Nov 19, 2026)
+
+- Added `ButtonLink` / `ButtonAnchor` and `Banner` (CVA).
+- Migrated `ConfirmAction` / `ActionButton` to `Button` + `Banner`.
+- Migrated high-reuse call sites: DraftControls, BookOrder, ConversationControls, FindRelevantContext, ManuscriptTree actions, ProjectOnboarding, ContinueWriting, WorkspaceToolsChooser, writing tools (Proofreader / FindReplace / SpellingPanel / EditorToolbar link form / TextAppearanceMenu), PackageReview / ProposalCard, ReferenceView + plan/write/world page CTAs, Restore/Import banners.
+- `pnpm exec tsc --noEmit` pass.
+- Remaining: WriteContext / Weave / Board canvases / DictionaryManager (Batch B); leave shell nav and plot-grid CSS.
+
 ## Shared UI primitives from assistant rail (Nov 19, 2026)
 
 Extracted reusable pieces for app-wide use:
@@ -2369,3 +2377,7 @@ Requested: drag-and-drop beats on the plot grid; tasteful app-wide motion withou
 
 ### Rollback
 Revert `weaveService` relocate helper + action, `WeavePlotGrid` DnD, `globals.css` motion block, labels/Help/PROGRESS. No schema migration.
+
+## Dev and start port 2112 (Nov 19, 2026)
+
+`pnpm dev` and `pnpm start` listen on `127.0.0.1:2112`. Passing `-p` turns off Next.js’s free-port fallback, so a taken port fails instead of moving to 2113. Help, README, and the upgrade baseline match that address.

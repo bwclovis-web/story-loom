@@ -2,7 +2,7 @@ import Link from "next/link";
 import { HelpHint } from "@/components/HelpHint";
 import { getDb } from "@/server/db";
 import { listBoards } from "@/server/services/boardService";
-import { WorkspaceToolsChooser } from "@/components/shell/WorkspaceToolsChooser";
+import { WorldSurfaceNav } from "@/components/world/WorldSurfaceNav";
 import { SHELL, WORLD } from "@/ui/labels";
 import { CreateBoardForm } from "./CreateBoardForm";
 
@@ -29,7 +29,7 @@ export default async function WorldBoardsPage({ params }: { params: Promise<{ pr
         <h1>{WORLD.boards}</h1>
       </div>
       <p className="page-lead">{WORLD.boardsLead}</p>
-      <WorkspaceToolsChooser projectId={projectId} emphasize="board" />
+      <WorldSurfaceNav projectId={projectId} current="boards" />
       <HelpHint anchor="world-boards" topic="World boards">
         Boards are optional. Removing a card only removes it from that board. Ask about this board previews linked
         records before opening the assistant.

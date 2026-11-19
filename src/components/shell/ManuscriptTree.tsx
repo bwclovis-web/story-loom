@@ -10,6 +10,7 @@ import { buildManuscriptTree, chapterOf, filterManuscriptTree, type TreeScene } 
 import type { RecordNavEntry } from "@/ui/navigation";
 import { ChevronRightIcon, PlusIcon, SearchIcon } from "./icons";
 import { confirmLeave } from "./unsaved";
+import { Button } from "@/components/ui/Button";
 
 export function ManuscriptTree({
   projectId,
@@ -64,26 +65,26 @@ export function ManuscriptTree({
           {WRITE.manuscript}
         </p>
         <div className="tree-actions">
-          <button
+          <Button
             type="button"
-            className="secondary small-button"
+            variant="secondary" size="sm"
             aria-expanded={creating === "chapter"}
             aria-controls={`${idPrefix}-create`}
             onClick={() => setCreating(creating === "chapter" ? null : "chapter")}
           >
             <PlusIcon />
             {WRITE.newChapter}
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
-            className="secondary small-button"
+            variant="secondary" size="sm"
             aria-expanded={creating === "scene"}
             aria-controls={`${idPrefix}-create`}
             onClick={() => setCreating(creating === "scene" ? null : "scene")}
           >
             <PlusIcon />
             {WRITE.newScene}
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -217,9 +218,9 @@ function CreateForm({
     return (
       <div className="tree-create">
         <p className="hint">{WRITE.needsChapter}</p>
-        <button type="button" className="secondary small-button" onClick={onDone}>
+        <Button type="button" variant="secondary" size="sm" onClick={onDone}>
           {WRITE.cancel}
-        </button>
+        </Button>
       </div>
     );
   }
@@ -279,12 +280,12 @@ function CreateForm({
         </ul>
       ) : null}
       <div className="row">
-        <button type="submit" className="small-button" disabled={pending}>
+        <Button type="submit" size="sm" disabled={pending}>
           {pending ? WRITE.creating : WRITE.create}
-        </button>
-        <button type="button" className="secondary small-button" onClick={onDone}>
+        </Button>
+        <Button type="button" variant="secondary" size="sm" onClick={onDone}>
           {WRITE.cancel}
-        </button>
+        </Button>
       </div>
     </form>
   );

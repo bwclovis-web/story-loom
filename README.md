@@ -18,17 +18,16 @@ Requires Node 24+ and pnpm 10+.
 cp .env.example .env  # DATABASE_URL="file:./prisma/dev.db"
 pnpm install          # also generates the Prisma client
 pnpm db:setup         # back up (if a DB exists), apply migrations, generate client, seed the demo project
-pnpm dev              # http://127.0.0.1:3000 (bound to localhost only)
+pnpm dev              # http://127.0.0.1:2112 (bound to localhost only)
 ```
 
-If port 3000 is taken, `pnpm dev` moves to the next free port (3001 to 3010,
-Next.js's own fallback) and prints the address it used. Setting `PORT` or
-passing `-p` fixes the port and turns the fallback off. `pnpm start` always
-uses 3000. Browser cookies (navigation and panel layout) are shared between
-ports on 127.0.0.1, so the layout carries over. The fallback does not help when
-the port is held by another `pnpm dev` for this same folder: Next.js allows one
-dev server per folder, prints that server's address and PID, and exits. Use
-the running server, or stop it (Ctrl+C in its terminal) and start again.
+`pnpm dev` and `pnpm start` listen on port 2112. If that port is taken, the
+process exits and prints the error instead of moving to another port. Browser
+cookies (navigation and panel layout) are shared between ports on 127.0.0.1,
+so a layout saved on another port still applies. Next.js allows one dev server
+per folder: if one is already running, it prints that server's address and PID
+and exits. Use the running server, or stop it (Ctrl+C in its terminal) and
+start again.
 
 `pnpm db:setup` is safe to re-run. It never deletes data, and the demo seed
 skips itself if the demo workspace already exists.

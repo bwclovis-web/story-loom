@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { helpHref, type HelpAnchor } from "@/help/outline";
+import { Button } from "@/components/ui/Button";
+import { ButtonLink } from "@/components/ui/ButtonLink";
 import { ONBOARDING } from "@/ui/labels";
 import {
   ONBOARDING_COOKIE,
@@ -124,9 +126,9 @@ export function ProjectOnboarding({ projectId }: { projectId: string }) {
   if (state.kind === "paused") {
     return (
       <div className="onboarding-chip row" role="status">
-        <button type="button" className="small-button" onClick={() => setWalk({ kind: "open", step: stepIndex })}>
+        <Button type="button" size="sm" onClick={() => setWalk({ kind: "open", step: stepIndex })}>
           {ONBOARDING.resume}
-        </button>
+        </Button>
         <span className="small muted">{ONBOARDING.progress(stepIndex + 1, STEPS.length)}</span>
         <button type="button" className="linkish small" onClick={() => setWalk({ kind: "dismissed" })}>
           {ONBOARDING.dismiss}
@@ -147,16 +149,16 @@ export function ProjectOnboarding({ projectId }: { projectId: string }) {
           </p>
         </div>
         <div className="row" style={{ gap: "0.5rem", flexWrap: "wrap" }}>
-          <button
+          <Button
             type="button"
-            className="secondary small-button"
+            variant="secondary" size="sm"
             onClick={() => setWalk({ kind: "paused", step: stepIndex })}
           >
             {ONBOARDING.skip}
-          </button>
-          <button type="button" className="secondary small-button" onClick={() => setWalk({ kind: "dismissed" })}>
+          </Button>
+          <Button type="button" variant="secondary" size="sm" onClick={() => setWalk({ kind: "dismissed" })}>
             {ONBOARDING.dismiss}
-          </button>
+          </Button>
         </div>
       </div>
       <p className="small muted">{ONBOARDING.lead}</p>
@@ -165,15 +167,13 @@ export function ProjectOnboarding({ projectId }: { projectId: string }) {
         <h3 id="walkthrough-task-title">{step.title}</h3>
         <p>{step.hint}</p>
         <div className="row walkthrough-actions">
-          <Link className="button-link" href={step.href(base)}>
-            {ONBOARDING.openTask}
-          </Link>
-          <button type="button" className="small-button" onClick={advance}>
+          <ButtonLink href={step.href(base)}>{ONBOARDING.openTask}</ButtonLink>
+          <Button type="button" size="sm" onClick={advance}>
             {isLast ? ONBOARDING.finish : ONBOARDING.next}
-          </button>
-          <button type="button" className="secondary small-button" onClick={advance}>
+          </Button>
+          <Button type="button" variant="secondary" size="sm" onClick={advance}>
             {ONBOARDING.skipTask}
-          </button>
+          </Button>
           <Link className="small" href={helpHref(step.help)}>
             {ONBOARDING.howTo}
           </Link>

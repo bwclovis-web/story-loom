@@ -14,6 +14,7 @@ import {
 import { WRITING } from "@/ui/labels";
 import { ProtectionTick } from "./ProtectionTick";
 import { applyTextareaEdit, selectRange } from "./textareaEdit";
+import { Button } from "@/components/ui/Button";
 
 interface DirectUndo {
   inverse: TextEdit;
@@ -153,12 +154,12 @@ export function FindReplace({
             }} />
           {WRITING.matchCase}
         </label>
-        <button type="button" className="secondary" onClick={() => go("previous")} disabled={matches.length === 0}>
+        <Button type="button" variant="secondary" onClick={() => go("previous")} disabled={matches.length === 0}>
           {WRITING.previous}
-        </button>
-        <button type="button" className="secondary" onClick={() => go("next")} disabled={matches.length === 0}>
+        </Button>
+        <Button type="button" variant="secondary" onClick={() => go("next")} disabled={matches.length === 0}>
           {WRITING.next}
-        </button>
+        </Button>
         <span className="small muted" aria-live="polite">
           {status}
         </span>
@@ -173,16 +174,16 @@ export function FindReplace({
             onKeyDown={onReplaceKey}
           />
         </label>
-        <button type="button" className="secondary" onClick={replaceOne} disabled={disabledReplace}>
+        <Button type="button" variant="secondary" onClick={replaceOne} disabled={disabledReplace}>
           {WRITING.replace}
-        </button>
-        <button type="button" className="secondary" onClick={replaceAll} disabled={disabledReplace}>
+        </Button>
+        <Button type="button" variant="secondary" onClick={replaceAll} disabled={disabledReplace}>
           {WRITING.replaceAll}
-        </button>
+        </Button>
         {directUndo.length > 0 ? (
-          <button type="button" className="secondary" onClick={undoDirect}>
+          <Button type="button" variant="secondary" onClick={undoDirect}>
             {WRITING.undoReplacement}
-          </button>
+          </Button>
         ) : null}
         <span className="small muted" aria-live="polite">
           {message}

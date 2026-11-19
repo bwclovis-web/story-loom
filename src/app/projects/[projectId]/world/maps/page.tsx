@@ -6,7 +6,7 @@ import { listRecords } from "@/server/services/recordService";
 import { listWorldMaps } from "@/server/services/worldMapService";
 import { isLinkableReferenceType } from "@/domain/recordTypes";
 import { isWorldType } from "@/ui/world";
-import { WorkspaceToolsChooser } from "@/components/shell/WorkspaceToolsChooser";
+import { WorldSurfaceNav } from "@/components/world/WorldSurfaceNav";
 import { SHELL, WORLD } from "@/ui/labels";
 import { CreateMapForm } from "./CreateMapForm";
 
@@ -44,7 +44,7 @@ export default async function WorldMapsPage({ params }: { params: Promise<{ proj
         <h1>{WORLD.maps}</h1>
       </header>
       <p className="page-lead">{WORLD.mapsLead}</p>
-      <WorkspaceToolsChooser projectId={projectId} emphasize="map" />
+      <WorldSurfaceNav projectId={projectId} current="maps" />
       <HelpHint anchor="world-maps" topic="World maps">
         Selecting a pin opens that place in the context rail. Moving pins never creates place relationships.
       </HelpHint>

@@ -53,10 +53,14 @@ export function filterWorldTitles(records: readonly RecordNavEntry[], query: str
   );
 }
 
-export function worldHref(projectId: string, params: { type?: WorldType | null; q?: string | null } = {}): string {
+export function worldHref(
+  projectId: string,
+  params: { type?: WorldType | null; q?: string | null; list?: boolean } = {},
+): string {
   const search = new URLSearchParams();
   if (params.type) search.set("type", params.type);
   if (params.q?.trim()) search.set("q", params.q.trim());
+  if (params.list) search.set("list", "1");
   const qs = search.toString();
   return `/projects/${encodeURIComponent(projectId)}/world${qs ? `?${qs}` : ""}`;
 }

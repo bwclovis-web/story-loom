@@ -16,6 +16,7 @@ import type { ProofreadResult } from "@/server/services/proofreadService";
 import { PROOFREAD } from "@/ui/labels";
 import { ProtectionTick } from "./ProtectionTick";
 import { applyTextareaEdit, selectRange } from "./textareaEdit";
+import { Button } from "@/components/ui/Button";
 
 export interface ProofreadConfig {
   configured: boolean;
@@ -266,20 +267,20 @@ export function Proofreader({
         {PROOFREAD.privacyNote}
       </HelpHint>
       <div className="row">
-        <button type="button" className="secondary" onClick={() => void start(selection)} disabled={!!busy || !hasSelection || dirty || selectionOver}>
+        <Button type="button" variant="secondary" onClick={() => void start(selection)} disabled={!!busy || !hasSelection || dirty || selectionOver}>
           {PROOFREAD.proofreadSelection}
-        </button>
-        <button type="button" className="secondary" onClick={() => void start(null)} disabled={!!busy || dirty || documentOver}>
+        </Button>
+        <Button type="button" variant="secondary" onClick={() => void start(null)} disabled={!!busy || dirty || documentOver}>
           {PROOFREAD.proofreadDocument}
-        </button>
+        </Button>
         {busy ? (
           <>
             <span className="small" aria-live="polite">
               {PROOFREAD.running}
             </span>
-            <button type="button" className="secondary" onClick={() => void cancel()}>
+            <Button type="button" variant="secondary" onClick={() => void cancel()}>
               {PROOFREAD.cancel}
-            </button>
+            </Button>
           </>
         ) : (
           <span className="small muted">
@@ -359,28 +360,28 @@ export function Proofreader({
               {currentLoc.status === "stale" ? <p className="small muted">{PROOFREAD.staleNote}</p> : null}
               <div className="row">
                 {currentLoc.status === "accepted" ? (
-                  <button type="button" className="secondary" onClick={() => undo(index)} disabled={!editable}>
+                  <Button type="button" variant="secondary" onClick={() => undo(index)} disabled={!editable}>
                     {PROOFREAD.undo}
-                  </button>
+                  </Button>
                 ) : (
                   <>
-                    <button type="button" onClick={() => accept(index)} disabled={!editable || currentLoc.status !== "open"}>
+                    <Button type="button" onClick={() => accept(index)} disabled={!editable || currentLoc.status !== "open"}>
                       {PROOFREAD.accept}
-                    </button>
-                    <button type="button" className="secondary" onClick={() => dismiss(index)} disabled={currentLoc.status !== "open"}>
+                    </Button>
+                    <Button type="button" variant="secondary" onClick={() => dismiss(index)} disabled={currentLoc.status !== "open"}>
                       {PROOFREAD.dismiss}
-                    </button>
+                    </Button>
                   </>
                 )}
-                <button type="button" className="secondary" onClick={() => show(index)} disabled={!currentLoc.range}>
+                <Button type="button" variant="secondary" onClick={() => show(index)} disabled={!currentLoc.range}>
                   {PROOFREAD.showInText}
-                </button>
-                <button type="button" className="secondary" onClick={() => step(-1)} disabled={result.suggestions.length < 2}>
+                </Button>
+                <Button type="button" variant="secondary" onClick={() => step(-1)} disabled={result.suggestions.length < 2}>
                   {PROOFREAD.previous}
-                </button>
-                <button type="button" className="secondary" onClick={() => step(1)} disabled={result.suggestions.length < 2}>
+                </Button>
+                <Button type="button" variant="secondary" onClick={() => step(1)} disabled={result.suggestions.length < 2}>
                   {PROOFREAD.next}
-                </button>
+                </Button>
               </div>
             </div>
           ) : null}
@@ -409,9 +410,9 @@ export function Proofreader({
               : "No token usage recorded."}
           </p>
           <div>
-            <button
+            <Button
               type="button"
-              className="secondary"
+              variant="secondary"
               onClick={() => {
                 setRun(null);
                 setDecisions({});
@@ -419,7 +420,7 @@ export function Proofreader({
               }}
             >
               {PROOFREAD.clear}
-            </button>
+            </Button>
           </div>
         </div>
       ) : message ? (

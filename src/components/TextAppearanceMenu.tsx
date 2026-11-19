@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 import { writePreference } from "@/components/shell/preferences";
+import { Button } from "@/components/ui/Button";
 import { TEXT_APPEARANCE } from "@/ui/labels";
 import {
   DEFAULT_TEXT_APPEARANCE,
@@ -94,9 +95,9 @@ export function TextAppearanceMenu({ align = "right" }: { align?: "left" | "righ
         <p className="text-sample" style={{ fontFamily: fontStack(pref.font) }}>
           {TEXT_APPEARANCE.sample}
         </p>
-        <button type="button" className="secondary small-button" onClick={() => update(DEFAULT_TEXT_APPEARANCE)}>
+        <Button type="button" variant="secondary" size="sm" onClick={() => update(DEFAULT_TEXT_APPEARANCE)}>
           {TEXT_APPEARANCE.reset}
-        </button>
+        </Button>
         <p className="small muted">{TEXT_APPEARANCE.note}</p>
       </div>
     </div>

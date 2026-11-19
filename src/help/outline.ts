@@ -211,7 +211,7 @@ export const HELP_ROUTES = [
   "/projects/[projectId]/upgrade",
 ] as const;
 
-export const APP_URL = "http://127.0.0.1:3000";
+export const APP_URL = "http://127.0.0.1:2112";
 
 export const STATUS_DESCRIPTIONS: Record<AuthorityStatus, string> = {
   draft: "Working material. Not settled.",

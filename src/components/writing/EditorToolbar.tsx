@@ -14,6 +14,7 @@ import {
   SpellcheckIcon,
   UndoIcon,
 } from "@/components/shell/icons";
+import { Button } from "@/components/ui/Button";
 import { WRITE } from "@/ui/labels";
 import {
   blockState,
@@ -393,12 +394,12 @@ function LinkForm({
         {WRITE.linkText}
         <input type="text" value={label} onChange={(e) => setLabel(e.target.value)} />
       </label>
-      <button type="button" className="small-button" onClick={submit} disabled={!url.trim()}>
+      <Button type="button" size="sm" onClick={submit} disabled={!url.trim()}>
         {WRITE.insertLink}
-      </button>
-      <button type="button" className="secondary small-button" onClick={onClose}>
+      </Button>
+      <Button type="button" variant="secondary" size="sm" onClick={onClose}>
         {WRITE.cancel}
-      </button>
+      </Button>
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import type { FindContextCandidate, FindRelevantContextResult } from "@/server/services/findRelevantContextService";
 import { ASSISTANT } from "@/ui/labels";
 import { findRelevantContextAction } from "./actions";
+import { Button } from "@/components/ui/Button";
 
 export interface FindSelectionApply {
   selectedRefs: string[];
@@ -110,9 +111,9 @@ export function FindRelevantContext({
   return (
     <section className="stack find-relevant" aria-label={ASSISTANT.findRelevantContext}>
       <div className="row" style={{ flexWrap: "wrap", gap: "0.5rem" }}>
-        <button type="button" className="secondary small-button" disabled={disabled || pending} onClick={run}>
+        <Button type="button" variant="secondary" size="sm" disabled={disabled || pending} onClick={run}>
           {pending ? ASSISTANT.findRelevantRunning : ASSISTANT.findRelevantContext}
-        </button>
+        </Button>
         <label className="inline small">
           <input type="checkbox" checked={includeZero} onChange={(e) => setIncludeZero(e.target.checked)} disabled={disabled || pending} />
           {ASSISTANT.includePinnedZeroDraft}
@@ -150,17 +151,17 @@ export function FindRelevantContext({
                     {c.previewText.length > 4000 ? "…" : ""}
                   </pre>
                   <div className="row">
-                    <button type="button" className="secondary small-button" onClick={() => remove(c.recordId)}>
+                    <Button type="button" variant="secondary" size="sm" onClick={() => remove(c.recordId)}>
                       {ASSISTANT.findRelevantRemove}
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                       type="button"
-                      className="secondary small-button"
+                      variant="secondary" size="sm"
                       onClick={() => setReplacingId(replacingId === c.recordId ? null : c.recordId)}
                       disabled={!pool.length && replacingId !== c.recordId}
                     >
                       {ASSISTANT.findRelevantReplace}
-                    </button>
+                    </Button>
                   </div>
                   {replacingId === c.recordId ? (
                     <div className="stack">
@@ -180,9 +181,9 @@ export function FindRelevantContext({
               ))}
             </ul>
           )}
-          <button type="button" className="small-button" disabled={!chosen.length} onClick={confirm}>
+          <Button type="button" size="sm" disabled={!chosen.length} onClick={confirm}>
             {ASSISTANT.findRelevantConfirm}
-          </button>
+          </Button>
         </div>
       ) : null}
     </section>

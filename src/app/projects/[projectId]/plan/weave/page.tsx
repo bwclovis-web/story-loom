@@ -4,6 +4,7 @@ import { getDb } from "@/server/db";
 import { listWeaveGrids, listWeaveTemplates, WEAVE_VIEW_KINDS, WEAVE_VIEW_LABELS } from "@/server/services/weaveService";
 import { SHELL, WEAVE } from "@/ui/labels";
 import { CreateWeaveGridForm } from "./CreateWeaveGridForm";
+import { ButtonLink } from "@/components/ui/ButtonLink";
 
 export const dynamic = "force-dynamic";
 
@@ -36,9 +37,9 @@ export default async function WeaveIndexPage({ params }: { params: Promise<{ pro
 
       {primaryGrid ? (
         <p className="row" style={{ flexWrap: "wrap", gap: "0.75rem", marginBottom: "1rem" }}>
-          <Link className="button-link" href={`${base}/plan/weave/${encodeURIComponent(primaryGrid.id)}`}>
+          <ButtonLink href={`${base}/plan/weave/${encodeURIComponent(primaryGrid.id)}`}>
             {WEAVE.openGrid}: {primaryGrid.title}
-          </Link>
+          </ButtonLink>
         </p>
       ) : null}
 
