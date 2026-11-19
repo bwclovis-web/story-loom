@@ -15,6 +15,7 @@ import { snapshotHash, snapshotOf, type RecordSnapshot } from "@/domain/records"
 import { allowedParent, isLinkableReferenceType, isManuscriptType, requiresParent } from "@/domain/recordTypes";
 import { Prisma } from "@/generated/prisma/client";
 import { parseStoredPoints } from "@/world/mapGeometry";
+import { orderGraphHasCycle } from "@/world/storyOrder";
 import { validateDictionaryWord, wordKey } from "@/spelling/dictionary";
 import type { Db, DbOrTx, Tx } from "../db";
 import { writeAudit } from "./auditService";
@@ -119,6 +120,26 @@ function weaveTemplatesOf(b: WorkspaceBackupV1) {
 
 function weaveTemplateBeatsOf(b: WorkspaceBackupV1) {
   return b.weaveTemplateBeats ?? [];
+}
+
+function sceneLocationsOf(b: WorkspaceBackupV1) {
+  return b.sceneLocations ?? [];
+}
+
+function storyEventsOf(b: WorkspaceBackupV1) {
+  return b.storyEvents ?? [];
+}
+function storyEventLocationsOf(b: WorkspaceBackupV1) {
+  return b.storyEventLocations ?? [];
+}
+function storyEventScenesOf(b: WorkspaceBackupV1) {
+  return b.storyEventScenes ?? [];
+}
+function storyEventOrdersOf(b: WorkspaceBackupV1) {
+  return b.storyEventOrders ?? [];
+}
+function storyEventEvidenceOf(b: WorkspaceBackupV1) {
+  return b.storyEventEvidence ?? [];
 }
 
 function establishedFactsOf(b: WorkspaceBackupV1) {
@@ -491,6 +512,55 @@ async function weaveTemplateBeatRows(db: DbOrTx, templateIds: string[]) {
   }
 }
 
+async function sceneLocationRows(db: DbOrTx, projectIds: string[]) {
+  if (!("sceneLocation" in db) || !(db as { sceneLocation?: { findMany: unknown } }).sceneLocation) return [];
+  try {
+    return await db.sceneLocation.findMany({
+      where: { projectId: { in: projectIds } },
+      orderBy: [{ projectId: "asc" }, { id: "asc" }],
+    });
+  } catch (error) {
+    if (isMissingSchemaError(error, "P2021")) return [];
+    throw error;
+  }
+}
+
+async function storyRows<T>(db: DbOrTx, key: string, load: () => Promise<T[]>): Promise<T[]> {
+  if (!(key in db) || !(db as Record<string, { findMany?: unknown } | undefined>)[key]) return [];
+  try {
+    return await load();
+  } catch (error) {
+    if (isMissingSchemaError(error, "P2021")) return [];
+    throw error;
+  }
+}
+
+async function storyEventRows(db: DbOrTx, projectIds: string[]) {
+  return storyRows(db, "storyEvent", () =>
+    db.storyEvent.findMany({ where: { projectId: { in: projectIds } }, orderBy: [{ projectId: "asc" }, { id: "asc" }] }),
+  );
+}
+async function storyEventLocationRows(db: DbOrTx, projectIds: string[]) {
+  return storyRows(db, "storyEventLocation", () =>
+    db.storyEventLocation.findMany({ where: { projectId: { in: projectIds } }, orderBy: [{ projectId: "asc" }, { id: "asc" }] }),
+  );
+}
+async function storyEventSceneRows(db: DbOrTx, projectIds: string[]) {
+  return storyRows(db, "storyEventScene", () =>
+    db.storyEventScene.findMany({ where: { projectId: { in: projectIds } }, orderBy: [{ projectId: "asc" }, { id: "asc" }] }),
+  );
+}
+async function storyEventOrderRows(db: DbOrTx, projectIds: string[]) {
+  return storyRows(db, "storyEventOrder", () =>
+    db.storyEventOrder.findMany({ where: { projectId: { in: projectIds } }, orderBy: [{ projectId: "asc" }, { id: "asc" }] }),
+  );
+}
+async function storyEventEvidenceRows(db: DbOrTx, projectIds: string[]) {
+  return storyRows(db, "storyEventEvidence", () =>
+    db.storyEventEvidence.findMany({ where: { projectId: { in: projectIds } }, orderBy: [{ projectId: "asc" }, { id: "asc" }] }),
+  );
+}
+
 async function establishedFactRows(db: DbOrTx, projectIds: string[]) {
   if (!("establishedFact" in db) || !(db as { establishedFact?: { findMany: unknown } }).establishedFact) return [];
   try {
@@ -705,6 +775,12 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
     worldMaps,
     worldMapPins,
     placeRelations,
+    sceneLocations,
+    storyEvents,
+    storyEventLocations,
+    storyEventScenes,
+    storyEventOrders,
+    storyEventEvidence,
     weaveGrids,
     weaveThreads,
     weaveBeats,
@@ -735,6 +811,12 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
     worldMapRows(db, projectIds),
     worldMapPinRows(db, projectIds),
     placeRelationRows(db, projectIds),
+    sceneLocationRows(db, projectIds),
+    storyEventRows(db, projectIds),
+    storyEventLocationRows(db, projectIds),
+    storyEventSceneRows(db, projectIds),
+    storyEventOrderRows(db, projectIds),
+    storyEventEvidenceRows(db, projectIds),
     weaveGridRows(db, projectIds),
     weaveThreadRows(db, projectIds),
     weaveBeatRows(db, projectIds),
@@ -1023,6 +1105,84 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
           })),
         }
       : {}),
+    ...(sceneLocations.length
+      ? {
+          sceneLocations: sceneLocations.map((s) => ({
+            id: s.id,
+            projectId: s.projectId,
+            manuscriptRecordId: s.manuscriptRecordId,
+            locationRecordId: s.locationRecordId,
+            ...(s.isPrimary ? { isPrimary: true as const } : {}),
+            createdAt: iso(s.createdAt),
+          })),
+        }
+      : {}),
+    ...(storyEvents.length
+      ? {
+          storyEvents: storyEvents.map((event) => ({
+            id: event.id,
+            projectId: event.projectId,
+            title: event.title,
+            ...(event.summary ? { summary: event.summary } : {}),
+            ...(event.timeLabel ? { timeLabel: event.timeLabel } : {}),
+            ...(event.planned ? { planned: true as const } : {}),
+            ...(event.draftScope !== "all" ? { draftScope: event.draftScope } : {}),
+            createdAt: iso(event.createdAt),
+            updatedAt: iso(event.updatedAt),
+          })),
+        }
+      : {}),
+    ...(storyEventLocations.length
+      ? {
+          storyEventLocations: storyEventLocations.map((row) => ({
+            id: row.id,
+            eventId: row.eventId,
+            projectId: row.projectId,
+            locationRecordId: row.locationRecordId,
+            createdAt: iso(row.createdAt),
+          })),
+        }
+      : {}),
+    ...(storyEventScenes.length
+      ? {
+          storyEventScenes: storyEventScenes.map((row) => ({
+            id: row.id,
+            eventId: row.eventId,
+            projectId: row.projectId,
+            manuscriptRecordId: row.manuscriptRecordId,
+            createdAt: iso(row.createdAt),
+          })),
+        }
+      : {}),
+    ...(storyEventOrders.length
+      ? {
+          storyEventOrders: storyEventOrders.map((row) => ({
+            id: row.id,
+            projectId: row.projectId,
+            earlierEventId: row.earlierEventId,
+            laterEventId: row.laterEventId,
+            createdAt: iso(row.createdAt),
+          })),
+        }
+      : {}),
+    ...(storyEventEvidence.length
+      ? {
+          storyEventEvidence: storyEventEvidence.map((row) => ({
+            id: row.id,
+            eventId: row.eventId,
+            projectId: row.projectId,
+            sourceRecordId: row.sourceRecordId,
+            revisionNumber: row.revisionNumber,
+            passageStart: row.passageStart,
+            passageEnd: row.passageEnd,
+            passageExcerpt: row.passageExcerpt,
+            contentHash: row.contentHash,
+            evidenceKind: row.evidenceKind as "planned" | "zero_draft" | "author_rewrite",
+            ...(row.needsRecheck ? { needsRecheck: true as const } : {}),
+            createdAt: iso(row.createdAt),
+          })),
+        }
+      : {}),
     ...(weaveGrids.length
       ? {
           weaveGrids: weaveGrids.map((g) => ({
@@ -1278,6 +1438,12 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
       ...(worldMaps.length ? { worldMaps: worldMaps.length } : {}),
       ...(worldMapPins.length ? { worldMapPins: worldMapPins.length } : {}),
       ...(placeRelations.length ? { placeRelations: placeRelations.length } : {}),
+      ...(sceneLocations.length ? { sceneLocations: sceneLocations.length } : {}),
+      ...(storyEvents.length ? { storyEvents: storyEvents.length } : {}),
+      ...(storyEventLocations.length ? { storyEventLocations: storyEventLocations.length } : {}),
+      ...(storyEventScenes.length ? { storyEventScenes: storyEventScenes.length } : {}),
+      ...(storyEventOrders.length ? { storyEventOrders: storyEventOrders.length } : {}),
+      ...(storyEventEvidence.length ? { storyEventEvidence: storyEventEvidence.length } : {}),
       ...(weaveGrids.length ? { weaveGrids: weaveGrids.length } : {}),
       ...(weaveThreads.length ? { weaveThreads: weaveThreads.length } : {}),
       ...(weaveBeats.length ? { weaveBeats: weaveBeats.length } : {}),
@@ -1352,6 +1518,12 @@ function checkInternalConsistency(b: WorkspaceBackupV1): Issue[] {
     worldMaps: worldMapsOf(b).length,
     worldMapPins: worldMapPinsOf(b).length,
     placeRelations: placeRelationsOf(b).length,
+    sceneLocations: sceneLocationsOf(b).length,
+    storyEvents: storyEventsOf(b).length,
+    storyEventLocations: storyEventLocationsOf(b).length,
+    storyEventScenes: storyEventScenesOf(b).length,
+    storyEventOrders: storyEventOrdersOf(b).length,
+    storyEventEvidence: storyEventEvidenceOf(b).length,
     weaveGrids: weaveGridsOf(b).length,
     weaveThreads: weaveThreadsOf(b).length,
     weaveBeats: weaveBeatsOf(b).length,
@@ -1420,6 +1592,32 @@ function checkInternalConsistency(b: WorkspaceBackupV1): Issue[] {
     "place relation triple",
     issues,
   );
+  checkUnique(sceneLocationsOf(b).map((s) => s.id), "scene location", issues);
+  checkUnique(
+    sceneLocationsOf(b).map((s) => `${s.manuscriptRecordId}/${s.locationRecordId}`),
+    "scene location pair",
+    issues,
+  );
+  checkUnique(storyEventsOf(b).map((event) => event.id), "story event", issues);
+  checkUnique(storyEventLocationsOf(b).map((row) => row.id), "story event location", issues);
+  checkUnique(
+    storyEventLocationsOf(b).map((row) => `${row.eventId}/${row.locationRecordId}`),
+    "story event location pair",
+    issues,
+  );
+  checkUnique(storyEventScenesOf(b).map((row) => row.id), "story event scene", issues);
+  checkUnique(
+    storyEventScenesOf(b).map((row) => `${row.eventId}/${row.manuscriptRecordId}`),
+    "story event scene pair",
+    issues,
+  );
+  checkUnique(storyEventOrdersOf(b).map((row) => row.id), "story event order", issues);
+  checkUnique(
+    storyEventOrdersOf(b).map((row) => `${row.earlierEventId}/${row.laterEventId}`),
+    "story event order pair",
+    issues,
+  );
+  checkUnique(storyEventEvidenceOf(b).map((row) => row.id), "story event evidence", issues);
   checkUnique(weaveGridsOf(b).map((x) => x.id), "weave grid", issues);
   checkUnique(weaveThreadsOf(b).map((x) => x.id), "weave thread", issues);
   checkUnique(weaveBeatsOf(b).map((x) => x.id), "weave beat", issues);
@@ -1630,6 +1828,115 @@ function checkInternalConsistency(b: WorkspaceBackupV1): Issue[] {
       if (type && !isLinkableReferenceType(type)) {
         issues.push(integrity(`Place relation ${r.id} must be between reference records.`));
       }
+    }
+  });
+  const primarySceneLocation = new Set<string>();
+  sceneLocationsOf(b).forEach((s) => {
+    needProject(s.projectId, `Scene location ${s.id}`);
+    if (!recordIds.has(s.manuscriptRecordId) || recordProject.get(s.manuscriptRecordId) !== s.projectId) {
+      issues.push(integrity(`Scene location ${s.id} references missing manuscript ${s.manuscriptRecordId}.`));
+    }
+    if (!recordIds.has(s.locationRecordId) || recordProject.get(s.locationRecordId) !== s.projectId) {
+      issues.push(integrity(`Scene location ${s.id} references missing location ${s.locationRecordId}.`));
+    }
+    const manuscriptType = recordType.get(s.manuscriptRecordId);
+    if (manuscriptType && !isManuscriptType(manuscriptType)) {
+      issues.push(integrity(`Scene location ${s.id} must be on a chapter or scene.`));
+    }
+    const locationType = recordType.get(s.locationRecordId);
+    if (locationType && !isLinkableReferenceType(locationType)) {
+      issues.push(integrity(`Scene location ${s.id} must point at a reference record.`));
+    }
+    if (s.isPrimary) {
+      if (primarySceneLocation.has(s.manuscriptRecordId)) {
+        issues.push(integrity(`Scene location ${s.id} is a second primary for ${s.manuscriptRecordId}.`));
+      }
+      primarySceneLocation.add(s.manuscriptRecordId);
+    }
+  });
+  const storyEventIds = new Set(storyEventsOf(b).map((event) => event.id));
+  const storyEventProject = new Map(storyEventsOf(b).map((event) => [event.id, event.projectId]));
+  storyEventsOf(b).forEach((event) => {
+    needProject(event.projectId, `Story event ${event.id}`);
+    const scope = event.draftScope ?? "all";
+    if (scope !== "all" && scope !== "unscoped" && (!draftIds.has(scope) || draftProject.get(scope) !== event.projectId)) {
+      issues.push(integrity(`Story event ${event.id} names a draft that is not in the backup.`));
+    }
+  });
+  storyEventLocationsOf(b).forEach((row) => {
+    needProject(row.projectId, `Story event location ${row.id}`);
+    if (!storyEventIds.has(row.eventId) || storyEventProject.get(row.eventId) !== row.projectId) {
+      issues.push(integrity(`Story event location ${row.id} references missing event ${row.eventId}.`));
+    }
+    if (!recordIds.has(row.locationRecordId) || recordProject.get(row.locationRecordId) !== row.projectId) {
+      issues.push(integrity(`Story event location ${row.id} references missing record ${row.locationRecordId}.`));
+    }
+    const locationType = recordType.get(row.locationRecordId);
+    if (locationType && !isLinkableReferenceType(locationType)) {
+      issues.push(integrity(`Story event location ${row.id} must point at a reference record.`));
+    }
+  });
+  storyEventScenesOf(b).forEach((row) => {
+    needProject(row.projectId, `Story event scene ${row.id}`);
+    if (!storyEventIds.has(row.eventId) || storyEventProject.get(row.eventId) !== row.projectId) {
+      issues.push(integrity(`Story event scene ${row.id} references missing event ${row.eventId}.`));
+    }
+    if (!recordIds.has(row.manuscriptRecordId) || recordProject.get(row.manuscriptRecordId) !== row.projectId) {
+      issues.push(integrity(`Story event scene ${row.id} references missing manuscript ${row.manuscriptRecordId}.`));
+    }
+    const manuscriptType = recordType.get(row.manuscriptRecordId);
+    if (manuscriptType && (manuscriptType !== "manuscript_chapter" && manuscriptType !== "manuscript_scene")) {
+      issues.push(integrity(`Story event scene ${row.id} must be a chapter or scene.`));
+    }
+  });
+  storyEventOrdersOf(b).forEach((row) => {
+    needProject(row.projectId, `Story event order ${row.id}`);
+    if (row.earlierEventId === row.laterEventId) {
+      issues.push(integrity(`Story event order ${row.id} cannot order an event before itself.`));
+    }
+    for (const eventId of [row.earlierEventId, row.laterEventId]) {
+      if (!storyEventIds.has(eventId) || storyEventProject.get(eventId) !== row.projectId) {
+        issues.push(integrity(`Story event order ${row.id} references missing event ${eventId}.`));
+      }
+    }
+  });
+  const ordersByProject = new Map<string, { earlierId: string; laterId: string }[]>();
+  const eventIdsByProject = new Map<string, string[]>();
+  storyEventsOf(b).forEach((event) => {
+    const list = eventIdsByProject.get(event.projectId) ?? [];
+    list.push(event.id);
+    eventIdsByProject.set(event.projectId, list);
+  });
+  storyEventOrdersOf(b).forEach((row) => {
+    const list = ordersByProject.get(row.projectId) ?? [];
+    list.push({ earlierId: row.earlierEventId, laterId: row.laterEventId });
+    ordersByProject.set(row.projectId, list);
+  });
+  for (const [projectId, edges] of ordersByProject) {
+    if (orderGraphHasCycle(eventIdsByProject.get(projectId) ?? [], edges)) {
+      issues.push(integrity(`Story event order in ${projectId} contains a circle.`));
+    }
+  }
+  storyEventEvidenceOf(b).forEach((row) => {
+    needProject(row.projectId, `Story event evidence ${row.id}`);
+    if (!storyEventIds.has(row.eventId) || storyEventProject.get(row.eventId) !== row.projectId) {
+      issues.push(integrity(`Story event evidence ${row.id} references missing event ${row.eventId}.`));
+    }
+    if (!recordIds.has(row.sourceRecordId) || recordProject.get(row.sourceRecordId) !== row.projectId) {
+      issues.push(integrity(`Story event evidence ${row.id} references missing source ${row.sourceRecordId}.`));
+    }
+    const sourceType = recordType.get(row.sourceRecordId);
+    if (
+      sourceType &&
+      sourceType !== "manuscript_chapter" &&
+      sourceType !== "manuscript_scene" &&
+      sourceType !== "chapter_outline" &&
+      sourceType !== "story_architecture"
+    ) {
+      issues.push(integrity(`Story event evidence ${row.id} must cite a chapter, scene, or plan.`));
+    }
+    if (row.passageEnd < row.passageStart) {
+      issues.push(integrity(`Story event evidence ${row.id} has a passage that ends before it starts.`));
     }
   });
   const weaveGridIds = new Set(weaveGridsOf(b).map((x) => x.id));
@@ -1912,6 +2219,30 @@ async function findCollisions(db: DbOrTx, b: WorkspaceBackupV1): Promise<Issue[]
   if (placeRelationsOf(b).length) {
     await check("place relation", db.placeRelation.count({ where: { id: { in: placeRelationsOf(b).map((r) => r.id) } } }));
   }
+  if (sceneLocationsOf(b).length) {
+    await check("scene location", db.sceneLocation.count({ where: { id: { in: sceneLocationsOf(b).map((s) => s.id) } } }));
+  }
+  if (storyEventsOf(b).length) {
+    await check("story event", db.storyEvent.count({ where: { id: { in: storyEventsOf(b).map((event) => event.id) } } }));
+  }
+  if (storyEventLocationsOf(b).length) {
+    await check(
+      "story event location",
+      db.storyEventLocation.count({ where: { id: { in: storyEventLocationsOf(b).map((row) => row.id) } } }),
+    );
+  }
+  if (storyEventScenesOf(b).length) {
+    await check("story event scene", db.storyEventScene.count({ where: { id: { in: storyEventScenesOf(b).map((row) => row.id) } } }));
+  }
+  if (storyEventOrdersOf(b).length) {
+    await check("story event order", db.storyEventOrder.count({ where: { id: { in: storyEventOrdersOf(b).map((row) => row.id) } } }));
+  }
+  if (storyEventEvidenceOf(b).length) {
+    await check(
+      "story event evidence",
+      db.storyEventEvidence.count({ where: { id: { in: storyEventEvidenceOf(b).map((row) => row.id) } } }),
+    );
+  }
   if (weaveGridsOf(b).length) {
     await check("weave grid", db.weaveGrid.count({ where: { id: { in: weaveGridsOf(b).map((x) => x.id) } } }));
   }
@@ -2108,6 +2439,12 @@ export async function restoreWorkspaceBackup(db: Db, input: string | unknown, op
   worldMapsOf(b).forEach((x) => assign(x.id, "wmp"));
   worldMapPinsOf(b).forEach((p) => assign(p.id, "wpn"));
   placeRelationsOf(b).forEach((r) => assign(r.id, "plr"));
+  sceneLocationsOf(b).forEach((s) => assign(s.id, "scl"));
+  storyEventsOf(b).forEach((event) => assign(event.id, "sev"));
+  storyEventLocationsOf(b).forEach((row) => assign(row.id, "evl"));
+  storyEventScenesOf(b).forEach((row) => assign(row.id, "evs"));
+  storyEventOrdersOf(b).forEach((row) => assign(row.id, "evo"));
+  storyEventEvidenceOf(b).forEach((row) => assign(row.id, "eve"));
   weaveGridsOf(b).forEach((x) => assign(x.id, "wvg"));
   weaveThreadsOf(b).forEach((x) => assign(x.id, "wth"));
   weaveBeatsOf(b).forEach((x) => assign(x.id, "wvb"));
@@ -2449,6 +2786,92 @@ export async function restoreWorkspaceBackup(db: Db, input: string | unknown, op
               xNorm: p.xNorm,
               yNorm: p.yNorm,
               createdAt: new Date(p.createdAt),
+            })),
+          });
+        }
+        const sceneLocs = sceneLocationsOf(b);
+        if (sceneLocs.length) {
+          await tx.sceneLocation.createMany({
+            data: sceneLocs.map((s) => ({
+              id: m(s.id),
+              projectId: m(s.projectId),
+              manuscriptRecordId: m(s.manuscriptRecordId),
+              locationRecordId: m(s.locationRecordId),
+              isPrimary: s.isPrimary ?? false,
+              revision: 0,
+              createdAt: new Date(s.createdAt),
+            })),
+          });
+        }
+        const storyEvents = storyEventsOf(b);
+        if (storyEvents.length) {
+          await tx.storyEvent.createMany({
+            data: storyEvents.map((event) => ({
+              id: m(event.id),
+              projectId: m(event.projectId),
+              title: event.title,
+              summary: event.summary ?? "",
+              timeLabel: event.timeLabel ?? "",
+              planned: event.planned ?? false,
+              draftScope: event.draftScope ? m(event.draftScope) : "all",
+              revision: 0,
+              createdAt: new Date(event.createdAt),
+              updatedAt: new Date(event.updatedAt),
+            })),
+          });
+        }
+        const storyLocations = storyEventLocationsOf(b);
+        if (storyLocations.length) {
+          await tx.storyEventLocation.createMany({
+            data: storyLocations.map((row) => ({
+              id: m(row.id),
+              eventId: m(row.eventId),
+              projectId: m(row.projectId),
+              locationRecordId: m(row.locationRecordId),
+              createdAt: new Date(row.createdAt),
+            })),
+          });
+        }
+        const storyScenes = storyEventScenesOf(b);
+        if (storyScenes.length) {
+          await tx.storyEventScene.createMany({
+            data: storyScenes.map((row) => ({
+              id: m(row.id),
+              eventId: m(row.eventId),
+              projectId: m(row.projectId),
+              manuscriptRecordId: m(row.manuscriptRecordId),
+              createdAt: new Date(row.createdAt),
+            })),
+          });
+        }
+        const storyOrders = storyEventOrdersOf(b);
+        if (storyOrders.length) {
+          await tx.storyEventOrder.createMany({
+            data: storyOrders.map((row) => ({
+              id: m(row.id),
+              projectId: m(row.projectId),
+              earlierEventId: m(row.earlierEventId),
+              laterEventId: m(row.laterEventId),
+              createdAt: new Date(row.createdAt),
+            })),
+          });
+        }
+        const storyEvidence = storyEventEvidenceOf(b);
+        if (storyEvidence.length) {
+          await tx.storyEventEvidence.createMany({
+            data: storyEvidence.map((row) => ({
+              id: m(row.id),
+              eventId: m(row.eventId),
+              projectId: m(row.projectId),
+              sourceRecordId: m(row.sourceRecordId),
+              revisionNumber: row.revisionNumber,
+              passageStart: row.passageStart,
+              passageEnd: row.passageEnd,
+              passageExcerpt: row.passageExcerpt,
+              contentHash: row.contentHash,
+              evidenceKind: row.evidenceKind,
+              needsRecheck: row.needsRecheck ?? false,
+              createdAt: new Date(row.createdAt),
             })),
           });
         }

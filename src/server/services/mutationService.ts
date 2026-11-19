@@ -20,6 +20,7 @@ import {
   deleteFactsForRecordsInTx,
   markEvidenceNeedsRecheckForSourceInTx,
 } from "./establishedFactService";
+import { markStoryEvidenceNeedsRecheckForSourceInTx } from "./storyEventService";
 import { clearWeaveForDeletedRecordsInTx } from "./weaveService";
 
 /*
@@ -510,6 +511,7 @@ export async function applyMutationsInTx(
     await writeRevision(tx, p.recordId, newRevision, p.after, sourceId);
     if (p.beforeRevision !== null) {
       await markEvidenceNeedsRecheckForSourceInTx(tx, ctx.projectId, p.recordId, newRevision);
+      await markStoryEvidenceNeedsRecheckForSourceInTx(tx, ctx.projectId, p.recordId, newRevision);
     }
     outcomes.push({
       index: p.index,
@@ -871,6 +873,12 @@ export async function deleteRecordRowsInTx(tx: Tx, recordIds: readonly string[])
   await tx.boardCard.deleteMany({ where: { recordId: ids } });
   await tx.worldMapPin.deleteMany({ where: { recordId: ids } });
   await tx.placeRelation.deleteMany({ where: { OR: [{ fromRecordId: ids }, { toRecordId: ids }] } });
+  await tx.sceneLocation.deleteMany({
+    where: { OR: [{ manuscriptRecordId: ids }, { locationRecordId: ids }] },
+  });
+  await tx.storyEventEvidence.deleteMany({ where: { sourceRecordId: ids } });
+  await tx.storyEventLocation.deleteMany({ where: { locationRecordId: ids } });
+  await tx.storyEventScene.deleteMany({ where: { manuscriptRecordId: ids } });
   await clearWeaveForDeletedRecordsInTx(tx, recordIds);
   await deleteFactsForRecordsInTx(tx, recordIds);
   await tx.recordLink.deleteMany({ where: { OR: [{ fromRecordId: ids }, { toRecordId: ids }] } });

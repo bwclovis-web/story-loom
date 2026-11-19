@@ -81,6 +81,8 @@ export const HELP_SECTIONS = [
       { id: "world-boards", title: "Boards" },
       { id: "established-in", title: "Established in" },
       { id: "world-maps", title: "Maps" },
+      { id: "scene-locations", title: "Scene locations" },
+      { id: "story-events", title: "Story timeline" },
       { id: "place-relations", title: "Place relationships" },
       { id: "world-nav", title: "Finding references" },
       { id: "reference-page", title: "Reading a reference" },

@@ -39,6 +39,12 @@ export type IdPrefix =
   | "wbr" // weave build-from-draft run
   | "fct" // established fact
   | "fev" // fact evidence
+  | "scl" // scene location assignment
+  | "sev" // story event
+  | "evl" // story event location
+  | "evs" // story event scene reveal
+  | "evo" // story event order constraint
+  | "eve" // story event evidence
   | "pas"; // project assistant settings
 
 export function newId(prefix: IdPrefix): string {

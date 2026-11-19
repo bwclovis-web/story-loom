@@ -2,19 +2,20 @@ import { WORLD } from "@/ui/labels";
 import { ButtonLink } from "@/components/ui/Button";
 import { worldHref } from "@/ui/world";
 
-/** References, Maps, and Boards — the World entry surfaces. */
+/** References, Maps, Boards, and the story timeline. */
 export function WorldSurfaceNav({
   projectId,
   current,
 }: {
   projectId: string;
-  current: "references" | "maps" | "boards";
+  current: "references" | "maps" | "boards" | "events";
 }) {
   const base = `/projects/${encodeURIComponent(projectId)}`;
   const items = [
     { key: "references" as const, href: worldHref(projectId), title: WORLD.references, hint: WORLD.referencesHint },
     { key: "maps" as const, href: `${base}/world/maps`, title: WORLD.maps, hint: WORLD.mapsNavHint },
     { key: "boards" as const, href: `${base}/world/boards`, title: WORLD.boards, hint: WORLD.boardsNavHint },
+    { key: "events" as const, href: `${base}/world/events`, title: WORLD.storyTimeline, hint: WORLD.storyTimelineHint },
   ];
 
   return (

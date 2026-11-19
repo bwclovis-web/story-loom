@@ -8,6 +8,7 @@ import { getDb } from "@/server/db";
 import { listPendingProposalsForRecord } from "@/server/services/assistantProposalService";
 import { NotFoundError } from "@/server/services/errors";
 import { listLinkedReferences, listLinkingRecords } from "@/server/services/linkService";
+import { listSceneLocationsForManuscript } from "@/server/services/sceneLocationService";
 import { listRecordImages } from "@/server/services/imageService";
 import { listEstablishedFactsForSubject } from "@/server/services/establishedFactService";
 import { listPlaceRelationsForRecord } from "@/server/services/placeRelationService";
@@ -90,9 +91,10 @@ export default async function RecordPage({
 
   if (manuscript) {
     const pinScopeId = await resolvePinScope(db, projectId, recordDraftId);
-    const [notes, linked, choices, sources, attachableSources, pins, plotBeats] = await Promise.all([
+    const [notes, linked, sceneLocations, choices, sources, attachableSources, pins, plotBeats] = await Promise.all([
       listNotes(db, projectId, record.id),
       listLinkedReferences(db, projectId, record.id),
+      listSceneLocationsForManuscript(db, projectId, record.id),
       listReferenceChoices(db, projectId),
       listRewriteSources(db, projectId, record.id),
       listAttachableRewriteSources(db, projectId, record.id),
@@ -128,6 +130,7 @@ export default async function RecordPage({
           isProtected: n.protected,
         }))}
         linked={linked.map((l) => ({ recordId: l.recordId, title: l.title, type: l.type, authorityStatus: l.authorityStatus }))}
+        sceneLocations={sceneLocations}
         choices={choices}
         sources={sources.map((s) => ({
           toRecordId: s.toRecordId,

@@ -40,6 +40,7 @@ import type { PlaceRelationView } from "@/server/services/placeRelationService";
 import type { ReadingPinView } from "@/server/services/readingPinService";
 import { type DraftChoice, type EvidenceSourceChoice, type SceneChoice } from "./EstablishedInRail";
 import { ReferenceInspector } from "@/components/world/ReferenceInspector";
+import { PlaceEvents } from "@/app/projects/[projectId]/world/maps/PlaceEvents";
 import { buildReferenceInspectorModel, type RecordPlacement } from "@/world/inspectorModel";
 import { OutlineReview } from "./OutlineReview";
 import { PlaceRelations } from "./PlaceRelations";
@@ -444,6 +445,7 @@ export function ReferenceView(props: ReferenceViewProps) {
               }
               overviewExtra={
                 <>
+                  {linkable ? <PlaceEvents projectId={projectId} locationRecordId={record.id} /> : null}
                   <WorldPins
                     projectId={projectId}
                     recordId={record.id}

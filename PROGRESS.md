@@ -2518,3 +2518,81 @@ Requested: route, area, and label markers stored against the map image; edit, un
 
 ### Rollback
 Revert the geometry helpers, map service, canvas, backup pin fields, Help, and labels. To undo the schema, restore `backups/2026-11-19T15-46-21-514Z-pre-migrate`. Do not reset the working database.
+
+## Scene locations and saved map geometry (Nov 19, 2026)
+
+Requested: finish browser verification of a saved route, area, and label on an isolated database, including reload, geometry and link edits, and backup/restore. Then let an author assign locations to a chapter or scene, and show those assignments from a map marker in manuscript order.
+
+### Implemented
+- `SceneLocation` is an explicit assignment from a chapter or scene to a linkable reference. One assignment can be primary. There is no story-date column. Assigning a location does not write a manuscript revision, a mention, a record link, a place relationship, or an established fact.
+- Write's References tab assigns, clears, and removes locations. A selected map marker lists those chapters and scenes in the right rail, filtered by draft and book, in manuscript order, with Open scene or Open chapter.
+- Backup format stays v1. `sceneLocations` is omitted when empty. `isPrimary` is omitted when false. An older backup restores with no scene locations. A backup that includes the field will not restore on older code.
+
+### Checks
+| Check | Result |
+| --- | --- |
+| Isolated database | `C:\Users\bwclo\AppData\Local\Temp\wordly-test-CORR7e\test.db`, served at `127.0.0.1:2114`. The working app on port 2112 was not pointed at it |
+| Saved geometry | A route (12%, 20% then 80%, 22% after edit), an area named Quay yard (three corners), and a label named North dock were saved, still present after reload, and drawn on the map |
+| Link edit | The area's reference changed from Silverwater to The Salt Guild. Its corners stayed. The route's second point moved from 48% to 80% and its revision became 1 |
+| Backup and restore | `GET /backup/wsp_test` returned the route points, the area corners, and the label. Restoring that file beside the original kept the original map and created a new workspace whose map showed the same four markers. A later backup included three scene locations, with `isPrimary` only on the primary row and no story date. Restoring it created another workspace with those three rows |
+| Scene assignment | On The quay, Silverwater was assigned as primary and The Salt Guild as a second location. Chapter 1 was also assigned Silverwater. The manuscript revision stayed 1. Linked chapters and Established in stayed empty |
+| Map rail | Selecting the Silverwater marker listed Chapter 1, then The quay marked Primary, with Open chapter and Open scene. Author manuscript showed none. Zero draft showed both. Open scene opened The quay in Write |
+| Chapter only | Only chapter, with no scenes and no drafts, was assigned Only quay. The marker rail listed Only chapter and Open chapter. The draft filter offered only All drafts and Unscoped manuscript |
+| Keyboard | ArrowDown in the marker list selected the next marker. Open scene is a focusable link to the scene. Enter dispatched by the browser tool did not activate that link; activating it by click did |
+| Narrow layout | At the browser pane (318px) the chapter-only map uses the mobile header and still shows Browse, Edit, and Point, Route, Area, Label. The shell was wider than that pane, so the page scrolls sideways. Open scene remained in the rail |
+| `vitest run` scene locations, help, world maps, map geometry | scene-locations: 3 passed. The earlier combined run was 4 files, 21 tests, then 1 failure in the permanent-delete assertion (the image host was the location, so the map was removed). After asserting the map count is 0, scene-locations passed 3/3 |
+| Working database | `SceneLocation` is empty. The author project still has no map pins. The demo pin was not written by this pass; it is one point row, revision 1, at about 0.37 / 0.35. Rollback of the new table is `backups/2026-11-19T17-59-49-513Z-pre-migrate` |
+
+### Limits
+- Story dates stay unknown unless the text records them. Order is manuscript order.
+- A marker does not create a scene location, and assigning a location does not move a marker.
+- The embedded browser capture produced usable shots of the narrow map toolbar and the chapter-only map. The scene list was confirmed in the page, not in a full-width screenshot.
+
+### Screenshots
+`docs/screenshots/map-geometry-narrow-light.png`
+`docs/screenshots/map-chapter-only-narrow.png`
+
+### Rollback
+Revert the scene-location service, Write and map rail, backup fields, Help, and labels. To undo the table on the working database, restore `backups/2026-11-19T17-59-49-513Z-pre-migrate`. Do not reset the working database.
+
+## Map keyboard, narrow layout, and story timeline (Nov 19, 2026)
+
+Requested: fix the map-to-scene verification gaps, then add a minimal story-event timeline that can leave time unknown, order events independently of the manuscript, and show evidence and map links.
+
+### Keyboard
+Open scene is a normal link (`<a href>`). The marker list handles Arrow, Home, End, and Enter only for the list and its options. If the key target is a link, a field, or any other button, the handler returns without `preventDefault`, so the browser keeps that control's own behavior. On the isolated map, a focused Open scene link received Enter with `defaultPrevented: false`. The browser tool's key is not a trusted key, so the browser does not follow the link from that event. A click on the same link does.
+
+### Narrow layout
+At a 318px pane the document scroll width matched the pane (303px) and the map viewport's scroll width matched its own box. Panning stays inside that viewport. The closed reference rail no longer widens the page. Toolbars, marker rows, and rail fields shrink with the pane.
+
+### Story timeline
+An event has a title, summary, optional time text (blank means unknown), a planned flag, a draft scope, optional places, revealing chapters or scenes, and passages pinned to a source revision. Several scenes can reveal one event. Order is explicit earlier/later constraints. A circle is refused and nothing is written. Chronological order does not use manuscript position. Selecting an event shows its evidence and revealing scenes. Show on map appears when a linked place has a marker, and the author chooses when more than one map qualifies. Selecting a place lists its events. Creating an event does not change prose, revisions, scene locations, or markers.
+
+### Checks
+| Check | Result |
+| --- | --- |
+| `pnpm db:deploy` | Backup `backups/2026-11-19T19-26-52-858Z-pre-migrate`, then `20261119230000_story_events` applied |
+| `pnpm exec tsc --noEmit` | pass |
+| `vitest run` keyboard, order, story events, help | 4 files, 10 tests passed |
+| Legacy empty timeline | A project with no events lists none. An older backup omits the new fields |
+| Flashback | The fire is revealed in a later chapter and ordered before The quarrel. The timeline lists the fire first |
+| Unknown time | Blank time stays blank. The backup does not add a story date |
+| Several reveals | One event can list more than one chapter or scene |
+| Draft filter | An all-drafts event stays visible in the author-manuscript filter. A zero-draft event does not |
+| Stale evidence | Saving the source after a pin sets needs-recheck and leaves the pinned excerpt |
+| Stale event write | The wrong revision is refused and the title stays |
+| Circle | Ordering the later event before the earlier one is refused. The one existing constraint remains |
+| Markers and scene locations | After linking an event, the point stayed at 0.42 / 0.55, revision 0, and the scene location remained |
+| Browser, isolated database | `127.0.0.1:2114`, Test novel only. Added planned event The fire with time unknown, linked Silverwater, and linked The quay. The rail offered Harbour chart and Quay chart, then Show on map. The Silverwater marker listed The fire under Events here and The quay under In the manuscript. Chapter revision stayed 1 |
+| Working database | The new tables were added empty. The isolated server was stopped. Port 2112 was not pointed at the test database |
+
+### Limits
+- A backup that includes story events will not restore on an older copy of the app.
+- The app does not invent a calendar date from the time text. Order comes only from the constraints you record.
+- The browser tool cannot send a trusted Enter, so it cannot follow a focused link. The link is a real anchor and the map handler does not cancel it.
+
+### Screenshots
+`docs/screenshots/map-open-scene-narrow.png`
+
+### Rollback
+Revert the story-event service, timeline page, map rail, backup fields, Help, and labels. To undo the tables on the working database, restore `backups/2026-11-19T19-26-52-858Z-pre-migrate`. Do not reset the working database.

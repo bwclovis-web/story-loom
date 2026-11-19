@@ -33,10 +33,14 @@ import {
   reorderReadingPinsAction,
   searchContextReferencesAction,
   unlinkReferenceAction,
+  assignSceneLocationAction,
+  removeSceneLocationAction,
+  setSceneLocationPrimaryAction,
   type ReferencePreview,
 } from "../../write/actions";
 import type { ContextSearchHit } from "@/server/services/searchService";
 import type { ReadingPinView } from "@/server/services/readingPinService";
+import type { SceneLocationSet } from "@/server/services/sceneLocationService";
 
 export interface NoteItem {
   id: string;
@@ -107,6 +111,7 @@ export function WriteContext({
   isProtected,
   notes,
   linked,
+  sceneLocations,
   choices,
   sources,
   attachableSources,
@@ -130,6 +135,7 @@ export function WriteContext({
   isProtected: boolean;
   notes: NoteItem[];
   linked: LinkedItem[];
+  sceneLocations: SceneLocationSet;
   choices: ChoiceItem[];
   sources: SourceItem[];
   attachableSources: AttachableSource[];
@@ -242,6 +248,7 @@ export function WriteContext({
           recordId={recordId}
           isProtected={isProtected}
           linked={linked}
+          sceneLocations={sceneLocations}
           choices={choices}
           draftScopeId={draftScopeId}
           initialPins={initialPins}
@@ -429,11 +436,151 @@ function matchLabel(matchedIn: ContextSearchHit["matchedIn"]): string {
   }
 }
 
+function SceneLocationAssign({
+  projectId,
+  recordId,
+  initial,
+  choices,
+}: {
+  projectId: string;
+  recordId: string;
+  initial: SceneLocationSet;
+  choices: ChoiceItem[];
+}) {
+  const idPrefix = useId();
+  const [assigned, setAssigned] = useState(initial);
+  const [choice, setChoice] = useState("");
+  const [primary, setPrimary] = useState(false);
+  const [issues, setIssues] = useState<Issue[]>([]);
+  const [pending, startTransition] = useTransition();
+
+  useEffect(() => {
+    setAssigned(initial);
+  }, [initial]);
+
+  const taken = useMemo(() => new Set(assigned.locations.map((location) => location.locationRecordId)), [assigned.locations]);
+  const available = choices.filter((item) => !taken.has(item.id));
+
+  const apply = (result: { ok: true; set: SceneLocationSet } | { ok: false; issues: Issue[] }) => {
+    if (!result.ok) {
+      setIssues(result.issues);
+      return;
+    }
+    setIssues([]);
+    setAssigned(result.set);
+  };
+
+  return (
+    <section className="stack" aria-labelledby={`${idPrefix}-locations`}>
+      <h3 id={`${idPrefix}-locations`}>{WRITE.sceneLocations}</h3>
+      <p className="small muted">{WRITE.sceneLocationsNote}</p>
+      <IssueList issues={issues} />
+      {assigned.locations.length === 0 ? (
+        <p className="small muted">{WRITE.noSceneLocations}</p>
+      ) : (
+        <ul className="context-list">
+          {assigned.locations.map((location) => (
+            <li key={location.id}>
+              <span className="context-item-title" title={location.title}>
+                {location.title}
+              </span>
+              <span className="small muted">
+                {RECORD_TYPE_LABELS[location.type]}
+                {location.isPrimary ? ` · ${WRITE.primaryLocation}` : ""}
+                {location.unavailable ? ` · ${WRITE.locationUnavailable}` : ""}
+              </span>
+              <div className="row">
+                <ButtonLink href={`/projects/${projectId}/records/${location.locationRecordId}`} variant="secondary" size="sm">
+                  {WRITE.openReference}
+                  <span className="sr-only"> {location.title}</span>
+                </ButtonLink>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  disabled={pending}
+                  onClick={() =>
+                    startTransition(async () => {
+                      apply(
+                        await setSceneLocationPrimaryAction(projectId, recordId, location.id, {
+                          isPrimary: !location.isPrimary,
+                          expectedFingerprint: assigned.fingerprint,
+                        }),
+                      );
+                    })
+                  }
+                >
+                  {location.isPrimary ? WRITE.clearPrimary : WRITE.makePrimary}
+                  <span className="sr-only"> {location.title}</span>
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  disabled={pending}
+                  onClick={() =>
+                    startTransition(async () => {
+                      apply(
+                        await removeSceneLocationAction(projectId, recordId, location.id, assigned.fingerprint),
+                      );
+                    })
+                  }
+                >
+                  {WRITE.removeLocation}
+                  <span className="sr-only"> {location.title}</span>
+                </Button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+      <form
+        className="stack"
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (!choice) return;
+          startTransition(async () => {
+            const result = await assignSceneLocationAction(projectId, recordId, choice, {
+              isPrimary: primary,
+              expectedFingerprint: assigned.fingerprint,
+            });
+            apply(result);
+            if (result.ok) {
+              setChoice("");
+              setPrimary(false);
+            }
+          });
+        }}
+      >
+        <label>
+          {WRITE.assignLocation}
+          <select value={choice} onChange={(event) => setChoice(event.target.value)} disabled={pending || available.length === 0}>
+            <option value="">{WRITE.chooseLocation}</option>
+            {available.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.title}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="scene-location-check">
+          <input type="checkbox" checked={primary} onChange={(event) => setPrimary(event.target.checked)} disabled={pending} />
+          {WRITE.primaryLocation}
+        </label>
+        <Button type="submit" size="sm" disabled={pending || !choice}>
+          {WRITE.assignLocation}
+        </Button>
+      </form>
+    </section>
+  );
+}
+
 function References({
   projectId,
   recordId,
   isProtected,
   linked,
+  sceneLocations,
   choices,
   draftScopeId,
   initialPins,
@@ -442,6 +589,7 @@ function References({
   recordId: string;
   isProtected: boolean;
   linked: LinkedItem[];
+  sceneLocations: SceneLocationSet;
   choices: ChoiceItem[];
   draftScopeId: string | null;
   initialPins: ReadingPinView[];
@@ -560,6 +708,7 @@ function References({
 
   return (
     <div className="stack">
+      <SceneLocationAssign projectId={projectId} recordId={recordId} initial={sceneLocations} choices={choices} />
       {preview ? (
         <section className="reference-preview" ref={previewRef} tabIndex={-1} aria-labelledby={`${idPrefix}-preview`}>
           {preview.ok ? (

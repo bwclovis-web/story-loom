@@ -10,6 +10,15 @@ import { MutationRejectedError, NotFoundError } from "@/server/services/errors";
 import { listRecordImages } from "@/server/services/imageService";
 import { linkReference, unlinkReference } from "@/server/services/linkService";
 import {
+  assignSceneLocation,
+  listScenesForLocation,
+  removeSceneLocation,
+  setSceneLocationPrimary,
+  type SceneListFilter,
+  type SceneLocationCatalog,
+  type SceneLocationSet,
+} from "@/server/services/sceneLocationService";
+import {
   addReadingPin,
   listReadingPins,
   removeReadingPin,
@@ -205,6 +214,69 @@ export async function removeReadingPinAction(
     const pins = await listReadingPins(db, projectId, scopeDraftId);
     revalidatePath(`/projects/${projectId}`, "layout");
     return { ok: true, scopeDraftId, pins };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+function revalidateSceneLocations(projectId: string, manuscriptRecordId: string) {
+  revalidatePath(`/projects/${projectId}/records/${manuscriptRecordId}`);
+  revalidatePath(`/projects/${projectId}/world/maps`);
+}
+
+export async function assignSceneLocationAction(
+  projectId: string,
+  manuscriptRecordId: string,
+  locationRecordId: string,
+  input: { isPrimary: boolean; expectedFingerprint: string },
+): Promise<{ ok: true; set: SceneLocationSet } | { ok: false; issues: Issue[] }> {
+  try {
+    const set = await assignSceneLocation(getDb(), projectId, manuscriptRecordId, locationRecordId, input);
+    revalidateSceneLocations(projectId, manuscriptRecordId);
+    return { ok: true, set };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+export async function setSceneLocationPrimaryAction(
+  projectId: string,
+  manuscriptRecordId: string,
+  assignmentId: string,
+  input: { isPrimary: boolean; expectedFingerprint: string },
+): Promise<{ ok: true; set: SceneLocationSet } | { ok: false; issues: Issue[] }> {
+  try {
+    const set = await setSceneLocationPrimary(getDb(), projectId, manuscriptRecordId, assignmentId, input);
+    revalidateSceneLocations(projectId, manuscriptRecordId);
+    return { ok: true, set };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+export async function removeSceneLocationAction(
+  projectId: string,
+  manuscriptRecordId: string,
+  assignmentId: string,
+  expectedFingerprint: string,
+): Promise<{ ok: true; set: SceneLocationSet } | { ok: false; issues: Issue[] }> {
+  try {
+    const set = await removeSceneLocation(getDb(), projectId, manuscriptRecordId, assignmentId, expectedFingerprint);
+    revalidateSceneLocations(projectId, manuscriptRecordId);
+    return { ok: true, set };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+export async function listScenesAtLocationAction(
+  projectId: string,
+  locationRecordId: string,
+  filter: SceneListFilter,
+): Promise<{ ok: true; catalog: SceneLocationCatalog } | { ok: false; issues: Issue[] }> {
+  try {
+    const catalog = await listScenesForLocation(getDb(), projectId, locationRecordId, filter);
+    return { ok: true, catalog };
   } catch (error) {
     return failure(error);
   }

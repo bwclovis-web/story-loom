@@ -77,6 +77,7 @@ export function WriteEditor(props: {
   proofread: ProofreadConfig;
   notes: NoteItem[];
   linked: LinkedItem[];
+  sceneLocations: import("@/server/services/sceneLocationService").SceneLocationSet;
   choices: ChoiceItem[];
   sources: SourceItem[];
   attachableSources: AttachableSource[];
@@ -549,6 +550,7 @@ export function WriteEditor(props: {
           isProtected={props.isProtected}
           notes={props.notes}
           linked={props.linked}
+          sceneLocations={props.sceneLocations}
           choices={props.choices}
           sources={props.sources}
           attachableSources={props.attachableSources}

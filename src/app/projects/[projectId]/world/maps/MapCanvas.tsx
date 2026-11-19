@@ -15,6 +15,7 @@ import { errorIssue, type Issue } from "@/domain/issues";
 import type { LoadedInspector } from "@/server/services/referenceInspectorService";
 import type { WorldMapPinView, WorldMapView } from "@/server/services/worldMapService";
 import { WORLD, WRITE } from "@/ui/labels";
+import { mapListHandlesKey } from "@/world/mapKeyboard";
 import {
   addShapePoint,
   cancelShape,
@@ -51,6 +52,8 @@ import {
   updateWorldMapPinAction,
 } from "./actions";
 import { MapShapeEditor } from "./MapShapeEditor";
+import { MarkerScenes } from "./MarkerScenes";
+import { PlaceEvents } from "./PlaceEvents";
 
 export interface PlaceableRecord {
   id: string;
@@ -454,6 +457,7 @@ export function MapCanvas({
   };
 
   const onListKey = (event: ReactKeyboardEvent<HTMLUListElement>) => {
+    if (!mapListHandlesKey(event.target, event.currentTarget)) return;
     if (!listed.length) return;
     const index = listed.findIndex((pin) => pin.id === selectedId);
     const move = (next: number) => {
@@ -976,6 +980,8 @@ function MarkerRail({
           <p className="muted">{WORLD.inspectorLoading}</p>
         )
       ) : null}
+      {pin.recordId ? <MarkerScenes projectId={projectId} locationRecordId={pin.recordId} /> : null}
+      {pin.recordId ? <PlaceEvents projectId={projectId} locationRecordId={pin.recordId} /> : null}
       {mode === "edit" ? (
         <form
           className="stack"

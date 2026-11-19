@@ -1081,7 +1081,9 @@ export function HelpContent() {
             </li>
             <li>
               <L>{WRITE.linkedReferences}</L> lists the reference records linked to this chapter or scene.{" "}
-              <L>{WRITE.linkToScene}</L> / <L>{WRITE.unlinkFromScene}</L> are separate from pin/unpin.
+              <L>{WRITE.linkToScene}</L> / <L>{WRITE.unlinkFromScene}</L> are separate from pin/unpin.{" "}
+              <L>{WRITE.sceneLocations}</L> is also separate: it is a place for the chapter or scene, not a mention and
+              not a link. See <See anchor="scene-locations" />.
             </li>
             <li>
               Under <L>{WRITE.findReference}</L>, search by title, name, alias, or section heading, then select a result
@@ -1248,11 +1250,14 @@ export function HelpContent() {
         <p>
           <L>{SHELL.world}</L> holds the project&apos;s reference documents of these types:{" "}
           {WORLD_TYPES.map((t) => RECORD_TYPE_LABELS[t]).join(", ")}. The World page opens on search, recent references,
-          and <L>{WORLD.references}</L>, <L>{WORLD.maps}</L>, and <L>{WORLD.boards}</L>.{" "}
+          and <L>{WORLD.references}</L>, <L>{WORLD.maps}</L>, <L>{WORLD.boards}</L>, and{" "}
+          <L>{WORLD.storyTimeline}</L>.{" "}
           <L>{WORLD.allReferences}</L> and each category still list documents in a table with type, canon status, saved
           version, and protection. Under <L>{WORLD.boards}</L> you can place references, images and freeform notes on a
           focused board (see <See anchor="world-boards" />). Under <L>{WORLD.maps}</L> you can pin places on an existing
-          reference image (see <See anchor="world-maps" />). Plot grids stay under <L>{SHELL.plan}</L>.
+          reference image (see <See anchor="world-maps" />). <L>{WORLD.storyTimeline}</L> lists events in an order you
+          set, separate from the manuscript (see <See anchor="story-events" />). Plot grids stay under{" "}
+          <L>{SHELL.plan}</L>.
         </p>
         <p>
           <L>{WORLD.importReferences}</L> opens <L>{NAV.importMarkdown}</L> (see <See anchor="importing" />).{" "}
@@ -1360,8 +1365,12 @@ export function HelpContent() {
             <li>
               Groups — <L>{WORLD.markerGroupPlaces}</L>, <L>{WORLD.markerGroupWaterways}</L>,{" "}
               <L>{WORLD.markerGroupTransport}</L>, and <L>{WORLD.markerGroupStory}</L> — can be hidden from the legend.
-              The marker list can be searched and moved with the keyboard. Selecting a marker opens the same inspector a
-              board card uses when it links a reference.
+              The marker list can be searched and moved with the keyboard. Arrow keys stay on the list. Enter on{" "}
+              <L>{WORLD.openSceneInWrite}</L>, <L>{WORLD.openChapterInWrite}</L>, or another link follows that link.
+              Selecting a marker opens the same inspector a
+              board card uses when it links a reference. When that reference has scene locations, the rail lists the
+              chapters and scenes in manuscript order. Filter them by draft and book. <L>{WORLD.openSceneInWrite}</L>{" "}
+              and <L>{WORLD.openChapterInWrite}</L> open the page in Write. See <See anchor="scene-locations" />.
             </li>
             <li>
               <L>{WORLD.removePin}</L> removes the marker from that map only. Moving a marker never creates or changes a
@@ -1381,6 +1390,50 @@ export function HelpContent() {
             markers as point pins. Point pins in a new backup omit the geometry fields, so an older copy of the app can
             still read a map that has only points. A backup that includes a route or an area will not restore on an
             older copy that does not know those fields.
+          </p>
+        </Sub>
+
+        <Sub id="scene-locations">
+          <p>
+            A <L>{WRITE.sceneLocations}</L> is a place you assign to a chapter or scene. Assign it from the{" "}
+            <L>{WRITE.references}</L> tab in Write with <L>{WRITE.assignLocation}</L>. One of those places can be the{" "}
+            <L>{WRITE.primaryLocation}</L>. You can assign more than one. This is not a mention in the prose, not a{" "}
+            <L>{WRITE.linkedReferences}</L> link, and not an established fact or a planned event (see{" "}
+            <See anchor="established-in" />). Story dates stay unknown unless you write them in the text. The list on a
+            map uses manuscript order, not a story calendar.
+          </p>
+          <p>
+            Soft-trashing a chapter, scene, or place keeps the assignment and hides the trashed end until you restore
+            it. Permanently deleting either end removes the assignment. Assigning a location does not change the text
+            or its saved revisions, so protection does not apply. Scene locations are included in workspace backups.
+            Older backups that omit them restore with none. A backup that includes scene locations will not restore on
+            an             older copy of the app that does not know that field.
+          </p>
+        </Sub>
+
+        <Sub id="story-events">
+          <p>
+            <L>{WORLD.storyTimeline}</L> is a list of events. Each event has a title, a summary, optional places,
+            chapters or scenes that reveal it, a draft, and optional passages pinned to a saved revision. Several
+            scenes can reveal one event. <L>{WORLD.storyEventPlanned}</L> stays marked, and it is not a scene location
+            or an established fact.
+          </p>
+          <p>
+            Leave <L>{WORLD.storyEventTime}</L> blank when the time is unknown. The app does not invent a date.{" "}
+            <L>{WORLD.recordOrder}</L> says which event happens first. That order is not the manuscript order, so a
+            later chapter can reveal an earlier event. A circle is refused and nothing is saved.
+          </p>
+          <p>
+            Selecting an event shows its passages and revealing scenes in the right rail.{" "}
+            <L>{WORLD.openSceneInWrite}</L> follows the link. <L>{WORLD.showOnMap}</L> appears when a linked place has
+            a marker. If more than one map has that place, choose the map first. Selecting a place lists its events.
+            Filter the list by draft. A passage pinned to an older revision is marked{" "}
+            <L>{WORLD.evidenceStale}</L> after the source is saved again. The excerpt stays as it was pinned.
+          </p>
+          <p>
+            Adding an event does not change prose, revisions, scene locations, or markers. Events are included in
+            workspace backups. Older backups that omit them restore with none. A backup that includes story events
+            will not restore on an older copy of the app that does not know those fields.
           </p>
         </Sub>
 
@@ -3215,7 +3268,11 @@ export function HelpContent() {
             its type. The reference inspector has Overview, Sections, Images, Relationships, and Established in when
             the record supports it. There is no Open questions tab; open questions are a heading you can add with an
             outline. Maps can be browsed, zoomed, and marked with points, routes, areas, and labels. Freehand drawing
-            is not available, and marker positions are not distances or travel times.
+            is not available, and marker positions are not distances or travel times. A marker can list chapters and
+            scenes assigned to its place. That list is not mentions, linked references, or planned events, and it does
+            not invent a story date. The story timeline can leave an event&apos;s time unknown and can order events
+            without following the manuscript. A planned event stays marked. <L>{WORLD.showOnMap}</L> is offered only
+            when a linked place has a marker.
           </li>
           <li>The browser&apos;s Back button does not warn about unsaved changes.</li>
           <li>Find and replace works on one record&apos;s text at a time, with literal text only.</li>

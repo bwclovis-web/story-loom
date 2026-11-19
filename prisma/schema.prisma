@@ -73,6 +73,12 @@ model Project {
   weaveBuildRuns         WeaveBuildRun[]
   establishedFacts       EstablishedFact[]
   factEvidence           FactEvidence[]
+  sceneLocations         SceneLocation[]
+  storyEvents            StoryEvent[]
+  storyEventLocations    StoryEventLocation[]
+  storyEventScenes       StoryEventScene[]
+  storyEventOrders       StoryEventOrder[]
+  storyEventEvidence     StoryEventEvidence[]
 
   @@index([workspaceId])
 }
@@ -198,6 +204,11 @@ model Record {
   weaveBeatWorldRefs    WeaveBeatWorldRef[]
   establishedFacts      EstablishedFact[]     @relation("FactSubject")
   factEvidenceSources   FactEvidence[]        @relation("FactEvidenceSource")
+  sceneLocationsAsManuscript SceneLocation[]  @relation("SceneLocationManuscript")
+  sceneLocationsAsPlace      SceneLocation[]  @relation("SceneLocationPlace")
+  storyEventLocations        StoryEventLocation[] @relation("StoryEventPlace")
+  storyEventScenes           StoryEventScene[]    @relation("StoryEventScene")
+  storyEventEvidenceSources  StoryEventEvidence[] @relation("StoryEventEvidenceSource")
 
   @@index([projectId, type])
   @@index([parentRecordId])
@@ -422,6 +433,130 @@ model PlaceRelation {
   @@unique([fromRecordId, toRecordId, kind])
   @@index([projectId])
   @@index([toRecordId])
+}
+
+/// A chapter or scene the author assigned to a World location.
+/// Not a mention, not a RecordLink, not a PlaceRelation, and not an
+/// EstablishedFact or planned event. No story date is stored. Order on a map
+/// follows manuscript position (src/domain/bookOrder.ts).
+/// At most one primary location per chapter or scene. revision increments when
+/// the row changes so a stale write is refused.
+model SceneLocation {
+  id                 String   @id
+  projectId          String
+  project            Project  @relation(fields: [projectId], references: [id])
+  manuscriptRecordId String
+  manuscript         Record   @relation("SceneLocationManuscript", fields: [manuscriptRecordId], references: [id])
+  locationRecordId   String
+  location           Record   @relation("SceneLocationPlace", fields: [locationRecordId], references: [id])
+  isPrimary          Boolean  @default(false)
+  revision           Int      @default(0)
+  createdAt          DateTime @default(now())
+
+  @@unique([manuscriptRecordId, locationRecordId])
+  @@index([projectId])
+  @@index([locationRecordId])
+}
+
+/// A story event. Not a scene location, mention, RecordLink, PlaceRelation, or
+/// EstablishedFact. Chronological order is the explicit earlier/later
+/// constraints, never manuscript order. An empty timeLabel means the story
+/// time is unknown and is never inferred. planned stays identifiable.
+model StoryEvent {
+  id         String   @id
+  projectId  String
+  project    Project  @relation(fields: [projectId], references: [id])
+  title      String
+  summary    String   @default("")
+  /// Author-written time text. Empty means unknown.
+  timeLabel  String   @default("")
+  planned    Boolean  @default(false)
+  /// all | unscoped | a manuscript draft id
+  draftScope String   @default("all")
+  revision   Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  locations  StoryEventLocation[]
+  scenes     StoryEventScene[]
+  evidence   StoryEventEvidence[]
+  earlierThan StoryEventOrder[] @relation("EventEarlier")
+  laterThan   StoryEventOrder[] @relation("EventLater")
+
+  @@index([projectId])
+}
+
+/// A World location linked to a story event. Not a scene location or a map pin.
+model StoryEventLocation {
+  id               String     @id
+  eventId          String
+  event            StoryEvent @relation(fields: [eventId], references: [id])
+  projectId        String
+  project          Project    @relation(fields: [projectId], references: [id])
+  locationRecordId String
+  location         Record     @relation("StoryEventPlace", fields: [locationRecordId], references: [id])
+  createdAt        DateTime   @default(now())
+
+  @@unique([eventId, locationRecordId])
+  @@index([projectId])
+  @@index([locationRecordId])
+}
+
+/// A chapter or scene that reveals a story event. Several scenes may reveal one event.
+model StoryEventScene {
+  id                 String     @id
+  eventId            String
+  event              StoryEvent @relation(fields: [eventId], references: [id])
+  projectId          String
+  project            Project    @relation(fields: [projectId], references: [id])
+  manuscriptRecordId String
+  manuscript         Record     @relation("StoryEventScene", fields: [manuscriptRecordId], references: [id])
+  createdAt          DateTime   @default(now())
+
+  @@unique([eventId, manuscriptRecordId])
+  @@index([projectId])
+  @@index([manuscriptRecordId])
+}
+
+/// Explicit chronology: earlierEvent happens before laterEvent.
+/// A cycle is rejected. This is not manuscript order.
+model StoryEventOrder {
+  id             String     @id
+  projectId      String
+  project        Project    @relation(fields: [projectId], references: [id])
+  earlierEventId String
+  earlier        StoryEvent @relation("EventEarlier", fields: [earlierEventId], references: [id])
+  laterEventId   String
+  later          StoryEvent @relation("EventLater", fields: [laterEventId], references: [id])
+  createdAt      DateTime   @default(now())
+
+  @@unique([earlierEventId, laterEventId])
+  @@index([projectId])
+  @@index([laterEventId])
+}
+
+/// A source passage pinned to the revision it was taken from.
+/// When that source moves past the pinned revision, needsRecheck is set.
+model StoryEventEvidence {
+  id             String     @id
+  eventId        String
+  event          StoryEvent @relation(fields: [eventId], references: [id])
+  projectId      String
+  project        Project    @relation(fields: [projectId], references: [id])
+  sourceRecordId String
+  source         Record     @relation("StoryEventEvidenceSource", fields: [sourceRecordId], references: [id])
+  revisionNumber Int
+  passageStart   Int
+  passageEnd     Int
+  passageExcerpt String
+  contentHash    String
+  /// planned | zero_draft | author_rewrite
+  evidenceKind   String
+  needsRecheck   Boolean    @default(false)
+  createdAt      DateTime   @default(now())
+
+  @@index([eventId])
+  @@index([projectId])
+  @@index([sourceRecordId])
 }
 
 /// A Plan Weave grid: Original plan, Zero-draft story map, or Author rewrite plan.

@@ -374,6 +374,107 @@ export const workspaceBackupV1Schema = z
           .strict(),
       )
       .optional(),
+    /**
+     * Author-assigned chapter/scene locations. Omitted in older backups → none.
+     * Not mentions, record links, place relationships, or established facts.
+     * No story date is stored. isPrimary omitted means not primary.
+     */
+    sceneLocations: z
+      .array(
+        z
+          .object({
+            id,
+            projectId: id,
+            manuscriptRecordId: id,
+            locationRecordId: id,
+            isPrimary: z.boolean().optional(),
+            createdAt: timestamp,
+          })
+          .strict(),
+      )
+      .optional(),
+    /**
+     * Story events. Omitted in older backups → none. Not scene locations,
+     * mentions, record links, place relationships, or established facts.
+     * timeLabel omitted means the story time is unknown. planned omitted
+     * means not planned. draftScope omitted means all drafts.
+     */
+    storyEvents: z
+      .array(
+        z
+          .object({
+            id,
+            projectId: id,
+            title: z.string().min(1).max(200),
+            summary: z.string().max(4000).optional(),
+            timeLabel: z.string().max(200).optional(),
+            planned: z.boolean().optional(),
+            draftScope: z.string().min(1).max(80).optional(),
+            createdAt: timestamp,
+            updatedAt: timestamp,
+          })
+          .strict(),
+      )
+      .optional(),
+    storyEventLocations: z
+      .array(
+        z
+          .object({
+            id,
+            eventId: id,
+            projectId: id,
+            locationRecordId: id,
+            createdAt: timestamp,
+          })
+          .strict(),
+      )
+      .optional(),
+    storyEventScenes: z
+      .array(
+        z
+          .object({
+            id,
+            eventId: id,
+            projectId: id,
+            manuscriptRecordId: id,
+            createdAt: timestamp,
+          })
+          .strict(),
+      )
+      .optional(),
+    storyEventOrders: z
+      .array(
+        z
+          .object({
+            id,
+            projectId: id,
+            earlierEventId: id,
+            laterEventId: id,
+            createdAt: timestamp,
+          })
+          .strict(),
+      )
+      .optional(),
+    storyEventEvidence: z
+      .array(
+        z
+          .object({
+            id,
+            eventId: id,
+            projectId: id,
+            sourceRecordId: id,
+            revisionNumber: z.number().int().min(1),
+            passageStart: z.number().int().min(0),
+            passageEnd: z.number().int().min(0),
+            passageExcerpt: z.string().min(1),
+            contentHash: z.string().regex(/^[0-9a-f]{64}$/),
+            evidenceKind: z.enum(["planned", "zero_draft", "author_rewrite"]),
+            needsRecheck: z.boolean().optional(),
+            createdAt: timestamp,
+          })
+          .strict(),
+      )
+      .optional(),
     /** Plan Weave grids; omitted in older backups → no Weave. */
     weaveGrids: z
       .array(
@@ -668,6 +769,12 @@ export const workspaceBackupV1Schema = z
         worldMaps: z.number().int().optional(),
         worldMapPins: z.number().int().optional(),
         placeRelations: z.number().int().optional(),
+        sceneLocations: z.number().int().optional(),
+        storyEvents: z.number().int().optional(),
+        storyEventLocations: z.number().int().optional(),
+        storyEventScenes: z.number().int().optional(),
+        storyEventOrders: z.number().int().optional(),
+        storyEventEvidence: z.number().int().optional(),
         weaveGrids: z.number().int().optional(),
         weaveThreads: z.number().int().optional(),
         weaveBeats: z.number().int().optional(),
