@@ -317,7 +317,7 @@ export const WEAVE = {
   expandChapter: "Expand chapter",
   plotGridTable: "Plot grid",
   plotGridKeyboard:
-    "Arrow keys move between cells. Enter selects the first beat in a cell or adds a beat in a blank cell. Escape clears selection.",
+    "Arrow keys move between cells. Enter selects the first beat in a cell or adds a beat in a blank cell. Escape clears selection. Drag a beat onto another cell or Unplaced to move it; order within a cell follows the drop position.",
   unplacedBeats: (n: number) => `Unplaced beats (${n})`,
   unplacedRow: "Unplaced",
   unplacedRowHint:

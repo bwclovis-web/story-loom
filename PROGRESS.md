@@ -2301,3 +2301,26 @@ Requested: correct Weave plot-grid screen to match attached design (toolbar, sti
 
 ### Rollback
 Restore WeaveCanvas / WeavePlotGrid / globals.css / labels / Help / page props from prior revision. Lantern fixture rows are invented demo DB only — do not reset the working database.
+
+## Plot-grid beat DnD and app motion (Nov 19, 2026)
+
+Requested: drag-and-drop beats on the plot grid; tasteful app-wide motion without a new animation library.
+
+### Implemented
+- `relocateWeaveBeat` / `relocateWeaveBeatAction`: move a beat between cells or to Unplaced and renumber `cellOrder` in affected stacks; never touches manuscript book order.
+- Plot-grid pointer drag with click threshold, drop highlights, insert markers, optimistic reorder + rollback, Unplaced tray as drop target while dragging.
+- CSS motion tokens (`--motion-fast` / `--motion-med` / `--motion-ease`), `prefers-reduced-motion` kill-switch, drawer/backdrop enter polish, beat settle animation, icon-button hover transitions; existing chevron/blank-add transitions use tokens.
+- Context rail open/close: keep aside + resizer + backdrop mounted; `data-open` drives width/opacity (inline) or slide/fade (overlay); `inert` when closed so `hidden` does not kill the exit transition. Reduced-motion disables those transitions.
+- Help + labels note drag relocation.
+
+### Checks
+| Check | Result |
+| --- | --- |
+| `pnpm exec tsc --noEmit` | pass |
+| `vitest run tests/acceptance/plan-weave.test.ts` | pass (7) |
+
+### Limits
+- No keyboard DnD; no Framer Motion / route View Transitions; project-column collapse stays instant; focus-mode chrome stay instant.
+
+### Rollback
+Revert `weaveService` relocate helper + action, `WeavePlotGrid` DnD, `globals.css` motion block, labels/Help/PROGRESS. No schema migration.

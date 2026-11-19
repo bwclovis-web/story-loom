@@ -19,6 +19,9 @@
 }
 
 :root {
+  --motion-fast: 180ms;
+  --motion-med: 360ms;
+  --motion-ease: cubic-bezier(0.22, 1, 0.36, 1);
   --color-workspace: light-dark(#faf8f5, #1b1915);
   --color-surface: light-dark(#ffffff, #24211c);
   --color-surface-sunken: light-dark(#f4f0e8, #171511);
@@ -102,6 +105,55 @@
   background: var(--color-workspace);
 }
 
+@keyframes motion-enter {
+  from { opacity: 0; transform: translateY(0.7rem); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes motion-select-pulse {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-accent) 0%, transparent); }
+  40% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-accent) 35%, transparent); }
+  100% { box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-accent) 40%, transparent); }
+}
+@keyframes plot-beat-settle {
+  0% { transform: scale(0.94); box-shadow: var(--shadow-lg); }
+  55% { transform: scale(1.03); }
+  100% { transform: scale(1); box-shadow: var(--shadow-sm); }
+}
+
+.workspace > .page-lead,
+.workspace > .write-layout,
+.workspace > .board-layout,
+.plot-grid-wrap,
+.board-surface {
+  animation: motion-enter var(--motion-med) var(--motion-ease) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-fast: 0ms;
+    --motion-med: 0ms;
+  }
+  .workspace > .page-lead,
+  .workspace > .write-layout,
+  .workspace > .board-layout,
+  .plot-grid-wrap,
+  .board-surface,
+  button.plot-grid-beat.settling,
+  button.plot-grid-beat.selected {
+    animation: none !important;
+  }
+  .plot-grid-drag-ghost {
+    transform: none;
+  }
+  dialog.drawer,
+  dialog.drawer::backdrop,
+  .write-context,
+  .context-backdrop,
+  .panel-resizer {
+    transition: none !important;
+  }
+}
+
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 body { margin: 0; }
@@ -143,17 +195,28 @@ main:focus { outline: none; }
   padding: 0.25rem 0.5rem; border-radius: var(--radius-sm);
   background: var(--color-tooltip); color: var(--color-tooltip-text);
   font: 500 0.75rem/1.3 var(--font-ui); white-space: nowrap;
-  visibility: hidden;
+  opacity: 0; visibility: hidden;
+  transition:
+    opacity var(--motion-fast) var(--motion-ease),
+    transform var(--motion-fast) var(--motion-ease),
+    visibility var(--motion-fast);
 }
-.tip::after { left: 50%; top: calc(100% + 6px); transform: translateX(-50%); }
-.tip:hover::after, .tip:focus-visible::after { visibility: visible; }
+.tip::after {
+  left: 50%; top: calc(100% + 6px);
+  transform: translateX(-50%) translateY(0.15rem);
+}
+.tip:hover::after, .tip:focus-visible::after {
+  visibility: visible; opacity: 1; transform: translateX(-50%) translateY(0);
+}
 /* For buttons at the right edge of a scrolling panel, where a centred tooltip would overflow it. */
-.tip.tip-end::after { left: auto; right: 0; transform: none; }
+.tip.tip-end::after { left: auto; right: 0; transform: translateY(0.15rem); }
+.tip.tip-end:hover::after, .tip.tip-end:focus-visible::after { transform: translateY(0); }
 .rail-tip::after { display: none; }
 
 .icon { flex: none; display: block; }
 button.icon-button, a.icon-button {
   display: inline-grid; place-items: center; width: 2.25rem; height: 2.25rem; padding: 0; flex: none;
+  transition: background var(--motion-fast) var(--motion-ease), color var(--motion-fast) var(--motion-ease);
   border: 1px solid transparent; border-radius: var(--radius-md); background: transparent; color: inherit;
 }
 button.icon-button:hover, a.icon-button:hover { background: rgba(127, 116, 98, 0.16); text-decoration: none; }
@@ -168,7 +231,13 @@ button.icon-button:hover, a.icon-button:hover { background: rgba(127, 116, 98, 0
 button.small-button {
   display: inline-flex; align-items: center; justify-content: center; gap: 0.3rem;
   padding: 0.35rem 0.7rem; min-height: 1.85rem; font-size: 0.85rem;
+  transition:
+    background var(--motion-fast) var(--motion-ease),
+    border-color var(--motion-fast) var(--motion-ease),
+    color var(--motion-fast) var(--motion-ease),
+    transform var(--motion-fast) var(--motion-ease);
 }
+button.small-button:active:not(:disabled) { transform: translateY(1px); }
 button.small-button .icon { width: 14px; height: 14px; }
 
 /* ---- Application shell ---- */
@@ -293,9 +362,13 @@ button.selector-button:hover { background: var(--color-nav-hover); }
 .panel-resizer {
   flex: none; position: sticky; top: 0; z-index: 5; width: 7px; height: 100vh; height: 100dvh;
   margin: 0 -4px 0 -3px; cursor: col-resize; touch-action: none; background: transparent;
+  transition:
+    width var(--motion-med) var(--motion-ease),
+    margin var(--motion-med) var(--motion-ease),
+    opacity var(--motion-med) var(--motion-ease);
 }
 .panel-resizer.resizer-right { margin: 0 -3px 0 -4px; }
-.panel-resizer::after { content: ""; position: absolute; inset: 0 3px; background: transparent; transition: background 0.1s; }
+.panel-resizer::after { content: ""; position: absolute; inset: 0 3px; background: transparent; transition: background var(--motion-fast); }
 .panel-resizer:hover::after, .panel-resizer:active::after { background: var(--color-accent-soft-border); }
 .panel-resizer:focus-visible { outline: none; }
 .panel-resizer:focus-visible::after { inset: 0 2px; background: var(--color-focus); }
@@ -312,7 +385,7 @@ button.nav-section-toggle {
 button.nav-section-toggle:where(:hover:not(:disabled)) {
   background: var(--color-accent-tint); color: var(--color-text); border-color: transparent;
 }
-button.nav-section-toggle .icon { width: 14px; height: 14px; transition: transform 0.12s; }
+button.nav-section-toggle .icon { width: 14px; height: 14px; transition: transform var(--motion-fast) var(--motion-ease); }
 button.nav-section-toggle[aria-expanded="true"] .icon { transform: rotate(90deg); }
 .nav-section-label { flex: 1; min-width: 0; }
 .type-group > details > summary {
@@ -322,7 +395,7 @@ button.nav-section-toggle[aria-expanded="true"] .icon { transform: rotate(90deg)
 .type-group > details > summary::-webkit-details-marker { display: none; }
 .type-group > details > summary::marker { content: ""; }
 .type-group > details > summary::before {
-  content: "▸"; color: var(--color-text-muted); transition: transform 0.12s ease;
+  content: "▸"; color: var(--color-text-muted); transition: transform var(--motion-fast) var(--motion-ease);
 }
 .type-group > details[open] > summary::before { transform: rotate(90deg); }
 .type-group > details > summary h2 { display: inline; margin: 0; }
@@ -354,8 +427,28 @@ dialog.drawer {
   position: fixed; inset: 0 auto 0 0; margin: 0; padding: 0; border: 0;
   width: min(20rem, 88vw); max-width: none; height: 100vh; height: 100dvh; max-height: none;
   background: var(--color-surface-sunken); color: var(--color-text); box-shadow: var(--shadow-lg);
+  transform: translateX(0);
+  opacity: 1;
+  transition:
+    transform var(--motion-med) var(--motion-ease),
+    opacity var(--motion-med) var(--motion-ease),
+    overlay var(--motion-med) var(--motion-ease) allow-discrete,
+    display var(--motion-med) var(--motion-ease) allow-discrete;
 }
-dialog.drawer::backdrop { background: rgba(28, 24, 20, 0.45); }
+dialog.drawer::backdrop {
+  background: rgba(28, 24, 20, 0.45);
+  opacity: 1;
+  transition: opacity var(--motion-med) var(--motion-ease), overlay var(--motion-med) var(--motion-ease) allow-discrete, display var(--motion-med) var(--motion-ease) allow-discrete;
+}
+@starting-style {
+  dialog.drawer[open] {
+    transform: translateX(-0.75rem);
+    opacity: 0;
+  }
+  dialog.drawer[open]::backdrop {
+    opacity: 0;
+  }
+}
 dialog.drawer.dark { background: var(--color-nav); color: var(--color-nav-text); --color-focus: var(--color-accent-on-dark); }
 .drawer-inner { display: flex; flex-direction: column; height: 100%; overflow-y: auto; }
 button.drawer-close { align-self: flex-end; margin: 0.5rem 0.5rem 0; }
@@ -597,7 +690,7 @@ button.tree-toggle {
 }
 button.tree-toggle:where(:hover:not(:disabled)) { background: var(--color-accent-tint); color: var(--color-text); }
 button.tree-toggle:disabled { opacity: 0.4; }
-button.tree-toggle .icon { transition: transform 0.12s; }
+button.tree-toggle .icon { transition: transform var(--motion-fast) var(--motion-ease); }
 button.tree-toggle[aria-expanded="true"] .icon { transform: rotate(90deg); }
 .tree-toggle-spacer { flex: none; width: 1.5rem; }
 .tree-link {
@@ -672,7 +765,7 @@ button.linkish:where(:hover:not(:disabled)) { color: var(--color-text); backgrou
 .overflow-disclosure > summary::-webkit-details-marker { display: none; }
 .overflow-disclosure > summary::before {
   content: "▸"; display: inline-block; margin-right: 0.4rem;
-  color: var(--color-text-muted); transition: transform 0.12s ease;
+  color: var(--color-text-muted); transition: transform var(--motion-fast) var(--motion-ease);
 }
 .overflow-disclosure[open] > summary::before { transform: rotate(90deg); }
 .overflow-disclosure-body { margin-top: 0.65rem; }
@@ -799,6 +892,10 @@ button.context-select[aria-pressed="true"] {
   background: transparent; color: var(--color-text-muted);
   font: inherit; font-size: 0.82rem; font-weight: 600;
   min-height: 1.85rem; padding: 0.3rem 0.75rem; cursor: pointer;
+  transition:
+    background var(--motion-fast) var(--motion-ease),
+    color var(--motion-fast) var(--motion-ease),
+    box-shadow var(--motion-fast) var(--motion-ease);
 }
 .segmented-control > button:last-child { border-right: 0; }
 .segmented-control > button.is-selected {
@@ -983,21 +1080,107 @@ button.context-select[aria-pressed="true"] {
 .plot-grid-cell.blank { background: color-mix(in srgb, var(--color-surface-sunken) 40%, var(--color-accent-wash)); }
 .plot-grid-cell.focused { outline: 2px solid var(--color-focus); outline-offset: -2px; }
 .plot-grid-cell-beats { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.3rem; }
-.plot-grid-cell-add { opacity: 0; transition: opacity 0.12s ease; }
+.plot-grid-cell-add { opacity: 0; transition: opacity var(--motion-fast) var(--motion-ease); }
 .plot-grid-cell:hover .plot-grid-cell-add,
 .plot-grid-cell:focus-within .plot-grid-cell-add,
 .plot-grid-cell.focused .plot-grid-cell-add { opacity: 1; }
 button.plot-grid-beat {
   position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 0.1rem; width: 100%;
   padding: 0.4rem 0.5rem 0.4rem 0.7rem; border: 1px solid var(--border); border-radius: var(--radius-md);
-  background: var(--color-surface); color: inherit; text-align: left; cursor: pointer; font: inherit;
+  background: var(--color-surface); color: inherit; text-align: left; cursor: grab; font: inherit;
   box-shadow: var(--shadow-sm);
+  touch-action: none;
+  transition:
+    transform var(--motion-fast) var(--motion-ease),
+    box-shadow var(--motion-fast) var(--motion-ease),
+    opacity var(--motion-fast) var(--motion-ease),
+    border-color var(--motion-fast) var(--motion-ease),
+    background var(--motion-fast) var(--motion-ease);
 }
-button.plot-grid-beat:hover { background: color-mix(in srgb, var(--color-surface) 85%, var(--color-surface-sunken)); }
+button.plot-grid-beat:hover {
+  background: color-mix(in srgb, var(--color-surface) 85%, var(--color-surface-sunken));
+  transform: translateY(-3px) scale(1.015);
+  box-shadow: var(--shadow-lg);
+}
 button.plot-grid-beat.selected {
   border-color: color-mix(in srgb, var(--color-accent) 70%, var(--border));
   background: color-mix(in srgb, var(--color-accent-soft) 40%, var(--color-surface));
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-accent) 40%, transparent);
+  animation: motion-select-pulse var(--motion-med) var(--motion-ease) 1;
+}
+button.plot-grid-beat.dragging {
+  cursor: grabbing;
+  opacity: 0.35;
+  transform: scale(0.97);
+  box-shadow: none;
+  z-index: 2;
+}
+button.plot-grid-beat.settling {
+  animation-name: plot-beat-settle;
+  animation-duration: 360ms;
+  animation-duration: var(--motion-med, 360ms);
+  animation-timing-function: var(--motion-ease);
+}
+.plot-grid-wrap.is-dragging { cursor: grabbing; user-select: none; }
+.plot-grid-wrap.is-dragging .plot-grid-scroll { touch-action: none; }
+.plot-grid-wrap.is-dragging button.plot-grid-beat:hover {
+  transform: none;
+  box-shadow: var(--shadow-sm);
+}
+.plot-grid-wrap.is-dragging button.plot-grid-beat.dragging:hover {
+  transform: scale(0.97);
+  box-shadow: none;
+}
+.plot-grid-drag-ghost {
+  position: fixed;
+  z-index: 80;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.1rem;
+  padding: 0.4rem 0.5rem 0.4rem 0.7rem;
+  border: 1px solid color-mix(in srgb, var(--color-accent) 55%, var(--border));
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--color-surface) 92%, var(--color-accent-soft));
+  box-shadow: var(--shadow-lg);
+  transform: rotate(1.5deg) scale(1.03);
+  opacity: 0.95;
+  transition: none;
+}
+.plot-grid-drag-ghost .plot-grid-beat-bar {
+  position: absolute; left: 0; top: 0.28rem; bottom: 0.28rem; width: 0.2rem; border-radius: 999px;
+  background: var(--color-accent);
+}
+.plot-grid-cell.drop-active,
+.plot-unplaced-tray.drop-active {
+  outline: 2px solid color-mix(in srgb, var(--color-accent) 75%, transparent);
+  outline-offset: -2px;
+  background: color-mix(in srgb, var(--color-accent-soft) 55%, var(--color-accent-wash));
+  transition: background var(--motion-fast) var(--motion-ease), outline-color var(--motion-fast) var(--motion-ease);
+}
+.plot-grid-chapter-chevron {
+  display: inline-block;
+  transform: rotate(90deg);
+  transition: transform var(--motion-fast) var(--motion-ease);
+}
+.plot-grid-chapter-toggle[aria-expanded="false"] .plot-grid-chapter-chevron {
+  transform: rotate(0deg);
+}
+.plot-drop-slot {
+  display: block;
+  height: 0.22rem;
+  margin: 0.15rem 0;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-accent) 70%, transparent);
+}
+li.drop-insert-before::before {
+  content: "";
+  display: block;
+  height: 0.22rem;
+  margin: 0.1rem 0 0.25rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-accent) 70%, transparent);
 }
 .plot-grid-beat-bar {
   position: absolute; left: 0; top: 0.28rem; bottom: 0.28rem; width: 0.2rem; border-radius: 999px;
@@ -1009,7 +1192,7 @@ button.plot-grid-blank-add {
   border: 1px dashed transparent; border-radius: var(--radius-md);
   background: transparent; color: transparent;
   font: inherit; font-size: 0.78rem; cursor: pointer;
-  opacity: 0; transition: opacity 0.12s ease, color 0.12s ease, border-color 0.12s ease;
+  opacity: 0; transition: opacity var(--motion-fast) var(--motion-ease), color var(--motion-fast) var(--motion-ease), border-color var(--motion-fast) var(--motion-ease);
 }
 .plot-grid-cell:hover > button.plot-grid-blank-add,
 .plot-grid-cell:focus-within > button.plot-grid-blank-add,
@@ -1312,16 +1495,65 @@ textarea.manuscript-text:focus-visible { outline: 2px solid var(--color-accent-s
 .record-meta { margin-bottom: 0.9rem; }
 .write-details .panel { scroll-margin-top: 1rem; }
 
-.write-context { background: var(--color-surface); font-size: 0.875rem; }
+.write-context {
+  background: var(--color-surface);
+  font-size: 0.875rem;
+  transition:
+    width var(--motion-med) var(--motion-ease),
+    max-width var(--motion-med) var(--motion-ease),
+    transform var(--motion-med) var(--motion-ease),
+    opacity var(--motion-med) var(--motion-ease),
+    border-color var(--motion-med) var(--motion-ease),
+    box-shadow var(--motion-med) var(--motion-ease);
+}
 .write-context.inline {
-  flex: none; width: var(--context-width); position: sticky; top: 0; height: 100vh; height: 100dvh; overflow-y: auto;
+  flex: none; width: var(--context-width); max-width: var(--context-width);
+  position: sticky; top: 0; height: 100vh; height: 100dvh; overflow-x: clip; overflow-y: auto;
   border-left: 1px solid var(--border);
+  opacity: 1;
+}
+.write-context.inline:not([data-open]) {
+  width: 0;
+  max-width: 0;
+  opacity: 0;
+  border-left-color: transparent;
+  overflow: hidden;
+  pointer-events: none;
 }
 .write-context.overlay {
-  position: fixed; top: 0; right: 0; bottom: 0; z-index: 60; width: min(var(--context-width), 92vw); overflow-y: auto;
+  position: fixed; top: 0; right: 0; bottom: 0; z-index: 60;
+  width: min(var(--context-width), 92vw); overflow-y: auto;
   box-shadow: var(--shadow-lg);
+  transform: translateX(0);
+  opacity: 1;
 }
-.context-backdrop { position: fixed; inset: 0; z-index: 55; background: rgba(28, 24, 20, 0.35); }
+.write-context.overlay:not([data-open]) {
+  transform: translateX(100%);
+  opacity: 0;
+  pointer-events: none;
+  box-shadow: none;
+}
+.context-backdrop {
+  position: fixed; inset: 0; z-index: 55;
+  background: rgba(28, 24, 20, 0.35);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--motion-med) var(--motion-ease);
+}
+.context-backdrop[data-open] {
+  opacity: 1;
+  pointer-events: auto;
+}
+.panel-resizer.is-collapsed {
+  width: 0;
+  margin: 0;
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    width var(--motion-med) var(--motion-ease),
+    margin var(--motion-med) var(--motion-ease),
+    opacity var(--motion-med) var(--motion-ease);
+}
 .context-head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; min-height: 2.75rem; padding: 0.6rem 1rem 0.2rem; }
 h2.context-title { margin: 0; font-size: 0.72rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-text-muted); }
 .context-tabs { display: flex; gap: 0.2rem; padding: 0 0.75rem; border-bottom: 1px solid var(--border); }

@@ -1181,7 +1181,8 @@ export function HelpContent() {
             <L>{WEAVE.layoutPlotGrid}</L> shows scenes as rows grouped by collapsible chapters (for the current writing
             draft; chapter-only projects show chapter rows) and editable story-thread columns. Multiple beats can share
             a cell; blank cells stay valid and can receive a beat inline (subtle on desktop hover/focus; always
-            available by keyboard Enter and on touch). Sticky scene labels and thread headers stay visible while you
+            available by keyboard Enter and on touch). Drag a beat onto another cell or the Unplaced tray to move it;
+            drop position sets order within a cell. Sticky scene labels and thread headers stay visible while you
             scroll. The collapsible Unplaced beats tray holds beats with no scene link or a link outside the current
             draft. One toolbar sits above the grid: Grid / Freeform, Threads visibility, decision filter, density, and
             gold <L>{WEAVE.addBeatPrimary}</L>. Compact scope chips show the project name as plain text; book switches
@@ -1197,9 +1198,9 @@ export function HelpContent() {
             <L>{WEAVE.openSceneInWrite}</L>, and <L>{WEAVE.compareZeroDraft}</L> when the linked rewrite scene has pinned
             Zero-draft sources (a chooser appears when several are pinned). On the freeform canvas, filter by decision,
             use <L>{WEAVE.fitSelection}</L> / <L>{WEAVE.fitAll}</L>, and move between beats with the arrow keys. On the
-            plot grid, arrow keys move between cells; Enter selects or adds in a blank cell. Unsaved title and notes stay
-            across refreshes and draft switches on this grid. Older projects open in freeform with their existing canvas
-            intact.
+            plot grid, arrow keys move between cells; Enter selects or adds in a blank cell; drag relocates beats
+            without changing book order. Unsaved title and notes stay across refreshes and draft switches on this grid.
+            Older projects open in freeform with their existing canvas intact.
           </p>
         </Sub>
 

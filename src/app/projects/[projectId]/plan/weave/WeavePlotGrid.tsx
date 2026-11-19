@@ -3,9 +3,11 @@
 import {
   useEffect,
   useMemo,
+  useRef,
   useState,
   useTransition,
   type KeyboardEvent as ReactKeyboardEvent,
+  type PointerEvent as ReactPointerEvent,
 } from "react";
 import { useRouter } from "next/navigation";
 import type { Issue } from "@/domain/issues";
@@ -16,6 +18,7 @@ import {
   addWeaveThreadAction,
   deleteWeaveThreadAction,
   placeWeaveBeatAction,
+  relocateWeaveBeatAction,
   renameWeaveThreadAction,
   reorderWeaveThreadsAction,
 } from "./actions";
@@ -34,6 +37,56 @@ export interface PlotGridChapter {
 }
 
 export type PlotDensity = "compact" | "comfortable";
+
+const DRAG_THRESHOLD_PX = 6;
+
+type DropTarget =
+  | { kind: "cell"; threadId: string; rowId: string; insertIndex: number }
+  | { kind: "unplaced"; insertIndex: number };
+
+function insertIndexFromY(clientY: number, beatEls: Element[], dragBeatId: string): number {
+  const others = beatEls.filter((el) => el.getAttribute("data-beat-id") !== dragBeatId);
+  for (let i = 0; i < others.length; i += 1) {
+    const rect = others[i]!.getBoundingClientRect();
+    if (clientY < rect.top + rect.height / 2) return i;
+  }
+  return others.length;
+}
+
+function resolveDropTarget(clientX: number, clientY: number, dragBeatId: string): DropTarget | null {
+  const stack = document.elementsFromPoint(clientX, clientY);
+  // Prefer an explicit drop surface (cell / Unplaced), including under the dragged beat.
+  const drop =
+    stack
+      .map((node) => (node instanceof Element ? node.closest<HTMLElement>("[data-plot-drop]") : null))
+      .find((node) => node != null) ?? null;
+  if (!drop) return null;
+  const kind = drop.dataset.plotDrop;
+  if (kind === "unplaced") {
+    return {
+      kind: "unplaced",
+      insertIndex: insertIndexFromY(clientY, [...drop.querySelectorAll("[data-beat-id]")], dragBeatId),
+    };
+  }
+  if (kind === "cell") {
+    const threadId = drop.dataset.threadId;
+    const rowId = drop.dataset.rowId;
+    if (!threadId || !rowId) return null;
+    return {
+      kind: "cell",
+      threadId,
+      rowId,
+      insertIndex: insertIndexFromY(clientY, [...drop.querySelectorAll("[data-beat-id]")], dragBeatId),
+    };
+  }
+  return null;
+}
+
+function dropTargetKey(target: DropTarget | null): string | null {
+  if (!target) return null;
+  if (target.kind === "unplaced") return `unplaced:${target.insertIndex}`;
+  return `cell:${target.threadId}:${target.rowId}:${target.insertIndex}`;
+}
 
 export function WeavePlotGrid({
   projectId,
@@ -76,10 +129,30 @@ export function WeavePlotGrid({
   const [renameTitle, setRenameTitle] = useState("");
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [newThreadTitle, setNewThreadTitle] = useState("");
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [dropTarget, setDropTarget] = useState<DropTarget | null>(null);
+  const [settlingId, setSettlingId] = useState<string | null>(null);
+  const [ghost, setGhost] = useState<{ title: string; x: number; y: number; w: number } | null>(null);
+  const dragRef = useRef<{
+    beatId: string;
+    title: string;
+    startX: number;
+    startY: number;
+    active: boolean;
+    pointerId: number;
+    width: number;
+  } | null>(null);
+  const dropTargetRef = useRef<DropTarget | null>(null);
+  const suppressClickRef = useRef(false);
+  const beatsSnapshotRef = useRef(beats);
 
   useEffect(() => {
     setThreads(initialThreads);
   }, [initialThreads]);
+
+  useEffect(() => {
+    beatsSnapshotRef.current = beats;
+  }, [beats]);
 
   const commitThreads = (next: WeaveThreadView[] | ((prev: WeaveThreadView[]) => WeaveThreadView[])) => {
     setThreads((prev) => {
@@ -155,6 +228,169 @@ export function WeavePlotGrid({
     });
   };
 
+  const applyRelocate = (beatId: string, target: DropTarget) => {
+    const previous = beatsSnapshotRef.current;
+    const moving = previous.find((b) => b.id === beatId);
+    if (!moving) return;
+
+    const threadId = target.kind === "cell" ? target.threadId : moving.threadId;
+    const manuscriptRecordId = target.kind === "cell" ? target.rowId : null;
+    const cellOrder = target.insertIndex;
+
+    const cellKey = (t: string | null, m: string | null) => (t && m ? `${t}::${m}` : null);
+    const srcKey = cellKey(moving.threadId, moving.manuscriptRecordId);
+    const destKey = cellKey(threadId, manuscriptRecordId);
+    const optimistic = previous.map((beat) => ({ ...beat }));
+    const byId = new Map(optimistic.map((b) => [b.id, b]));
+    const mover = byId.get(beatId)!;
+    mover.threadId = threadId;
+    mover.manuscriptRecordId = manuscriptRecordId;
+    mover.cellOrder = cellOrder;
+    if (destKey && threadId && manuscriptRecordId) {
+      const others = optimistic
+        .filter((b) => b.id !== beatId && cellKey(b.threadId, b.manuscriptRecordId) === destKey)
+        .sort((a, b) => a.cellOrder - b.cellOrder || a.zIndex - b.zIndex || a.id.localeCompare(b.id));
+      const next = [...others];
+      next.splice(Math.min(cellOrder, next.length), 0, mover);
+      next.forEach((b, i) => {
+        b.threadId = threadId;
+        b.manuscriptRecordId = manuscriptRecordId;
+        b.cellOrder = i;
+      });
+    }
+    if (srcKey && srcKey !== destKey) {
+      const source = optimistic
+        .filter((b) => b.id !== beatId && cellKey(b.threadId, b.manuscriptRecordId) === srcKey)
+        .sort((a, b) => a.cellOrder - b.cellOrder || a.zIndex - b.zIndex || a.id.localeCompare(b.id));
+      source.forEach((b, i) => {
+        b.cellOrder = i;
+      });
+    }
+    onBeatsChange?.(optimistic);
+    setSettlingId(beatId);
+    window.setTimeout(() => setSettlingId((id) => (id === beatId ? null : id)), 220);
+
+    startTransition(async () => {
+      const result = await relocateWeaveBeatAction(projectId, gridId, beatId, {
+        threadId,
+        manuscriptRecordId,
+        cellOrder,
+      });
+      if (!result.ok) {
+        onIssues(result.issues);
+        onBeatsChange?.(previous);
+        return;
+      }
+      onIssues([]);
+      onBeatsChange?.(result.beats);
+      const updated = result.beats.find((b) => b.id === beatId) ?? null;
+      if (updated) onSelectBeat(updated);
+      router.refresh();
+    });
+  };
+
+  const clearDragUi = () => {
+    dropTargetRef.current = null;
+    setDropTarget(null);
+    setDraggingId(null);
+    setGhost(null);
+  };
+
+  const detachWindowDrag = useRef<(() => void) | null>(null);
+
+  const endDrag = (clientX: number, clientY: number) => {
+    detachWindowDrag.current?.();
+    detachWindowDrag.current = null;
+    const drag = dragRef.current;
+    dragRef.current = null;
+    if (!drag) {
+      clearDragUi();
+      return;
+    }
+    // Resolve from coordinates on release — React dropTarget state can lag the last move.
+    const target = drag.active
+      ? resolveDropTarget(clientX, clientY, drag.beatId) ?? dropTargetRef.current
+      : null;
+    clearDragUi();
+    if (drag.active) {
+      suppressClickRef.current = true;
+      window.setTimeout(() => {
+        suppressClickRef.current = false;
+      }, 0);
+    }
+    if (drag.active && target) {
+      applyRelocate(drag.beatId, target);
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      detachWindowDrag.current?.();
+      detachWindowDrag.current = null;
+    };
+  }, []);
+
+  const onBeatPointerDown = (e: ReactPointerEvent<HTMLButtonElement>, beat: WeaveBeatView) => {
+    if (e.button !== 0) return;
+    // Keep the gesture on window listeners so React className re-renders cannot drop it.
+    const rect = e.currentTarget.getBoundingClientRect();
+    const pointerId = e.pointerId;
+    dragRef.current = {
+      beatId: beat.id,
+      title: beat.title,
+      startX: e.clientX,
+      startY: e.clientY,
+      active: false,
+      pointerId,
+      width: Math.max(120, Math.round(rect.width)),
+    };
+    suppressClickRef.current = false;
+    onSelectBeat(beat);
+
+    const onMove = (ev: PointerEvent) => {
+      const drag = dragRef.current;
+      if (!drag || drag.pointerId !== ev.pointerId) return;
+      const dist = Math.hypot(ev.clientX - drag.startX, ev.clientY - drag.startY);
+      if (!drag.active && dist < DRAG_THRESHOLD_PX) return;
+      if (!drag.active) {
+        drag.active = true;
+        setDraggingId(drag.beatId);
+      }
+      ev.preventDefault();
+      const next = resolveDropTarget(ev.clientX, ev.clientY, drag.beatId);
+      dropTargetRef.current = next;
+      setDropTarget(next);
+      setGhost({
+        title: drag.title,
+        x: ev.clientX + 12,
+        y: ev.clientY + 12,
+        w: drag.width,
+      });
+    };
+    const onUp = (ev: PointerEvent) => {
+      if (dragRef.current?.pointerId !== ev.pointerId) return;
+      endDrag(ev.clientX, ev.clientY);
+    };
+    detachWindowDrag.current?.();
+    window.addEventListener("pointermove", onMove, { passive: false });
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
+    detachWindowDrag.current = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
+    };
+  };
+
+  const onBeatClick = (e: React.MouseEvent, beat: WeaveBeatView) => {
+    if (suppressClickRef.current || draggingId === beat.id) {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+    onSelectBeat(beat);
+  };
+
   const onGridKeyDown = (e: ReactKeyboardEvent<HTMLElement>) => {
     if (!visibleThreads.length || !flatRows.length) return;
     if (e.key === "Escape") {
@@ -227,9 +463,22 @@ export function WeavePlotGrid({
   };
 
   const sceneCount = chapters.reduce((n, c) => n + c.rows.length, 0);
+  const activeDropKey = dropTargetKey(dropTarget);
 
   return (
-    <div className={`plot-grid-wrap density-${density}${mobileThreadId ? " plot-grid-mobile" : ""}`}>
+    <div
+      className={`plot-grid-wrap density-${density}${mobileThreadId ? " plot-grid-mobile" : ""}${draggingId ? " is-dragging" : ""}`}
+    >
+      {ghost ? (
+        <div
+          className="plot-grid-drag-ghost"
+          style={{ left: ghost.x, top: ghost.y, width: ghost.w }}
+          aria-hidden="true"
+        >
+          <span className="plot-grid-beat-bar" />
+          <span className="plot-grid-beat-title">{ghost.title}</span>
+        </div>
+      ) : null}
       {!threads.length ? (
         <div className="plot-grid-empty-threads">
           <p className="muted">{WEAVE.noThreadsYet}</p>
@@ -267,7 +516,7 @@ export function WeavePlotGrid({
           className="plot-grid-scroll"
           tabIndex={0}
           aria-label={WEAVE.plotGridTable}
-          aria-description={WEAVE.plotGridKeyboard}
+          aria-description={`${WEAVE.plotGridKeyboard} ${WEAVE.dragBeatHint}`}
           onKeyDown={onGridKeyDown}
         >
           <table className="plot-grid-table">
@@ -423,9 +672,13 @@ export function WeavePlotGrid({
                     focus={focus}
                     selectedId={selectedId}
                     pending={pending}
+                    draggingId={draggingId}
+                    settlingId={settlingId}
+                    dropTarget={dropTarget}
                     cellBeats={cellBeats}
                     onFocusCell={(row, col) => setFocus({ row, col })}
-                    onSelectBeat={onSelectBeat}
+                    onBeatPointerDown={onBeatPointerDown}
+                    onBeatClick={onBeatClick}
                     onAddInCell={addInCell}
                   />
                 );
@@ -435,48 +688,71 @@ export function WeavePlotGrid({
         </div>
       )}
 
-      {unplacedBeats.length ? (
-        <details className="plot-unplaced-tray" open>
+      {unplacedBeats.length || draggingId ? (
+        <details
+          className={`plot-unplaced-tray${dropTarget?.kind === "unplaced" ? " drop-active" : ""}`}
+          open
+          data-plot-drop="unplaced"
+        >
           <summary>{WEAVE.unplacedBeats(unplacedBeats.length)}</summary>
           <p className="small muted plot-unplaced-hint">{WEAVE.unplacedRowHint}</p>
-          <ul className="plot-unplaced-list">
-            {unplacedBeats.map((beat) => (
-              <li key={beat.id}>
-                <button
-                  type="button"
-                  className={`plot-grid-beat${selectedId === beat.id ? " selected" : ""}`}
-                  onClick={() => onSelectBeat(beat)}
+          {unplacedBeats.length ? (
+            <ul className="plot-unplaced-list">
+              {unplacedBeats.map((beat, index) => (
+                <li
+                  key={beat.id}
+                  className={
+                    dropTarget?.kind === "unplaced" && dropTarget.insertIndex === index
+                      ? "drop-insert-before"
+                      : undefined
+                  }
                 >
-                  <span className="plot-grid-beat-bar" aria-hidden="true" />
-                  <span className="plot-grid-beat-title">{beat.title}</span>
-                </button>
-                {threads.length && !beat.threadId ? (
-                  <label className="small">
-                    <span className="sr-only">{WEAVE.storyThread}</span>
-                    <select
-                      value=""
-                      aria-label={WEAVE.storyThread}
-                      onChange={(e) => {
-                        const threadId = e.target.value || null;
-                        if (threadId) placeOnUnplaced(beat, threadId);
-                      }}
-                    >
-                      <option value="">{WEAVE.noThread}</option>
-                      {threads.map((t) => (
-                        <option key={t.id} value={t.id}>
-                          {t.title}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                ) : null}
-              </li>
-            ))}
-          </ul>
+                  <button
+                    type="button"
+                    data-beat-id={beat.id}
+                    className={`plot-grid-beat${selectedId === beat.id ? " selected" : ""}${draggingId === beat.id ? " dragging" : ""}${settlingId === beat.id ? " settling" : ""}`}
+                    onPointerDown={(e) => onBeatPointerDown(e, beat)}
+                    onClick={(e) => onBeatClick(e, beat)}
+                  >
+                    <span className="plot-grid-beat-bar" aria-hidden="true" />
+                    <span className="plot-grid-beat-title">{beat.title}</span>
+                  </button>
+                  {threads.length && !beat.threadId ? (
+                    <label className="small">
+                      <span className="sr-only">{WEAVE.storyThread}</span>
+                      <select
+                        value=""
+                        aria-label={WEAVE.storyThread}
+                        onChange={(e) => {
+                          const threadId = e.target.value || null;
+                          if (threadId) placeOnUnplaced(beat, threadId);
+                        }}
+                      >
+                        <option value="">{WEAVE.noThread}</option>
+                        {threads.map((t) => (
+                          <option key={t.id} value={t.id}>
+                            {t.title}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="small muted">{WEAVE.dragBeatHint}</p>
+          )}
+          {dropTarget?.kind === "unplaced" && dropTarget.insertIndex >= unplacedBeats.length ? (
+            <div className="plot-drop-slot" aria-hidden="true" />
+          ) : null}
         </details>
       ) : null}
 
       <p className="plot-grid-meta small muted">{WEAVE.plotMeta(sceneCount, threads.length)}</p>
+      <span className="sr-only" aria-live="polite">
+        {activeDropKey ? WEAVE.dragBeatHint : ""}
+      </span>
     </div>
   );
 }
@@ -493,9 +769,13 @@ function ChapterBlock({
   focus,
   selectedId,
   pending,
+  draggingId,
+  settlingId,
+  dropTarget,
   cellBeats,
   onFocusCell,
-  onSelectBeat,
+  onBeatPointerDown,
+  onBeatClick,
   onAddInCell,
 }: {
   chapter: PlotGridChapter;
@@ -509,9 +789,13 @@ function ChapterBlock({
   focus: { row: number; col: number };
   selectedId: string | null;
   pending: boolean;
+  draggingId: string | null;
+  settlingId: string | null;
+  dropTarget: DropTarget | null;
   cellBeats: (row: PlotGridRow, thread: WeaveThreadView) => WeaveBeatView[];
   onFocusCell: (row: number, col: number) => void;
-  onSelectBeat: (beat: WeaveBeatView | null) => void;
+  onBeatPointerDown: (e: ReactPointerEvent<HTMLButtonElement>, beat: WeaveBeatView) => void;
+  onBeatClick: (e: React.MouseEvent, beat: WeaveBeatView) => void;
   onAddInCell: (row: PlotGridRow, thread: WeaveThreadView) => void;
 }) {
   const chapterHeading = (() => {
@@ -529,7 +813,9 @@ function ChapterBlock({
             aria-expanded={!collapsed}
             onClick={onToggle}
           >
-            <span aria-hidden="true">{collapsed ? "▸" : "▾"}</span>
+            <span className="plot-grid-chapter-chevron" aria-hidden="true">
+              ▸
+            </span>
             {chapterHeading}
             <span className="sr-only">
               {collapsed ? WEAVE.expandChapter : WEAVE.collapseChapter}
@@ -562,10 +848,17 @@ function ChapterBlock({
                 {visibleThreads.map((thread, colIdx) => {
                   const inCell = cellBeats(row, thread);
                   const focused = focus.row === rowIdx && focus.col === colIdx;
+                  const cellDrop =
+                    dropTarget?.kind === "cell" &&
+                    dropTarget.threadId === thread.id &&
+                    dropTarget.rowId === row.id;
                   return (
                     <td
                       key={`${row.id}-${thread.id}`}
-                      className={`plot-grid-cell thread-tone-${colIdx % 6}${focused ? " focused" : ""}${inCell.length ? "" : " blank"}`}
+                      data-plot-drop="cell"
+                      data-thread-id={thread.id}
+                      data-row-id={row.id}
+                      className={`plot-grid-cell thread-tone-${colIdx % 6}${focused ? " focused" : ""}${inCell.length ? "" : " blank"}${cellDrop ? " drop-active" : ""}`}
                       onClick={() => onFocusCell(rowIdx, colIdx)}
                     >
                       {inCell.length === 0 ? (
@@ -581,18 +874,30 @@ function ChapterBlock({
                         </button>
                       ) : (
                         <ul className="plot-grid-cell-beats">
-                          {inCell.map((beat) => (
-                            <li key={beat.id}>
+                          {inCell.map((beat, index) => (
+                            <li
+                              key={beat.id}
+                              className={
+                                cellDrop && dropTarget.insertIndex === index ? "drop-insert-before" : undefined
+                              }
+                            >
                               <button
                                 type="button"
-                                className={`plot-grid-beat${selectedId === beat.id ? " selected" : ""}`}
-                                onClick={() => onSelectBeat(beat)}
+                                data-beat-id={beat.id}
+                                className={`plot-grid-beat${selectedId === beat.id ? " selected" : ""}${draggingId === beat.id ? " dragging" : ""}${settlingId === beat.id ? " settling" : ""}`}
+                                onPointerDown={(e) => onBeatPointerDown(e, beat)}
+                                onClick={(e) => onBeatClick(e, beat)}
                               >
                                 <span className="plot-grid-beat-bar" aria-hidden="true" />
                                 <span className="plot-grid-beat-title">{beat.title}</span>
                               </button>
                             </li>
                           ))}
+                          {cellDrop && dropTarget.insertIndex >= inCell.length ? (
+                            <li className="drop-insert-before" aria-hidden="true">
+                              <div className="plot-drop-slot" />
+                            </li>
+                          ) : null}
                           <li className="plot-grid-cell-add">
                             <button
                               type="button"
@@ -605,6 +910,7 @@ function ChapterBlock({
                           </li>
                         </ul>
                       )}
+                      {inCell.length === 0 && cellDrop ? <div className="plot-drop-slot" aria-hidden="true" /> : null}
                     </td>
                   );
                 })}

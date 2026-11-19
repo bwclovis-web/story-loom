@@ -20,6 +20,7 @@ import {
   isWeaveViewKind,
   moveWeaveBeat,
   placeWeaveBeat,
+  relocateWeaveBeat,
   removeWeaveBeat,
   removeWeaveBeatWorldRef,
   removeWeaveSetupPayoff,
@@ -185,6 +186,21 @@ export async function placeWeaveBeatAction(
     const beat = await placeWeaveBeat(getDb(), projectId, gridId, beatId, input);
     revalidateWeave(projectId, gridId);
     return { ok: true as const, beat };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+export async function relocateWeaveBeatAction(
+  projectId: string,
+  gridId: string,
+  beatId: string,
+  input: { threadId: string | null; manuscriptRecordId: string | null; cellOrder: number },
+) {
+  try {
+    const beats = await relocateWeaveBeat(getDb(), projectId, gridId, beatId, input);
+    revalidateWeave(projectId, gridId);
+    return { ok: true as const, beats };
   } catch (error) {
     return failure(error);
   }

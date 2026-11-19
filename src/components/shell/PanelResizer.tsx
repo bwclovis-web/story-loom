@@ -16,11 +16,14 @@ export function PanelResizer({
   panel,
   controls,
   label,
+  hidden = false,
 }: {
   /** Which width it changes: the manuscript/project column on the left, or the context panel on the right. */
   panel: "secondaryWidth" | "contextWidth";
   controls: string;
   label: string;
+  /** Keep mounted but inert while a parent panel animates closed. */
+  hidden?: boolean;
 }) {
   const { layout, updateLayout, previewWidth } = useLayout();
   const limits = panel === "secondaryWidth" ? SECONDARY_WIDTH : CONTEXT_WIDTH;
@@ -69,14 +72,16 @@ export function PanelResizer({
       aria-valuemax={limits.max}
       aria-valuenow={value}
       aria-valuetext={`${value} pixels`}
-      tabIndex={0}
-      className={`panel-resizer ${panel === "secondaryWidth" ? "resizer-left" : "resizer-right"}`}
-      onPointerDown={onPointerDown}
-      onPointerMove={onPointerMove}
-      onPointerUp={endDrag}
-      onPointerCancel={endDrag}
-      onLostPointerCapture={endDrag}
-      onKeyDown={onKeyDown}
+      tabIndex={hidden ? -1 : 0}
+      className={`panel-resizer ${panel === "secondaryWidth" ? "resizer-left" : "resizer-right"}${hidden ? " is-collapsed" : ""}`}
+      aria-hidden={hidden || undefined}
+      inert={hidden ? true : undefined}
+      onPointerDown={hidden ? undefined : onPointerDown}
+      onPointerMove={hidden ? undefined : onPointerMove}
+      onPointerUp={hidden ? undefined : endDrag}
+      onPointerCancel={hidden ? undefined : endDrag}
+      onLostPointerCapture={hidden ? undefined : endDrag}
+      onKeyDown={hidden ? undefined : onKeyDown}
     />
   );
 }

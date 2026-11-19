@@ -1384,6 +1384,120 @@ export async function placeWeaveBeat(
   });
 }
 
+function plotCellKey(threadId: string | null, manuscriptRecordId: string | null): string | null {
+  if (!threadId || !manuscriptRecordId) return null;
+  return `${threadId}::${manuscriptRecordId}`;
+}
+
+/**
+ * Move a beat between plot-grid cells (or to Unplaced) and renumber cellOrder in
+ * the affected stacks. Never calls moveInBook; freeform x/y are left unchanged.
+ */
+export async function relocateWeaveBeat(
+  db: Db,
+  projectId: string,
+  gridId: string,
+  beatId: string,
+  input: { threadId: string | null; manuscriptRecordId: string | null; cellOrder: number },
+): Promise<WeaveBeatView[]> {
+  return db.$transaction(async (tx) => {
+    await requireGrid(tx, projectId, gridId);
+    const moving = await tx.weaveBeat.findFirst({ where: { id: beatId, gridId, projectId } });
+    if (!moving) throw rejected("That beat is not on this Weave grid.");
+
+    const destThreadId = input.threadId ? await requireThread(tx, projectId, gridId, input.threadId) : null;
+    const destManuscriptId = input.manuscriptRecordId
+      ? await requireManuscriptLink(tx, projectId, input.manuscriptRecordId)
+      : null;
+    const insertAt = Math.max(0, Math.round(input.cellOrder));
+
+    const all = await tx.weaveBeat.findMany({ where: { gridId, projectId } });
+    const srcKey = plotCellKey(moving.threadId, moving.manuscriptRecordId);
+    const destKey = plotCellKey(destThreadId, destManuscriptId);
+
+    const stacks = new Map<string, typeof all>();
+    for (const beat of all) {
+      if (beat.id === beatId) continue;
+      const key = plotCellKey(beat.threadId, beat.manuscriptRecordId);
+      if (!key) continue;
+      const list = stacks.get(key) ?? [];
+      list.push(beat);
+      stacks.set(key, list);
+    }
+    for (const list of stacks.values()) {
+      list.sort((a, b) => a.cellOrder - b.cellOrder || a.zIndex - b.zIndex || a.id.localeCompare(b.id));
+    }
+
+    type OrderPatch = {
+      id: string;
+      threadId?: string | null;
+      manuscriptRecordId?: string | null;
+      cellOrder: number;
+    };
+    const patches: OrderPatch[] = [];
+
+    if (destKey && destThreadId && destManuscriptId) {
+      const target = [...(stacks.get(destKey) ?? [])];
+      const idx = Math.min(insertAt, target.length);
+      target.splice(idx, 0, moving);
+      target.forEach((beat, cellOrder) => {
+        patches.push({
+          id: beat.id,
+          threadId: destThreadId,
+          manuscriptRecordId: destManuscriptId,
+          cellOrder,
+        });
+      });
+      if (srcKey && srcKey !== destKey) {
+        (stacks.get(srcKey) ?? []).forEach((beat, cellOrder) => {
+          patches.push({ id: beat.id, cellOrder });
+        });
+      }
+    } else {
+      patches.push({
+        id: beatId,
+        threadId: destThreadId,
+        manuscriptRecordId: destManuscriptId,
+        cellOrder: insertAt,
+      });
+      if (srcKey) {
+        (stacks.get(srcKey) ?? []).forEach((beat, cellOrder) => {
+          patches.push({ id: beat.id, cellOrder });
+        });
+      }
+    }
+
+    for (const patch of patches) {
+      await tx.weaveBeat.update({
+        where: { id: patch.id },
+        data: {
+          cellOrder: patch.cellOrder,
+          ...(patch.threadId !== undefined ? { threadId: patch.threadId } : {}),
+          ...(patch.manuscriptRecordId !== undefined ? { manuscriptRecordId: patch.manuscriptRecordId } : {}),
+        },
+      });
+    }
+
+    await tx.weaveGrid.update({ where: { id: gridId }, data: { updatedAt: new Date() } });
+    await writeAudit(tx, {
+      projectId,
+      action: "weave_beat.relocate",
+      actor: UI_ACTOR,
+      summary: `Moved a Weave beat on the plot grid`,
+      details: {
+        gridId,
+        beatId,
+        threadId: destThreadId,
+        manuscriptRecordId: destManuscriptId,
+        cellOrder: insertAt,
+      },
+    });
+
+    const view = await getWeaveGrid(tx, projectId, gridId);
+    return view.beats;
+  });
+}
+
 /** Clear manuscript links / world refs / setup-payoff ends when records are permanently deleted. */
 export async function clearWeaveForDeletedRecordsInTx(tx: Tx, recordIds: readonly string[]): Promise<void> {
   if (recordIds.length === 0) return;

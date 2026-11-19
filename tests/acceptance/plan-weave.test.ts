@@ -14,6 +14,7 @@ import {
   listWeaveGrids,
   moveWeaveBeat,
   placeWeaveBeat,
+  relocateWeaveBeat,
   renameWeaveThread,
   reorderWeaveThreads,
   saveWeaveGridAsTemplate,
@@ -269,6 +270,42 @@ describe("Plan Weave", () => {
     });
     expect(blank.manuscriptRecordId).toBeNull();
     expect(blank.threadId).toBe(second.id);
+
+    const stacked = await addWeaveBeat(t.db, IDS.project, grid.id, {
+      title: "Second in cell",
+      x: 20,
+      y: 20,
+      threadId: thread.id,
+      manuscriptRecordId: IDS.chapter,
+      cellOrder: 1,
+    });
+    const relocated = await relocateWeaveBeat(t.db, IDS.project, grid.id, stacked.id, {
+      threadId: second.id,
+      manuscriptRecordId: IDS.chapter,
+      cellOrder: 0,
+    });
+    const inTide = relocated
+      .filter((b) => b.threadId === second.id && b.manuscriptRecordId === IDS.chapter)
+      .sort((a, b) => a.cellOrder - b.cellOrder);
+    expect(inTide.map((b) => b.title)).toEqual(["Second in cell"]);
+    expect(inTide[0]!.cellOrder).toBe(0);
+    const stillOnMara = relocated.find((b) => b.id === beat.id)!;
+    expect(stillOnMara.threadId).toBe(thread.id);
+    expect(stillOnMara.cellOrder).toBe(0);
+    const chapterAfterRelocate = await t.db.record.findUniqueOrThrow({
+      where: { id: IDS.chapter },
+      select: { position: true, parentRecordId: true },
+    });
+    expect(chapterAfterRelocate.position).toBe(chapterBefore.position);
+    expect(chapterAfterRelocate.parentRecordId).toBe(chapterBefore.parentRecordId);
+
+    const unplacedMove = await relocateWeaveBeat(t.db, IDS.project, grid.id, stacked.id, {
+      threadId: second.id,
+      manuscriptRecordId: null,
+      cellOrder: 0,
+    });
+    expect(unplacedMove.find((b) => b.id === stacked.id)?.manuscriptRecordId).toBeNull();
+    expect(unplacedMove.find((b) => b.id === stacked.id)?.threadId).toBe(second.id);
 
     const backup = await createWorkspaceBackup(t.db, IDS.workspace);
     expect(backup.weaveThreads?.length).toBe(2);

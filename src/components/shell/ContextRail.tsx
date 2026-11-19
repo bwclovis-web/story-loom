@@ -128,18 +128,30 @@ export function ContextRail({
 
   return (
     <>
-      {rail.wide && rail.visible ? (
-        <PanelResizer panel="contextWidth" controls={id} label={WRITE.resizeContext} />
-      ) : null}
-      {!rail.wide && rail.visible ? (
-        <div className="context-backdrop" aria-hidden="true" onClick={rail.close} />
-      ) : null}
+      {rail.wide ? (
+        <PanelResizer
+          panel="contextWidth"
+          controls={id}
+          label={WRITE.resizeContext}
+          // Keep the handle mounted so the rail can animate width without a layout jump.
+          hidden={!rail.visible}
+        />
+      ) : (
+        <div
+          className="context-backdrop"
+          data-open={rail.visible ? "" : undefined}
+          aria-hidden="true"
+          onClick={rail.close}
+        />
+      )}
       <aside
         ref={contextRef}
         id={id}
         className={`write-context ${rail.wide ? "inline" : "overlay"}${className ? ` ${className}` : ""}`}
         aria-labelledby={labelledBy}
-        hidden={!rail.visible}
+        data-open={rail.visible ? "" : undefined}
+        aria-hidden={!rail.visible}
+        inert={!rail.visible ? true : undefined}
       >
         {children}
       </aside>
