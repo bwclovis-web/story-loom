@@ -1,7 +1,8 @@
 import Link from "next/link";
+import { OverflowDisclosure } from "@/components/shell/OverflowDisclosure";
+import { WorkspaceToolsChooser } from "@/components/shell/WorkspaceToolsChooser";
 import { getDb } from "@/server/db";
 import { listWeaveGrids, WEAVE_VIEW_KINDS, WEAVE_VIEW_LABELS } from "@/server/services/weaveService";
-import { WorkspaceToolsChooser } from "@/components/shell/WorkspaceToolsChooser";
 import { GROUP_PAGES, WEAVE, WORKSPACE_TOOLS } from "@/ui/labels";
 import { RECORD_GROUPS } from "@/ui/navigation";
 import { RecordListPage } from "../RecordListPage";
@@ -13,6 +14,7 @@ export default async function PlanPage({ params }: { params: Promise<{ projectId
   const { projectId } = await params;
   const grids = await listWeaveGrids(getDb(), projectId).catch(() => []);
   const base = `/projects/${encodeURIComponent(projectId)}/plan`;
+  const primaryGrid = grids[0] ?? null;
 
   return (
     <>
@@ -23,14 +25,24 @@ export default async function PlanPage({ params }: { params: Promise<{ projectId
         <p className="page-lead">{WEAVE.lead}</p>
         <WorkspaceToolsChooser projectId={projectId} emphasize="weave" />
         <p className="row" style={{ gap: "0.75rem", flexWrap: "wrap", marginBottom: "1rem" }}>
-          <Link className="button-link" href={`${base}/weave`}>
-            {WORKSPACE_TOOLS.openWeave}
-          </Link>
-          <Link className="button-link secondary" href={`${base}/weave/templates`}>
-            {WEAVE.templates}
-          </Link>
+          {primaryGrid ? (
+            <Link className="button-link" href={`${base}/weave/${encodeURIComponent(primaryGrid.id)}`}>
+              {WEAVE.openGrid}: {primaryGrid.title}
+            </Link>
+          ) : (
+            <Link className="button-link" href={`${base}/weave`}>
+              {WORKSPACE_TOOLS.openWeave}
+            </Link>
+          )}
         </p>
-        <CreateWeaveGridForm projectId={projectId} />
+        <OverflowDisclosure summary={WEAVE.newGrid} defaultOpen={!grids.length}>
+          <CreateWeaveGridForm projectId={projectId} />
+          <p style={{ marginTop: "0.75rem" }}>
+            <Link className="small" href={`${base}/weave/templates`}>
+              {WEAVE.templates}
+            </Link>
+          </p>
+        </OverflowDisclosure>
         {grids.length === 0 ? (
           <p className="muted" style={{ marginTop: "1rem" }}>
             {WEAVE.noGrids}
@@ -50,7 +62,7 @@ export default async function PlanPage({ params }: { params: Promise<{ projectId
                           <Link href={`${base}/weave/${encodeURIComponent(g.id)}`}>{g.title}</Link>{" "}
                           <span className="small muted">{WEAVE.beatsCount(g.beatCount)}</span>
                         </div>
-                        <Link className="small-button secondary" href={`${base}/weave/${encodeURIComponent(g.id)}`}>
+                        <Link className="small-button" href={`${base}/weave/${encodeURIComponent(g.id)}`}>
                           {WEAVE.openGrid}
                         </Link>
                       </li>
@@ -69,6 +81,7 @@ export default async function PlanPage({ params }: { params: Promise<{ projectId
         lead={GROUP_PAGES.plan}
         types={RECORD_GROUPS.plan}
         defaultType="chapter_outline"
+        createInOverflow
       />
     </>
   );

@@ -149,7 +149,9 @@ export const PlusIcon = () => (
 
 export const MoreIcon = () => (
   <Icon>
-    <path d="M5 12h.01M12 12h.01M19 12h.01" />
+    <circle cx="5" cy="12" r="1.65" fill="currentColor" stroke="none" />
+    <circle cx="12" cy="12" r="1.65" fill="currentColor" stroke="none" />
+    <circle cx="19" cy="12" r="1.65" fill="currentColor" stroke="none" />
   </Icon>
 );
 

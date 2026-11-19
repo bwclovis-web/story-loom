@@ -20,11 +20,14 @@ import type { Issue } from "@/domain/issues";
 import {
   WEAVE_DECISIONS,
   WEAVE_DECISION_LABELS,
+  WEAVE_LAYOUT_LABELS,
   type WeaveBeatView,
   type WeaveGridView,
+  type WeaveLayoutMode,
   type WeaveSetupPayoffView,
+  type WeaveThreadView,
 } from "@/server/services/weaveService";
-import { WEAVE, WRITE } from "@/ui/labels";
+import { SHELL, WEAVE, WRITE } from "@/ui/labels";
 import {
   addWeaveBeatAction,
   addWeaveBeatWorldRefAction,
@@ -36,8 +39,10 @@ import {
   removeWeaveSetupPayoffAction,
   renameWeaveGridAction,
   saveWeaveGridAsTemplateAction,
+  setWeaveLayoutModeAction,
   updateWeaveBeatAction,
 } from "./actions";
+import { WeavePlotGrid, type PlotGridRow } from "./WeavePlotGrid";
 
 export interface ManuscriptChoice {
   id: string;
@@ -88,12 +93,14 @@ export function WeaveCanvas({
   projectId,
   grid: initial,
   manuscriptChoices,
+  manuscriptRows,
   worldChoices,
   seriesBeats,
 }: {
   projectId: string;
   grid: WeaveGridView;
   manuscriptChoices: ManuscriptChoice[];
+  manuscriptRows: PlotGridRow[];
   worldChoices: WorldChoice[];
   seriesBeats: SeriesBeatChoice[];
 }) {
@@ -104,6 +111,8 @@ export function WeaveCanvas({
   const rail = useContextRail();
   const [grid, setGrid] = useState(initial);
   const [beats, setBeats] = useState(initial.beats);
+  const [threads, setThreads] = useState<WeaveThreadView[]>(initial.threads);
+  const [layoutMode, setLayoutMode] = useState<WeaveLayoutMode>(initial.layoutMode);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [decisionFilter, setDecisionFilter] = useState<string>("all");
   const [issues, setIssues] = useState<Issue[]>([]);
@@ -126,6 +135,8 @@ export function WeaveCanvas({
   useEffect(() => {
     setGrid(initial);
     setTitle(initial.title);
+    setLayoutMode(initial.layoutMode);
+    setThreads(initial.threads);
     setBeats((prev) => mergeBeatsPreservingDirty(prev, initial.beats, dirtyIdsRef.current));
   }, [initial]);
 
@@ -262,29 +273,7 @@ export function WeaveCanvas({
     <div className="write-layout reference-write-layout board-layout">
       <div className="write-main board-main">
         <div className="doc-toolbar">
-          <form
-            className="row"
-            style={{ flex: 1, gap: "0.5rem", flexWrap: "wrap" }}
-            onSubmit={(e) => {
-              e.preventDefault();
-              startTransition(async () => {
-                const result = await renameWeaveGridAction(projectId, grid.id, title);
-                if (!result.ok) setIssues(result.issues);
-                else {
-                  setIssues([]);
-                  router.refresh();
-                }
-              });
-            }}
-          >
-            <label className="board-title-field">
-              <span className="sr-only">{WEAVE.renameGrid}</span>
-              <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} required />
-            </label>
-            <button type="submit" className="secondary small-button" disabled={pending}>
-              {WEAVE.renameGrid}
-            </button>
-          </form>
+          <h2 className="board-title-display">{title}</h2>
           <div className="doc-toolbar-end">
             <ContextRailToggle rail={rail} controls={railId} />
           </div>
@@ -292,42 +281,74 @@ export function WeaveCanvas({
 
         <p className="board-meta small muted">
           <span>{grid.viewLabel}</span>
+          <span>{WEAVE_LAYOUT_LABELS[layoutMode]}</span>
           <span>{WEAVE.beatsCount(beats.length)}</span>
-          <span>{WEAVE.dragBeatHint}</span>
+        </p>
+        <p className="small muted" style={{ margin: 0 }}>
+          {WEAVE.layoutHint}
         </p>
         <IssueList issues={issues} />
 
-        <div className="board-toolbar" role="toolbar" aria-label={WEAVE.beatCanvas}>
+        <div className="board-toolbar board-toolbar-compact" role="toolbar" aria-label={WEAVE.beatCanvas}>
           <div className="board-toolbar-group">
-            <span className="board-toolbar-label">{WEAVE.toolbarBeats}</span>
-            <button
-              type="button"
-              className="secondary small-button"
-              disabled={pending}
-              onClick={() => {
-                const { x, y } = dropPoint();
-                startTransition(async () => {
-                  const result = await addWeaveBeatAction(projectId, grid.id, {
-                    title: "Beat",
-                    x,
-                    y,
+            <label className="small">
+              <span className="sr-only">{WEAVE.toolbarView}</span>
+              <select
+                value={layoutMode}
+                aria-label={WEAVE.toolbarView}
+                disabled={pending}
+                onChange={(e) => {
+                  const next = e.target.value as WeaveLayoutMode;
+                  setLayoutMode(next);
+                  startTransition(async () => {
+                    const result = await setWeaveLayoutModeAction(projectId, grid.id, next);
+                    if (!result.ok) {
+                      setIssues(result.issues);
+                      setLayoutMode(initial.layoutMode);
+                      return;
+                    }
+                    setIssues([]);
+                    router.refresh();
                   });
-                  if (!result.ok) {
-                    setIssues(result.issues);
-                    return;
-                  }
-                  setBeats((list) => [...list, result.beat]);
-                  selectBeat(result.beat);
-                  router.refresh();
-                });
-              }}
-            >
-              {WEAVE.addBeat}
-            </button>
+                }}
+              >
+                <option value="freeform">{WEAVE.layoutFreeform}</option>
+                <option value="plot_grid">{WEAVE.layoutPlotGrid}</option>
+              </select>
+            </label>
           </div>
 
+          {layoutMode === "freeform" ? (
+            <div className="board-toolbar-group">
+              <button
+                type="button"
+                className="small-button"
+                disabled={pending}
+                onClick={() => {
+                  const { x, y } = dropPoint();
+                  startTransition(async () => {
+                    const result = await addWeaveBeatAction(projectId, grid.id, {
+                      title: "Beat",
+                      x,
+                      y,
+                    });
+                    if (!result.ok) {
+                      setIssues(result.issues);
+                      return;
+                    }
+                    setBeats((list) => [...list, result.beat]);
+                    selectBeat(result.beat);
+                    router.refresh();
+                  });
+                }}
+              >
+                {WEAVE.addBeat}
+              </button>
+            </div>
+          ) : null}
+
+          {layoutMode === "freeform" ? (
           <div className="board-toolbar-group">
-            <span className="board-toolbar-label">{WEAVE.toolbarView}</span>
             <label className="small">
               <span className="sr-only">{WEAVE.filterDecision}</span>
               <select
@@ -361,70 +382,110 @@ export function WeaveCanvas({
               {WEAVE.fitAll}
             </button>
           </div>
+          ) : null}
 
-          <div className="board-toolbar-group">
-            <span className="board-toolbar-label">{WEAVE.toolbarMaintain}</span>
-            <form
-              className="row"
-              style={{ gap: "0.35rem" }}
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (!templateTitle.trim()) return;
-                startTransition(async () => {
-                  const result = await saveWeaveGridAsTemplateAction(projectId, grid.id, { title: templateTitle });
-                  if (!result.ok) setIssues(result.issues);
-                  else {
-                    setTemplateTitle("");
-                    router.push(`/projects/${encodeURIComponent(projectId)}/plan/weave/templates`);
-                  }
-                });
-              }}
-            >
-              <input
-                value={templateTitle}
-                onChange={(e) => setTemplateTitle(e.target.value)}
-                placeholder={WEAVE.templateTitle}
-                aria-label={WEAVE.saveGridAsTemplate}
-              />
-              <button type="submit" className="secondary small-button" disabled={pending || !templateTitle.trim()}>
-                {WEAVE.saveGridAsTemplate}
-              </button>
-            </form>
-            {!confirmDelete ? (
-              <button type="button" className="secondary small-button" onClick={() => setConfirmDelete(true)}>
-                {WEAVE.deleteGrid}
-              </button>
-            ) : (
-              <button
-                type="button"
-                className="small-button"
-                disabled={pending}
-                onClick={() =>
+          <details className="board-overflow">
+            <summary>{SHELL.moreActions}</summary>
+            <div className="board-overflow-body">
+              <form
+                className="row"
+                style={{ gap: "0.35rem", flexWrap: "wrap" }}
+                onSubmit={(e) => {
+                  e.preventDefault();
                   startTransition(async () => {
-                    const result = await deleteWeaveGridAction(projectId, grid.id);
-                    if (!result.ok) {
-                      setIssues(result.issues);
-                      return;
+                    const result = await renameWeaveGridAction(projectId, grid.id, title);
+                    if (!result.ok) setIssues(result.issues);
+                    else {
+                      setIssues([]);
+                      router.refresh();
                     }
-                    router.push(`/projects/${encodeURIComponent(projectId)}/plan/weave`);
-                  })
-                }
+                  });
+                }}
               >
-                {WEAVE.confirmDeleteGrid(grid.title)}
-              </button>
-            )}
-          </div>
+                <label className="board-title-field">
+                  <span className="sr-only">{WEAVE.renameGrid}</span>
+                  <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} required />
+                </label>
+                <button type="submit" className="secondary small-button" disabled={pending}>
+                  {WEAVE.renameGrid}
+                </button>
+              </form>
+              <form
+                className="row"
+                style={{ gap: "0.35rem", flexWrap: "wrap" }}
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (!templateTitle.trim()) return;
+                  startTransition(async () => {
+                    const result = await saveWeaveGridAsTemplateAction(projectId, grid.id, { title: templateTitle });
+                    if (!result.ok) setIssues(result.issues);
+                    else {
+                      setTemplateTitle("");
+                      router.push(`/projects/${encodeURIComponent(projectId)}/plan/weave/templates`);
+                    }
+                  });
+                }}
+              >
+                <input
+                  value={templateTitle}
+                  onChange={(e) => setTemplateTitle(e.target.value)}
+                  placeholder={WEAVE.templateTitle}
+                  aria-label={WEAVE.saveGridAsTemplate}
+                />
+                <button type="submit" className="secondary small-button" disabled={pending || !templateTitle.trim()}>
+                  {WEAVE.saveGridAsTemplate}
+                </button>
+              </form>
+              {!confirmDelete ? (
+                <button type="button" className="secondary small-button" onClick={() => setConfirmDelete(true)}>
+                  {WEAVE.deleteGrid}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="small-button"
+                  disabled={pending}
+                  onClick={() =>
+                    startTransition(async () => {
+                      const result = await deleteWeaveGridAction(projectId, grid.id);
+                      if (!result.ok) {
+                        setIssues(result.issues);
+                        return;
+                      }
+                      router.push(`/projects/${encodeURIComponent(projectId)}/plan/weave`);
+                    })
+                  }
+                >
+                  {WEAVE.confirmDeleteGrid(grid.title)}
+                </button>
+              )}
+            </div>
+          </details>
         </div>
 
-        <p className="small muted" style={{ margin: 0 }}>
-          {WEAVE.keyboardHint}
-        </p>
+        {layoutMode === "plot_grid" ? (
+          <WeavePlotGrid
+            projectId={projectId}
+            gridId={grid.id}
+            threads={threads}
+            beats={beats}
+            rows={manuscriptRows}
+            selectedId={selectedId}
+            onSelectBeat={(beat) => {
+              if (beat) selectBeat(beat);
+              else setSelectedId(null);
+            }}
+            onIssues={setIssues}
+          />
+        ) : null}
 
+        {layoutMode === "freeform" ? (
         <div
           ref={surfaceRef}
-          className="board-surface"
+          className="board-surface board-surface-max"
           role="listbox"
           aria-label={WEAVE.beatCanvas}
+          aria-description={WEAVE.keyboardHint}
           aria-activedescendant={selectedId ? `${idPrefix}-beat-${selectedId}` : undefined}
           tabIndex={0}
           onClick={() => setSelectedId(null)}
@@ -511,6 +572,7 @@ export function WeaveCanvas({
             );
           })}
         </div>
+        ) : null}
 
         <section className="panel" aria-labelledby={`${idPrefix}-setup`}>
           <h2 id={`${idPrefix}-setup`}>{WEAVE.setupPayoff}</h2>
@@ -603,6 +665,7 @@ export function WeaveCanvas({
             </button>
           ) : null}
         </div>
+        <div className="context-body">
         {!selected ? (
           <p className="rail-empty">{WEAVE.noBeatSelected}</p>
         ) : (
@@ -707,6 +770,32 @@ export function WeaveCanvas({
                   ))}
                 </select>
               </label>
+              {layoutMode === "plot_grid" ? (
+                <label>
+                  {WEAVE.storyThread}
+                  <select
+                    value={selected.threadId ?? ""}
+                    onChange={(e) => {
+                      const threadId = e.target.value || null;
+                      startTransition(async () => {
+                        const result = await updateWeaveBeatAction(projectId, grid.id, selected.id, { threadId });
+                        if (!result.ok) setIssues(result.issues);
+                        else {
+                          setBeats((list) => list.map((b) => (b.id === selected.id && result.ok ? result.beat : b)));
+                          router.refresh();
+                        }
+                      });
+                    }}
+                  >
+                    <option value="">{WEAVE.noThread}</option>
+                    {threads.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.title}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
               {selected.manuscriptRecordId && !selected.manuscriptUnavailable ? (
                 <Link
                   href={`/projects/${encodeURIComponent(projectId)}/records/${encodeURIComponent(selected.manuscriptRecordId)}`}
@@ -829,6 +918,7 @@ export function WeaveCanvas({
             </div>
           </div>
         )}
+        </div>
       </ContextRail>
     </div>
   );

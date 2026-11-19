@@ -96,6 +96,10 @@ function weaveGridsOf(b: WorkspaceBackupV1) {
   return b.weaveGrids ?? [];
 }
 
+function weaveThreadsOf(b: WorkspaceBackupV1) {
+  return b.weaveThreads ?? [];
+}
+
 function weaveBeatsOf(b: WorkspaceBackupV1) {
   return b.weaveBeats ?? [];
 }
@@ -365,6 +369,19 @@ async function weaveGridRows(db: DbOrTx, projectIds: string[]) {
     return await db.weaveGrid.findMany({
       where: { projectId: { in: projectIds } },
       orderBy: [{ projectId: "asc" }, { id: "asc" }],
+    });
+  } catch (error) {
+    if (isMissingSchemaError(error, "P2021")) return [];
+    throw error;
+  }
+}
+
+async function weaveThreadRows(db: DbOrTx, projectIds: string[]) {
+  if (!("weaveThread" in db) || !(db as { weaveThread?: { findMany: unknown } }).weaveThread) return [];
+  try {
+    return await db.weaveThread.findMany({
+      where: { projectId: { in: projectIds } },
+      orderBy: [{ gridId: "asc" }, { position: "asc" }, { id: "asc" }],
     });
   } catch (error) {
     if (isMissingSchemaError(error, "P2021")) return [];
@@ -653,6 +670,7 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
     worldMapPins,
     placeRelations,
     weaveGrids,
+    weaveThreads,
     weaveBeats,
     weaveBeatWorldRefs,
     weaveSetupPayoffs,
@@ -682,6 +700,7 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
     worldMapPinRows(db, projectIds),
     placeRelationRows(db, projectIds),
     weaveGridRows(db, projectIds),
+    weaveThreadRows(db, projectIds),
     weaveBeatRows(db, projectIds),
     weaveBeatWorldRefRows(db, projectIds),
     weaveSetupPayoffRows(db, workspaceId),
@@ -965,29 +984,48 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
             projectId: g.projectId,
             title: g.title,
             viewKind: g.viewKind as "original" | "zero_draft_map" | "author_rewrite",
+            ...((g as { layoutMode?: string }).layoutMode === "plot_grid" ? { layoutMode: "plot_grid" as const } : {}),
             ...(g.sourceTemplateId ? { sourceTemplateId: g.sourceTemplateId } : { sourceTemplateId: null }),
             createdAt: iso(g.createdAt),
             updatedAt: iso(g.updatedAt),
           })),
         }
       : {}),
+    ...(weaveThreads.length
+      ? {
+          weaveThreads: weaveThreads.map((t) => ({
+            id: t.id,
+            gridId: t.gridId,
+            projectId: t.projectId,
+            title: t.title,
+            position: t.position,
+            createdAt: iso(t.createdAt),
+          })),
+        }
+      : {}),
     ...(weaveBeats.length
       ? {
-          weaveBeats: weaveBeats.map((b) => ({
-            id: b.id,
-            gridId: b.gridId,
-            projectId: b.projectId,
-            title: b.title,
-            body: b.body,
-            decision: (b.decision || "") as "" | "keep" | "cut" | "move" | "combine" | "rebuild",
-            ...(b.manuscriptRecordId ? { manuscriptRecordId: b.manuscriptRecordId } : { manuscriptRecordId: null }),
-            x: b.x,
-            y: b.y,
-            width: b.width,
-            height: b.height,
-            zIndex: b.zIndex,
-            createdAt: iso(b.createdAt),
-          })),
+          weaveBeats: weaveBeats.map((b) => {
+            const threadId = (b as { threadId?: string | null }).threadId ?? null;
+            const cellOrder = (b as { cellOrder?: number }).cellOrder ?? 0;
+            return {
+              id: b.id,
+              gridId: b.gridId,
+              projectId: b.projectId,
+              title: b.title,
+              body: b.body,
+              decision: (b.decision || "") as "" | "keep" | "cut" | "move" | "combine" | "rebuild",
+              ...(b.manuscriptRecordId ? { manuscriptRecordId: b.manuscriptRecordId } : { manuscriptRecordId: null }),
+              ...(threadId ? { threadId } : {}),
+              ...(cellOrder ? { cellOrder } : {}),
+              x: b.x,
+              y: b.y,
+              width: b.width,
+              height: b.height,
+              zIndex: b.zIndex,
+              createdAt: iso(b.createdAt),
+            };
+          }),
         }
       : {}),
     ...(weaveBeatWorldRefs.length
@@ -1195,6 +1233,7 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
       ...(worldMapPins.length ? { worldMapPins: worldMapPins.length } : {}),
       ...(placeRelations.length ? { placeRelations: placeRelations.length } : {}),
       ...(weaveGrids.length ? { weaveGrids: weaveGrids.length } : {}),
+      ...(weaveThreads.length ? { weaveThreads: weaveThreads.length } : {}),
       ...(weaveBeats.length ? { weaveBeats: weaveBeats.length } : {}),
       ...(weaveBeatWorldRefs.length ? { weaveBeatWorldRefs: weaveBeatWorldRefs.length } : {}),
       ...(weaveSetupPayoffs.length ? { weaveSetupPayoffs: weaveSetupPayoffs.length } : {}),
@@ -1268,6 +1307,7 @@ function checkInternalConsistency(b: WorkspaceBackupV1): Issue[] {
     worldMapPins: worldMapPinsOf(b).length,
     placeRelations: placeRelationsOf(b).length,
     weaveGrids: weaveGridsOf(b).length,
+    weaveThreads: weaveThreadsOf(b).length,
     weaveBeats: weaveBeatsOf(b).length,
     weaveBeatWorldRefs: weaveBeatWorldRefsOf(b).length,
     weaveSetupPayoffs: weaveSetupPayoffsOf(b).length,
@@ -1335,6 +1375,7 @@ function checkInternalConsistency(b: WorkspaceBackupV1): Issue[] {
     issues,
   );
   checkUnique(weaveGridsOf(b).map((x) => x.id), "weave grid", issues);
+  checkUnique(weaveThreadsOf(b).map((x) => x.id), "weave thread", issues);
   checkUnique(weaveBeatsOf(b).map((x) => x.id), "weave beat", issues);
   checkUnique(weaveBeatWorldRefsOf(b).map((x) => x.id), "weave beat world ref", issues);
   checkUnique(weaveBeatWorldRefsOf(b).map((x) => `${x.beatId}/${x.recordId}`), "weave beat world ref pair", issues);
@@ -1521,10 +1562,28 @@ function checkInternalConsistency(b: WorkspaceBackupV1): Issue[] {
   const weaveGridIds = new Set(weaveGridsOf(b).map((x) => x.id));
   const weaveGridProject = new Map(weaveGridsOf(b).map((x) => [x.id, x.projectId]));
   weaveGridsOf(b).forEach((g) => needProject(g.projectId, `Weave grid ${g.id}`));
+  const weaveThreadIds = new Set(weaveThreadsOf(b).map((x) => x.id));
+  const weaveThreadProject = new Map(weaveThreadsOf(b).map((x) => [x.id, x.projectId]));
+  const weaveThreadGrid = new Map(weaveThreadsOf(b).map((x) => [x.id, x.gridId]));
+  weaveThreadsOf(b).forEach((thread) => {
+    needProject(thread.projectId, `Weave thread ${thread.id}`);
+    if (!weaveGridIds.has(thread.gridId) || weaveGridProject.get(thread.gridId) !== thread.projectId) {
+      issues.push(integrity(`Weave thread ${thread.id} references missing grid ${thread.gridId}.`));
+    }
+  });
   const weaveBeatIds = new Set(weaveBeatsOf(b).map((x) => x.id));
   const weaveBeatProject = new Map(weaveBeatsOf(b).map((x) => [x.id, x.projectId]));
   weaveBeatsOf(b).forEach((beat) => {
     needProject(beat.projectId, `Weave beat ${beat.id}`);
+    if (beat.threadId) {
+      if (
+        !weaveThreadIds.has(beat.threadId) ||
+        weaveThreadProject.get(beat.threadId) !== beat.projectId ||
+        weaveThreadGrid.get(beat.threadId) !== beat.gridId
+      ) {
+        issues.push(integrity(`Weave beat ${beat.id} references missing thread ${beat.threadId}.`));
+      }
+    }
     if (!weaveGridIds.has(beat.gridId) || weaveGridProject.get(beat.gridId) !== beat.projectId) {
       issues.push(integrity(`Weave beat ${beat.id} references missing grid ${beat.gridId}.`));
     }
@@ -1783,6 +1842,9 @@ async function findCollisions(db: DbOrTx, b: WorkspaceBackupV1): Promise<Issue[]
   if (weaveGridsOf(b).length) {
     await check("weave grid", db.weaveGrid.count({ where: { id: { in: weaveGridsOf(b).map((x) => x.id) } } }));
   }
+  if (weaveThreadsOf(b).length) {
+    await check("weave thread", db.weaveThread.count({ where: { id: { in: weaveThreadsOf(b).map((x) => x.id) } } }));
+  }
   if (weaveBeatsOf(b).length) {
     await check("weave beat", db.weaveBeat.count({ where: { id: { in: weaveBeatsOf(b).map((x) => x.id) } } }));
   }
@@ -1974,6 +2036,7 @@ export async function restoreWorkspaceBackup(db: Db, input: string | unknown, op
   worldMapPinsOf(b).forEach((p) => assign(p.id, "wpn"));
   placeRelationsOf(b).forEach((r) => assign(r.id, "plr"));
   weaveGridsOf(b).forEach((x) => assign(x.id, "wvg"));
+  weaveThreadsOf(b).forEach((x) => assign(x.id, "wth"));
   weaveBeatsOf(b).forEach((x) => assign(x.id, "wvb"));
   weaveBeatWorldRefsOf(b).forEach((x) => assign(x.id, "wvr"));
   weaveSetupPayoffsOf(b).forEach((x) => assign(x.id, "wvs"));
@@ -2362,9 +2425,23 @@ export async function restoreWorkspaceBackup(db: Db, input: string | unknown, op
               projectId: m(g.projectId),
               title: g.title,
               viewKind: g.viewKind,
+              layoutMode: g.layoutMode === "plot_grid" ? "plot_grid" : "freeform",
               sourceTemplateId: g.sourceTemplateId ? m(g.sourceTemplateId) : null,
               createdAt: new Date(g.createdAt),
               updatedAt: new Date(g.updatedAt),
+            })),
+          });
+        }
+        const threads = weaveThreadsOf(b);
+        if (threads.length) {
+          await tx.weaveThread.createMany({
+            data: threads.map((thread) => ({
+              id: m(thread.id),
+              gridId: m(thread.gridId),
+              projectId: m(thread.projectId),
+              title: thread.title,
+              position: thread.position,
+              createdAt: new Date(thread.createdAt),
             })),
           });
         }
@@ -2379,6 +2456,8 @@ export async function restoreWorkspaceBackup(db: Db, input: string | unknown, op
               body: beat.body,
               decision: beat.decision,
               manuscriptRecordId: beat.manuscriptRecordId ? m(beat.manuscriptRecordId) : null,
+              threadId: beat.threadId ? m(beat.threadId) : null,
+              cellOrder: beat.cellOrder ?? 0,
               x: beat.x,
               y: beat.y,
               width: beat.width,

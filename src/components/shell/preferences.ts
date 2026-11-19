@@ -12,36 +12,52 @@ export const WRITE_DRAFT_COOKIE = "wordly-write-draft";
 
 /**
  * Optional guided walkthrough. Cookie values (this browser only):
- * - missing / empty → show from task 0
- * - `step:N` → resume at task N
- * - `done` or a legacy version string → dismissed
+ * - missing / empty → checklist open at task 0
+ * - `open:N` or legacy `step:N` → checklist open at task N
+ * - `paused:N` → Skip for now; Resume restores open at N
+ * - `dismissed`, `done`, or a legacy version string → permanent dismiss
  */
 export const ONBOARDING_COOKIE = "wordly-onboarding";
 /** Bump when walkthrough tasks change so authors see the new guide once. */
-export const ONBOARDING_VERSION = "storyloom-walk-2026-11";
+export const ONBOARDING_VERSION = "storyloom-simple-2026-11";
 
-export type WalkthroughState = { kind: "active"; step: number } | { kind: "done" };
+export type WalkthroughState =
+  | { kind: "open"; step: number }
+  | { kind: "paused"; step: number }
+  | { kind: "dismissed" };
 
 export function parseWalkthroughCookie(raw: string | undefined): WalkthroughState {
-  if (!raw) return { kind: "active", step: 0 };
+  if (!raw) return { kind: "open", step: 0 };
   let value = raw;
   try {
     value = decodeURIComponent(raw);
   } catch {
     /* keep raw */
   }
-  if (value === "done" || value === ONBOARDING_VERSION || value === "storyloom-2026-11") {
-    return { kind: "done" };
+  if (
+    value === "dismissed" ||
+    value === "done" ||
+    value === ONBOARDING_VERSION ||
+    value === "storyloom-walk-2026-11" ||
+    value === "storyloom-2026-11"
+  ) {
+    return { kind: "dismissed" };
   }
-  const stepMatch = /^step:(\d+)$/.exec(value);
-  if (stepMatch) {
-    return { kind: "active", step: Number(stepMatch[1]) };
+  const openMatch = /^(?:open|step):(\d+)$/.exec(value);
+  if (openMatch) {
+    return { kind: "open", step: Number(openMatch[1]) };
   }
-  return { kind: "done" };
+  const pausedMatch = /^paused:(\d+)$/.exec(value);
+  if (pausedMatch) {
+    return { kind: "paused", step: Number(pausedMatch[1]) };
+  }
+  return { kind: "dismissed" };
 }
 
 export function walkthroughCookieValue(state: WalkthroughState): string {
-  return state.kind === "done" ? "done" : `step:${state.step}`;
+  if (state.kind === "dismissed") return "dismissed";
+  if (state.kind === "paused") return `paused:${state.step}`;
+  return `open:${state.step}`;
 }
 
 /** "auto" collapses the navigation on medium-width windows and expands it on wide ones. */

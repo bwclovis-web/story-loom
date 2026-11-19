@@ -122,16 +122,17 @@ export function HelpContent() {
             one yourself.
           </li>
           <li>
-            Before big changes, choose <L>{SHELL.backups}</L> in the left navigation and download a backup.
+            Before big changes, open <L>{SHELL.utilities}</L> in the left navigation footer, choose{" "}
+            <L>{SHELL.backups}</L>, and download a backup.
           </li>
         </ol>
         <p>
           To stop the app, press <kbd>Ctrl</kbd>+<kbd>C</kbd> in the terminal. Your work is already saved.
         </p>
         <p>
-          After a project opens, a skippable guided walkthrough offers one real task at a time (continue writing, keep a
-          reference beside writing, board, map, plot beat, assistant). See <See anchor="optional-features" />. You can
-          skip it; nothing is required.
+          After a project opens, an on-demand guided checklist offers one real task at a time (continue writing, keep a
+          reference handy, board, map, plot beat, assistant). See <See anchor="optional-features" />. You can skip it;
+          nothing is required.
         </p>
       </Section>
 
@@ -196,11 +197,11 @@ export function HelpContent() {
 
       <Section id="optional-features">
         <p>
-          When a project is open, Story Loom can show a skippable walkthrough titled <L>{ONBOARDING.heading}</L>. It
-          walks one real task at a time (continue writing, keep a reference beside writing, board, map, plot beat,
-          assistant). Choose <L>{ONBOARDING.skip}</L>, <L>{ONBOARDING.skipTask}</L>, or <L>{ONBOARDING.dismiss}</L> anytime
-          — nothing is written to your records. Progress is stored in this browser only so you can resume.{" "}
-          <L>{ONBOARDING.showAgain}</L> starts the guide again.
+          When a project is open, Story Loom can show an on-demand checklist titled <L>{ONBOARDING.heading}</L>. It walks
+          one real task at a time (continue writing, keep a reference handy, board, map, plot beat, assistant).{" "}
+          <L>{ONBOARDING.skip}</L> pauses and keeps your place so <L>{ONBOARDING.resume}</L> can restore it.{" "}
+          <L>{ONBOARDING.dismiss}</L> hides the guide permanently until you choose <L>{ONBOARDING.showAgain}</L>. Nothing
+          is written to your records; progress is stored in this browser only.
         </p>
         <p>
           Older projects open and edit as before until you use these features. Change packages, backups and history keep
@@ -248,7 +249,10 @@ export function HelpContent() {
       </Section>
 
       <Section id="navigation">
-        <p>The dark column on the left is the main navigation. It is the same on every page.</p>
+        <p>
+          The dark column on the left is the main navigation. Authoring destinations stay in the rail; utilities live
+          under <L>{SHELL.utilities}</L> in the footer. URLs are unchanged.
+        </p>
         <ul>
           <li>
             <L>{SHELL.write}</L>: the project&apos;s manuscript chapters, scenes and scene notes. See{" "}
@@ -265,16 +269,17 @@ export function HelpContent() {
             <L>{SHELL.assistant}</L>: the optional assistant. See <See anchor="assistant" />.
           </li>
           <li>
-            <L>{SHELL.backups}</L>: the <L>{BACKUP.heading}</L> page.
+            <L>{SHELL.utilities}</L> → <L>{SHELL.backups}</L>: the <L>{BACKUP.heading}</L> page.
           </li>
           <li>
-            <L>{SHELL.connections}</L>: the <L>{CONNECTIONS.heading}</L> page. See <See anchor="chatgpt-direct" />.
+            <L>{SHELL.utilities}</L> → <L>{SHELL.connections}</L>: the <L>{CONNECTIONS.heading}</L> page. See{" "}
+            <See anchor="chatgpt-direct" />.
           </li>
           <li>
-            <L>{SHELL.trash}</L>: what you have moved to the Trash. See <See anchor="trash" />.
+            <L>{SHELL.utilities}</L> → <L>{SHELL.trash}</L>: what you have moved to the Trash. See <See anchor="trash" />.
           </li>
           <li>
-            <L>{SHELL.help}</L>: this page.
+            <L>{SHELL.utilities}</L> → <L>{SHELL.help}</L>: this page.
           </li>
         </ul>
         <p>
@@ -1075,10 +1080,9 @@ export function HelpContent() {
               <L>{WRITE.linkToScene}</L> / <L>{WRITE.unlinkFromScene}</L> are separate from pin/unpin.
             </li>
             <li>
-              Under <L>{WRITE.findReference}</L>, search by title, name, alias, or section heading. Choose{" "}
-              <L>{WRITE.openReference}</L> to read in the panel (jump to a matching section, see image thumbnails),{" "}
-              <L>{WRITE.pinReference}</L> to pin, or <L>{WRITE.linkToScene}</L> to link. <L>{WRITE.openFull}</L> opens
-              its own page.
+              Under <L>{WRITE.findReference}</L>, search by title, name, alias, or section heading, then select a result
+              to preview. In the preview, choose <L>{WRITE.pinReference}</L> or <L>{WRITE.linkToScene}</L>.{" "}
+              <L>{WRITE.openFull}</L> opens its own page.
             </li>
             <li>
               <L>{WRITE.findRelevantContext}</L> opens the assistant with this scene as the seed so you can preview
@@ -1162,16 +1166,20 @@ export function HelpContent() {
             <L>{WEAVE.decisionMove}</L>, <L>{WEAVE.decisionCombine}</L>, and <L>{WEAVE.decisionRebuild}</L>.
           </p>
           <p>
-            Dragging a beat repositions it on the Weave grid only. It never changes book order or a scene&apos;s
-            chapter (see <See anchor="book-order" />). Soft-trashed linked records stay on the beat as unavailable until
-            restore or permanent delete. Selecting a beat opens the shared context rail with notes, the linked scene,
-            World citations, and setup→payoff links that touch that beat; matching links draw on the grid. Filter by
-            decision, use <L>{WEAVE.fitSelection}</L> / <L>{WEAVE.fitAll}</L>, and move between beats with the arrow
-            keys. Unsaved title and notes stay when the page refreshes after a save elsewhere on the grid.
+            Each grid has two layouts. <L>{WEAVE.layoutFreeform}</L> is the original drag canvas: repositioning a beat
+            never changes book order or a scene&apos;s chapter (see <See anchor="book-order" />).{" "}
+            <L>{WEAVE.layoutPlotGrid}</L> shows manuscript rows (for the current writing draft; chapter-only projects
+            show chapter rows) and editable story-thread columns. Blank cells can receive a beat;{" "}
+            <L>{WEAVE.unplacedRow}</L> holds beats with no scene link or a link outside the current draft. Switching
+            layout keeps freeform positions and never reorders the manuscript — use Book order on Write for that.
           </p>
           <p>
-            Camera or filter &ldquo;saved views&rdquo; beyond each grid&apos;s create-time view kind are not stored yet;
-            that is a next increment if needed.
+            Soft-trashed linked records stay on the beat as unavailable until restore or permanent delete. Selecting a
+            beat opens the shared context rail with notes, the linked scene, story thread (in plot grid), World
+            citations, and setup→payoff links. On the freeform canvas, filter by decision, use{" "}
+            <L>{WEAVE.fitSelection}</L> / <L>{WEAVE.fitAll}</L>, and move between beats with the arrow keys. On the plot
+            grid, arrow keys move between cells. Unsaved title and notes stay when the page refreshes after a save
+            elsewhere on the grid. Older projects open in freeform with their existing canvas intact.
           </p>
         </Sub>
 
@@ -1189,7 +1197,10 @@ export function HelpContent() {
             beat layout. <L>{WEAVE.applyTemplate}</L> creates an independent Weave grid copy; later template edits do not
             change that copy.
           </p>
-          <p>Weave grids, beats, setup→payoff links and templates are included in workspace backups.</p>
+          <p>
+            Weave grids, story threads, beats (including thread associations), setup→payoff links and templates are
+            included in workspace backups. Older backups without threads restore as freeform.
+          </p>
         </Sub>
       </Section>
 
@@ -2794,8 +2805,8 @@ export function HelpContent() {
         </Sub>
         <Sub id="trash-page">
           <p>
-            Choose <L>{SHELL.trash}</L> in the left navigation. The page lists workspaces, projects, and documents,
-            chapters and scenes in the Trash, with when each was moved.
+            Open <L>{SHELL.utilities}</L> in the left navigation footer, then choose <L>{SHELL.trash}</L>. The page lists
+            workspaces, projects, and documents, chapters and scenes in the Trash, with when each was moved.
           </p>
           <ul>
             <li>
@@ -2834,7 +2845,7 @@ export function HelpContent() {
           <p>A backup is a complete copy of a workspace that you can restore later.</p>
           <ol>
             <li>
-              Choose <L>{SHELL.backups}</L> in the left navigation.
+              Open <L>{SHELL.utilities}</L> in the left navigation footer, then choose <L>{SHELL.backups}</L>.
             </li>
             <li>
               Under <L>{BACKUP.downloadHeading}</L>, choose the workspace name.
@@ -2873,7 +2884,7 @@ export function HelpContent() {
           <p>Restoring adds a copy of the backup as a new workspace. It never overwrites your current work.</p>
           <ol>
             <li>
-              Choose <L>{SHELL.backups}</L> in the left navigation.
+              Open <L>{SHELL.utilities}</L> in the left navigation footer, then choose <L>{SHELL.backups}</L>.
             </li>
             <li>
               Under <L>{BACKUP.restoreHeading}</L>, choose the backup file.

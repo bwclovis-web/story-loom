@@ -2096,3 +2096,77 @@ Screenshots: `docs/screenshots/discover-1-…` through `discover-6-…`.
 - Opening Continue writing still relies on author expanding the manuscript panel
   for the full tree when it was collapsed.
 - Map still requires an image on a World record before Create map is available.
+
+## Simplification pass (Nov 19, 2026)
+
+Requested: compact onboarding into on-demand checklist (Skip preserves step; Resume restores; permanent dismiss distinct); slim global rail + utilities footer menu (URLs intact); one primary action each for Write/World/Weave with create/rename/export/delete in overflow; maximize canvas and open inspector on selection; reference search select-to-preview with Keep handy + Link to scene; token polish; verify desktop/narrow and both themes; preserve legacy data and import/export.
+
+### Implemented
+
+- Walkthrough cookie states: `open:N`, `paused:N`, `dismissed` (legacy `step:N` / `done` / version strings still parse). Skip → paused; Resume → open; Don't show again → dismissed.
+- Global rail: Write / Plan / World / Assistant; Backups, Connections, Trash, Help under footer **More** menu (same hrefs).
+- Write: Continue writing primary; create/import + book order + new record in overflow. World: list/search primary; export/import + new record in overflow. Weave/Plan: Open grid primary; create/templates in overflow.
+- Canvas: larger surface; rename/template/delete (and board image/ask) in More actions; selection still opens the right rail; keyboard via `aria-description`.
+- Find reference: select-to-preview; **Keep handy** and **Link to scene** in the preview. Labels updated consistently.
+- Secondary controls use neutral surface/border tokens.
+
+### Checks
+
+| Check | Result |
+| --- | --- |
+| `pnpm typecheck` | pass |
+| `pnpm exec vitest run tests/unit/help.test.ts` | 4/4 |
+| Rail: Write/Plan/World/Assistant + More → utilities | Observed |
+| Skip → Resume restores Task N | Observed (task 2) |
+| Weave: Add beat primary, More actions, select opens rail | Observed (dark + narrow) |
+| Desktop light → dark theme toggle | Observed |
+| Narrow (390px): Open menu + Show references | Observed |
+
+### Limits
+
+- Utility destinations still use legacy routes (`/backup`, `/connections`, `/trash`, Help path).
+- Completing the last guided task dismisses permanently (same as Don't show again); use Show guided tasks to restart.
+- Pre-existing ProjectNav hydration warning still appears in the overlay on some pages.
+
+## Weave plot-grid view (Nov 19, 2026)
+
+Requested: genuine plot-grid with manuscript scene rows and editable story-thread
+columns; keep freeform as a separate view; reuse stable beat/manuscript IDs;
+support unplaced beats and chapter-only projects; never change book order from
+Weave; include threads/associations in backup/restore; older projects open with
+existing freeform canvas intact; verify rename, scene reorder isolation, draft
+scope, blank cells, keyboard, and legacy restore.
+
+### Implemented
+
+- Migration `20261119100000_weave_plot_grid`: `WeaveGrid.layoutMode`
+  (`freeform` default | `plot_grid`), `WeaveThread` columns, `WeaveBeat.threadId`
+  + `cellOrder`. Freeform `x`/`y` remain authoritative for freeform view.
+- `weaveService`: layout toggle, thread CRUD/reorder, `placeWeaveBeat` (thread +
+  manuscript + cell order only — never `moveInBook`). Beat and manuscript IDs
+  unchanged.
+- UI: Freeform canvas vs Plot grid toggle on the same grid. Plot grid rows from
+  draft-scoped manuscript tree (chapter-only rows when a chapter has no scenes;
+  Unplaced row for null/out-of-draft links). Blank cells add a beat; arrow keys +
+  Enter/Escape; rename/reorder/delete threads. Rail story-thread select in plot
+  grid.
+- Backup v1: optional `layoutMode`, `weaveThreads`, beat `threadId`/`cellOrder`.
+  Freeform backups omit those fields; restore defaults to freeform with coords
+  intact. Remap assigns `wth_*` thread IDs.
+- Help (plan-weave) + `docs/backup-format.md` updated.
+
+### Checks
+
+| Check | Result |
+| --- | --- |
+| `pnpm typecheck` | pass |
+| `pnpm exec vitest run tests/acceptance/plan-weave.test.ts tests/unit/help.test.ts` | 11/11 |
+| Thread rename / reorder / place without book-order change | Covered in plan-weave acceptance |
+| Plot-grid + freeform backup round-trip; legacy freeform restore | Covered in plan-weave acceptance |
+| Browser (Salt Archive demo grid) | Opened freeform intact → Plot grid → Add/rename thread "Mara Venn" → blank-cell beat on chapter-only row → rail story thread → back to freeform with all beats |
+| Working database | Migration only; no reset/reseed |
+
+### Limits / rollback
+
+- Plot-grid cell order is within a cell only; manuscript order stays on Write → Book order.
+- Rollback: restore a pre-migration DB backup; drop `WeaveThread` / new columns via reverse migration if needed. Older backups without threads remain valid.

@@ -18,6 +18,10 @@ import { MutationRejectedError, NotFoundError } from "./errors";
  * calls moveInBook and never changes Record.position / parentRecordId.
  * Setup→payoff links may span projects in the same workspace (series).
  * Applying a template creates an independent grid copy.
+ *
+ * layoutMode freeform | plot_grid is presentation only. Freeform uses x/y;
+ * plot-grid uses story-thread columns (WeaveThread) × manuscript rows
+ * (derived at read time). threadId / cellOrder never reorder the book.
  */
 
 const UI_ACTOR = "author";
@@ -29,6 +33,14 @@ export const WEAVE_VIEW_LABELS: Record<WeaveViewKind, string> = {
   original: "Original plan",
   zero_draft_map: "Zero-draft story map",
   author_rewrite: "Author rewrite plan",
+};
+
+export const WEAVE_LAYOUT_MODES = ["freeform", "plot_grid"] as const;
+export type WeaveLayoutMode = (typeof WEAVE_LAYOUT_MODES)[number];
+
+export const WEAVE_LAYOUT_LABELS: Record<WeaveLayoutMode, string> = {
+  freeform: "Freeform canvas",
+  plot_grid: "Plot grid",
 };
 
 export const WEAVE_DECISIONS = ["keep", "cut", "move", "combine", "rebuild"] as const;
@@ -44,6 +56,10 @@ export const WEAVE_DECISION_LABELS: Record<WeaveDecision, string> = {
 
 export function isWeaveViewKind(v: string): v is WeaveViewKind {
   return (WEAVE_VIEW_KINDS as readonly string[]).includes(v);
+}
+
+export function isWeaveLayoutMode(v: string): v is WeaveLayoutMode {
+  return (WEAVE_LAYOUT_MODES as readonly string[]).includes(v);
 }
 
 export function isWeaveDecision(v: string): v is WeaveDecision {
@@ -69,6 +85,14 @@ export interface WeaveWorldRefView {
   unavailable: boolean;
 }
 
+export interface WeaveThreadView {
+  id: string;
+  gridId: string;
+  title: string;
+  position: number;
+  createdAt: Date;
+}
+
 export interface WeaveBeatView {
   id: string;
   gridId: string;
@@ -80,6 +104,8 @@ export interface WeaveBeatView {
   manuscriptTitle: string | null;
   manuscriptTypeLabel: string | null;
   manuscriptUnavailable: boolean;
+  threadId: string | null;
+  cellOrder: number;
   x: number;
   y: number;
   width: number;
@@ -110,9 +136,11 @@ export interface WeaveGridView {
   title: string;
   viewKind: WeaveViewKind;
   viewLabel: string;
+  layoutMode: WeaveLayoutMode;
   sourceTemplateId: string | null;
   createdAt: Date;
   updatedAt: Date;
+  threads: WeaveThreadView[];
   beats: WeaveBeatView[];
   setupPayoffs: WeaveSetupPayoffView[];
 }
@@ -191,6 +219,8 @@ function beatViewOf(b: {
   body: string;
   decision: string;
   manuscriptRecordId: string | null;
+  threadId: string | null;
+  cellOrder: number;
   x: number;
   y: number;
   width: number;
@@ -220,6 +250,8 @@ function beatViewOf(b: {
     manuscriptTitle: ms?.title ?? null,
     manuscriptTypeLabel: ms && isRecordType(ms.type) ? RECORD_TYPE_LABELS[ms.type] : null,
     manuscriptUnavailable: Boolean(ms?.trashedAt),
+    threadId: b.threadId,
+    cellOrder: b.cellOrder,
     x: b.x,
     y: b.y,
     width: b.width,
@@ -240,10 +272,15 @@ function beatViewOf(b: {
   };
 }
 
+function layoutModeOf(raw: string | null | undefined): WeaveLayoutMode {
+  return isWeaveLayoutMode(raw ?? "") ? (raw as WeaveLayoutMode) : "freeform";
+}
+
 export async function getWeaveGrid(db: DbOrTx, projectId: string, gridId: string): Promise<WeaveGridView> {
   const grid = await db.weaveGrid.findFirst({
     where: { id: gridId, projectId },
     include: {
+      threads: { orderBy: [{ position: "asc" }, { createdAt: "asc" }, { id: "asc" }] },
       beats: {
         orderBy: [{ zIndex: "asc" }, { createdAt: "asc" }, { id: "asc" }],
         include: {
@@ -330,9 +367,17 @@ export async function getWeaveGrid(db: DbOrTx, projectId: string, gridId: string
     title: grid.title,
     viewKind: grid.viewKind,
     viewLabel: WEAVE_VIEW_LABELS[grid.viewKind],
+    layoutMode: layoutModeOf(grid.layoutMode),
     sourceTemplateId: grid.sourceTemplateId,
     createdAt: grid.createdAt,
     updatedAt: grid.updatedAt,
+    threads: grid.threads.map((t) => ({
+      id: t.id,
+      gridId: t.gridId,
+      title: t.title,
+      position: t.position,
+      createdAt: t.createdAt,
+    })),
     beats: grid.beats.map(beatViewOf),
     setupPayoffs: [...setupMap.values()].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime()),
   };
@@ -389,8 +434,10 @@ export async function deleteWeaveGrid(db: Db, projectId: string, gridId: string)
         where: { OR: [{ fromBeatId: { in: beatIds } }, { toBeatId: { in: beatIds } }] },
       });
       await tx.weaveBeatWorldRef.deleteMany({ where: { beatId: { in: beatIds } } });
+      await tx.weaveBeat.updateMany({ where: { gridId }, data: { threadId: null } });
       await tx.weaveBeat.deleteMany({ where: { gridId } });
     }
+    await tx.weaveThread.deleteMany({ where: { gridId } });
     await tx.weaveGrid.delete({ where: { id: gridId } });
     await writeAudit(tx, {
       projectId,
@@ -411,6 +458,8 @@ export async function addWeaveBeat(
     body?: string;
     decision?: string;
     manuscriptRecordId?: string | null;
+    threadId?: string | null;
+    cellOrder?: number;
     x: number;
     y: number;
   },
@@ -424,6 +473,12 @@ export async function addWeaveBeat(
     if (manuscriptRecordId) {
       manuscriptRecordId = await requireManuscriptLink(tx, projectId, manuscriptRecordId);
     }
+    let threadId: string | null = input.threadId ?? null;
+    if (threadId) threadId = await requireThread(tx, projectId, gridId, threadId);
+    const cellOrder =
+      typeof input.cellOrder === "number" && Number.isFinite(input.cellOrder)
+        ? Math.max(0, Math.round(input.cellOrder))
+        : 0;
     const id = newId("wvb");
     const zIndex = await nextZ(tx, gridId);
     await tx.weaveBeat.create({
@@ -435,6 +490,8 @@ export async function addWeaveBeat(
         body: input.body?.trim() ?? "",
         decision,
         manuscriptRecordId,
+        threadId,
+        cellOrder,
         x: Math.round(input.x),
         y: Math.round(input.y),
         zIndex,
@@ -446,7 +503,7 @@ export async function addWeaveBeat(
       action: "weave_beat.add",
       actor: UI_ACTOR,
       summary: `Added beat "${title}"`,
-      details: { gridId, beatId: id, manuscriptRecordId },
+      details: { gridId, beatId: id, manuscriptRecordId, threadId },
     });
     const view = await getWeaveGrid(tx, projectId, gridId);
     return view.beats.find((b) => b.id === id)!;
@@ -500,6 +557,8 @@ export async function updateWeaveBeat(
     body?: string;
     decision?: string;
     manuscriptRecordId?: string | null;
+    threadId?: string | null;
+    cellOrder?: number;
   },
 ): Promise<WeaveBeatView> {
   return db.$transaction(async (tx) => {
@@ -511,6 +570,8 @@ export async function updateWeaveBeat(
       body?: string;
       decision?: string;
       manuscriptRecordId?: string | null;
+      threadId?: string | null;
+      cellOrder?: number;
     } = {};
     if (typeof input.title === "string") {
       const title = input.title.trim();
@@ -527,6 +588,12 @@ export async function updateWeaveBeat(
       data.manuscriptRecordId = input.manuscriptRecordId
         ? await requireManuscriptLink(tx, projectId, input.manuscriptRecordId)
         : null;
+    }
+    if (input.threadId !== undefined) {
+      data.threadId = input.threadId ? await requireThread(tx, projectId, gridId, input.threadId) : null;
+    }
+    if (typeof input.cellOrder === "number" && Number.isFinite(input.cellOrder)) {
+      data.cellOrder = Math.max(0, Math.round(input.cellOrder));
     }
     await tx.weaveBeat.update({ where: { id: beatId }, data });
     await tx.weaveGrid.update({ where: { id: gridId }, data: { updatedAt: new Date() } });
@@ -1088,6 +1155,184 @@ async function requireManuscriptLink(tx: Tx, projectId: string, recordId: string
     throw rejected("Beats link only to chapters or scenes.", recordId);
   }
   return record.id;
+}
+
+async function requireThread(tx: Tx, projectId: string, gridId: string, threadId: string): Promise<string> {
+  const thread = await tx.weaveThread.findFirst({ where: { id: threadId, gridId, projectId }, select: { id: true } });
+  if (!thread) throw rejected("That story thread is not on this Weave grid.");
+  return thread.id;
+}
+
+/** Switch freeform canvas ↔ plot-grid. Never changes beat x/y or manuscript order. */
+export async function setWeaveLayoutMode(
+  db: Db,
+  projectId: string,
+  gridId: string,
+  layoutMode: WeaveLayoutMode,
+): Promise<WeaveGridView> {
+  if (!isWeaveLayoutMode(layoutMode)) throw rejected("Unknown Weave layout.");
+  return db.$transaction(async (tx) => {
+    await requireGrid(tx, projectId, gridId);
+    await tx.weaveGrid.update({ where: { id: gridId }, data: { layoutMode } });
+    await writeAudit(tx, {
+      projectId,
+      action: "weave_grid.layout",
+      actor: UI_ACTOR,
+      summary: `Set Weave layout to ${WEAVE_LAYOUT_LABELS[layoutMode]}`,
+      details: { gridId, layoutMode },
+    });
+    return getWeaveGrid(tx, projectId, gridId);
+  });
+}
+
+export async function addWeaveThread(
+  db: Db,
+  projectId: string,
+  gridId: string,
+  input: { title: string },
+): Promise<WeaveThreadView> {
+  return db.$transaction(async (tx) => {
+    await requireGrid(tx, projectId, gridId);
+    const title = input.title.trim() || "Thread";
+    const max = await tx.weaveThread.aggregate({ where: { gridId }, _max: { position: true } });
+    const position = (max._max.position ?? -1) + 1;
+    const id = newId("wth");
+    await tx.weaveThread.create({
+      data: { id, gridId, projectId, title, position },
+    });
+    await tx.weaveGrid.update({ where: { id: gridId }, data: { updatedAt: new Date() } });
+    await writeAudit(tx, {
+      projectId,
+      action: "weave_thread.add",
+      actor: UI_ACTOR,
+      summary: `Added story thread "${title}"`,
+      details: { gridId, threadId: id },
+    });
+    return {
+      id,
+      gridId,
+      title,
+      position,
+      createdAt: new Date(),
+    };
+  });
+}
+
+export async function renameWeaveThread(
+  db: Db,
+  projectId: string,
+  gridId: string,
+  threadId: string,
+  title: string,
+): Promise<WeaveThreadView> {
+  const next = title.trim();
+  if (!next) throw rejected("Give the story thread a title.");
+  return db.$transaction(async (tx) => {
+    await requireGrid(tx, projectId, gridId);
+    await requireThread(tx, projectId, gridId, threadId);
+    await tx.weaveThread.update({ where: { id: threadId }, data: { title: next } });
+    await tx.weaveGrid.update({ where: { id: gridId }, data: { updatedAt: new Date() } });
+    await writeAudit(tx, {
+      projectId,
+      action: "weave_thread.rename",
+      actor: UI_ACTOR,
+      summary: `Renamed story thread to "${next}"`,
+      details: { gridId, threadId, title: next },
+    });
+    const thread = await tx.weaveThread.findFirstOrThrow({ where: { id: threadId } });
+    return {
+      id: thread.id,
+      gridId: thread.gridId,
+      title: thread.title,
+      position: thread.position,
+      createdAt: thread.createdAt,
+    };
+  });
+}
+
+/** Reorder story-thread columns. Never changes manuscript book order. */
+export async function reorderWeaveThreads(
+  db: Db,
+  projectId: string,
+  gridId: string,
+  orderedThreadIds: string[],
+): Promise<WeaveGridView> {
+  return db.$transaction(async (tx) => {
+    await requireGrid(tx, projectId, gridId);
+    const existing = await tx.weaveThread.findMany({
+      where: { gridId, projectId },
+      select: { id: true },
+      orderBy: [{ position: "asc" }, { id: "asc" }],
+    });
+    const existingIds = new Set(existing.map((t) => t.id));
+    if (orderedThreadIds.length !== existing.length || orderedThreadIds.some((id) => !existingIds.has(id))) {
+      throw rejected("Thread list does not match this Weave grid.");
+    }
+    let position = 0;
+    for (const id of orderedThreadIds) {
+      await tx.weaveThread.update({ where: { id }, data: { position: position++ } });
+    }
+    await tx.weaveGrid.update({ where: { id: gridId }, data: { updatedAt: new Date() } });
+    await writeAudit(tx, {
+      projectId,
+      action: "weave_thread.reorder",
+      actor: UI_ACTOR,
+      summary: `Reordered story threads`,
+      details: { gridId, orderedThreadIds },
+    });
+    return getWeaveGrid(tx, projectId, gridId);
+  });
+}
+
+export async function deleteWeaveThread(
+  db: Db,
+  projectId: string,
+  gridId: string,
+  threadId: string,
+): Promise<WeaveGridView> {
+  return db.$transaction(async (tx) => {
+    await requireGrid(tx, projectId, gridId);
+    const thread = await tx.weaveThread.findFirst({ where: { id: threadId, gridId, projectId } });
+    if (!thread) throw rejected("That story thread is not on this Weave grid.");
+    await tx.weaveBeat.updateMany({ where: { threadId }, data: { threadId: null } });
+    await tx.weaveThread.delete({ where: { id: threadId } });
+    const remaining = await tx.weaveThread.findMany({
+      where: { gridId },
+      orderBy: [{ position: "asc" }, { id: "asc" }],
+      select: { id: true },
+    });
+    let position = 0;
+    for (const row of remaining) {
+      await tx.weaveThread.update({ where: { id: row.id }, data: { position: position++ } });
+    }
+    await tx.weaveGrid.update({ where: { id: gridId }, data: { updatedAt: new Date() } });
+    await writeAudit(tx, {
+      projectId,
+      action: "weave_thread.delete",
+      actor: UI_ACTOR,
+      summary: `Deleted story thread "${thread.title}"`,
+      details: { gridId, threadId },
+    });
+    return getWeaveGrid(tx, projectId, gridId);
+  });
+}
+
+/**
+ * Place a beat in a plot-grid cell (thread column × optional manuscript row).
+ * Never calls moveInBook; freeform x/y are left unchanged.
+ */
+export async function placeWeaveBeat(
+  db: Db,
+  projectId: string,
+  gridId: string,
+  beatId: string,
+  input: { threadId: string | null; manuscriptRecordId?: string | null; cellOrder?: number },
+): Promise<WeaveBeatView> {
+  return updateWeaveBeat(db, projectId, gridId, beatId, {
+    threadId: input.threadId,
+    ...(input.manuscriptRecordId !== undefined ? { manuscriptRecordId: input.manuscriptRecordId } : {}),
+    ...(typeof input.cellOrder === "number" ? { cellOrder: input.cellOrder } : {}),
+  });
 }
 
 /** Clear manuscript links / world refs / setup-payoff ends when records are permanently deleted. */

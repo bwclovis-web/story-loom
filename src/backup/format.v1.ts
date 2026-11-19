@@ -359,9 +359,26 @@ export const workspaceBackupV1Schema = z
             projectId: id,
             title: z.string().min(1),
             viewKind: z.enum(["original", "zero_draft_map", "author_rewrite"]),
+            /** Omitted or freeform in older backups → freeform canvas. */
+            layoutMode: z.enum(["freeform", "plot_grid"]).optional(),
             sourceTemplateId: id.nullable().optional(),
             createdAt: timestamp,
             updatedAt: timestamp,
+          })
+          .strict(),
+      )
+      .optional(),
+    /** Story-thread columns for plot-grid layout; omitted in older backups. */
+    weaveThreads: z
+      .array(
+        z
+          .object({
+            id,
+            gridId: id,
+            projectId: id,
+            title: z.string().min(1),
+            position: z.number().int().min(0),
+            createdAt: timestamp,
           })
           .strict(),
       )
@@ -377,6 +394,9 @@ export const workspaceBackupV1Schema = z
             body: z.string(),
             decision: z.enum(["", "keep", "cut", "move", "combine", "rebuild"]),
             manuscriptRecordId: id.nullable().optional(),
+            /** Plot-grid column; omitted/null in older backups → unplaced on threads. */
+            threadId: id.nullable().optional(),
+            cellOrder: z.number().int().min(0).optional(),
             x: z.number().int(),
             y: z.number().int(),
             width: z.number().int().min(1),
@@ -625,6 +645,7 @@ export const workspaceBackupV1Schema = z
         worldMapPins: z.number().int().optional(),
         placeRelations: z.number().int().optional(),
         weaveGrids: z.number().int().optional(),
+        weaveThreads: z.number().int().optional(),
         weaveBeats: z.number().int().optional(),
         weaveBeatWorldRefs: z.number().int().optional(),
         weaveSetupPayoffs: z.number().int().optional(),

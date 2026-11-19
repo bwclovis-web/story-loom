@@ -9,7 +9,7 @@ import { ContextRail, ContextRailToggle, useContextRail } from "@/components/she
 import { CloseIcon } from "@/components/shell/icons";
 import type { Issue } from "@/domain/issues";
 import type { WorldMapPinView, WorldMapView } from "@/server/services/worldMapService";
-import { WORLD, WRITE } from "@/ui/labels";
+import { SHELL, WORLD, WRITE } from "@/ui/labels";
 import { previewReferenceAction, type ReferencePreview } from "../../write/actions";
 import {
   addWorldMapPinAction,
@@ -162,95 +162,106 @@ export function MapCanvas({
     <div className="write-layout reference-write-layout board-layout">
       <div className="write-main board-main">
         <div className="doc-toolbar">
-          <form
-            className="row"
-            style={{ flex: 1, gap: "0.5rem", flexWrap: "wrap" }}
-            onSubmit={(e) => {
-              e.preventDefault();
-              startTransition(async () => {
-                const result = await renameWorldMapAction(projectId, map.id, title);
-                if (!result.ok) setIssues(result.issues);
-                else {
-                  setIssues([]);
-                  router.refresh();
-                }
-              });
-            }}
-          >
-            <label className="board-title-field">
-              <span className="sr-only">{WORLD.renameMap}</span>
-              <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} required />
-            </label>
-            <button type="submit" className="secondary small-button" disabled={pending}>
-              {WORLD.renameMap}
-            </button>
-          </form>
+          <h2 className="board-title-display">{title}</h2>
           <div className="doc-toolbar-end">
             <ContextRailToggle rail={rail} controls={railId} />
           </div>
         </div>
 
-        <p className="small muted">
-          {WORLD.pinClickHint} Backdrop: {map.imageName} on {map.hostRecordTitle}.
+        <p className="board-meta small muted">
+          <span>{WORLD.pinClickHint}</span>
+          <span>
+            Backdrop: {map.imageName} on {map.hostRecordTitle}
+          </span>
         </p>
         <IssueList issues={issues} />
 
-        <div className="board-toolbar row" style={{ flexWrap: "wrap", gap: "0.5rem" }}>
-          <label>
-            <span className="sr-only">{WORLD.addPin}</span>
-            <select
-              value={pendingPlaceId}
-              disabled={pending}
-              onChange={(e) => setPendingPlaceId(e.target.value)}
-            >
-              <option value="">{WORLD.choosePlace}</option>
-              {records.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.title} ({r.typeLabel})
-                </option>
-              ))}
-            </select>
-          </label>
-          <button
-            type="button"
-            className="secondary small-button"
-            disabled={pending || !pendingPlaceId}
-            onClick={() => {
-              if (!pendingPlaceId) return;
-              placePin(pendingPlaceId, 0.5, 0.5);
-            }}
-          >
-            {WORLD.addPin}
-          </button>
-          {!confirmDelete ? (
-            <button type="button" className="secondary small-button" onClick={() => setConfirmDelete(true)}>
-              {WORLD.deleteMap}
-            </button>
-          ) : (
+        <div className="board-toolbar board-toolbar-compact" role="toolbar" aria-label={WORLD.mapCanvas}>
+          <div className="board-toolbar-group">
+            <label>
+              <span className="sr-only">{WORLD.addPin}</span>
+              <select
+                value={pendingPlaceId}
+                disabled={pending}
+                onChange={(e) => setPendingPlaceId(e.target.value)}
+              >
+                <option value="">{WORLD.choosePlace}</option>
+                {records.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.title} ({r.typeLabel})
+                  </option>
+                ))}
+              </select>
+            </label>
             <button
               type="button"
               className="small-button"
-              disabled={pending}
-              onClick={() =>
-                startTransition(async () => {
-                  const result = await deleteWorldMapAction(projectId, map.id);
-                  if (!result.ok) {
-                    setIssues(result.issues);
-                    return;
-                  }
-                  router.push(`/projects/${encodeURIComponent(projectId)}/world/maps`);
-                  router.refresh();
-                })
-              }
+              disabled={pending || !pendingPlaceId}
+              onClick={() => {
+                if (!pendingPlaceId) return;
+                placePin(pendingPlaceId, 0.5, 0.5);
+              }}
             >
-              {WORLD.confirmDeleteMap(map.title)}
+              {WORLD.addPin}
             </button>
-          )}
+          </div>
+          <details className="board-overflow">
+            <summary>{SHELL.moreActions}</summary>
+            <div className="board-overflow-body">
+              <form
+                className="row"
+                style={{ gap: "0.35rem", flexWrap: "wrap" }}
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  startTransition(async () => {
+                    const result = await renameWorldMapAction(projectId, map.id, title);
+                    if (!result.ok) setIssues(result.issues);
+                    else {
+                      setIssues([]);
+                      router.refresh();
+                    }
+                  });
+                }}
+              >
+                <label className="board-title-field">
+                  <span className="sr-only">{WORLD.renameMap}</span>
+                  <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} required />
+                </label>
+                <button type="submit" className="secondary small-button" disabled={pending}>
+                  {WORLD.renameMap}
+                </button>
+              </form>
+              {!confirmDelete ? (
+                <button type="button" className="secondary small-button" onClick={() => setConfirmDelete(true)}>
+                  {WORLD.deleteMap}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="small-button"
+                  disabled={pending}
+                  onClick={() =>
+                    startTransition(async () => {
+                      const result = await deleteWorldMapAction(projectId, map.id);
+                      if (!result.ok) {
+                        setIssues(result.issues);
+                        return;
+                      }
+                      router.push(`/projects/${encodeURIComponent(projectId)}/world/maps`);
+                      router.refresh();
+                    })
+                  }
+                >
+                  {WORLD.confirmDeleteMap(map.title)}
+                </button>
+              )}
+            </div>
+          </details>
         </div>
 
         <div
           ref={imageWrapRef}
-          className="map-surface"
+          className="map-surface board-surface-max"
           role="region"
           aria-label={WORLD.mapCanvas}
           onClick={(e) => {
@@ -328,6 +339,7 @@ export function MapCanvas({
             </button>
           ) : null}
         </div>
+        <div className="context-body">
         {!selected ? (
           <p className="muted">{WORLD.noPinSelected}</p>
         ) : (
@@ -378,6 +390,7 @@ export function MapCanvas({
             </button>
           </div>
         )}
+        </div>
       </ContextRail>
     </div>
   );

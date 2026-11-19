@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { helpHref, type HelpAnchor } from "@/help/outline";
 import { ONBOARDING } from "@/ui/labels";
 import {
@@ -66,7 +66,7 @@ const STEPS: WalkStep[] = [
 ];
 
 function readState(): WalkthroughState {
-  if (typeof document === "undefined") return { kind: "done" };
+  if (typeof document === "undefined") return { kind: "dismissed" };
   const match = document.cookie.match(new RegExp(`(?:^|; )${ONBOARDING_COOKIE}=([^;]*)`));
   return parseWalkthroughCookie(match?.[1]);
 }
@@ -75,11 +75,18 @@ function persist(state: WalkthroughState) {
   writePreference(ONBOARDING_COOKIE, walkthroughCookieValue(state));
 }
 
+function stepOf(state: WalkthroughState): number {
+  if (state.kind === "dismissed") return 0;
+  return Math.min(state.step, STEPS.length - 1);
+}
+
 /**
- * Optional one-task-at-a-time walkthrough. Cookie-only; never writes project data.
+ * On-demand guided checklist. Cookie-only; never writes project data.
+ * Skip for now pauses at the current task; Resume restores it. Don't show again
+ * is a distinct permanent dismissal.
  */
 export function ProjectOnboarding({ projectId }: { projectId: string }) {
-  const [state, setState] = useState<WalkthroughState>({ kind: "done" });
+  const [state, setState] = useState<WalkthroughState>({ kind: "dismissed" });
   const [ready, setReady] = useState(false);
   const base = `/projects/${encodeURIComponent(projectId)}`;
 
@@ -88,38 +95,43 @@ export function ProjectOnboarding({ projectId }: { projectId: string }) {
     setReady(true);
   }, []);
 
-  const stepIndex = state.kind === "active" ? Math.min(state.step, STEPS.length - 1) : 0;
-  const step = STEPS[stepIndex]!;
-  const isLast = stepIndex >= STEPS.length - 1;
-
-  const setActive = (next: WalkthroughState) => {
+  const setWalk = (next: WalkthroughState) => {
     persist(next);
     setState(next);
   };
 
-  const advance = () => {
-    if (isLast) setActive({ kind: "done" });
-    else setActive({ kind: "active", step: stepIndex + 1 });
-  };
-
-  const restoreLabel = useMemo(() => {
-    if (state.kind === "done") return ONBOARDING.showAgain;
-    return ONBOARDING.resume;
-  }, [state.kind]);
-
   if (!ready) return null;
 
-  if (state.kind === "done") {
+  const stepIndex = stepOf(state);
+  const step = STEPS[stepIndex]!;
+  const isLast = stepIndex >= STEPS.length - 1;
+
+  const advance = () => {
+    if (isLast) setWalk({ kind: "dismissed" });
+    else setWalk({ kind: "open", step: stepIndex + 1 });
+  };
+
+  if (state.kind === "dismissed") {
     return (
       <p className="small muted onboarding-restore">
-        <button
-          type="button"
-          className="linkish"
-          onClick={() => setActive({ kind: "active", step: 0 })}
-        >
-          {restoreLabel}
+        <button type="button" className="linkish" onClick={() => setWalk({ kind: "open", step: 0 })}>
+          {ONBOARDING.showAgain}
         </button>
       </p>
+    );
+  }
+
+  if (state.kind === "paused") {
+    return (
+      <div className="onboarding-chip row" role="status">
+        <button type="button" className="small-button" onClick={() => setWalk({ kind: "open", step: stepIndex })}>
+          {ONBOARDING.resume}
+        </button>
+        <span className="small muted">{ONBOARDING.progress(stepIndex + 1, STEPS.length)}</span>
+        <button type="button" className="linkish small" onClick={() => setWalk({ kind: "dismissed" })}>
+          {ONBOARDING.dismiss}
+        </button>
+      </div>
     );
   }
 
@@ -135,10 +147,14 @@ export function ProjectOnboarding({ projectId }: { projectId: string }) {
           </p>
         </div>
         <div className="row" style={{ gap: "0.5rem", flexWrap: "wrap" }}>
-          <button type="button" className="secondary small-button" onClick={() => setActive({ kind: "done" })}>
+          <button
+            type="button"
+            className="secondary small-button"
+            onClick={() => setWalk({ kind: "paused", step: stepIndex })}
+          >
             {ONBOARDING.skip}
           </button>
-          <button type="button" className="secondary small-button" onClick={() => setActive({ kind: "done" })}>
+          <button type="button" className="secondary small-button" onClick={() => setWalk({ kind: "dismissed" })}>
             {ONBOARDING.dismiss}
           </button>
         </div>

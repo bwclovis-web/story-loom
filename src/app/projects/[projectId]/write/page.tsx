@@ -7,6 +7,7 @@ import { listManuscriptDrafts } from "@/server/services/draftService";
 import { listRecordNav, listRecords } from "@/server/services/recordService";
 import { searchManuscript, type ManuscriptHit } from "@/server/services/searchService";
 import { ContinueWriting, type ContinueWritingItem } from "@/components/shell/ContinueWriting";
+import { OverflowDisclosure } from "@/components/shell/OverflowDisclosure";
 import { DRAFT, GROUP_PAGES, MANUSCRIPT_SEARCH, NAV, SHELL } from "@/ui/labels";
 import { buildManuscriptTree, type TreeScene } from "@/ui/manuscriptTree";
 import { RECORD_GROUPS } from "@/ui/navigation";
@@ -67,15 +68,18 @@ export default async function WritePage({
       types={RECORD_GROUPS.write}
       defaultType="manuscript_chapter"
       hideTypes={["manuscript_chapter", "manuscript_scene"]}
+      createInOverflow
       actions={
-        <p className="row">
-          <Link className="button-link" href={`${base}/read`}>
-            {NAV.readBook}
-          </Link>
-          <Link className="button-link secondary" href={`${base}/import-chapters`}>
-            {NAV.importChapters}
-          </Link>
-        </p>
+        <OverflowDisclosure summary={SHELL.createAndImport}>
+          <p className="row" style={{ flexWrap: "wrap", gap: "0.5rem" }}>
+            <Link className="button-link secondary" href={`${base}/read`}>
+              {NAV.readBook}
+            </Link>
+            <Link className="button-link secondary" href={`${base}/import-chapters`}>
+              {NAV.importChapters}
+            </Link>
+          </p>
+        </OverflowDisclosure>
       }
     >
       <ContinueWriting projectId={projectId} items={continueItems.slice(0, 8)} />
@@ -105,7 +109,9 @@ export default async function WritePage({
       {search ? (
         <SearchResults base={base} query={q} matchCase={matchCase} hits={search.hits} totalMatches={search.totalMatches} />
       ) : null}
-      <BookOrder projectId={projectId} chapters={chapters} unplaced={unplaced} bookWords={bookWords} />
+      <OverflowDisclosure summary={SHELL.bookOrder}>
+        <BookOrder projectId={projectId} chapters={chapters} unplaced={unplaced} bookWords={bookWords} />
+      </OverflowDisclosure>
     </RecordListPage>
   );
 }

@@ -31,6 +31,7 @@ export type IdPrefix =
   | "plr" // place relation
   | "wvg" // weave grid
   | "wvb" // weave beat
+  | "wth" // weave story thread (plot-grid column)
   | "wvr" // weave beat world ref
   | "wvs" // weave setup/payoff
   | "wvt" // weave template

@@ -8,23 +8,31 @@ import {
   addWeaveBeat,
   addWeaveBeatWorldRef,
   addWeaveSetupPayoff,
+  addWeaveThread,
   applyWeaveTemplate,
   createWeaveGrid,
   createWeaveTemplate,
   deleteWeaveGrid,
   deleteWeaveTemplate,
+  deleteWeaveThread,
   isWeaveDecision,
+  isWeaveLayoutMode,
   isWeaveViewKind,
   moveWeaveBeat,
+  placeWeaveBeat,
   removeWeaveBeat,
   removeWeaveBeatWorldRef,
   removeWeaveSetupPayoff,
   removeWeaveTemplateBeat,
   renameWeaveGrid,
+  renameWeaveThread,
+  reorderWeaveThreads,
   saveWeaveGridAsTemplate,
+  setWeaveLayoutMode,
   updateWeaveBeat,
   updateWeaveTemplate,
   upsertWeaveTemplateBeat,
+  type WeaveLayoutMode,
   type WeaveViewKind,
 } from "@/server/services/weaveService";
 
@@ -84,13 +92,90 @@ export async function deleteWeaveGridAction(projectId: string, gridId: string) {
 export async function addWeaveBeatAction(
   projectId: string,
   gridId: string,
-  input: { title: string; body?: string; decision?: string; manuscriptRecordId?: string | null; x: number; y: number },
+  input: {
+    title: string;
+    body?: string;
+    decision?: string;
+    manuscriptRecordId?: string | null;
+    threadId?: string | null;
+    cellOrder?: number;
+    x: number;
+    y: number;
+  },
 ) {
   try {
     if (input.decision && !isWeaveDecision(input.decision)) {
       return { ok: false as const, issues: [errorIssue("INVALID_REFERENCE", "Unknown Weave decision.")] };
     }
     const beat = await addWeaveBeat(getDb(), projectId, gridId, input);
+    revalidateWeave(projectId, gridId);
+    return { ok: true as const, beat };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+export async function setWeaveLayoutModeAction(projectId: string, gridId: string, layoutMode: string) {
+  try {
+    if (!isWeaveLayoutMode(layoutMode)) {
+      return { ok: false as const, issues: [errorIssue("INVALID_REFERENCE", "Unknown Weave layout.")] };
+    }
+    await setWeaveLayoutMode(getDb(), projectId, gridId, layoutMode as WeaveLayoutMode);
+    revalidateWeave(projectId, gridId);
+    return { ok: true as const };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+export async function addWeaveThreadAction(projectId: string, gridId: string, title: string) {
+  try {
+    const thread = await addWeaveThread(getDb(), projectId, gridId, { title });
+    revalidateWeave(projectId, gridId);
+    return { ok: true as const, thread };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+export async function renameWeaveThreadAction(projectId: string, gridId: string, threadId: string, title: string) {
+  try {
+    const thread = await renameWeaveThread(getDb(), projectId, gridId, threadId, title);
+    revalidateWeave(projectId, gridId);
+    return { ok: true as const, thread };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+export async function reorderWeaveThreadsAction(projectId: string, gridId: string, orderedThreadIds: string[]) {
+  try {
+    await reorderWeaveThreads(getDb(), projectId, gridId, orderedThreadIds);
+    revalidateWeave(projectId, gridId);
+    return { ok: true as const };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+export async function deleteWeaveThreadAction(projectId: string, gridId: string, threadId: string) {
+  try {
+    await deleteWeaveThread(getDb(), projectId, gridId, threadId);
+    revalidateWeave(projectId, gridId);
+    return { ok: true as const };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+export async function placeWeaveBeatAction(
+  projectId: string,
+  gridId: string,
+  beatId: string,
+  input: { threadId: string | null; manuscriptRecordId?: string | null; cellOrder?: number },
+) {
+  try {
+    const beat = await placeWeaveBeat(getDb(), projectId, gridId, beatId, input);
     revalidateWeave(projectId, gridId);
     return { ok: true as const, beat };
   } catch (error) {
@@ -117,7 +202,14 @@ export async function updateWeaveBeatAction(
   projectId: string,
   gridId: string,
   beatId: string,
-  input: { title?: string; body?: string; decision?: string; manuscriptRecordId?: string | null },
+  input: {
+    title?: string;
+    body?: string;
+    decision?: string;
+    manuscriptRecordId?: string | null;
+    threadId?: string | null;
+    cellOrder?: number;
+  },
 ) {
   try {
     if (input.decision && input.decision !== "" && !isWeaveDecision(input.decision)) {

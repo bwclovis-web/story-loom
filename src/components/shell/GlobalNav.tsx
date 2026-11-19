@@ -17,6 +17,7 @@ import {
   ContrastIcon,
   HelpIcon,
   MoonIcon,
+  MoreIcon,
   PlanIcon,
   SunIcon,
   TrashIcon,
@@ -32,13 +33,18 @@ interface NavItem {
   href: string | null;
 }
 
-function navItems(projectId: string | null): NavItem[] {
+function authoringItems(projectId: string | null): NavItem[] {
   const project = (path: string) => (projectId ? `/projects/${encodeURIComponent(projectId)}${path}` : null);
   return [
     { id: "write", label: SHELL.write, icon: <WriteIcon />, href: project("/write") },
     { id: "plan", label: SHELL.plan, icon: <PlanIcon />, href: project("/plan") },
     { id: "world", label: SHELL.world, icon: <WorldIcon />, href: project("/world") },
     { id: "assistant", label: SHELL.assistant, icon: <AssistantIcon />, href: project("/assistant") },
+  ];
+}
+
+function utilityItems(): NavItem[] {
+  return [
     { id: "backups", label: SHELL.backups, icon: <BackupIcon />, href: "/backup" },
     { id: "connections", label: SHELL.connections, icon: <ConnectionsIcon />, href: "/connections" },
     { id: "trash", label: SHELL.trash, icon: <TrashIcon />, href: "/trash" },
@@ -67,7 +73,8 @@ export function GlobalNav({
   collapsed?: boolean;
   onToggleCollapsed?: () => void;
 }) {
-  const items = navItems(current?.id ?? null);
+  const items = authoringItems(current?.id ?? null);
+  const utilities = utilityItems();
   const tip = variant === "rail" ? "rail-tip" : "";
   const themeName = THEME.names[theme];
   const themeChange = THEME.change(themeName, THEME.names[nextTheme(theme)]);
@@ -122,6 +129,7 @@ export function GlobalNav({
       )}
 
       <div className="global-footer">
+        <UtilitiesMenu items={utilities} pathname={pathname} active={active} variant={variant} tip={tip} />
         <ProjectSelector projects={projects} current={current} variant={variant} />
         <p className="label local-note">{SHELL.localOnly}</p>
         <button
@@ -154,6 +162,85 @@ export function GlobalNav({
         ) : null}
       </div>
     </nav>
+  );
+}
+
+function UtilitiesMenu({
+  items,
+  pathname,
+  active,
+  variant,
+  tip,
+}: {
+  items: NavItem[];
+  pathname: string;
+  active: GlobalNavId | null;
+  variant: "rail" | "drawer";
+  tip: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const wrapper = useRef<HTMLDivElement>(null);
+  const button = useRef<HTMLButtonElement>(null);
+  const listId = useId();
+  const utilityActive = items.some((item) => item.id === active);
+
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (event: PointerEvent) => {
+      if (!wrapper.current?.contains(event.target as Node)) setOpen(false);
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => document.removeEventListener("pointerdown", onPointerDown);
+  }, [open]);
+
+  function onKeyDown(event: KeyboardEvent) {
+    if (event.key === "Escape" && open) {
+      event.stopPropagation();
+      event.preventDefault();
+      setOpen(false);
+      button.current?.focus();
+    }
+  }
+
+  return (
+    <div className={`utilities-menu ${variant}`} ref={wrapper} onKeyDown={onKeyDown}>
+      <button
+        ref={button}
+        type="button"
+        className={`global-link utilities-toggle ${tip}${utilityActive ? " utilities-current" : ""}`}
+        aria-expanded={open}
+        aria-controls={listId}
+        aria-haspopup="menu"
+        data-tooltip={SHELL.utilities}
+        onClick={() => setOpen((o) => !o)}
+      >
+        <MoreIcon />
+        <span className="label">{SHELL.utilities}</span>
+      </button>
+      <div id={listId} className="utilities-popover" role="menu" aria-label={SHELL.utilitiesMenu} hidden={!open}>
+        <ul className="global-items">
+          {items.map((item) => {
+            const isActive = item.id === active;
+            return (
+              <li key={item.id} role="none">
+                {item.href ? (
+                  <Link
+                    href={item.href}
+                    role="menuitem"
+                    className="utilities-link"
+                    aria-current={isActive ? (pathname === item.href ? "page" : "true") : undefined}
+                    onClick={() => setOpen(false)}
+                  >
+                    {item.icon}
+                    <span>{item.label}</span>
+                  </Link>
+                ) : null}
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+    </div>
   );
 }
 

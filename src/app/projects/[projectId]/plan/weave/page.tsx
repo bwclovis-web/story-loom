@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { OverflowDisclosure } from "@/components/shell/OverflowDisclosure";
 import { getDb } from "@/server/db";
 import { listWeaveGrids, listWeaveTemplates, WEAVE_VIEW_KINDS, WEAVE_VIEW_LABELS } from "@/server/services/weaveService";
 import { SHELL, WEAVE } from "@/ui/labels";
@@ -14,6 +15,7 @@ export default async function WeaveIndexPage({ params }: { params: Promise<{ pro
     listWeaveTemplates(db, projectId).catch(() => []),
   ]);
   const base = `/projects/${encodeURIComponent(projectId)}`;
+  const primaryGrid = grids[0] ?? null;
 
   return (
     <>
@@ -31,15 +33,22 @@ export default async function WeaveIndexPage({ params }: { params: Promise<{ pro
         <h1>{WEAVE.heading}</h1>
       </header>
       <p className="page-lead">{WEAVE.lead}</p>
-      <p>
-        <Link href={`${base}/plan/weave/templates`}>{WEAVE.templates}</Link>
-        {templates.length ? <span className="small muted"> ({templates.length})</span> : null}
-      </p>
 
-      <section className="panel" aria-labelledby="new-weave-heading">
-        <h2 id="new-weave-heading">{WEAVE.newGrid}</h2>
+      {primaryGrid ? (
+        <p className="row" style={{ flexWrap: "wrap", gap: "0.75rem", marginBottom: "1rem" }}>
+          <Link className="button-link" href={`${base}/plan/weave/${encodeURIComponent(primaryGrid.id)}`}>
+            {WEAVE.openGrid}: {primaryGrid.title}
+          </Link>
+        </p>
+      ) : null}
+
+      <OverflowDisclosure summary={WEAVE.newGrid} className="panel" defaultOpen={!grids.length}>
         <CreateWeaveGridForm projectId={projectId} />
-      </section>
+        <p style={{ marginTop: "0.75rem" }}>
+          <Link href={`${base}/plan/weave/templates`}>{WEAVE.templates}</Link>
+          {templates.length ? <span className="small muted"> ({templates.length})</span> : null}
+        </p>
+      </OverflowDisclosure>
 
       {WEAVE_VIEW_KINDS.map((kind) => {
         const ofKind = grids.filter((g) => g.viewKind === kind);
@@ -56,7 +65,7 @@ export default async function WeaveIndexPage({ params }: { params: Promise<{ pro
                       <Link href={`${base}/plan/weave/${encodeURIComponent(g.id)}`}>{g.title}</Link>{" "}
                       <span className="small muted">{WEAVE.beatsCount(g.beatCount)}</span>
                     </div>
-                    <Link className="small-button secondary" href={`${base}/plan/weave/${encodeURIComponent(g.id)}`}>
+                    <Link className="small-button" href={`${base}/plan/weave/${encodeURIComponent(g.id)}`}>
                       {WEAVE.openGrid}
                     </Link>
                   </li>

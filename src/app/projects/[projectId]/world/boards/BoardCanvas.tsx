@@ -19,7 +19,7 @@ import { ContextRail, ContextRailToggle, useContextRail } from "@/components/she
 import { CloseIcon } from "@/components/shell/icons";
 import type { Issue } from "@/domain/issues";
 import type { BoardCardView, BoardView } from "@/server/services/boardService";
-import { WORLD, WRITE } from "@/ui/labels";
+import { SHELL, WORLD, WRITE } from "@/ui/labels";
 import { previewReferenceAction, type ReferencePreview } from "../../write/actions";
 import { AskAboutBoard } from "./AskAboutBoard";
 import {
@@ -199,43 +199,16 @@ export function BoardCanvas({
     <div className="write-layout reference-write-layout board-layout">
       <div className="write-main board-main">
         <div className="doc-toolbar">
-          <form
-            className="row"
-            style={{ flex: 1, gap: "0.5rem", flexWrap: "wrap" }}
-            onSubmit={(e) => {
-              e.preventDefault();
-              startTransition(async () => {
-                const result = await renameBoardAction(projectId, board.id, title);
-                if (!result.ok) setIssues(result.issues);
-                else {
-                  setIssues([]);
-                  router.refresh();
-                }
-              });
-            }}
-          >
-            <label className="board-title-field">
-              <span className="sr-only">{WORLD.renameBoard}</span>
-              <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} required />
-            </label>
-            <button type="submit" className="secondary small-button" disabled={pending}>
-              {WORLD.renameBoard}
-            </button>
-          </form>
+          <h2 className="board-title-display">{title}</h2>
           <div className="doc-toolbar-end">
             <ContextRailToggle rail={rail} controls={railId} />
           </div>
         </div>
 
-        <p className="board-meta small muted">
-          <span>{WORLD.dragHint}</span>
-        </p>
         <IssueList issues={issues} />
-        <AskAboutBoard projectId={projectId} boardId={board.id} />
 
-        <div className="board-toolbar" role="toolbar" aria-label={WORLD.boardCanvas}>
+        <div className="board-toolbar board-toolbar-compact" role="toolbar" aria-label={WORLD.boardCanvas}>
           <div className="board-toolbar-group">
-            <span className="board-toolbar-label">{WORLD.toolbarPlace}</span>
             <label>
               <span className="sr-only">{WORLD.addRecordCard}</span>
               <select
@@ -266,39 +239,9 @@ export function BoardCanvas({
                 ))}
               </select>
             </label>
-            <label>
-              <span className="sr-only">{WORLD.addImageCard}</span>
-              <select
-                defaultValue=""
-                disabled={pending || images.length === 0}
-                onChange={(e) => {
-                  const imageId = e.target.value;
-                  e.target.value = "";
-                  if (!imageId) return;
-                  const { x, y } = dropPoint();
-                  startTransition(async () => {
-                    const result = await addImageCardAction(projectId, board.id, { imageId, x: x + 40, y: y + 40 });
-                    if (!result.ok) {
-                      setIssues(result.issues);
-                      return;
-                    }
-                    setCards((list) => [...list, result.card]);
-                    selectCard(result.card);
-                    router.refresh();
-                  });
-                }}
-              >
-                <option value="">{WORLD.chooseImage}</option>
-                {images.map((img) => (
-                  <option key={img.id} value={img.id}>
-                    {img.recordTitle}: {img.name}
-                  </option>
-                ))}
-              </select>
-            </label>
             <button
               type="button"
-              className="secondary small-button"
+              className="small-button"
               disabled={pending}
               onClick={() => {
                 const { x, y } = dropPoint();
@@ -324,7 +267,6 @@ export function BoardCanvas({
           </div>
 
           <div className="board-toolbar-group">
-            <span className="board-toolbar-label">{WORLD.toolbarView}</span>
             <label className="small">
               <span className="sr-only">{WORLD.filterCardKind}</span>
               <select
@@ -356,44 +298,97 @@ export function BoardCanvas({
             </button>
           </div>
 
-          <div className="board-toolbar-group">
-            <span className="board-toolbar-label">{WORLD.toolbarMaintain}</span>
-            {!confirmDelete ? (
-              <button type="button" className="secondary small-button" onClick={() => setConfirmDelete(true)}>
-                {WORLD.deleteBoard}
-              </button>
-            ) : (
-              <button
-                type="button"
-                className="small-button"
-                disabled={pending}
-                onClick={() =>
+          <details className="board-overflow">
+            <summary>{SHELL.moreActions}</summary>
+            <div className="board-overflow-body">
+              <form
+                className="row"
+                style={{ gap: "0.35rem", flexWrap: "wrap" }}
+                onSubmit={(e) => {
+                  e.preventDefault();
                   startTransition(async () => {
-                    const result = await deleteBoardAction(projectId, board.id);
-                    if (!result.ok) {
-                      setIssues(result.issues);
-                      return;
+                    const result = await renameBoardAction(projectId, board.id, title);
+                    if (!result.ok) setIssues(result.issues);
+                    else {
+                      setIssues([]);
+                      router.refresh();
                     }
-                    router.push(`/projects/${encodeURIComponent(projectId)}/world/boards`);
-                    router.refresh();
-                  })
-                }
+                  });
+                }}
               >
-                {WORLD.confirmDeleteBoard(board.title)}
-              </button>
-            )}
-          </div>
+                <label className="board-title-field">
+                  <span className="sr-only">{WORLD.renameBoard}</span>
+                  <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} required />
+                </label>
+                <button type="submit" className="secondary small-button" disabled={pending}>
+                  {WORLD.renameBoard}
+                </button>
+              </form>
+              <label>
+                <span className="sr-only">{WORLD.addImageCard}</span>
+                <select
+                  defaultValue=""
+                  disabled={pending || images.length === 0}
+                  onChange={(e) => {
+                    const imageId = e.target.value;
+                    e.target.value = "";
+                    if (!imageId) return;
+                    const { x, y } = dropPoint();
+                    startTransition(async () => {
+                      const result = await addImageCardAction(projectId, board.id, { imageId, x: x + 40, y: y + 40 });
+                      if (!result.ok) {
+                        setIssues(result.issues);
+                        return;
+                      }
+                      setCards((list) => [...list, result.card]);
+                      selectCard(result.card);
+                      router.refresh();
+                    });
+                  }}
+                >
+                  <option value="">{WORLD.chooseImage}</option>
+                  {images.map((img) => (
+                    <option key={img.id} value={img.id}>
+                      {img.recordTitle}: {img.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <AskAboutBoard projectId={projectId} boardId={board.id} />
+              {!confirmDelete ? (
+                <button type="button" className="secondary small-button" onClick={() => setConfirmDelete(true)}>
+                  {WORLD.deleteBoard}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="small-button"
+                  disabled={pending}
+                  onClick={() =>
+                    startTransition(async () => {
+                      const result = await deleteBoardAction(projectId, board.id);
+                      if (!result.ok) {
+                        setIssues(result.issues);
+                        return;
+                      }
+                      router.push(`/projects/${encodeURIComponent(projectId)}/world/boards`);
+                      router.refresh();
+                    })
+                  }
+                >
+                  {WORLD.confirmDeleteBoard(board.title)}
+                </button>
+              )}
+            </div>
+          </details>
         </div>
-
-        <p className="small muted" style={{ margin: 0 }}>
-          {WORLD.keyboardBoardHint}
-        </p>
 
         <div
           ref={surfaceRef}
-          className="board-surface"
+          className="board-surface board-surface-max"
           role="listbox"
           aria-label={WORLD.boardCanvas}
+          aria-description={WORLD.keyboardBoardHint}
           aria-activedescendant={selectedId ? `${idPrefix}-card-${selectedId}` : undefined}
           tabIndex={0}
           onClick={() => setSelectedId(null)}

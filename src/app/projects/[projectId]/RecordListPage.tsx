@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { ContentClassBadge, ProtectionBadge, RevisionBadge, StatusBadge } from "@/components/Badges";
+import { OverflowDisclosure } from "@/components/shell/OverflowDisclosure";
 import { isManuscriptType, RECORD_TYPE_LABELS, requiresParent, type RecordType } from "@/domain/recordTypes";
 import { getDb } from "@/server/db";
 import { listRecords } from "@/server/services/recordService";
 import { getSpellingLanguage } from "@/server/spelling";
-import { RECORD, WRITING } from "@/ui/labels";
+import { RECORD, SHELL, WRITING } from "@/ui/labels";
 import { countWords, formatWordCount } from "@/writing/wordCount";
 import { NewRecordForm } from "./NewRecordForm";
 
@@ -17,6 +18,7 @@ export async function RecordListPage({
   defaultType,
   actions,
   hideTypes = [],
+  createInOverflow = false,
   children,
 }: {
   projectId: string;
@@ -27,6 +29,8 @@ export async function RecordListPage({
   actions?: React.ReactNode;
   /** Types listed by `children` instead of a table here. */
   hideTypes?: readonly RecordType[];
+  /** Hide the full create form behind More actions. */
+  createInOverflow?: boolean;
   children?: React.ReactNode;
 }) {
   const [allRecords, spellingLanguage] = await Promise.all([listRecords(getDb(), projectId), getSpellingLanguage()]);
@@ -81,11 +85,19 @@ export async function RecordListPage({
       })}
       {records.length === 0 ? <p className="muted">No records yet.</p> : null}
 
-      <section className="panel">
-        <h2>{RECORD.newRecordHeading}</h2>
-        {types.some(requiresParent) ? <p className="small muted">{RECORD.attachedTypesNote}</p> : null}
-        <NewRecordForm projectId={projectId} spellingLanguage={spellingLanguage} defaultType={defaultType} />
-      </section>
+      {createInOverflow ? (
+        <OverflowDisclosure summary={SHELL.newRecord} className="panel">
+          <h2 className="sr-only">{RECORD.newRecordHeading}</h2>
+          {types.some(requiresParent) ? <p className="small muted">{RECORD.attachedTypesNote}</p> : null}
+          <NewRecordForm projectId={projectId} spellingLanguage={spellingLanguage} defaultType={defaultType} />
+        </OverflowDisclosure>
+      ) : (
+        <section className="panel">
+          <h2>{RECORD.newRecordHeading}</h2>
+          {types.some(requiresParent) ? <p className="small muted">{RECORD.attachedTypesNote}</p> : null}
+          <NewRecordForm projectId={projectId} spellingLanguage={spellingLanguage} defaultType={defaultType} />
+        </section>
+      )}
     </>
   );
 }

@@ -1,11 +1,12 @@
 import Link from "next/link";
 import { CanonBadge, ProtectionStateBadge, SavedVersionBadge } from "@/components/Badges";
+import { OverflowDisclosure } from "@/components/shell/OverflowDisclosure";
+import { WorkspaceToolsChooser } from "@/components/shell/WorkspaceToolsChooser";
 import { stableStringify } from "@/domain/json";
 import { getDb } from "@/server/db";
 import { listRecords } from "@/server/services/recordService";
 import { searchProjectRecords, type SearchHit } from "@/server/services/searchService";
 import { getSpellingLanguage } from "@/server/spelling";
-import { WorkspaceToolsChooser } from "@/components/shell/WorkspaceToolsChooser";
 import { GROUP_PAGES, RECORD, SHELL, WORLD } from "@/ui/labels";
 import { categoryLabel, isWorldType, WORLD_CATEGORY_LABELS, WORLD_TYPES, worldHref } from "@/ui/world";
 import { NewRecordForm } from "../NewRecordForm";
@@ -58,7 +59,12 @@ export default async function WorldPage({
       ) : null}
       <div className="page-head">
         <h1>{q ? WORLD.resultsFor(q) : type ? WORLD_CATEGORY_LABELS[type] : SHELL.world}</h1>
-        <div className="page-actions">
+      </div>
+      <p className="page-lead">{GROUP_PAGES.world}</p>
+      <WorkspaceToolsChooser projectId={projectId} />
+
+      <OverflowDisclosure summary={SHELL.exportAndImport}>
+        <div className="row" style={{ flexWrap: "wrap", gap: "0.5rem" }}>
           <Link className="button-link secondary" href={`${base}/import-markdown`}>
             {WORLD.importReferences}
           </Link>
@@ -69,9 +75,7 @@ export default async function WorldPage({
             {WORLD.exportPdf}
           </Link>
         </div>
-      </div>
-      <p className="page-lead">{GROUP_PAGES.world}</p>
-      <WorkspaceToolsChooser projectId={projectId} />
+      </OverflowDisclosure>
 
       {hits ? (
         <section className="panel" aria-label={WORLD.resultsFor(q)}>
@@ -150,10 +154,10 @@ export default async function WorldPage({
         </section>
       )}
 
-      <section className="panel">
-        <h2>{RECORD.newRecordHeading}</h2>
+      <OverflowDisclosure summary={SHELL.newRecord} className="panel">
+        <h2 className="sr-only">{RECORD.newRecordHeading}</h2>
         <NewRecordForm projectId={projectId} spellingLanguage={spellingLanguage} defaultType={type ?? "character_dossier"} />
-      </section>
+      </OverflowDisclosure>
     </>
   );
 }

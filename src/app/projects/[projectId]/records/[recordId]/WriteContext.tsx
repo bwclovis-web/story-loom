@@ -485,6 +485,42 @@ function References({
               <p className="row small muted">
                 {preview.typeLabel} <StatusBadge status={preview.authorityStatus} /> revision {preview.revision}
               </p>
+              <div className="row reference-preview-actions">
+                {pinnedIds.has(preview.id) ? (
+                  <button type="button" className="secondary small-button" disabled={pending} onClick={() => unpinRecord(preview.id)}>
+                    {WRITE.unpinReference}
+                  </button>
+                ) : (
+                  <button type="button" className="small-button" disabled={pending} onClick={() => pinRecord(preview.id)}>
+                    {WRITE.pinReference}
+                  </button>
+                )}
+                {linkedIds.has(preview.id) ? (
+                  <button
+                    type="button"
+                    className="secondary small-button"
+                    disabled={pending}
+                    onClick={() => run(() => unlinkReferenceAction(projectId, recordId, preview.id))}
+                  >
+                    {WRITE.unlinkFromScene}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="small-button"
+                    disabled={pending}
+                    onClick={() => run(() => linkReferenceAction(projectId, recordId, preview.id))}
+                  >
+                    {WRITE.linkToScene}
+                  </button>
+                )}
+                <Link href={`/projects/${encodeURIComponent(projectId)}/records/${encodeURIComponent(preview.id)}`} className="small">
+                  {WRITE.openFull}
+                </Link>
+                <button type="button" className="secondary small-button" onClick={() => setPreview(null)}>
+                  {WRITE.closeReference}
+                </button>
+              </div>
               {preview.sections.length ? (
                 <div className="reference-jump">
                   <span className="small muted">{WRITE.jumpToSection}:</span>
@@ -535,50 +571,15 @@ function References({
               </div>
             </>
           ) : (
-            <p id={`${idPrefix}-preview`} className="error-text">
-              {preview.message}
-            </p>
+            <>
+              <p id={`${idPrefix}-preview`} className="error-text">
+                {preview.message}
+              </p>
+              <button type="button" className="secondary small-button" onClick={() => setPreview(null)}>
+                {WRITE.closeReference}
+              </button>
+            </>
           )}
-          <div className="row">
-            {preview.ok ? (
-              <>
-                <Link href={`/projects/${encodeURIComponent(projectId)}/records/${encodeURIComponent(preview.id)}`} className="small">
-                  {WRITE.openFull}
-                </Link>
-                {pinnedIds.has(preview.id) ? (
-                  <button type="button" className="secondary small-button" disabled={pending} onClick={() => unpinRecord(preview.id)}>
-                    {WRITE.unpinReference}
-                  </button>
-                ) : (
-                  <button type="button" className="secondary small-button" disabled={pending} onClick={() => pinRecord(preview.id)}>
-                    {WRITE.pinReference}
-                  </button>
-                )}
-                {linkedIds.has(preview.id) ? (
-                  <button
-                    type="button"
-                    className="secondary small-button"
-                    disabled={pending}
-                    onClick={() => run(() => unlinkReferenceAction(projectId, recordId, preview.id))}
-                  >
-                    {WRITE.unlinkFromScene}
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    className="small-button"
-                    disabled={pending}
-                    onClick={() => run(() => linkReferenceAction(projectId, recordId, preview.id))}
-                  >
-                    {WRITE.linkToScene}
-                  </button>
-                )}
-              </>
-            ) : null}
-            <button type="button" className="secondary small-button" onClick={() => setPreview(null)}>
-              {WRITE.closeReference}
-            </button>
-          </div>
         </section>
       ) : null}
 
@@ -700,80 +701,56 @@ function References({
                   ? WRITE.showingChoices(fallbackChoices.length, fallbackChoices.length)
                   : WRITE.searchReferenceHint}
             </p>
-            <ul className="context-list">
+            <p className="small muted">{WRITE.selectToPreview}</p>
+            <ul className="context-list context-select-list">
               {hits.length
-                ? hits.slice(0, CHOICES_SHOWN).map((hit) => (
-                    <li key={hit.id}>
-                      <span className="context-item-title" title={hit.title}>
-                        {hit.title}
-                      </span>
-                      <span className="small muted">
-                        {RECORD_TYPE_LABELS[hit.type]} · {matchLabel(hit.matchedIn)}
-                        {hit.sectionTitle ? `: ${hit.sectionTitle}` : ""}
-                      </span>
-                      <div className="row">
+                ? hits.slice(0, CHOICES_SHOWN).map((hit) => {
+                    const selected = preview?.ok === true && preview.id === hit.id;
+                    return (
+                      <li key={hit.id}>
                         <button
                           type="button"
-                          className="small-button"
-                          disabled={pending || linkedIds.has(hit.id)}
-                          onClick={() => run(() => linkReferenceAction(projectId, recordId, hit.id))}
-                        >
-                          {WRITE.linkToScene}
-                          <span className="sr-only"> {hit.title}</span>
-                        </button>
-                        {pinnedIds.has(hit.id) ? (
-                          <button type="button" className="secondary small-button" disabled={pending} onClick={() => unpinRecord(hit.id)}>
-                            {WRITE.unpinReference}
-                          </button>
-                        ) : (
-                          <button type="button" className="secondary small-button" disabled={pending} onClick={() => pinRecord(hit.id)}>
-                            {WRITE.pinReference}
-                          </button>
-                        )}
-                        <button
-                          type="button"
-                          className="secondary small-button"
-                          onClick={() => void open(hit.id, hit.sectionId)}
+                          className={`context-select${selected ? " selected" : ""}`}
+                          aria-pressed={selected}
                           disabled={previewing === hit.id}
+                          onClick={() => void open(hit.id, hit.sectionId)}
                         >
-                          {WRITE.openReference}
-                          <span className="sr-only"> {hit.title}</span>
+                          <span className="context-item-title" title={hit.title}>
+                            {hit.title}
+                          </span>
+                          <span className="small muted">
+                            {RECORD_TYPE_LABELS[hit.type]} · {matchLabel(hit.matchedIn)}
+                            {hit.sectionTitle ? `: ${hit.sectionTitle}` : ""}
+                            {linkedIds.has(hit.id) ? ` · ${WRITE.linkToScene}` : ""}
+                            {pinnedIds.has(hit.id) ? ` · ${WRITE.pinReference}` : ""}
+                          </span>
                         </button>
-                      </div>
-                    </li>
-                  ))
-                : fallbackChoices.map((c) => (
-                    <li key={c.id}>
-                      <span className="context-item-title" title={c.title}>
-                        {c.title}
-                      </span>
-                      <span className="small muted">{RECORD_TYPE_LABELS[c.type]}</span>
-                      <div className="row">
+                      </li>
+                    );
+                  })
+                : fallbackChoices.map((c) => {
+                    const selected = preview?.ok === true && preview.id === c.id;
+                    return (
+                      <li key={c.id}>
                         <button
                           type="button"
-                          className="small-button"
-                          disabled={pending || linkedIds.has(c.id)}
-                          onClick={() => run(() => linkReferenceAction(projectId, recordId, c.id))}
+                          className={`context-select${selected ? " selected" : ""}`}
+                          aria-pressed={selected}
+                          disabled={previewing === c.id}
+                          onClick={() => void open(c.id)}
                         >
-                          {WRITE.linkToScene}
-                          <span className="sr-only"> {c.title}</span>
+                          <span className="context-item-title" title={c.title}>
+                            {c.title}
+                          </span>
+                          <span className="small muted">
+                            {RECORD_TYPE_LABELS[c.type]}
+                            {linkedIds.has(c.id) ? ` · ${WRITE.linkToScene}` : ""}
+                            {pinnedIds.has(c.id) ? ` · ${WRITE.pinReference}` : ""}
+                          </span>
                         </button>
-                        {pinnedIds.has(c.id) ? (
-                          <button type="button" className="secondary small-button" disabled={pending} onClick={() => unpinRecord(c.id)}>
-                            {WRITE.unpinReference}
-                          </button>
-                        ) : (
-                          <button type="button" className="secondary small-button" disabled={pending} onClick={() => pinRecord(c.id)}>
-                            {WRITE.pinReference}
-                          </button>
-                        )}
-                        <button type="button" className="secondary small-button" onClick={() => void open(c.id)} disabled={previewing === c.id}>
-                          {WRITE.openReference}
-                          <span className="sr-only"> {c.title}</span>
-                        </button>
-                      </div>
-                    </li>
-                  ))}
+                      </li>
+                    );
+                  })}
             </ul>
           </>
         )}

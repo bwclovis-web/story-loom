@@ -6,13 +6,18 @@ import {
   addWeaveBeat,
   addWeaveBeatWorldRef,
   addWeaveSetupPayoff,
+  addWeaveThread,
   applyWeaveTemplate,
   createWeaveGrid,
   createWeaveTemplate,
   getWeaveGrid,
   listWeaveGrids,
   moveWeaveBeat,
+  placeWeaveBeat,
+  renameWeaveThread,
+  reorderWeaveThreads,
   saveWeaveGridAsTemplate,
+  setWeaveLayoutMode,
   updateWeaveBeat,
   upsertWeaveTemplateBeat,
 } from "@/server/services/weaveService";
@@ -197,12 +202,115 @@ describe("Plan Weave", () => {
       const view = await getWeaveGrid(target.db, projectId, grids[0]!.id);
       expect(view.title).toBe("Backup grid");
       expect(view.viewKind).toBe("zero_draft_map");
+      expect(view.layoutMode).toBe("freeform");
       expect(view.beats).toHaveLength(2);
       const wet = view.beats.find((b) => b.title === "Ledger wet");
       expect(wet?.x).toBe(55);
       expect(wet?.decision).toBe("cut");
       expect(wet?.worldRefs).toHaveLength(1);
       expect(view.setupPayoffs).toHaveLength(1);
+    } finally {
+      await target.cleanup();
+    }
+  });
+
+  it("defaults to freeform and keeps canvas coords when adding plot-grid threads", async () => {
+    const grid = await createWeaveGrid(t.db, IDS.project, { title: "Legacy open", viewKind: "original" });
+    const opened = await getWeaveGrid(t.db, IDS.project, grid.id);
+    expect(opened.layoutMode).toBe("freeform");
+    expect(opened.threads).toEqual([]);
+
+    const beat = await addWeaveBeat(t.db, IDS.project, grid.id, {
+      title: "Quay",
+      x: 12,
+      y: 34,
+      manuscriptRecordId: IDS.chapter,
+    });
+    await setWeaveLayoutMode(t.db, IDS.project, grid.id, "plot_grid");
+    const thread = await addWeaveThread(t.db, IDS.project, grid.id, { title: "Mara" });
+    await renameWeaveThread(t.db, IDS.project, grid.id, thread.id, "Mara Venn");
+    await placeWeaveBeat(t.db, IDS.project, grid.id, beat.id, {
+      threadId: thread.id,
+      manuscriptRecordId: IDS.chapter,
+      cellOrder: 0,
+    });
+
+    const chapterBefore = await t.db.record.findUniqueOrThrow({
+      where: { id: IDS.chapter },
+      select: { position: true, parentRecordId: true },
+    });
+    await placeWeaveBeat(t.db, IDS.project, grid.id, beat.id, { threadId: thread.id, cellOrder: 1 });
+    const chapterAfter = await t.db.record.findUniqueOrThrow({
+      where: { id: IDS.chapter },
+      select: { position: true, parentRecordId: true },
+    });
+    expect(chapterAfter.position).toBe(chapterBefore.position);
+    expect(chapterAfter.parentRecordId).toBe(chapterBefore.parentRecordId);
+
+    const view = await getWeaveGrid(t.db, IDS.project, grid.id);
+    expect(view.layoutMode).toBe("plot_grid");
+    expect(view.threads).toHaveLength(1);
+    expect(view.threads[0]!.title).toBe("Mara Venn");
+    const placed = view.beats.find((b) => b.id === beat.id)!;
+    expect(placed.threadId).toBe(thread.id);
+    expect(placed.x).toBe(12);
+    expect(placed.y).toBe(34);
+
+    const second = await addWeaveThread(t.db, IDS.project, grid.id, { title: "Tide" });
+    await reorderWeaveThreads(t.db, IDS.project, grid.id, [second.id, thread.id]);
+    const reordered = await getWeaveGrid(t.db, IDS.project, grid.id);
+    expect(reordered.threads.map((t) => t.title)).toEqual(["Tide", "Mara Venn"]);
+
+    const blank = await addWeaveBeat(t.db, IDS.project, grid.id, {
+      title: "Unplaced beat",
+      x: 0,
+      y: 0,
+      threadId: second.id,
+    });
+    expect(blank.manuscriptRecordId).toBeNull();
+    expect(blank.threadId).toBe(second.id);
+
+    const backup = await createWorkspaceBackup(t.db, IDS.workspace);
+    expect(backup.weaveThreads?.length).toBe(2);
+    expect(backup.weaveGrids?.[0]?.layoutMode).toBe("plot_grid");
+    expect(backup.weaveBeats?.some((b) => b.threadId)).toBe(true);
+
+    const target = await createTestDb();
+    try {
+      const restored = await restoreWorkspaceBackup(target.db, backup, { idStrategy: "remap" });
+      expect(restored.ok).toBe(true);
+      if (!restored.ok) return;
+      const projectId = restored.projects[0]!.id;
+      const grids = await listWeaveGrids(target.db, projectId);
+      const view2 = await getWeaveGrid(target.db, projectId, grids[0]!.id);
+      expect(view2.layoutMode).toBe("plot_grid");
+      expect(view2.threads).toHaveLength(2);
+      expect(view2.beats.some((b) => b.threadId && b.x === 12)).toBe(true);
+    } finally {
+      await target.cleanup();
+    }
+  });
+
+  it("restores freeform backups without thread fields with coords intact", async () => {
+    const grid = await createWeaveGrid(t.db, IDS.project, { title: "Old canvas", viewKind: "original" });
+    await addWeaveBeat(t.db, IDS.project, grid.id, { title: "A", x: 7, y: 9 });
+    const backup = await createWorkspaceBackup(t.db, IDS.workspace);
+    expect(backup.weaveGrids?.[0]?.layoutMode).toBeUndefined();
+    expect(backup.weaveThreads).toBeUndefined();
+    expect(backup.weaveBeats?.[0]?.threadId).toBeUndefined();
+
+    const target = await createTestDb();
+    try {
+      const restored = await restoreWorkspaceBackup(target.db, backup, { idStrategy: "remap" });
+      expect(restored.ok).toBe(true);
+      if (!restored.ok) return;
+      const projectId = restored.projects[0]!.id;
+      const view = await getWeaveGrid(target.db, projectId, (await listWeaveGrids(target.db, projectId))[0]!.id);
+      expect(view.layoutMode).toBe("freeform");
+      expect(view.threads).toEqual([]);
+      expect(view.beats[0]?.x).toBe(7);
+      expect(view.beats[0]?.y).toBe(9);
+      expect(view.beats[0]?.threadId).toBeNull();
     } finally {
       await target.cleanup();
     }

@@ -68,6 +68,7 @@ model Project {
   weaveGrids             WeaveGrid[]
   weaveBeats             WeaveBeat[]
   weaveBeatWorldRefs     WeaveBeatWorldRef[]
+  weaveThreads           WeaveThread[]
   weaveTemplates         WeaveTemplate[]
   establishedFacts       EstablishedFact[]
   factEvidence           FactEvidence[]
@@ -406,24 +407,46 @@ model PlaceRelation {
 /// Not revisioned. Beat positions are weave-local; moving a beat never reorders
 /// manuscript chapters or scenes. Legacy projects have none until created.
 model WeaveGrid {
-  id               String     @id
+  id               String        @id
   projectId        String
-  project          Project    @relation(fields: [projectId], references: [id])
+  project          Project       @relation(fields: [projectId], references: [id])
   title            String
   /// original | zero_draft_map | author_rewrite
   viewKind         String
+  /// freeform | plot_grid — presentation only; freeform x/y always retained.
+  layoutMode       String        @default("freeform")
   /// Provenance only when created from a template; not a live link.
   sourceTemplateId String?
-  createdAt        DateTime   @default(now())
-  updatedAt        DateTime   @updatedAt
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
   beats            WeaveBeat[]
+  threads          WeaveThread[]
 
   @@index([projectId])
   @@index([projectId, viewKind])
 }
 
+/// A story-thread column on a Weave plot-grid. Column order is thread.position;
+/// never manuscript book order. Deleting a thread clears beat.threadId only.
+model WeaveThread {
+  id        String     @id
+  gridId    String
+  grid      WeaveGrid  @relation(fields: [gridId], references: [id], onDelete: Cascade)
+  projectId String
+  project   Project    @relation(fields: [projectId], references: [id])
+  title     String
+  position  Int        @default(0)
+  createdAt DateTime   @default(now())
+  beats     WeaveBeat[]
+
+  @@index([gridId])
+  @@index([projectId])
+  @@index([gridId, position])
+}
+
 /// A beat on a Weave grid. Optional manuscript link (chapter/scene) and World
 /// references. Decision: keep | cut | move | combine | rebuild | "".
+/// Freeform uses x/y; plot-grid uses threadId + manuscriptRecordId as the cell.
 model WeaveBeat {
   id                   String              @id
   gridId               String
@@ -436,6 +459,11 @@ model WeaveBeat {
   decision             String              @default("")
   manuscriptRecordId   String?
   manuscriptRecord     Record?             @relation("WeaveManuscript", fields: [manuscriptRecordId], references: [id])
+  /// Plot-grid column; null = not placed on a thread (still visible in freeform / Unplaced).
+  threadId             String?
+  thread               WeaveThread?        @relation(fields: [threadId], references: [id], onDelete: SetNull)
+  /// Stack order within a plot-grid cell (same thread + manuscript row).
+  cellOrder            Int                 @default(0)
   x                    Int
   y                    Int
   width                Int                 @default(220)
@@ -449,6 +477,7 @@ model WeaveBeat {
   @@index([gridId])
   @@index([projectId])
   @@index([manuscriptRecordId])
+  @@index([threadId])
 }
 
 /// A World (or other linkable reference) record cited by a beat.
