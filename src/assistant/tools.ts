@@ -13,6 +13,10 @@ export const ASSISTANT_TOOL_NAMES = [
   "list_accepted_facts",
   "search_planning",
   "list_earlier_scenes",
+  "events_at_place",
+  "event_reveals",
+  "events_before_scene",
+  "chapter_event_sequence",
 ] as const;
 
 export type AssistantToolName = (typeof ASSISTANT_TOOL_NAMES)[number];
@@ -26,7 +30,7 @@ export const ASSISTANT_TOOLS: ProviderTool[] = [
   {
     name: "search_project",
     description:
-      "Search manuscript prose, reference records (title, aliases, sections, body), accepted facts, and planning notes within the chosen scope. Returns short excerpts and IDs only. Call read_passage or list_sections for full text. Prefer this before answering from memory.",
+      "Search manuscript prose, reference records (title, aliases, sections, body), accepted facts, and planning notes within the chosen scope. Returns short excerpts and IDs only. Call read_passage or list_sections for full text. For story events, scene locations, and map markers, use events_at_place, event_reveals, events_before_scene, or chapter_event_sequence.",
     strict: true,
     parameters: {
       type: "object",
@@ -115,7 +119,7 @@ export const ASSISTANT_TOOLS: ProviderTool[] = [
   {
     name: "list_earlier_scenes",
     description:
-      "List scenes that appear before the open scene in manuscript book order. Book order is not story chronology; say so when answering knowledge questions. Optional draftId limits to one manuscript draft.",
+      "List scenes that appear before the open scene in manuscript book order. Book order is not story chronology. For what is established earlier in story time, call events_before_scene. Optional draftId limits to one manuscript draft.",
     strict: true,
     parameters: {
       type: "object",
@@ -125,6 +129,54 @@ export const ASSISTANT_TOOLS: ProviderTool[] = [
         beforeRecordId: { type: "string", description: "Current chapter or scene id." },
         draftId: { type: ["string", "null"] },
       },
+    },
+  },
+  {
+    name: "events_at_place",
+    description:
+      "List story events linked to a place, in explicit chronology, plus scene locations and map markers for that place. Scene locations are settings, not events. Unknown time and unresolved pairs are labeled. A revealing scene is not character knowledge.",
+    strict: true,
+    parameters: {
+      type: "object",
+      additionalProperties: false,
+      required: ["locationRecordId"],
+      properties: { locationRecordId: { type: "string" } },
+    },
+  },
+  {
+    name: "event_reveals",
+    description:
+      "List the chapters and scenes that reveal one story event, with its places, map markers, pinned passages, and constraint neighbors. Revelation is when the reader learns the event. It does not mean every character knows it.",
+    strict: true,
+    parameters: {
+      type: "object",
+      additionalProperties: false,
+      required: ["eventId"],
+      properties: { eventId: { type: "string" } },
+    },
+  },
+  {
+    name: "events_before_scene",
+    description:
+      "List events constrained to occur before the events this scene (or chapter) reveals. Uses earlier/later constraints only, never manuscript order. Reports unknown time and events with no constraint. Does not infer character knowledge.",
+    strict: true,
+    parameters: {
+      type: "object",
+      additionalProperties: false,
+      required: ["manuscriptRecordId"],
+      properties: { manuscriptRecordId: { type: "string", description: "Chapter or scene id." } },
+    },
+  },
+  {
+    name: "chapter_event_sequence",
+    description:
+      "Compare events revealed in a chapter with the recorded earlier/later constraints. conflictsWithRecordedSequence is true only for a cycle. readerOrderDifferences are flashbacks, not contradictions by themselves. Reports unresolved pairs and unknown time.",
+    strict: true,
+    parameters: {
+      type: "object",
+      additionalProperties: false,
+      required: ["manuscriptRecordId"],
+      properties: { manuscriptRecordId: { type: "string", description: "Chapter or scene id. A scene uses its chapter." } },
     },
   },
 ];

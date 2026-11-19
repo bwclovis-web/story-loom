@@ -387,6 +387,8 @@ export interface CharacterKnowledgeCheckResult {
   sceneTitle: string;
   evidenceKind: EvidenceKind;
   passagesChecked: KnowledgePassage[];
+  /** Name matches found. The list above keeps the first 40. */
+  passagesMatched: number;
   coveredFactIds: string[];
   /** Accepted facts with linked evidence citing this scene (same evidence kind). */
   coveredByEvidence: Array<{ factId: string; statement: string }>;
@@ -438,6 +440,8 @@ export async function runCharacterKnowledgeCheck(
   const names = nameFormsOf({ title: subject.title, type: subject.type, fields });
   const forms = [...new Set([...names.full, ...names.parts])].sort((a, b) => b.length - a.length);
   const passages: KnowledgePassage[] = [];
+  const hayParts: string[] = [];
+  let passagesMatched = 0;
   const body = scene.body;
   for (const name of forms) {
     const re = new RegExp(`\\b${escapeRegExp(name)}\\b`, "gi");
@@ -447,22 +451,25 @@ export async function runCharacterKnowledgeCheck(
       const end = start + match[0].length;
       const windowStart = Math.max(0, start - 80);
       const windowEnd = Math.min(body.length, end + 80);
-      passages.push({
-        recordId: scene.id,
-        title: scene.title,
-        start: windowStart,
-        end: windowEnd,
-        excerpt: body.slice(windowStart, windowEnd),
-        matchedName: match[0],
-      });
-      if (passages.length >= 40) break;
+      const excerpt = body.slice(windowStart, windowEnd);
+      passagesMatched += 1;
+      hayParts.push(excerpt);
+      if (passages.length < 40) {
+        passages.push({
+          recordId: scene.id,
+          title: scene.title,
+          start: windowStart,
+          end: windowEnd,
+          excerpt,
+          matchedName: match[0],
+        });
+      }
     }
-    if (passages.length >= 40) break;
   }
 
   const facts = await listEstablishedFactsForSubject(db, projectId, subject.id);
   const accepted = facts.filter((f) => f.status === "accepted");
-  const hay = passages.map((p) => p.excerpt).join("\n").toLowerCase();
+  const hay = hayParts.join("\n").toLowerCase();
   const covered: string[] = [];
   const gaps: CharacterKnowledgeCheckResult["gaps"] = [];
   const coveredByEvidence: CharacterKnowledgeCheckResult["coveredByEvidence"] = [];
@@ -495,6 +502,7 @@ export async function runCharacterKnowledgeCheck(
     sceneTitle: scene.title,
     evidenceKind,
     passagesChecked: passages,
+    passagesMatched,
     coveredFactIds: covered,
     coveredByEvidence,
     coveredByKeywords,

@@ -111,18 +111,18 @@ export function HelpContent() {
             Open <a href={APP_URL}>{APP_URL}</a> in your browser.
           </li>
           <li>
-            Under <L>{HOME.newWorkspaceHeading}</L>, type a name and choose <L>{HOME.createWorkspace}</L>.
+            Choose <L>{HOME.newWorkspaceHeading}</L>, type a name, and choose <L>{HOME.createWorkspace}</L>.
           </li>
           <li>
-            In that workspace, type a book title in <L>{HOME.projectTitlePlaceholder}</L> and choose{" "}
-            <L>{HOME.addProject}</L>. The project opens.
+            In that workspace, choose <L>{HOME.newManuscript}</L>, type a title in <L>{HOME.projectTitlePlaceholder}</L>,
+            and choose <L>{HOME.addProject}</L>. The project opens.
           </li>
           <li>
             Choose <L>{NAV.importMarkdown}</L> to bring in your notes, or use <L>{RECORD.newRecordHeading}</L> to write
             one yourself.
           </li>
           <li>
-            Before big changes, open <L>{SHELL.utilities}</L> in the left navigation footer, choose{" "}
+            Before big changes, open <L>{SHELL.settings}</L> at the bottom of the left navigation, choose{" "}
             <L>{SHELL.backups}</L>, and download a backup.
           </li>
         </ol>
@@ -251,8 +251,10 @@ export function HelpContent() {
 
       <Section id="navigation">
         <p>
-          The dark column on the left is the main navigation. Authoring destinations stay in the rail; utilities live
-          under <L>{SHELL.utilities}</L> in the footer. URLs are unchanged.
+          The dark column on the left is the main navigation. <L>{SHELL.write}</L>, <L>{SHELL.plan}</L>,{" "}
+          <L>{SHELL.world}</L> and <L>{SHELL.assistant}</L> stay in the rail.           <L>{SHELL.help}</L> and the theme button are at the bottom. <L>{SHELL.settings}</L> holds the project
+          switcher, <L>{SHELL.collapse}</L>, <L>{SHELL.backups}</L>, <L>{SHELL.connections}</L> and <L>{SHELL.trash}</L>.
+          URLs are unchanged.
         </p>
         <ul>
           <li>
@@ -270,17 +272,17 @@ export function HelpContent() {
             <L>{SHELL.assistant}</L>: the optional assistant. See <See anchor="assistant" />.
           </li>
           <li>
-            <L>{SHELL.utilities}</L> → <L>{SHELL.backups}</L>: the <L>{BACKUP.heading}</L> page.
+            <L>{SHELL.settings}</L> → <L>{SHELL.backups}</L>: the <L>{BACKUP.heading}</L> page.
           </li>
           <li>
-            <L>{SHELL.utilities}</L> → <L>{SHELL.connections}</L>: the <L>{CONNECTIONS.heading}</L> page. See{" "}
+            <L>{SHELL.settings}</L> → <L>{SHELL.connections}</L>: the <L>{CONNECTIONS.heading}</L> page. See{" "}
             <See anchor="chatgpt-direct" />.
           </li>
           <li>
-            <L>{SHELL.utilities}</L> → <L>{SHELL.trash}</L>: what you have moved to the Trash. See <See anchor="trash" />.
+            <L>{SHELL.settings}</L> → <L>{SHELL.trash}</L>: what you have moved to the Trash. See <See anchor="trash" />.
           </li>
           <li>
-            <L>{SHELL.utilities}</L> → <L>{SHELL.help}</L>: this page.
+            <L>{SHELL.help}</L> at the bottom of the left column: this page.
           </li>
         </ul>
         <p>
@@ -291,8 +293,9 @@ export function HelpContent() {
         <h3>Switch project</h3>
         <ol>
           <li>
-            At the bottom of the left column, choose the project box. It shows the project&apos;s title, its workspace,
-            its number of manuscript chapters, and the saved word count of those chapters.
+            Open <L>{SHELL.settings}</L> at the bottom of the left column and choose a project. The list shows each
+            project&apos;s title, its workspace, its number of manuscript chapters, and the saved word count of its
+            manuscript chapters and scenes.
           </li>
           <li>
             Choose a project from the list. Each entry also shows how many records the project has.{" "}
@@ -325,13 +328,13 @@ export function HelpContent() {
         </ul>
         <h3>Smaller windows</h3>
         <p>
-          Choose <L>{SHELL.collapse}</L> at the bottom of the left column to show icons only. Point at an icon, or move to
-          it with <kbd>Tab</kbd>, to see its name. Choose the same button again (now <L>{SHELL.expand}</L>) to bring the
-          names back. On medium-width windows the column shows icons only until you expand it.
+          Open <L>{SHELL.settings}</L> at the bottom of the left column and choose <L>{SHELL.collapse}</L> to show icons
+          only. Point at an icon, or move to it with <kbd>Tab</kbd>, to see its name. Choose <L>{SHELL.expand}</L> to
+          bring the names back. On medium-width windows the column shows icons only until you expand it.
         </p>
         <h3>Light and dark theme</h3>
         <p>
-          The theme button at the bottom of the left column, above <L>{SHELL.collapse}</L>, shows the current theme. Each
+          The theme button at the bottom of the left column, above <L>{SHELL.settings}</L>, shows the current theme. Each
           time you choose it, it moves to the next one: <L>{THEME.names.light}</L>, <L>{THEME.names.dark}</L>, then{" "}
           <L>{THEME.names.system}</L>, which follows your computer&apos;s light or dark setting. The theme changes the
           colours of every page. It does not change your text, the saved records, printed pages or PDF exports, which
@@ -350,8 +353,12 @@ export function HelpContent() {
 
       <Section id="workspaces">
         <p>
-          A <em>workspace</em> holds one or more projects. A <em>project</em> is one book. Every record belongs to one
-          project.
+          A <em>workspace</em> holds one or more projects. A <em>project</em> is one book (the home page calls it a manuscript).
+          Every record belongs to one project. The home page is <L>{HOME.heading}</L>. The featured manuscript is the
+          project you opened last in this browser, or otherwise the first of your own projects. It shows the series name
+          when you have set one, otherwise the workspace name, then the chapter count and the saved word count of the
+          manuscript chapters and scenes. <L>{HOME.openManuscript}</L> opens <L>{SHELL.write}</L>. It does not resume a
+          saved place in the book.
         </p>
         <h3>Create a workspace</h3>
         <ol>
@@ -359,26 +366,31 @@ export function HelpContent() {
             Choose <L>{NAV.brand}</L> at the top of the left navigation to go to the home page.
           </li>
           <li>
-            Under <L>{HOME.newWorkspaceHeading}</L>, type a name.
+            Choose <L>{HOME.newWorkspaceHeading}</L> and type a name.
           </li>
           <li>
-            Choose <L>{HOME.createWorkspace}</L>. The workspace appears in the list.
+            Choose <L>{HOME.createWorkspace}</L>. The workspace appears under <L>{HOME.yourWorkspaces}</L>.
           </li>
         </ol>
         <h3>Create a project</h3>
         <ol>
           <li>
-            In the workspace&apos;s box, type a title in <L>{HOME.projectTitlePlaceholder}</L>.
+            In the workspace, choose <L>{HOME.newManuscript}</L>.
           </li>
           <li>
-            Choose <L>{HOME.addProject}</L>. The new project opens.
+            Type a title in <L>{HOME.projectTitlePlaceholder}</L> and choose <L>{HOME.addProject}</L>. The project opens.
           </li>
         </ol>
         <h3>Open a project</h3>
         <p>
-          On the home page, choose the project&apos;s title. You can also choose it from the project box at the bottom
-          of the left navigation. The project&apos;s pages are listed in the second column. See{" "}
-          <See anchor="navigation" />.
+          On the home page, choose <L>{HOME.open}</L> beside the manuscript, or <L>{HOME.openManuscript}</L> on the
+          featured one. You can also choose it from <L>{SHELL.settings}</L> at the bottom of the left navigation. The
+          project&apos;s pages are listed in the second column. See <See anchor="navigation" />.
+        </p>
+        <p>
+          The invented demo workspace, when it is present, is grouped under <L>{HOME.examples}</L>. Your own workspaces
+          stay under <L>{HOME.yourWorkspaces}</L>. A title that contains words such as &ldquo;Demo&rdquo; or
+          &ldquo;Archive&rdquo; does not move a workspace into <L>{HOME.examples}</L>.
         </p>
         <h3>Try things in a separate trial workspace</h3>
         <p>
@@ -387,8 +399,8 @@ export function HelpContent() {
         </p>
         <p className="warning">
           Workspaces and projects cannot be renamed in the app. (A record&apos;s title can be changed when you edit it and
-          save.) When you no longer need a trial workspace, move
-          it to the Trash with <L>{TRASH.moveWorkspace}</L>. See <See anchor="trash" />.
+          save.) When you no longer need a trial workspace, open its actions menu (the … button) and choose{" "}
+          <L>{TRASH.moveWorkspace}</L>. See <See anchor="trash" />.
         </p>
 
         <Sub id="upgrade-project">
@@ -1186,8 +1198,10 @@ export function HelpContent() {
             a cell; blank cells stay valid and can receive a beat inline (subtle on desktop hover/focus; always
             available by keyboard Enter and on touch). Drag a beat onto another cell or the Unplaced tray to move it;
             drop position sets order within a cell. Sticky scene labels and thread headers stay visible while you
-            scroll. The collapsible Unplaced beats tray holds beats with no scene link or a link outside the current
-            draft. One toolbar sits above the grid: Grid / Freeform, Threads visibility, decision filter, density, and
+            scroll. A beat linked to the rewrite pair of a visible row stays on that row, marked{" "}
+            <L>{WEAVE.otherDraftBeat}</L>, and cannot be dragged, so the stored link is not moved onto this draft.
+            The collapsible Unplaced beats tray holds beats with no scene link, or a link that is neither this draft
+            nor its rewrite pair. One toolbar sits above the grid: Grid / Freeform, Threads visibility, decision filter, density, and
             gold <L>{WEAVE.addBeatPrimary}</L>. Compact scope chips show the project name as plain text; book switches
             among series siblings when more than one exists; plan switches the Write draft when drafts exist. On narrow
             screens the grid becomes a single-thread scene list. Switching layout keeps freeform positions and never
@@ -1323,9 +1337,10 @@ export function HelpContent() {
             </li>
             <li>
               On a character dossier, <L>{WORLD.characterKnowledgeCheck}</L> is a heuristic: it scans a chosen draft and
-              chapter or scene for the character&apos;s names, lists the passages checked, and compares accepted facts by
-              linked evidence in that scene and/or keyword overlap. That is not proof the character &ldquo;knows&rdquo; a
-              fact. Results split linked evidence from keyword-only matches.
+              chapter or scene for the character&apos;s names, lists the passages checked (the first 40 when there are
+              more), and compares accepted facts against every name match by linked evidence and/or keyword overlap.
+              That is not proof the character &ldquo;knows&rdquo; a fact. Results split linked evidence from keyword-only
+              matches.
             </li>
             <li>
               <L>{WORLD.earlierSceneTracing}</L> (next increment): walk prior scenes in draft order with cited passages and
@@ -1433,7 +1448,9 @@ export function HelpContent() {
           <p>
             Adding an event does not change prose, revisions, scene locations, or markers. Events are included in
             workspace backups. Older backups that omit them restore with none. A backup that includes story events
-            will not restore on an older copy of the app that does not know those fields.
+            will not restore on an older copy of the app that does not know those fields. The assistant can read this
+            list when you ask what happened at a place, which scenes reveal an event, what is established before a
+            scene, or whether a chapter disagrees with the recorded order. See <See anchor="assistant-context" />.
           </p>
         </Sub>
 
@@ -2398,9 +2415,8 @@ export function HelpContent() {
             message. What to send is chosen in <L>{ASSISTANT.contextHeading}</L>, the shared context rail on the right
             (collapse, resize, and overlay on a narrow window, same as Write). Closing the rail does not change what is
             sent. The line above the question box shows how many items are included and the approximate size.{" "}
-            <L>{ASSISTANT.conversations}</L> stays in the left column of the assistant page. Discussion may use
-            read-only project search tools within the chosen scope; change proposals still apply only through Include and
-            the existing review / Apply flow.
+            <L>{ASSISTANT.conversations}</L> stays in the left column of the assistant page. {ASSISTANT.toolsNote} Source
+            links open the scene, the event, or the map the answer used.
           </p>
           <ol>
             <li>
@@ -2944,11 +2960,12 @@ export function HelpContent() {
               and choose <L>{TRASH.moveRecord}</L>.
             </li>
             <li>
-              <strong>A project:</strong> on the home page, choose <L>{TRASH.moveProject}</L> beside it.
+              <strong>A project:</strong> on the home page, choose the actions button (three dots) on that manuscript,
+              then <L>{TRASH.moveProject}</L>.
             </li>
             <li>
-              <strong>A workspace:</strong> on the home page, choose <L>{TRASH.moveWorkspace}</L> at the bottom of its
-              box.
+              <strong>A workspace:</strong> on the home page, choose the actions button on that workspace, then{" "}
+              <L>{TRASH.moveWorkspace}</L>.
             </li>
           </ul>
           <p>
@@ -2978,7 +2995,7 @@ export function HelpContent() {
         </Sub>
         <Sub id="trash-page">
           <p>
-            Open <L>{SHELL.utilities}</L> in the left navigation footer, then choose <L>{SHELL.trash}</L>. The page lists
+            Open <L>{SHELL.settings}</L> at the bottom of the left navigation, then choose <L>{SHELL.trash}</L>. The page lists
             workspaces, projects, and documents, chapters and scenes in the Trash, with when each was moved.
           </p>
           <ul>
@@ -3018,7 +3035,7 @@ export function HelpContent() {
           <p>A backup is a complete copy of a workspace that you can restore later.</p>
           <ol>
             <li>
-              Open <L>{SHELL.utilities}</L> in the left navigation footer, then choose <L>{SHELL.backups}</L>.
+              Open <L>{SHELL.settings}</L> at the bottom of the left navigation, then choose <L>{SHELL.backups}</L>.
             </li>
             <li>
               Under <L>{BACKUP.downloadHeading}</L>, choose the workspace name.
@@ -3057,7 +3074,7 @@ export function HelpContent() {
           <p>Restoring adds a copy of the backup as a new workspace. It never overwrites your current work.</p>
           <ol>
             <li>
-              Open <L>{SHELL.utilities}</L> in the left navigation footer, then choose <L>{SHELL.backups}</L>.
+              Open <L>{SHELL.settings}</L> at the bottom of the left navigation, then choose <L>{SHELL.backups}</L>.
             </li>
             <li>
               Under <L>{BACKUP.restoreHeading}</L>, choose the backup file.

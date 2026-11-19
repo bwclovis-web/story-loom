@@ -2596,3 +2596,88 @@ An event has a title, summary, optional time text (blank means unknown), a plann
 
 ### Rollback
 Revert the story-event service, timeline page, map rail, backup fields, Help, and labels. To undo the tables on the working database, restore `backups/2026-11-19T19-26-52-858Z-pre-migrate`. Do not reset the working database.
+
+## Editorial home library (Nov 19, 2026)
+
+The home page is now the writing library: a featured manuscript, workspace rows with covers, and the seeded demo workspace under Examples. Covers are drawn in the page from the project id. The app still has no stored cover image. Navigation keeps the same destinations. Help and Settings sit at the bottom of the rail; Settings holds the project list, theme, collapse, Backups, Connections, and Trash. Creating a workspace or manuscript opens a dialog. Moving either to the Trash stays behind the actions menu and the existing confirmation.
+
+No database change. Rollback is to revert the home page, library components, navigation, theme tokens, Help, and labels. Do not reset the working database.
+
+## Story-event backup and assistant retrieval (Nov 19, 2026)
+
+Requested: confirm story events survive both restore modes and that older backups still restore, then let the assistant read events, scene locations, and map markers.
+
+### Backup
+On an isolated database, one backup held a planned event scoped to the Zero draft, an event with the time text "before dawn", an unscoped event, an earlier/later constraint, a place link, two revealing scenes, and a pinned passage with its revision, offsets, excerpt, and hash. Restore with new ids and restore with the original ids both kept those fields. The Zero-draft scope pointed at the restored draft. A copy of that backup with the story-event fields removed restored the chapter text and no events. The frozen early backup `tests/fixtures/legacy/early-shape.v1.backup.json` also restored with no events.
+
+### Assistant
+Discussion can call four read-only tools inside the existing scope, tool budget, and conversation summary: what happened at a place, which scenes reveal an event, which events are constrained to occur before a scene, and whether a chapter's reveals disagree with the recorded sequence. Order comes only from earlier/later constraints. Unknown time stays unknown. Events with no constraint are reported as unresolved. A revealing scene is when the reader learns the event. It does not mean every character knows it. Planned events, zero-draft evidence, and author-manuscript evidence stay labeled. Pinned revisions and stale evidence are included. Source links open the scene, the event, or the map marker. Change proposals still have no tools.
+
+### Checks
+| Check | Result |
+| --- | --- |
+| `pnpm exec tsc --noEmit` | pass |
+| `vitest run` story events, assistant story tools, order, prompt, help | 5 files, 17 tests passed |
+| Remap restore | Titles, planned flag, blank time, draft scope, order, place, revealing scenes, and pinned passage survived |
+| Preserve restore | The same rows kept their original ids |
+| Backup without event fields | Restored the chapter and zero events |
+| Early legacy backup | Restored with zero events |
+| Mocked model | One tool round, then the budget set the next request to no tools. The saved summary was in the request. A proposal request had no tools |
+| Draft filter | An all-drafts event stayed visible for the author manuscript. A Zero-draft event did not |
+| Before a scene | The fire was before the quarrel by constraint. An unconstrained event stayed unresolved. The fire's time stayed unknown |
+| Chapter sequence | The later chapter reveals the earlier event. `conflictsWithRecordedSequence` stayed false. The reader-order difference was reported |
+| Stale evidence | The pinned excerpt stayed, with needs-recheck after the source was saved |
+| Browser, isolated database | Source links opened the event, The quay, and Quay chart with its marker. The working app on port 2112 was not pointed at the test database |
+
+### Limits
+- A backup that includes story events will not restore on an older copy of the app.
+- The assistant does not invent a date or an order when none was recorded.
+- A flashback is reported as a difference between manuscript order and the constraints. It is a contradiction only when the constraints themselves cycle.
+
+### Rollback
+Revert the timeline query, assistant tools, and source links. Story-event tables are unchanged by this pass. Do not reset the working database.
+
+## Three-chapter author workflow trial (Nov 19, 2026)
+
+Requested: rehearse reference retrieval, event order, reader revelation, character knowledge, plot-grid coverage, and rewrite planning on a private restored copy. Automated checks use a mocked provider. Live model questions are for the author to run.
+
+### Checklist
+| Task | Automated result | Live question |
+| --- | --- | --- |
+| Reference retrieval | Tools stay read-only and keep draft labels | Ask on the trial app, book scope, Zero draft |
+| Event order | No recorded events: nothing is placed before the second chapter, and the third chapter reports no conflict | Same question on the trial app |
+| Reader revelation | A reveal is labeled as reader knowledge | Ask which scenes reveal an event |
+| Character knowledge | A name mention is not linked evidence. The blank author page reports no passages | Run the dossier check, then ask the assistant |
+| Plot-grid coverage | Beats on the first two chapters show on the author rows. The third chapter has none | Look at the grid, then ask what is missing |
+| Rewrite planning | Author pages for those chapters are empty. The check does not rewrite them | Ask for suggestions and do not Apply |
+
+### Private copy
+Working database backed up to `backups/2026-11-19T20-16-19-286Z-pre-author-trial`, then restored to `C:/Users/bwclo/AppData/Local/Temp/wordly-author-trial-20261119/trial.db`. That copy was backed up again to `backups/2026-11-19T20-23-22-604Z-author-trial-restored`. `pnpm db:verify-backup` on that folder matched the snapshot (169 records, 64 chapters in book order, 0 scenes, 0 invalid revision hashes). The working database was not written.
+
+### Findings on the restored project
+| Item | Result |
+| --- | --- |
+| Source coverage | Six reference links, all on the first chapter. Eighteen accepted facts and no pinned passages. No story events, scene locations, or maps |
+| Incorrect claims | The mocked run did not invent an order. Keyword overlap can mark a fact without a pinned passage; the check lists that separately from linked evidence |
+| Missing evidence | Every accepted fact. No chronology constraints. The third chapter's grid row is empty. The author-manuscript pages are empty |
+| Manual effort | Open Show references, then Established in, then choose the draft and chapter. The grid was already on the author manuscript |
+| Navigation | Chapter choices follow book order. Beats linked to the Zero draft stay on the matching author row and are marked Other draft. Three beats remain Unplaced. The knowledge check says when it is showing the first 40 passages |
+
+### Fixes
+- Plot grid shows a beat on the rewrite pair of the visible row and does not let that chip be dragged onto the current draft.
+- Accepted-fact retrieval sets `missingPassageEvidence` when no passage is pinned.
+- The knowledge-check chapter list follows book order. Comparison uses every name match, and the page says when the visible list is shorter.
+
+### Checks
+| Check | Result |
+| --- | --- |
+| `vitest run` placement, author workflow, established facts, help | 4 files, 12 tests passed |
+| Browser, private copy, port 2117 | Author-manuscript grid shows Other draft beats on the first two chapters and an empty third chapter. Unplaced beats (3). Knowledge check: Showing 40 of 42 passages |
+| Restored backup | `db:verify-backup` matched |
+
+### Limits
+- No live model call was made. The questions in the trial notes are for the author on port 2117. Do not Apply a proposal during that pass.
+- A backup that includes story events will not restore on an older copy of the app.
+
+### Rollback
+Revert the plot-grid placement, fact-tool flag, and knowledge-check list. The private database and its backups are outside the working database. Do not reset `prisma/dev.db`.

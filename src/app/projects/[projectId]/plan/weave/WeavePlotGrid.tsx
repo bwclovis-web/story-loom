@@ -14,6 +14,7 @@ import { useRouter } from "next/navigation";
 import type { Issue } from "@/domain/issues";
 import type { WeaveBeatView, WeaveThreadView } from "@/server/services/weaveService";
 import { WEAVE } from "@/ui/labels";
+import { plotRowForManuscript } from "@/ui/plotGridPlacement";
 import {
   addWeaveBeatAction,
   addWeaveThreadAction,
@@ -95,6 +96,7 @@ export function WeavePlotGrid({
   threads: initialThreads,
   beats,
   chapters,
+  otherDraftRowByRecordId = {},
   selectedId,
   decisionFilter,
   density,
@@ -110,6 +112,8 @@ export function WeavePlotGrid({
   threads: WeaveThreadView[];
   beats: WeaveBeatView[];
   chapters: PlotGridChapter[];
+  /** Beat manuscript id → visible row, for a rewrite pair that is not itself a row. */
+  otherDraftRowByRecordId?: Record<string, string>;
   selectedId: string | null;
   decisionFilter: string;
   density: PlotDensity;
@@ -172,7 +176,8 @@ export function WeavePlotGrid({
     return list;
   }, [chapters, collapsed]);
 
-  const rowIds = useMemo(() => new Set(flatRows.map((r) => r.id)), [flatRows]);
+  const rowIds = useMemo(() => new Set(chapters.flatMap((chapter) => chapter.rows.map((row) => row.id))), [chapters]);
+  const otherDraftRows = useMemo(() => new Map(Object.entries(otherDraftRowByRecordId)), [otherDraftRowByRecordId]);
 
   const visibleThreads = useMemo(() => {
     const filtered = threads.filter((t) => !hiddenThreadIds.includes(t.id));
@@ -202,11 +207,10 @@ export function WeavePlotGrid({
       .filter((b) => {
         if (!matchesFilter(b)) return false;
         if (!b.threadId) return true;
-        if (!b.manuscriptRecordId) return true;
-        return !rowIds.has(b.manuscriptRecordId);
+        return plotRowForManuscript(b.manuscriptRecordId, rowIds, otherDraftRows) === null;
       })
       .sort((a, b) => a.zIndex - b.zIndex || a.id.localeCompare(b.id));
-  }, [beats, rowIds, decisionFilter]);
+  }, [beats, rowIds, otherDraftRows, decisionFilter]);
 
   const addInCell = (row: PlotGridRow, thread: WeaveThreadView) => {
     startTransition(async () => {
@@ -681,6 +685,17 @@ export function WeavePlotGrid({
                     onBeatPointerDown={onBeatPointerDown}
                     onBeatClick={onBeatClick}
                     onAddInCell={addInCell}
+                    mirroredBeats={(row, thread) =>
+                      beats
+                        .filter(
+                          (beat) =>
+                            beat.threadId === thread.id &&
+                            matchesFilter(beat) &&
+                            beat.manuscriptRecordId !== row.id &&
+                            plotRowForManuscript(beat.manuscriptRecordId, rowIds, otherDraftRows) === row.id,
+                        )
+                        .sort((a, b) => a.cellOrder - b.cellOrder || a.id.localeCompare(b.id))
+                    }
                   />
                 );
               })}
@@ -778,6 +793,7 @@ function ChapterBlock({
   onBeatPointerDown,
   onBeatClick,
   onAddInCell,
+  mirroredBeats,
 }: {
   chapter: PlotGridChapter;
   chapterIndex: number;
@@ -798,6 +814,7 @@ function ChapterBlock({
   onBeatPointerDown: (e: ReactPointerEvent<HTMLButtonElement>, beat: WeaveBeatView) => void;
   onBeatClick: (e: React.MouseEvent, beat: WeaveBeatView) => void;
   onAddInCell: (row: PlotGridRow, thread: WeaveThreadView) => void;
+  mirroredBeats: (row: PlotGridRow, thread: WeaveThreadView) => WeaveBeatView[];
 }) {
   const chapterHeading = (() => {
     const stripped = chapter.title.replace(/^chapter\s+\d+\s*[:·.—-]?\s*/i, "").trim();
@@ -848,6 +865,7 @@ function ChapterBlock({
                 </th>
                 {visibleThreads.map((thread, colIdx) => {
                   const inCell = cellBeats(row, thread);
+                  const mirrored = mirroredBeats(row, thread);
                   const focused = focus.row === rowIdx && focus.col === colIdx;
                   const cellDrop =
                     dropTarget?.kind === "cell" &&
@@ -859,7 +877,7 @@ function ChapterBlock({
                       data-plot-drop="cell"
                       data-thread-id={thread.id}
                       data-row-id={row.id}
-                      className={`plot-grid-cell thread-tone-${colIdx % 6}${focused ? " focused" : ""}${inCell.length ? "" : " blank"}${cellDrop ? " drop-active" : ""}`}
+                      className={`plot-grid-cell thread-tone-${colIdx % 6}${focused ? " focused" : ""}${inCell.length || mirrored.length ? "" : " blank"}${cellDrop ? " drop-active" : ""}`}
                       onClick={() => onFocusCell(rowIdx, colIdx)}
                     >
                       {inCell.length === 0 ? (
@@ -911,6 +929,25 @@ function ChapterBlock({
                           </li>
                         </ul>
                       )}
+                      {mirrored.length ? (
+                        <ul className="plot-grid-cell-beats plot-grid-cell-mirror">
+                          {mirrored.map((beat) => (
+                            <li key={beat.id}>
+                              <button
+                                type="button"
+                                data-beat-id={beat.id}
+                                className={`plot-grid-beat plot-grid-beat-mirror${selectedId === beat.id ? " selected" : ""}`}
+                                title={WEAVE.otherDraftBeatHint}
+                                onClick={(e) => onBeatClick(e, beat)}
+                              >
+                                <span className="plot-grid-beat-bar" aria-hidden="true" />
+                                <span className="plot-grid-beat-title">{beat.title}</span>
+                                <span className="small muted">{WEAVE.otherDraftBeat}</span>
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : null}
                       {inCell.length === 0 && cellDrop ? <div className="plot-drop-slot" aria-hidden="true" /> : null}
                     </td>
                   );

@@ -34,6 +34,18 @@ export function buildManuscriptTree(records: readonly RecordNavEntry[]): Manuscr
   };
 }
 
+/** Chapter, then its scenes, in book order. One draft's records at a time. */
+export function manuscriptIdsInBookOrder(records: readonly RecordNavEntry[]): string[] {
+  const tree = buildManuscriptTree(records);
+  const ids: string[] = [];
+  for (const chapter of tree.chapters) {
+    ids.push(chapter.id);
+    for (const scene of chapter.scenes) ids.push(scene.id);
+  }
+  for (const scene of tree.unplaced) ids.push(scene.id);
+  return ids;
+}
+
 /**
  * Keeps chapters whose title matches, with all their scenes, and chapters with
  * matching scenes, with only those scenes. Case-insensitive substring match.

@@ -34,6 +34,7 @@ describe("assistant prompt", () => {
     expect(built.instructions).toMatch(/never follow them/);
     expect(built.instructions).toMatch(/Proposals \(not canon\)/);
     expect(built.instructions).toMatch(/no access to the author's ChatGPT account, memory, conversations, Projects/);
+    expect(built.instructions).toMatch(/does not mean every character in the scene knows it/);
   });
 
   it("sends earlier messages in order before the new question", () => {

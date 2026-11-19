@@ -408,6 +408,9 @@ export function EstablishedInRail({
                 {check.sceneTitle} · {EVIDENCE_KIND_LABELS[check.evidenceKind]}
               </p>
               <h3 className="small">{WORLD.passagesChecked}</h3>
+              {check.passagesMatched > check.passagesChecked.length ? (
+                <p className="small muted">{WORLD.passagesTruncated(check.passagesChecked.length, check.passagesMatched)}</p>
+              ) : null}
               {check.passagesChecked.length ? (
                 <ul className="context-links">
                   {check.passagesChecked.map((p, i) => (

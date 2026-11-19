@@ -144,6 +144,7 @@ export function WeaveCanvas({
   planLabel,
   manuscriptChoices,
   manuscriptChapters,
+  otherDraftRowByRecordId = {},
   worldChoices,
   seriesBeats,
 }: {
@@ -157,6 +158,8 @@ export function WeaveCanvas({
   planLabel?: string;
   manuscriptChoices: ManuscriptChoice[];
   manuscriptChapters: PlotGridChapter[];
+  /** manuscript record id → visible row id, when the beat is linked on the rewrite pair. */
+  otherDraftRowByRecordId?: Record<string, string>;
   worldChoices: WorldChoice[];
   seriesBeats: SeriesBeatChoice[];
 }) {
@@ -814,6 +817,7 @@ export function WeaveCanvas({
             threads={threads}
             beats={beats}
             chapters={manuscriptChapters}
+            otherDraftRowByRecordId={otherDraftRowByRecordId}
             selectedId={selectedId}
             decisionFilter={decisionFilter}
             density={density}

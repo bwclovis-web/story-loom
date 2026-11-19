@@ -86,6 +86,7 @@ export const SHELL = {
   connections: "Connections",
   trash: "Trash",
   help: "Help",
+  settings: "Settings",
   utilities: "More",
   utilitiesMenu: "Utilities",
   mainNav: "Main",
@@ -321,7 +322,10 @@ export const WEAVE = {
   unplacedBeats: (n: number) => `Unplaced beats (${n})`,
   unplacedRow: "Unplaced",
   unplacedRowHint:
-    "No chapter or scene link yet — or the link is outside the current writing draft. Linking never changes book order.",
+    "No chapter or scene link yet — or the link is outside the current writing draft and has no rewrite pair on a visible row. Linking never changes book order.",
+  otherDraftBeat: "Other draft",
+  otherDraftBeatHint:
+    "This beat stays linked to the other draft. It is shown here because that page is the rewrite pair of this row. It cannot be dragged, so the link is not moved.",
   blankCell: "Empty",
   addBeatInCell: "Add beat",
   noThreadsYet: "Add a story thread to start columns. Rows follow manuscript order for the current writing draft.",
@@ -392,12 +396,23 @@ export const WEAVE = {
 } as const;
 
 export const HOME = {
-  heading: "Workspaces",
+  heading: "Your writing",
   newWorkspaceHeading: "New workspace",
   workspaceNamePlaceholder: "Workspace name",
   createWorkspace: "Create workspace",
-  projectTitlePlaceholder: "New project title",
-  addProject: "Add project",
+  projectTitlePlaceholder: "Manuscript title",
+  addProject: "Create manuscript",
+  yourWorkspaces: "Your workspaces",
+  examples: "Examples",
+  newManuscript: "New manuscript",
+  openManuscript: "Open manuscript",
+  open: "Open",
+  quickStart: "Quick start",
+  noWorkspaces: "No workspaces yet.",
+  noManuscripts: "No manuscripts yet.",
+  cancel: "Cancel",
+  workspaceActions: (name: string) => `Actions for ${name}`,
+  manuscriptActions: (title: string) => `Actions for ${title}`,
 } as const;
 
 export const RECORD = {
@@ -962,6 +977,8 @@ export const WORLD = {
   chooseScene: "Chapter or scene",
   runKnowledgeCheck: "Run knowledge check",
   passagesChecked: "Passages checked",
+  passagesTruncated: (shown: number, total: number) =>
+    `Showing ${shown} of ${total} passages where a name appears. Fact comparison uses every match, not only this list.`,
   knowledgeGaps: "No linked evidence or keyword overlap",
   noKnowledgeGaps: "Every accepted fact had linked evidence or keyword overlap in this scene.",
   noPassagesFound: "No name matches in that scene.",
@@ -1402,7 +1419,7 @@ export const ASSISTANT = {
   privacyNote:
     "Everything you include is sent to OpenAI when you choose Send or Prepare change proposal: the selected records or passage, the earlier messages you tick, your question, and any passages the assistant's read-only project tools fetch for that answer. Nothing else from the workspace is sent.",
   toolsNote:
-    "Discussion may search and read manuscript, references, sections, accepted facts, and planning notes in the scope you choose (chapter, book, or series). Retrieval is read-only. Change proposals still use only what you Include; Apply is unchanged.",
+    "Discussion may search and read manuscript, references, sections, accepted facts, planning notes, story events, scene locations, and map markers in the scope you choose (chapter, book, or series). Story order comes only from the earlier/later constraints you recorded. Unknown time stays unknown, and events with no constraint are left unordered. A scene that reveals an event does not mean every character knows it. Planned events, zero-draft evidence, and author-manuscript evidence stay labeled, including a pinned passage that needs recheck. Retrieval is read-only. Change proposals still use only what you Include; Apply is unchanged.",
   retrievalScope: "Search scope",
   scopeChapter: "This chapter",
   scopeBook: "This book",

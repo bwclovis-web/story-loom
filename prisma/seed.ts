@@ -1,6 +1,7 @@
 import "dotenv/config";
 import { createDb } from "../src/server/db";
 import { databaseFilePath, fileUrl } from "../src/server/dbLocation";
+import { DEMO_WORKSPACE_ID } from "../src/domain/demoIdentity";
 import { createProject, createWorkspace } from "../src/server/services/projectService";
 import { createRecord } from "../src/server/services/recordService";
 
@@ -10,7 +11,7 @@ import { createRecord } from "../src/server/services/recordService";
  */
 
 const DEMO_IDS = {
-  workspace: "wsp_demo",
+  workspace: DEMO_WORKSPACE_ID,
   project: "prj_demo_salt_archive",
   chapter1: "rec_demo_ch01_prose",
   chapter1Outline: "rec_demo_ch01_outline",

@@ -7,6 +7,7 @@ import type { RecordType } from "@/domain/recordTypes";
 import { NAV, SHELL } from "@/ui/labels";
 import { activeGlobalItem, parseProjectPath, type ProjectSummary } from "@/ui/navigation";
 import { THEME_COOKIE, type Theme } from "@/ui/theme";
+import { StoryLoomMark } from "@/components/library/StoryLoomMark";
 import { IconButton } from "@/components/ui/IconButton";
 import { Drawer } from "./Drawer";
 import { GlobalNav } from "./GlobalNav";
@@ -146,11 +147,9 @@ export function AppShell({
             <MenuIcon />
           </IconButton>
           <Link href="/" className="brand" aria-label={NAV.brand}>
-            <span className="brand-mark" aria-hidden="true">
-              S
-            </span>
+            <StoryLoomMark className="brand-mark" />
             <span className="brand-text" aria-hidden="true">
-              Story<span className="brand-accent">Loom</span>
+              {NAV.brand}
             </span>
           </Link>
         </div>

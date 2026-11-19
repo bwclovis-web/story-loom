@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { chronologicalIds, orderGraphHasCycle, orderWouldCycle } from "@/world/storyOrder";
+import { chronologicalIds, orderGraphHasCycle, orderRelation, orderWouldCycle } from "@/world/storyOrder";
 
 describe("story event order", () => {
   it("rejects a circle and an event before itself", () => {
@@ -19,5 +19,13 @@ describe("story event order", () => {
       { id: "fire", createdAt: 2 },
     ];
     expect(chronologicalIds(nodes, [{ earlierId: "fire", laterId: "quarrel" }])).toEqual(["fire", "quarrel"]);
+  });
+
+  it("reports an order only when a constraint path exists", () => {
+    const edges = [{ earlierId: "fire", laterId: "quarrel" }];
+    expect(orderRelation(edges, "fire", "quarrel")).toBe("before");
+    expect(orderRelation(edges, "quarrel", "fire")).toBe("after");
+    expect(orderRelation(edges, "fire", "unplaced")).toBe("unresolved");
+    expect(orderRelation([...edges, { earlierId: "quarrel", laterId: "fire" }], "fire", "quarrel")).toBe("cycle");
   });
 });

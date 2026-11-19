@@ -32,6 +32,48 @@ export function orderWouldCycle(edges: readonly OrderEdge[], earlierId: string, 
   return false;
 }
 
+export type OrderRelation = "before" | "after" | "unresolved" | "cycle";
+
+function laterIds(edges: readonly OrderEdge[]): Map<string, string[]> {
+  const next = new Map<string, string[]>();
+  for (const edge of edges) {
+    const list = next.get(edge.earlierId) ?? [];
+    list.push(edge.laterId);
+    next.set(edge.earlierId, list);
+  }
+  return next;
+}
+
+/** True when a directed path of earlier → later edges reaches `to` from `from`. */
+function reaches(edges: readonly OrderEdge[], from: string, to: string): boolean {
+  const next = laterIds(edges);
+  const seen = new Set<string>();
+  const stack = [...(next.get(from) ?? [])];
+  while (stack.length) {
+    const id = stack.pop();
+    if (id === undefined) break;
+    if (id === to) return true;
+    if (seen.has(id)) continue;
+    seen.add(id);
+    for (const step of next.get(id) ?? []) stack.push(step);
+  }
+  return false;
+}
+
+/**
+ * How `left` stands relative to `right` using only earlier/later edges.
+ * "before" means left is constrained to happen first. No path is "unresolved".
+ */
+export function orderRelation(edges: readonly OrderEdge[], left: string, right: string): OrderRelation {
+  if (left === right) return "cycle";
+  const before = reaches(edges, left, right);
+  const after = reaches(edges, right, left);
+  if (before && after) return "cycle";
+  if (before) return "before";
+  if (after) return "after";
+  return "unresolved";
+}
+
 export function orderGraphHasCycle(ids: readonly string[], edges: readonly OrderEdge[]): boolean {
   const incoming = new Map<string, number>();
   const next = new Map<string, string[]>();

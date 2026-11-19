@@ -27,6 +27,13 @@ export interface RetrievalSourceNote {
   origin: "manual" | "tool" | "unsaved";
   /** Evidence / draft labeling for the model and UI. */
   evidenceLabel?: string;
+  /** Opens the story timeline when set. */
+  eventId?: string;
+  /** Opens a map, with pinId when the marker is known. */
+  mapId?: string;
+  pinId?: string;
+  /** Pinned passage whose source revision has moved on. */
+  stale?: boolean;
 }
 
 export interface RetrievalMeta {

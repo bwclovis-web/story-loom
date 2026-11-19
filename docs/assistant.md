@@ -8,8 +8,10 @@ reviews and applies explicitly through the existing change-package pipeline
 (see [Change proposals](#change-proposals)). Record pages also offer AI
 proofreading through the same connection (see [Proofreading](#proofreading)).
 Plan → Weave offers **Build grid from draft** through the same connection (see
-[Weave build from draft](#weave-build-from-draft)). The model has no tools; no
-assistant code calls `mutationService` directly.
+[Weave build from draft](#weave-build-from-draft)). Discussion may call the
+read-only retrieval tools (search, passages, facts, planning, earlier scenes,
+and story-event chronology). Change proposals do not. No assistant code calls
+`mutationService` directly.
 
 It is off unless `WORDLY_OPENAI_API_KEY` and `OPENAI_MODEL` are set. Without
 them the page says what is missing, nothing can be sent, and the rest of the

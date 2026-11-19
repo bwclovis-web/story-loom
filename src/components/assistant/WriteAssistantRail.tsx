@@ -6,7 +6,8 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState, useTransition
 import { AssistantAnswer } from "@/components/assistant/AssistantAnswer";
 import { loadAssistantDraft, saveAssistantDraft } from "@/components/assistant/assistantDraft";
 import { ProposalSummaryCard } from "@/components/assistant/ProposalSummaryCard";
-import { SourcePills } from "@/components/assistant/SourcePills";
+import { extraRetrievalSources, SourcePills } from "@/components/assistant/SourcePills";
+import { retrievalSourceHref, retrievalSourceLabel } from "@/assistant/sourceHref";
 import {
   AttachIcon,
   BranchIcon,
@@ -533,7 +534,7 @@ function RailMessage({
     <div className="assistant-msg assistant-msg-assistant">
       {m.basedOnOlderVersions ? <p className="badge warn">{ASSISTANT.olderVersion}</p> : null}
       <AssistantAnswer text={m.content} />
-      <SourcePills projectId={projectId} items={m.contextItems} />
+      <SourcePills projectId={projectId} items={m.contextItems} sources={m.retrieval?.sources} />
       <div className="assistant-coverage-row">
         <button type="button" className="assistant-coverage-toggle" aria-expanded={coverageOpen} onClick={onToggleCoverage}>
           ▾ {ASSISTANT.sourcesUsed} · {m.contextItems.length} {m.contextItems.length === 1 ? "record" : "records"}
@@ -559,6 +560,15 @@ function RailMessage({
               </Link>
             </li>
           ))}
+          {extraRetrievalSources(m.contextItems, m.retrieval?.sources).map((source, i) => {
+            const href = retrievalSourceHref(projectId, source);
+            const label = retrievalSourceLabel(source);
+            return (
+              <li key={`tl-${i}`}>
+                {href ? <Link href={href}>{label}</Link> : label}
+              </li>
+            );
+          })}
           {m.retrieval?.omissions.map((o, i) => (
             <li key={`om-${i}`} className="muted">
               {ASSISTANT.omissions}: {o.label} — {o.reason}

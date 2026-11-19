@@ -37,6 +37,7 @@ import { getSpellChecker, getSpellingLanguage } from "@/server/spelling";
 import { loadCrossRefIndex } from "@/server/services/crossRefService";
 import { listWeaveBeatsForManuscript } from "@/server/services/weaveService";
 import { RECORD, XREF } from "@/ui/labels";
+import { manuscriptIdsInBookOrder } from "@/ui/manuscriptTree";
 import { crossRefsFor, type RecordCrossRefs } from "@/writing/crossRefs";
 import { CrossRefsPanel } from "@/components/CrossRefsPanel";
 import { CompareSection, HistorySection, ProtectionSection, StatusSection, TrashSection, type InsideRecord } from "./RecordSections";
@@ -229,15 +230,47 @@ export default async function RecordPage({
     ];
   });
 
-  const manuscriptScenes = await db.record.findMany({
+  const manuscriptRows = await db.record.findMany({
     where: {
       projectId,
       trashedAt: null,
       type: { in: ["manuscript_chapter", "manuscript_scene"] },
     },
-    select: { id: true, title: true, type: true, draftId: true },
-    orderBy: [{ title: "asc" }, { id: "asc" }],
+    select: { id: true, title: true, type: true, draftId: true, parentRecordId: true, position: true, createdAt: true },
   });
+  const manuscriptByDraft = new Map<string, typeof manuscriptRows>();
+  for (const row of manuscriptRows) {
+    const key = row.draftId ?? "";
+    const list = manuscriptByDraft.get(key) ?? [];
+    list.push(row);
+    manuscriptByDraft.set(key, list);
+  }
+  const manuscriptScenes = [...manuscriptByDraft.keys()]
+    .sort()
+    .flatMap((key) => {
+      const group = manuscriptByDraft.get(key) ?? [];
+      const order = manuscriptIdsInBookOrder(
+        group.flatMap((row) => {
+          if (!isRecordType(row.type) || !isManuscriptType(row.type) || row.type === "scene_note") return [];
+          return [
+            {
+              id: row.id,
+              title: row.title,
+              type: row.type,
+              parentRecordId: row.parentRecordId,
+              position: row.position,
+              createdAt: row.createdAt.toISOString(),
+              draftId: row.draftId,
+            },
+          ];
+        }),
+      );
+      const byId = new Map(group.map((row) => [row.id, row]));
+      return order.flatMap((id) => {
+        const row = byId.get(id);
+        return row ? [row] : [];
+      });
+    });
 
   return (
     <ReferenceView

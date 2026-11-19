@@ -10,6 +10,7 @@ import { getProject, listSeriesBookProjects } from "@/server/services/projectSer
 import { getWeaveGrid, listSeriesWeaveBeats } from "@/server/services/weaveService";
 import { SHELL, WEAVE } from "@/ui/labels";
 import { buildManuscriptTree } from "@/ui/manuscriptTree";
+import { otherDraftRowByRecord } from "@/ui/plotGridPlacement";
 import { WeaveCanvas } from "../WeaveCanvas";
 import type { PlotGridChapter } from "../WeavePlotGrid";
 
@@ -102,6 +103,12 @@ export default async function WeaveGridPage({
       }),
     });
   }
+  const rewriteLinks = await db.rewriteSourceLink.findMany({
+    where: { projectId },
+    select: { fromRecordId: true, toRecordId: true },
+  });
+  const visibleRowIds = new Set(manuscriptChapters.flatMap((chapter) => chapter.rows.map((row) => row.id)));
+  const otherDraftRowByRecordId = Object.fromEntries(otherDraftRowByRecord(visibleRowIds, rewriteLinks));
 
   const base = `/projects/${encodeURIComponent(projectId)}`;
 
@@ -131,6 +138,7 @@ export default async function WeaveGridPage({
         planLabel={grid.viewLabel}
         manuscriptChoices={manuscriptChoices}
         manuscriptChapters={manuscriptChapters}
+        otherDraftRowByRecordId={otherDraftRowByRecordId}
         worldChoices={worldChoices}
         seriesBeats={seriesBeats}
       />

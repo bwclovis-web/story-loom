@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { StoryLoomMark } from "@/components/library/StoryLoomMark";
 import { HELP_PATH } from "@/help/outline";
 import { NAV, SHELL, THEME } from "@/ui/labels";
 import type { GlobalNavId, ProjectSummary } from "@/ui/navigation";
@@ -10,15 +11,13 @@ import { formatWordCount } from "@/writing/wordCount";
 import {
   AssistantIcon,
   BackupIcon,
-  BookIcon,
   ConnectionsIcon,
-  ChevronIcon,
   CollapseIcon,
   ContrastIcon,
   HelpIcon,
   MoonIcon,
-  MoreIcon,
   PlanIcon,
+  SettingsIcon,
   SunIcon,
   TrashIcon,
   WorldIcon,
@@ -48,7 +47,6 @@ function utilityItems(): NavItem[] {
     { id: "backups", label: SHELL.backups, icon: <BackupIcon />, href: "/backup" },
     { id: "connections", label: SHELL.connections, icon: <ConnectionsIcon />, href: "/connections" },
     { id: "trash", label: SHELL.trash, icon: <TrashIcon />, href: "/trash" },
-    { id: "help", label: SHELL.help, icon: <HelpIcon />, href: HELP_PATH },
   ];
 }
 
@@ -82,11 +80,9 @@ export function GlobalNav({
   return (
     <nav aria-label={SHELL.mainNav} className="global-nav">
       <Link href="/" className={`brand ${tip}`} aria-label={NAV.brand} data-tooltip={NAV.brand}>
-        <span className="brand-mark" aria-hidden="true">
-          S
-        </span>
+        <StoryLoomMark className="brand-mark" />
         <span className="label brand-text" aria-hidden="true">
-          Story<span className="brand-accent">Loom</span>
+          {NAV.brand}
         </span>
       </Link>
 
@@ -129,9 +125,15 @@ export function GlobalNav({
       )}
 
       <div className="global-footer">
-        <UtilitiesMenu items={utilities} pathname={pathname} active={active} variant={variant} tip={tip} />
-        <ProjectSelector projects={projects} current={current} variant={variant} />
-        <p className="label local-note">{SHELL.localOnly}</p>
+        <Link
+          href={HELP_PATH}
+          className={`global-link ${tip}`}
+          data-tooltip={SHELL.help}
+          aria-current={active === "help" ? "page" : undefined}
+        >
+          <HelpIcon />
+          <span className="label">{SHELL.help}</span>
+        </Link>
         <button
           type="button"
           className={`theme-toggle ${tip}`}
@@ -144,45 +146,55 @@ export function GlobalNav({
             {THEME.current(themeName)}
           </span>
         </button>
-        {variant === "rail" && onToggleCollapsed ? (
-          <button
-            type="button"
-            className={`collapse-toggle ${tip}`}
-            aria-expanded={!collapsed}
-            aria-controls="global-rail"
-            aria-label={collapsed ? SHELL.expand : SHELL.collapse}
-            data-tooltip={collapsed ? SHELL.expand : SHELL.collapse}
-            onClick={onToggleCollapsed}
-          >
-            <CollapseIcon />
-            <span className="label" aria-hidden="true">
-              {SHELL.collapse}
-            </span>
-          </button>
-        ) : null}
+        <SettingsMenu
+          items={utilities}
+          pathname={pathname}
+          active={active}
+          variant={variant}
+          tip={tip}
+          projects={projects}
+          current={current}
+          collapsed={collapsed}
+          onToggleCollapsed={onToggleCollapsed}
+        />
       </div>
     </nav>
   );
 }
 
-function UtilitiesMenu({
+function SettingsMenu({
   items,
   pathname,
   active,
   variant,
   tip,
+  projects,
+  current,
+  collapsed,
+  onToggleCollapsed,
 }: {
   items: NavItem[];
   pathname: string;
   active: GlobalNavId | null;
   variant: "rail" | "drawer";
   tip: string;
+  projects: ProjectSummary[];
+  current: ProjectSummary | null;
+  collapsed?: boolean;
+  onToggleCollapsed?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const wrapper = useRef<HTMLDivElement>(null);
   const button = useRef<HTMLButtonElement>(null);
-  const listId = useId();
+  const panelId = useId();
   const utilityActive = items.some((item) => item.id === active);
+  const focusPanel = useRef(false);
+
+  useEffect(() => {
+    if (!open || !focusPanel.current) return;
+    focusPanel.current = false;
+    wrapper.current?.querySelector<HTMLElement>(".settings-popover a, .settings-popover button")?.focus();
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -203,30 +215,35 @@ function UtilitiesMenu({
   }
 
   return (
-    <div className={`utilities-menu ${variant}`} ref={wrapper} onKeyDown={onKeyDown}>
+    <div className={`utilities-menu settings-menu ${variant}`} ref={wrapper} onKeyDown={onKeyDown}>
       <button
         ref={button}
         type="button"
         className={`global-link utilities-toggle ${tip}${utilityActive ? " utilities-current" : ""}`}
         aria-expanded={open}
-        aria-controls={listId}
-        aria-haspopup="menu"
-        data-tooltip={SHELL.utilities}
-        onClick={() => setOpen((o) => !o)}
+        aria-controls={panelId}
+        aria-haspopup="true"
+        data-tooltip={SHELL.settings}
+        onClick={() => {
+          setOpen((value) => {
+            if (!value) focusPanel.current = true;
+            return !value;
+          });
+        }}
       >
-        <MoreIcon />
-        <span className="label">{SHELL.utilities}</span>
+        <SettingsIcon />
+        <span className="label">{SHELL.settings}</span>
       </button>
-      <div id={listId} className="utilities-popover" role="menu" aria-label={SHELL.utilitiesMenu} hidden={!open}>
+      <div id={panelId} className="settings-popover" role="region" aria-label={SHELL.settings} hidden={!open}>
+        <ProjectList projects={projects} current={current} onNavigate={() => setOpen(false)} />
         <ul className="global-items">
           {items.map((item) => {
             const isActive = item.id === active;
             return (
-              <li key={item.id} role="none">
+              <li key={item.id}>
                 {item.href ? (
                   <Link
                     href={item.href}
-                    role="menuitem"
                     className="utilities-link"
                     aria-current={isActive ? (pathname === item.href ? "page" : "true") : undefined}
                     onClick={() => setOpen(false)}
@@ -239,6 +256,20 @@ function UtilitiesMenu({
             );
           })}
         </ul>
+        {variant === "rail" && onToggleCollapsed ? (
+          <button
+            type="button"
+            className="collapse-toggle"
+            aria-expanded={!collapsed}
+            aria-controls="global-rail"
+            aria-label={collapsed ? SHELL.expand : SHELL.collapse}
+            onClick={onToggleCollapsed}
+          >
+            <CollapseIcon />
+            <span>{collapsed ? SHELL.expand : SHELL.collapse}</span>
+          </button>
+        ) : null}
+        <p className="settings-local">{SHELL.localOnly}</p>
       </div>
     </div>
   );
@@ -248,39 +279,16 @@ function projectMeta(p: ProjectSummary): string {
   return `${SHELL.chapters(p.chapterCount)} · ${formatWordCount(p.manuscriptWords)}`;
 }
 
-function ProjectSelector({
+function ProjectList({
   projects,
   current,
-  variant,
+  onNavigate,
 }: {
   projects: ProjectSummary[];
   current: ProjectSummary | null;
-  variant: "rail" | "drawer";
+  onNavigate: () => void;
 }) {
-  const [open, setOpen] = useState(false);
-  const wrapper = useRef<HTMLDivElement>(null);
-  const button = useRef<HTMLButtonElement>(null);
   const listId = useId();
-
-  useEffect(() => {
-    if (!open) return;
-    const onPointerDown = (event: PointerEvent) => {
-      if (!wrapper.current?.contains(event.target as Node)) setOpen(false);
-    };
-    document.addEventListener("pointerdown", onPointerDown);
-    return () => document.removeEventListener("pointerdown", onPointerDown);
-  }, [open]);
-
-  function onKeyDown(event: KeyboardEvent) {
-    if (event.key === "Escape" && open) {
-      // Keep Escape from also closing a surrounding drawer.
-      event.stopPropagation();
-      event.preventDefault();
-      setOpen(false);
-      button.current?.focus();
-    }
-  }
-
   const workspaces: { id: string; name: string; projects: ProjectSummary[] }[] = [];
   for (const p of projects) {
     let w = workspaces.find((x) => x.id === p.workspaceId);
@@ -288,59 +296,38 @@ function ProjectSelector({
     w.projects.push(p);
   }
 
-  const title = current ? current.title : SHELL.chooseProject;
-  const meta = current ? `${current.workspaceName} · ${projectMeta(current)}` : SHELL.projects(projects.length);
-
   return (
-    <div className={`project-selector ${variant}`} ref={wrapper} onKeyDown={onKeyDown}>
-      <button
-        ref={button}
-        type="button"
-        className={`selector-button ${variant === "rail" ? "rail-tip" : ""}`}
-        aria-expanded={open}
-        aria-controls={listId}
-        data-tooltip={`${SHELL.switchProject}: ${title}`}
-        onClick={() => setOpen((o) => !o)}
-      >
-        <BookIcon />
-        <span className="label selector-text">
-          <span className="selector-title">{title}</span>
-          <span className="selector-meta">{meta}</span>
-        </span>
-        <span className="label selector-chevron" aria-hidden="true">
-          <ChevronIcon />
-        </span>
-        <span className="sr-only">, {SHELL.switchProject}</span>
-      </button>
-      <div id={listId} className="selector-popover" hidden={!open}>
-        {workspaces.length === 0 ? <p className="muted small">No projects yet.</p> : null}
-        {workspaces.map((w) => (
-          <div key={w.id} className="selector-group">
-            <p className="selector-workspace" id={`${listId}-${w.id}`}>
-              {w.name}
-            </p>
-            <ul aria-labelledby={`${listId}-${w.id}`}>
-              {w.projects.map((p) => (
-                <li key={p.id}>
-                  <Link
-                    href={`/projects/${encodeURIComponent(p.id)}`}
-                    aria-current={p.id === current?.id ? "true" : undefined}
-                    onClick={() => setOpen(false)}
-                  >
-                    <span className="selector-project">{p.title}</span>
-                    <span className="selector-project-meta">
-                      {projectMeta(p)} · {SHELL.records(p.recordCount)}
-                    </span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </div>
-        ))}
-        <Link href="/" className="selector-all" onClick={() => setOpen(false)}>
-          {SHELL.allWorkspaces}
-        </Link>
-      </div>
+    <div className="selector-popover settings-projects">
+      <p className="settings-kicker" id={`${listId}-label`}>
+        {SHELL.switchProject}
+      </p>
+      {workspaces.length === 0 ? <p className="muted small">No projects yet.</p> : null}
+      {workspaces.map((w) => (
+        <div key={w.id} className="selector-group">
+          <p className="selector-workspace" id={`${listId}-${w.id}`}>
+            {w.name}
+          </p>
+          <ul aria-labelledby={`${listId}-${w.id}`}>
+            {w.projects.map((p) => (
+              <li key={p.id}>
+                <Link
+                  href={`/projects/${encodeURIComponent(p.id)}`}
+                  aria-current={p.id === current?.id ? "true" : undefined}
+                  onClick={onNavigate}
+                >
+                  <span className="selector-project">{p.title}</span>
+                  <span className="selector-project-meta">
+                    {projectMeta(p)} · {SHELL.records(p.recordCount)}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+      <Link href="/" className="selector-all" onClick={onNavigate}>
+        {SHELL.allWorkspaces}
+      </Link>
     </div>
   );
 }

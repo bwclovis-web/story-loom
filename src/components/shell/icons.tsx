@@ -69,6 +69,13 @@ export const TrashIcon = () => (
   </Icon>
 );
 
+export const SettingsIcon = () => (
+  <Icon>
+    <circle cx="12" cy="12" r="3" />
+    <path d="M12 3.2v2.1M12 18.7v2.1M3.2 12h2.1M18.7 12h2.1M5.6 5.6l1.5 1.5M16.9 16.9l1.5 1.5M18.4 5.6l-1.5 1.5M7.1 16.9l-1.5 1.5" />
+  </Icon>
+);
+
 export const HelpIcon = () => (
   <Icon>
     <circle cx="12" cy="12" r="9" />

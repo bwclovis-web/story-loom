@@ -11,6 +11,14 @@ import type { Db, DbOrTx } from "../db";
 import { listEstablishedFactsForSubject } from "./establishedFactService";
 import { listSeriesBookProjects } from "./projectService";
 import { searchContextReferences, searchManuscript, searchProjectRecords } from "./searchService";
+import {
+  chapterEventSequence,
+  eventReveals,
+  eventsAtPlace,
+  eventsBeforeManuscript,
+  type TimelineAnswer,
+  type TimelineSource,
+} from "./storyTimelineQuery";
 import { LIVE_PROJECT } from "./trashFilters";
 
 /*
@@ -481,12 +489,8 @@ async function listAcceptedFactsTool(db: DbOrTx, ctx: RetrievalContext, args: Re
   return {
     output: JSON.stringify({
       subjectRecordId,
-      facts: accepted.map((f) => ({
-        id: f.id,
-        statement: f.statement,
-        evidenceKind: f.evidenceKind,
-        evidenceKindLabel: f.evidenceKindLabel,
-        evidence: f.evidence.map((e) => ({
+      facts: accepted.map((f) => {
+        const evidence = f.evidence.map((e) => ({
           sourceRecordId: e.sourceRecordId,
           sourceTitle: e.sourceTitle,
           revisionNumber: e.revisionNumber,
@@ -497,9 +501,18 @@ async function listAcceptedFactsTool(db: DbOrTx, ctx: RetrievalContext, args: Re
           evidenceKindLabel: e.evidenceKindLabel,
           needsRecheck: e.needsRecheck,
           staleNotice: e.needsRecheck ? "Source revised after this evidence was linked." : null,
-        })),
-      })),
-      note: "Zero-draft and planned evidence are labeled; do not treat them as author-manuscript canon.",
+        }));
+        return {
+          id: f.id,
+          statement: f.statement,
+          evidenceKind: f.evidenceKind,
+          evidenceKindLabel: f.evidenceKindLabel,
+          passageEvidenceCount: evidence.length,
+          missingPassageEvidence: evidence.length === 0,
+          evidence,
+        };
+      }),
+      note: "Zero-draft and planned evidence are labeled; do not treat them as author-manuscript canon. missingPassageEvidence means no passage is pinned. Acceptance alone is not evidence.",
     }),
     documents: [],
   };
@@ -598,6 +611,123 @@ async function listEarlierScenesTool(db: DbOrTx, ctx: RetrievalContext, args: Re
   };
 }
 
+function noteTimeline(ctx: RetrievalContext, sources: TimelineSource[]) {
+  for (const source of sources) {
+    ctx.meta.sources.push({
+      recordId: source.recordId ?? "",
+      title: source.title,
+      kind: source.evidenceLabel?.startsWith("Revealing") || source.evidenceLabel === "Chapter" || source.evidenceLabel === "Scene" ? "manuscript" : "reference",
+      revision: source.revision,
+      passageStart: source.passageStart,
+      passageEnd: source.passageEnd,
+      origin: "tool",
+      evidenceLabel: source.evidenceLabel,
+      eventId: source.eventId,
+      mapId: source.mapId,
+      pinId: source.pinId,
+      stale: source.stale,
+    });
+  }
+}
+
+function answerOf(ctx: RetrievalContext, result: TimelineAnswer): ToolExecution {
+  for (const title of result.omittedManuscript) {
+    omit(ctx.meta, { label: title, reason: "Outside the open chapter." });
+  }
+  const output = JSON.stringify(result.payload);
+  if (output.length > ctx.maxResultChars) {
+    omit(ctx.meta, {
+      label: "Story timeline",
+      reason: `Read refused: ${output.length.toLocaleString("en-US")} characters exceeds the tool result limit.`,
+    });
+    return {
+      output: JSON.stringify({ error: "too_large", chars: output.length, limit: ctx.maxResultChars }),
+      documents: [],
+    };
+  }
+  noteTimeline(ctx, result.sources);
+  return { output, documents: [] };
+}
+
+async function draftForTools(ctx: RetrievalContext): Promise<string> {
+  return ctx.draftId ?? "all";
+}
+
+async function chapterLimit(db: DbOrTx, ctx: RetrievalContext): Promise<ReadonlySet<string> | null> {
+  if (ctx.scope !== "chapter") return null;
+  const ids = await chapterTreeIds(db, ctx.projectId, ctx.focusRecordId, ctx.draftId);
+  return ids ? new Set(ids) : new Set();
+}
+
+async function eventsAtPlaceTool(db: DbOrTx, ctx: RetrievalContext, args: Record<string, unknown>): Promise<ToolExecution> {
+  const locationRecordId = String(args.locationRecordId ?? "");
+  if (!locationRecordId) return { output: JSON.stringify({ error: "location_required" }), documents: [] };
+  if (ctx.excludeRecordIds.has(locationRecordId)) {
+    omit(ctx.meta, { label: locationRecordId, recordId: locationRecordId, reason: "Excluded by the author for this question." });
+    return { output: JSON.stringify({ error: "excluded", locationRecordId }), documents: [] };
+  }
+  const projectIds = await projectIdsForScope(db, ctx);
+  const projectId = await ownerProject(db, projectIds, locationRecordId);
+  if (!projectId) return { output: JSON.stringify({ error: "not_found", locationRecordId }), documents: [] };
+  const result = await eventsAtPlace(db, projectId, locationRecordId, await draftForTools(ctx), await chapterLimit(db, ctx));
+  if ("error" in result) return { output: JSON.stringify({ error: result.error, locationRecordId }), documents: [] };
+  return answerOf(ctx, result);
+}
+
+async function eventRevealsTool(db: DbOrTx, ctx: RetrievalContext, args: Record<string, unknown>): Promise<ToolExecution> {
+  const eventId = String(args.eventId ?? "");
+  if (!eventId) return { output: JSON.stringify({ error: "event_required" }), documents: [] };
+  const projectIds = await projectIdsForScope(db, ctx);
+  const event = await db.storyEvent.findFirst({ where: { id: eventId, projectId: { in: projectIds } }, select: { projectId: true } });
+  if (!event) return { output: JSON.stringify({ error: "not_found", eventId }), documents: [] };
+  const result = await eventReveals(db, event.projectId, eventId, await draftForTools(ctx), await chapterLimit(db, ctx));
+  if ("error" in result) return { output: JSON.stringify({ error: result.error, eventId }), documents: [] };
+  return answerOf(ctx, result);
+}
+
+async function eventsBeforeSceneTool(db: DbOrTx, ctx: RetrievalContext, args: Record<string, unknown>): Promise<ToolExecution> {
+  return manuscriptTimelineTool(db, ctx, args, "before");
+}
+
+async function chapterSequenceTool(db: DbOrTx, ctx: RetrievalContext, args: Record<string, unknown>): Promise<ToolExecution> {
+  return manuscriptTimelineTool(db, ctx, args, "sequence");
+}
+
+async function manuscriptTimelineTool(
+  db: DbOrTx,
+  ctx: RetrievalContext,
+  args: Record<string, unknown>,
+  kind: "before" | "sequence",
+): Promise<ToolExecution> {
+  const manuscriptRecordId = String(args.manuscriptRecordId ?? ctx.focusRecordId ?? "");
+  if (!manuscriptRecordId) {
+    return { output: JSON.stringify({ error: "no_focus", note: "No chapter or scene was given." }), documents: [] };
+  }
+  if (ctx.excludeRecordIds.has(manuscriptRecordId)) {
+    omit(ctx.meta, { label: manuscriptRecordId, recordId: manuscriptRecordId, reason: "Excluded by the author for this question." });
+    return { output: JSON.stringify({ error: "excluded", manuscriptRecordId }), documents: [] };
+  }
+  const projectIds = await projectIdsForScope(db, ctx);
+  const projectId = await ownerProject(db, projectIds, manuscriptRecordId);
+  if (!projectId) return { output: JSON.stringify({ error: "not_found", manuscriptRecordId }), documents: [] };
+  const limit = await chapterLimit(db, ctx);
+  const draft = await draftForTools(ctx);
+  const result =
+    kind === "before"
+      ? await eventsBeforeManuscript(db, projectId, manuscriptRecordId, draft, limit)
+      : await chapterEventSequence(db, projectId, manuscriptRecordId, draft, limit);
+  if ("error" in result) return { output: JSON.stringify({ error: result.error, manuscriptRecordId }), documents: [] };
+  return answerOf(ctx, result);
+}
+
+async function ownerProject(db: DbOrTx, projectIds: string[], recordId: string): Promise<string | null> {
+  const row = await db.record.findFirst({
+    where: { id: recordId, projectId: { in: projectIds }, trashedAt: null },
+    select: { projectId: true },
+  });
+  return row?.projectId ?? null;
+}
+
 export async function executeAssistantTool(
   db: Db,
   ctx: RetrievalContext,
@@ -628,6 +758,14 @@ export async function executeAssistantTool(
       return searchPlanningTool(db, ctx, args);
     case "list_earlier_scenes":
       return listEarlierScenesTool(db, ctx, args);
+    case "events_at_place":
+      return eventsAtPlaceTool(db, ctx, args);
+    case "event_reveals":
+      return eventRevealsTool(db, ctx, args);
+    case "events_before_scene":
+      return eventsBeforeSceneTool(db, ctx, args);
+    case "chapter_event_sequence":
+      return chapterSequenceTool(db, ctx, args);
   }
 }
 

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { SectionTagBadge, StatusBadge } from "@/components/Badges";
@@ -12,16 +13,17 @@ import type { RetrievalScope } from "@/assistant/tools";
 import { takeWriteHandoff } from "@/assistant/writeHandoff";
 import { AssistantAnswer } from "@/components/assistant/AssistantAnswer";
 import { loadAssistantDraft, saveAssistantDraft } from "@/components/assistant/assistantDraft";
-import { SourcePills } from "@/components/assistant/SourcePills";
+import { extraRetrievalSources, SourcePills } from "@/components/assistant/SourcePills";
+import { budgetRecentMessageIds } from "@/assistant/recentBudget";
+import { retrievalSourceHref, retrievalSourceLabel } from "@/assistant/sourceHref";
 import { RECORD_TYPE_LABELS } from "@/domain/recordTypes";
 import type { ProposalView } from "@/server/services/assistantProposalService";
-import {
-  budgetRecentMessageIds,
-  type AssistantSettingsView,
-  type ConversationView,
-  type MessageView,
-  type SelectableRecord,
-  type SelectableSection,
+import type {
+  AssistantSettingsView,
+  ConversationView,
+  MessageView,
+  SelectableRecord,
+  SelectableSection,
 } from "@/server/services/assistantService";
 import { ASSISTANT, DRAFT } from "@/ui/labels";
 import { loadManuscriptAction } from "./actions";
@@ -533,8 +535,8 @@ export function AssistantPanel(props: {
               )}
             </div>
             {props.proposals[m.id] ? <ProposalCard projectId={projectId} proposal={props.proposals[m.id]} /> : null}
-            {m.role === "assistant" ? <SourcePills projectId={projectId} items={m.contextItems} /> : null}
-            {m.role === "assistant" ? <AnswerDetails m={m} /> : null}
+            {m.role === "assistant" ? <SourcePills projectId={projectId} items={m.contextItems} sources={m.retrieval?.sources} /> : null}
+            {m.role === "assistant" ? <AnswerDetails projectId={projectId} m={m} /> : null}
             {m.role === "assistant" && (m.status === "failed" || m.status === "cancelled") ? (
               <div className="row">
                 {m.errorMessage ? (
@@ -865,10 +867,11 @@ function SectionPicker({
   );
 }
 
-function AnswerDetails({ m }: { m: MessageView }) {
+function AnswerDetails({ projectId, m }: { projectId: string; m: MessageView }) {
   const passageItems = m.contextItems;
   const retrieval = m.retrieval;
   const originOf = (recordId: string) => retrieval?.sources.find((s) => s.recordId === recordId)?.origin;
+  const extras = extraRetrievalSources(passageItems, retrieval?.sources);
   return (
     <div className="small muted answer-details">
       {passageItems.length ? (
@@ -877,7 +880,9 @@ function AnswerDetails({ m }: { m: MessageView }) {
           {passageItems.map((c, i) => (
             <span key={`${c.recordId}-${c.kind}-${i}`}>
               {i > 0 ? "; " : ""}
-              {c.title} rev {c.revisionNumber}
+              <Link href={`/projects/${encodeURIComponent(projectId)}/records/${encodeURIComponent(c.recordId)}`}>
+                {c.title} rev {c.revisionNumber}
+              </Link>
               {originOf(c.recordId) === "tool"
                 ? " (tool)"
                 : originOf(c.recordId) === "unsaved"
@@ -894,11 +899,26 @@ function AnswerDetails({ m }: { m: MessageView }) {
             </span>
           ))}
         </p>
-      ) : (
+      ) : extras.length ? null : (
         <p>
           {ASSISTANT.sourcesUsed}: {ASSISTANT.sourcesNone}
         </p>
       )}
+      {extras.length ? (
+        <p>
+          {passageItems.length ? null : <>{ASSISTANT.sourcesUsed}: </>}
+          {extras.map((source, i) => {
+            const href = retrievalSourceHref(projectId, source);
+            const label = retrievalSourceLabel(source);
+            return (
+              <span key={`${source.eventId ?? source.mapId ?? source.recordId}-${i}`}>
+                {i > 0 ? "; " : ""}
+                {href ? <Link href={href}>{label}</Link> : label}
+              </span>
+            );
+          })}
+        </p>
+      ) : null}
       {retrieval?.omissions.length ? (
         <p>
           {ASSISTANT.omissions}:{" "}
