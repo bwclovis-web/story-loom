@@ -4,13 +4,14 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useMemo, useRef, useState, type FormEvent } from "react";
 import { createManuscriptAction } from "@/app/projects/[projectId]/write/actions";
+import { Button } from "@/components/ui/Button";
+import { TreeSearch } from "@/components/ui/SearchPanel";
 import type { Issue } from "@/domain/issues";
 import { NAV, WRITE } from "@/ui/labels";
 import { buildManuscriptTree, chapterOf, filterManuscriptTree, type TreeScene } from "@/ui/manuscriptTree";
 import type { RecordNavEntry } from "@/ui/navigation";
-import { ChevronRightIcon, PlusIcon, SearchIcon } from "./icons";
+import { ChevronRightIcon, PlusIcon } from "./icons";
 import { confirmLeave } from "./unsaved";
-import { Button } from "@/components/ui/Button";
 
 export function ManuscriptTree({
   projectId,
@@ -107,23 +108,14 @@ export function ManuscriptTree({
         <Link href={`/projects/${encodeURIComponent(projectId)}/import-chapters`}>{NAV.importChapters}</Link>
       </p>
 
-      <form role="search" action={`/projects/${encodeURIComponent(projectId)}/write`} method="get" aria-label={WRITE.searchManuscript}>
-        <label className="tree-search">
-          <span className="sr-only">{WRITE.searchManuscript}</span>
-          <SearchIcon />
-          <input
-            type="search"
-            name="q"
-            placeholder={WRITE.searchManuscript}
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            aria-describedby={`${idPrefix}-search-hint`}
-          />
-        </label>
-        <p className="tree-note world-search-hint" id={`${idPrefix}-search-hint`}>
-          {WRITE.searchHint}
-        </p>
-      </form>
+      <TreeSearch
+        action={`/projects/${encodeURIComponent(projectId)}/write`}
+        label={WRITE.searchManuscript}
+        value={query}
+        onChange={setQuery}
+        hint={WRITE.searchHint}
+        hintId={`${idPrefix}-search-hint`}
+      />
       <p className="sr-only" role="status">
         {searching ? (shown.matchCount ? WRITE.matches(shown.matchCount) : WRITE.noMatches) : ""}
       </p>

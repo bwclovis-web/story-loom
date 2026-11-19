@@ -629,17 +629,17 @@ export function AssistantPanel(props: {
             />
           </label>
           <div className="row">
-            <button type="button" onClick={() => send("chat")} disabled={busy || streamingStored || overLimit || passageMissing}>
+            <Button type="button" onClick={() => send("chat")} disabled={busy || streamingStored || overLimit || passageMissing}>
               {ASSISTANT.send}
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
-              className="secondary"
+             
               onClick={() => send("proposal")}
               disabled={busy || streamingStored || proposalOverLimit || passageMissing}
-            >
+             variant="secondary">
               {ASSISTANT.prepare}
-            </button>
+            </Button>
           </div>
           <p className="small muted" style={{ margin: 0 }}>
             {ASSISTANT.sendHint} {ASSISTANT.prepareHint}
@@ -752,9 +752,9 @@ export function AssistantPanel(props: {
                         style={{ minHeight: "10rem" }}
                       />
                       <div className="row">
-                        <button type="button" className="secondary" onClick={takePassage}>
+                        <Button type="button" onClick={takePassage} variant="secondary">
                           {ASSISTANT.usePassage}
-                        </button>
+                        </Button>
                         {passage ? (
                           <span className="small">
                             Passage: characters {fmt(passage.start + 1)} to {fmt(passage.end)} ({fmt(passage.end - passage.start)}{" "}
@@ -783,12 +783,12 @@ export function AssistantPanel(props: {
                 </p>
               ) : null}
               <div className="row">
-                <button type="button" className="secondary" onClick={() => setIncludeIds(includableIds)} disabled={!includableIds.length}>
+                <Button type="button" onClick={() => setIncludeIds(includableIds)} disabled={!includableIds.length} variant="secondary">
                   {ASSISTANT.includeAll}
-                </button>
-                <button type="button" className="secondary" onClick={() => setIncludeIds([])} disabled={!includeIds.length}>
+                </Button>
+                <Button type="button" onClick={() => setIncludeIds([])} disabled={!includeIds.length} variant="secondary">
                   {ASSISTANT.includeNone}
-                </button>
+                </Button>
               </div>
             </fieldset>
 

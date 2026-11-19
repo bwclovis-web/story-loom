@@ -346,6 +346,16 @@ async function worldMapPinRows(db: DbOrTx, projectIds: string[]) {
     });
   } catch (error) {
     if (isMissingSchemaError(error, "P2021")) return [];
+    // Pre-migrate backup: the marker columns are not on disk yet. Read the
+    // original pin columns so existing markers are not dropped from the backup.
+    if (isMissingSchemaError(error, "P2022")) {
+      const rows = await db.worldMapPin.findMany({
+        where: { projectId: { in: projectIds } },
+        orderBy: [{ mapId: "asc" }, { id: "asc" }],
+        select: { id: true, mapId: true, projectId: true, recordId: true, xNorm: true, yNorm: true, createdAt: true },
+      });
+      return rows.map((row) => ({ ...row, targetMapId: null, markerGroup: "places", label: "" }));
+    }
     throw error;
   }
 }
@@ -959,6 +969,11 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
             mapId: p.mapId,
             projectId: p.projectId,
             recordId: p.recordId,
+            ...(p.targetMapId ? { targetMapId: p.targetMapId } : {}),
+            ...(p.markerGroup === "waterways" || p.markerGroup === "transport" || p.markerGroup === "story"
+              ? { markerGroup: p.markerGroup }
+              : {}),
+            ...(p.label ? { label: p.label } : {}),
             xNorm: p.xNorm,
             yNorm: p.yNorm,
             createdAt: iso(p.createdAt),
@@ -1534,12 +1549,27 @@ function checkInternalConsistency(b: WorkspaceBackupV1): Issue[] {
     if (!mapIds.has(p.mapId) || mapProject.get(p.mapId) !== p.projectId) {
       issues.push(integrity(`World map pin ${p.id} references missing map ${p.mapId}.`));
     }
-    if (!recordIds.has(p.recordId) || recordProject.get(p.recordId) !== p.projectId) {
-      issues.push(integrity(`World map pin ${p.id} references missing record ${p.recordId}.`));
+    const recordId = p.recordId ?? null;
+    const targetMapId = p.targetMapId ?? null;
+    if (!recordId && !targetMapId && !p.label?.trim()) {
+      issues.push(integrity(`World map pin ${p.id} must link a reference, a map, or both.`));
     }
-    const type = recordType.get(p.recordId);
-    if (type && !isLinkableReferenceType(type)) {
-      issues.push(integrity(`World map pin ${p.id} must point to a reference record.`));
+    if (recordId) {
+      if (!recordIds.has(recordId) || recordProject.get(recordId) !== p.projectId) {
+        issues.push(integrity(`World map pin ${p.id} references missing record ${recordId}.`));
+      }
+      const type = recordType.get(recordId);
+      if (type && !isLinkableReferenceType(type)) {
+        issues.push(integrity(`World map pin ${p.id} must point to a reference record.`));
+      }
+    }
+    if (targetMapId) {
+      if (!mapIds.has(targetMapId) || mapProject.get(targetMapId) !== p.projectId) {
+        issues.push(integrity(`World map pin ${p.id} references missing map ${targetMapId}.`));
+      }
+      if (targetMapId === p.mapId) {
+        issues.push(integrity(`World map pin ${p.id} cannot open the map it is already on.`));
+      }
     }
   });
   placeRelationsOf(b).forEach((r) => {
@@ -2366,7 +2396,10 @@ export async function restoreWorkspaceBackup(db: Db, input: string | unknown, op
               id: m(p.id),
               mapId: m(p.mapId),
               projectId: m(p.projectId),
-              recordId: m(p.recordId),
+              recordId: p.recordId ? m(p.recordId) : null,
+              targetMapId: p.targetMapId ? m(p.targetMapId) : null,
+              markerGroup: p.markerGroup ?? "places",
+              label: p.label ?? "",
               xNorm: p.xNorm,
               yNorm: p.yNorm,
               createdAt: new Date(p.createdAt),

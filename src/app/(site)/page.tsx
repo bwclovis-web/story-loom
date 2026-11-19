@@ -1,3 +1,4 @@
+import { Button } from "@/components/ui/Button";
 import Link from "next/link";
 import { ConfirmAction } from "@/components/ConfirmAction";
 import { helpHref } from "@/help/outline";
@@ -56,9 +57,9 @@ export default async function HomePage() {
           <form action={createProjectAction} className="row">
             <input type="hidden" name="workspaceId" value={w.id} />
             <input type="text" name="title" placeholder={HOME.projectTitlePlaceholder} aria-label={HOME.projectTitlePlaceholder} required />
-            <button type="submit" className="secondary">
+            <Button type="submit" variant="secondary">
               {HOME.addProject}
-            </button>
+            </Button>
           </form>
           <div className="workspace-trash">
             <ConfirmAction
@@ -90,7 +91,7 @@ export default async function HomePage() {
         <h2>{HOME.newWorkspaceHeading}</h2>
         <form action={createWorkspaceAction} className="row">
           <input type="text" name="name" placeholder={HOME.workspaceNamePlaceholder} aria-label={HOME.workspaceNamePlaceholder} required />
-          <button type="submit">{HOME.createWorkspace}</button>
+          <Button type="submit">{HOME.createWorkspace}</Button>
         </form>
       </section>
     </>

@@ -2334,6 +2334,18 @@ Restore WeaveCanvas / WeavePlotGrid / globals.css / labels / Help / page props f
 - Added folder primitives: `IconButton`, `SegmentedControl`, `Breadcrumbs`, `PageHeader`, `EmptyState`; `Banner` now supports `ref`.
 - Migrated high-reuse call sites: context/assistant/drawer/project panel closes; Weave layout toggle; World/Plan breadcrumbs + empty lists; PackageReview / Proofreader / NewRecordForm / WriteEditor / AssistantPanel banners; MapCanvas + PlaceRelations buttons.
 
+### Shared UI leftovers + BoardOverflowMenu (Nov 19, 2026)
+
+- Finished leftover `Button` / `Banner` / `IconButton` call sites (DecisionRow accept/skip, WriteEditor history/more/load note, TextAppearanceMenu, WorldContextRail, AppShell menu, WriteAssistantRail expand link via `iconButtonVariants`, import/export/trash/connections/review/image/record form banners).
+- Added `IconAnchor` beside `IconButton` for hash links.
+- Extracted `BoardOverflowMenu` and wired Weave / Board / Map toolbars (same `.board-overflow` chrome).
+
+### Shared UI CanvasToolbar / SearchPanel / RecordRow (Nov 19, 2026)
+
+- `CanvasToolbar` + `CanvasToolbarGroup` shell for Weave / Board / Map action bars; Map overflow re-uses `BoardOverflowMenu`.
+- `SearchPanel` (page) + `TreeSearch` (column): World hub, Write manuscript search, WorldNav, ManuscriptTree.
+- `RecordTableRow` / `WorldRecordTableRow` / `RecordFlexRow`: RecordListPage, World list table, BookOrder rows. ContinueWriting / History / Trash left as page-specific layouts.
+
 ## Shared UI primitives from assistant rail (Nov 19, 2026)
 
 Extracted reusable pieces for app-wide use:

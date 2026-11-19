@@ -5,6 +5,8 @@ import { useState, useTransition } from "react";
 import { ProtectionBadge, StatusBadge } from "@/components/Badges";
 import { HelpHint } from "@/components/HelpHint";
 import { IssueList } from "@/components/IssueList";
+import { Banner } from "@/components/ui/Banner";
+import { Button } from "@/components/ui/Button";
 import { RECORD_TYPE_LABELS, type RecordType } from "@/domain/recordTypes";
 import { AUTHORITY_STATUSES } from "@/domain/statuses";
 import { MARKDOWN_IMPORT } from "@/ui/labels";
@@ -119,7 +121,7 @@ export function MarkdownImportClient({ projectId }: { projectId: string }) {
   if (outcome?.status === "applied") {
     return (
       <div className="stack">
-        <div className="banner ok">{MARKDOWN_IMPORT.done}</div>
+        <Banner tone="ok">{MARKDOWN_IMPORT.done}</Banner>
         <table>
           <thead>
             <tr>
@@ -142,9 +144,9 @@ export function MarkdownImportClient({ projectId }: { projectId: string }) {
           </tbody>
         </table>
         <div>
-          <button className="secondary" onClick={() => { setOutcome(null); setPreview(null); setFiles([]); }}>
+          <Button onClick={() => { setOutcome(null); setPreview(null); setFiles([]); }} variant="secondary">
             {MARKDOWN_IMPORT.importMore}
-          </button>
+          </Button>
         </div>
       </div>
     );
@@ -186,9 +188,9 @@ export function MarkdownImportClient({ projectId }: { projectId: string }) {
               <TypeSelect value={bulk.type} types={preview.importableTypes} onChange={(type) => setBulk({ ...bulk, type })} />
               <StatusSelect value={bulk.authorityStatus} onChange={(authorityStatus) => setBulk({ ...bulk, authorityStatus })} />
               <ProtectionSelect value={bulk.protection} onChange={(protection) => setBulk({ ...bulk, protection })} />
-              <button className="secondary" onClick={applyBulk}>
+              <Button onClick={applyBulk} variant="secondary">
                 {MARKDOWN_IMPORT.applyToAll}
-              </button>
+              </Button>
             </div>
             <label className="small">
               {MARKDOWN_IMPORT.provenanceLabel}{" "}
@@ -261,7 +263,7 @@ export function MarkdownImportClient({ projectId }: { projectId: string }) {
           <div className="panel stack">
             {outcome?.status === "rejected" ? (
               <>
-                <div className="banner error">{MARKDOWN_IMPORT.rejected}</div>
+                <Banner tone="error">{MARKDOWN_IMPORT.rejected}</Banner>
                 <IssueList issues={batchIssues} />
               </>
             ) : null}
@@ -273,9 +275,9 @@ export function MarkdownImportClient({ projectId }: { projectId: string }) {
               </label>
             ) : null}
             <div className="row">
-              <button onClick={runImport} disabled={pending || incomplete}>
+              <Button onClick={runImport} disabled={pending || incomplete}>
                 {MARKDOWN_IMPORT.importFiles(choices.filter((c) => c.decision !== "skip").length)}
-              </button>
+              </Button>
               {incomplete ? <span className="small muted">{MARKDOWN_IMPORT.incomplete}</span> : null}
             </div>
           </div>

@@ -1,3 +1,4 @@
+import { Button } from "@/components/ui/Button";
 import Link from "next/link";
 import { VisitDraftSwitcher, type DraftOption } from "@/components/drafts/DraftControls";
 import { HelpHint } from "@/components/HelpHint";
@@ -83,9 +84,9 @@ export default async function HistoryPage({
                 </td>
                 <td>
                   <form action={resolveReviewItemAction.bind(null, projectId, item.id)}>
-                    <button type="submit" className="secondary">
+                    <Button type="submit" variant="secondary">
                       {HISTORY.resolve}
-                    </button>
+                    </Button>
                   </form>
                 </td>
               </tr>

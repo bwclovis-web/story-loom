@@ -3,11 +3,11 @@
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useId, useMemo, useState } from "react";
+import { TreeSearch } from "@/components/ui/SearchPanel";
 import { WORLD } from "@/ui/labels";
 import type { RecordNavEntry } from "@/ui/navigation";
 import { categoryLabel, filterWorldTitles, isWorldType, WORLD_CATEGORY_LABELS, WORLD_TYPES, worldCounts, worldHref, type WorldType } from "@/ui/world";
 import { CollapsibleNavSection } from "./CollapsibleNavSection";
-import { SearchIcon } from "./icons";
 
 /**
  * World navigation: title search, categories (the World document types) with
@@ -122,23 +122,14 @@ export function WorldNav({
       <p className="nav-subheading" id={`${idPrefix}-heading`}>
         {WORLD.references}
       </p>
-      <form role="search" action={worldHref(projectId)} method="get" aria-label={WORLD.searchReferences}>
-        <label className="tree-search">
-          <span className="sr-only">{WORLD.searchReferences}</span>
-          <SearchIcon />
-          <input
-            type="search"
-            name="q"
-            placeholder={WORLD.searchReferences}
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            aria-describedby={`${idPrefix}-hint`}
-          />
-        </label>
-        <p className="tree-note world-search-hint" id={`${idPrefix}-hint`}>
-          {WORLD.searchHint}
-        </p>
-      </form>
+      <TreeSearch
+        action={worldHref(projectId)}
+        label={WORLD.searchReferences}
+        value={query}
+        onChange={setQuery}
+        hint={WORLD.searchHint}
+        hintId={`${idPrefix}-hint`}
+      />
 
       <ul className="nav-list world-categories" aria-label={WORLD.categories}>
         <li>

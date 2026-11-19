@@ -8,6 +8,7 @@ import {
   type ContextRailApi,
 } from "@/components/shell/ContextRail";
 import { CloseIcon } from "@/components/shell/icons";
+import { IconButton } from "@/components/ui/IconButton";
 import { WRITE, WORLD } from "@/ui/labels";
 
 const WorldRailCtx = createContext<{ rail: ContextRailApi; railId: string; titleId: string } | null>(null);
@@ -54,15 +55,9 @@ export function WorldContextAside({ children }: { children: ReactNode }) {
             {WORLD.context}
           </h2>
           {!rail.wide ? (
-            <button
-              type="button"
-              className="icon-button tip tip-end"
-              aria-label={WRITE.closeContext}
-              data-tooltip={WRITE.closeContext}
-              onClick={rail.close}
-            >
+            <IconButton tip="end" aria-label={WRITE.closeContext} onClick={rail.close}>
               <CloseIcon />
-            </button>
+            </IconButton>
           ) : null}
         </div>
         <div className="context-body world-context-body">{children}</div>

@@ -17,7 +17,9 @@ import { IssueList } from "@/components/IssueList";
 import type { DraftOption } from "@/components/drafts/DraftControls";
 import { ContextRail, ContextRailToggle, useContextRail } from "@/components/shell/ContextRail";
 import { CloseIcon } from "@/components/shell/icons";
+import { BoardOverflowMenu } from "@/components/ui/BoardOverflowMenu";
 import { Button, ButtonLink } from "@/components/ui/Button";
+import { CanvasToolbar, CanvasToolbarGroup } from "@/components/ui/CanvasToolbar";
 import { IconButton } from "@/components/ui/IconButton";
 import { SegmentedControl, SegmentedOption } from "@/components/ui/SegmentedControl";
 import { WRITE_DRAFT_COOKIE, writePreference } from "@/components/shell/preferences";
@@ -532,8 +534,8 @@ export function WeaveCanvas({
         ) : null}
         <IssueList issues={issues} />
 
-        <div className="board-toolbar board-toolbar-compact" role="toolbar" aria-label={WEAVE.beatCanvas}>
-          <div className="board-toolbar-group">
+        <CanvasToolbar label={WEAVE.beatCanvas}>
+          <CanvasToolbarGroup>
             <SegmentedControl label={WEAVE.toolbarView}>
               <SegmentedOption
                 selected={isPlotGrid}
@@ -554,9 +556,9 @@ export function WeaveCanvas({
                 {WEAVE.layoutFreeform}
               </SegmentedOption>
             </SegmentedControl>
-          </div>
+          </CanvasToolbarGroup>
 
-          <div className="board-toolbar-group board-toolbar-grow">
+          <CanvasToolbarGroup grow>
             {isPlotGrid ? (
               <details className="board-threads-menu">
                 <summary>{WEAVE.threadsControl(visibleThreadCount)}</summary>
@@ -643,38 +645,39 @@ export function WeaveCanvas({
               <>
                 <Button
                   type="button"
-                 
                   disabled={!selected}
                   onClick={() => selected && fitRect([selected])}
-                 variant="secondary" size="sm">
+                  variant="secondary"
+                  size="sm"
+                >
                   {WEAVE.fitSelection}
                 </Button>
                 <Button
                   type="button"
-                 
                   disabled={!visibleBeats.length}
                   onClick={() => fitRect(visibleBeats)}
-                 variant="secondary" size="sm">
+                  variant="secondary"
+                  size="sm"
+                >
                   {WEAVE.fitAll}
                 </Button>
               </>
             ) : null}
-          </div>
+          </CanvasToolbarGroup>
 
-          <div className="board-toolbar-group board-toolbar-actions">
+          <CanvasToolbarGroup actions>
             <Button
               type="button"
-             
               disabled={pending}
               onClick={addBeat}
-             variant={isPlotGrid ? "primary" : "secondary"} size="sm">
+              variant={isPlotGrid ? "primary" : "secondary"}
+              size="sm"
+            >
               {isPlotGrid ? WEAVE.addBeatPrimary : WEAVE.addBeat}
             </Button>
-          </div>
+          </CanvasToolbarGroup>
 
-          <details className="board-overflow">
-            <summary aria-label={SHELL.moreActions}>{WEAVE.overflowMenu}</summary>
-            <div className="board-overflow-body">
+          <BoardOverflowMenu summary={WEAVE.overflowMenu} summaryLabel={SHELL.moreActions}>
               <form
                 className="row"
                 style={{ gap: "0.35rem", flexWrap: "wrap" }}
@@ -785,7 +788,6 @@ export function WeaveCanvas({
               ) : (
                 <Button
                   type="button"
-                 
                   disabled={pending}
                   onClick={() =>
                     startTransition(async () => {
@@ -797,13 +799,13 @@ export function WeaveCanvas({
                       router.push(`/projects/${encodeURIComponent(projectId)}/plan/weave`);
                     })
                   }
-                 size="sm">
+                  size="sm"
+                >
                   {WEAVE.confirmDeleteGrid(grid.title)}
                 </Button>
               )}
-            </div>
-          </details>
-        </div>
+          </BoardOverflowMenu>
+        </CanvasToolbar>
 
         {isPlotGrid ? (
           <WeavePlotGrid

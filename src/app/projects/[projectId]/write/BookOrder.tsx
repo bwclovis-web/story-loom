@@ -1,9 +1,9 @@
 "use client";
 
-import Link from "next/link";
 import { useState, useTransition } from "react";
 import { ProtectionBadge, StatusBadge } from "@/components/Badges";
 import { Button, ButtonLink } from "@/components/ui/Button";
+import { RecordFlexRow } from "@/components/ui/RecordRow";
 import type { AuthorityStatus } from "@/domain/statuses";
 import { BOOK_ORDER, WRITING } from "@/ui/labels";
 import { formatWordCount } from "@/writing/wordCount";
@@ -138,65 +138,77 @@ function OrderRow({
 }) {
   const [target, setTarget] = useState("");
   return (
-    <div className="book-order-row">
-      <Link href={href} className="book-order-title">
-        {item.title}
-      </Link>
-      <span className="book-order-facts small">
-        <StatusBadge status={item.authorityStatus} />
-        <ProtectionBadge isProtected={item.isProtected} />
-        <span className="muted">{formatWordCount(item.words)}</span>
-      </span>
-      <span className="book-order-actions">
-        <ButtonLink size="sm" href={href}>
-          {BOOK_ORDER.open}
-        </ButtonLink>
-        {onUp || onDown ? (
-          <>
-            <Button
-              type="button"
-              variant="secondary" size="sm"
-              onClick={onUp ?? undefined}
-              disabled={pending || !onUp}
-              aria-label={BOOK_ORDER.moveUpLabel(item.title)}
-            >
-              {BOOK_ORDER.moveUp}
-            </Button>
-            <Button
-              type="button"
-              variant="secondary" size="sm"
-              onClick={onDown ?? undefined}
-              disabled={pending || !onDown}
-              aria-label={BOOK_ORDER.moveDownLabel(item.title)}
-            >
-              {BOOK_ORDER.moveDown}
-            </Button>
-          </>
-        ) : null}
-        {otherChapters && otherChapters.length > 0 && onMoveTo ? (
-          <span className="book-order-move">
-            <select aria-label={BOOK_ORDER.moveToLabel(item.title)} value={target} onChange={(e) => setTarget(e.target.value)} disabled={pending}>
-              <option value="">{BOOK_ORDER.chooseChapter}</option>
-              {otherChapters.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.title}
-                </option>
-              ))}
-            </select>
-            <Button
-              type="button"
-              variant="secondary" size="sm"
-              disabled={pending || !target}
-              onClick={() => {
-                onMoveTo(target);
-                setTarget("");
-              }}
-            >
-              {BOOK_ORDER.moveTo}
-            </Button>
-          </span>
-        ) : null}
-      </span>
-    </div>
+    <RecordFlexRow
+      className="book-order-row"
+      title={item.title}
+      titleHref={href}
+      badges={
+        <>
+          <StatusBadge status={item.authorityStatus} />
+          <ProtectionBadge isProtected={item.isProtected} />
+          <span className="muted">{formatWordCount(item.words)}</span>
+        </>
+      }
+      actions={
+        <>
+          <ButtonLink size="sm" href={href}>
+            {BOOK_ORDER.open}
+          </ButtonLink>
+          {onUp || onDown ? (
+            <>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={onUp ?? undefined}
+                disabled={pending || !onUp}
+                aria-label={BOOK_ORDER.moveUpLabel(item.title)}
+              >
+                {BOOK_ORDER.moveUp}
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={onDown ?? undefined}
+                disabled={pending || !onDown}
+                aria-label={BOOK_ORDER.moveDownLabel(item.title)}
+              >
+                {BOOK_ORDER.moveDown}
+              </Button>
+            </>
+          ) : null}
+          {otherChapters && otherChapters.length > 0 && onMoveTo ? (
+            <span className="book-order-move">
+              <select
+                aria-label={BOOK_ORDER.moveToLabel(item.title)}
+                value={target}
+                onChange={(e) => setTarget(e.target.value)}
+                disabled={pending}
+              >
+                <option value="">{BOOK_ORDER.chooseChapter}</option>
+                {otherChapters.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.title}
+                  </option>
+                ))}
+              </select>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                disabled={pending || !target}
+                onClick={() => {
+                  onMoveTo(target);
+                  setTarget("");
+                }}
+              >
+                {BOOK_ORDER.moveTo}
+              </Button>
+            </span>
+          ) : null}
+        </>
+      }
+    />
   );
 }

@@ -1,3 +1,4 @@
+import { Button } from "@/components/ui/Button";
 import Link from "next/link";
 import { fieldDiffs, textDiff } from "@/changePackage/diff";
 import { StatusBadge } from "@/components/Badges";
@@ -200,9 +201,9 @@ export function CompareSection({ revisions, query }: { revisions: RevisionWithSo
             ))}
           </select>
         </label>
-        <button type="submit" className="secondary">
+        <Button type="submit" variant="secondary">
           {RECORD.compare}
-        </button>
+        </Button>
       </form>
       {fromRev && toRev ? (
         <div className="stack" style={{ marginTop: "0.8rem" }}>

@@ -1,4 +1,5 @@
 "use client";
+import { Button } from "@/components/ui/Button";
 
 import { useEffect, useState, useTransition } from "react";
 import { ContextSection } from "@/components/ContextSection";
@@ -46,9 +47,9 @@ export function WorldPins({
       {canPinCurrent ? (
         <p className="row">
           {pinned ? (
-            <button
+            <Button
               type="button"
-              className="secondary small-button"
+             
               disabled={pending}
               onClick={() =>
                 startTransition(async () => {
@@ -57,13 +58,13 @@ export function WorldPins({
                   else await refresh();
                 })
               }
-            >
+             variant="secondary" size="sm">
               {WRITE.unpinReference}
-            </button>
+            </Button>
           ) : (
-            <button
+            <Button
               type="button"
-              className="secondary small-button"
+             
               disabled={pending}
               onClick={() =>
                 startTransition(async () => {
@@ -72,9 +73,9 @@ export function WorldPins({
                   else await refresh();
                 })
               }
-            >
+             variant="secondary" size="sm">
               {WRITE.pinReference}
-            </button>
+            </Button>
           )}
         </p>
       ) : null}
@@ -90,9 +91,9 @@ export function WorldPins({
                 <a className="small" href={`/projects/${encodeURIComponent(projectId)}/records/${encodeURIComponent(p.recordId)}`}>
                   {WRITE.openReference}
                 </a>
-                <button
+                <Button
                   type="button"
-                  className="secondary small-button"
+                 
                   disabled={pending || index === 0}
                   onClick={() =>
                     startTransition(async () => {
@@ -104,12 +105,12 @@ export function WorldPins({
                       if (r.ok && r.pins) setPins(r.pins);
                     })
                   }
-                >
+                 variant="secondary" size="sm">
                   {WRITE.movePinUp}
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
-                  className="secondary small-button"
+                 
                   disabled={pending || index === pins.length - 1}
                   onClick={() =>
                     startTransition(async () => {
@@ -121,12 +122,12 @@ export function WorldPins({
                       if (r.ok && r.pins) setPins(r.pins);
                     })
                   }
-                >
+                 variant="secondary" size="sm">
                   {WRITE.movePinDown}
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
-                  className="secondary small-button"
+                 
                   disabled={pending}
                   onClick={() =>
                     startTransition(async () => {
@@ -134,9 +135,9 @@ export function WorldPins({
                       if (r.ok && r.pins) setPins(r.pins);
                     })
                   }
-                >
+                 variant="secondary" size="sm">
                   {WRITE.unpinReference}
-                </button>
+                </Button>
               </div>
             </li>
           ))}

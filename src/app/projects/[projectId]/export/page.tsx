@@ -1,5 +1,6 @@
 import { DraftScopeChip, VisitDraftSwitcher, type DraftOption } from "@/components/drafts/DraftControls";
 import { HelpHint } from "@/components/HelpHint";
+import { Banner } from "@/components/ui/Banner";
 import { isManuscriptType, isRecordType, RECORD_TYPE_LABELS, type RecordType } from "@/domain/recordTypes";
 import { getDb } from "@/server/db";
 import { resolveExportDraftId } from "@/server/draftSelection";
@@ -89,11 +90,11 @@ export default async function ExportPage({
         <DraftScopeChip drafts={draftOptions} activeDraftId={selectedDraftId} />
       )}
       {preselected ? (
-        <div className="banner info" role="status">
+        <Banner tone="info">
           {EXPORT.preselected(preselected.length)}
           {preselectedFrom ? ` (${preselectedFrom})` : ""}. {EXPORT.preselectedNote}
           {missing.length ? ` ${EXPORT.notFound(missing.length)}` : ""}
-        </div>
+        </Banner>
       ) : null}
       <ExportClient
         projectId={projectId}

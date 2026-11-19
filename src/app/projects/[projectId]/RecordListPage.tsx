@@ -1,6 +1,5 @@
-import Link from "next/link";
-import { ContentClassBadge, ProtectionBadge, RevisionBadge, StatusBadge } from "@/components/Badges";
 import { OverflowDisclosure } from "@/components/shell/OverflowDisclosure";
+import { RecordTableRow } from "@/components/ui/RecordRow";
 import { isManuscriptType, RECORD_TYPE_LABELS, requiresParent, type RecordType } from "@/domain/recordTypes";
 import { getDb } from "@/server/db";
 import { listRecords } from "@/server/services/recordService";
@@ -63,23 +62,17 @@ export async function RecordListPage({
             <table className="record-table">
               <tbody>
                 {ofType.map((r) => (
-                  <tr key={r.id}>
-                    <td style={{ width: "40%" }}>
-                      <Link href={`/projects/${projectId}/records/${r.id}`}>{r.title}</Link>
-                    </td>
-                    <td className="muted small">
-                      <code>{r.id}</code>
-                    </td>
-                    <td className="row">
-                      <StatusBadge status={r.authorityStatus} />
-                      <RevisionBadge revision={r.currentRevision} />
-                      <ContentClassBadge contentClass={r.contentClass} />
-                      <ProtectionBadge isProtected={r.protected} />
-                      {manuscriptWords.has(r.id) ? (
-                        <span className="small muted">{formatWordCount(manuscriptWords.get(r.id)!)}</span>
-                      ) : null}
-                    </td>
-                  </tr>
+                  <RecordTableRow
+                    key={r.id}
+                    projectId={projectId}
+                    recordId={r.id}
+                    title={r.title}
+                    authorityStatus={r.authorityStatus}
+                    currentRevision={r.currentRevision}
+                    contentClass={r.contentClass}
+                    isProtected={r.protected}
+                    wordCount={manuscriptWords.get(r.id)}
+                  />
                 ))}
               </tbody>
             </table>

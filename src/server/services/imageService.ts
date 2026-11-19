@@ -191,6 +191,68 @@ export function validateImageFiles(files: readonly NewImageFile[]): { issues: Is
   return { issues, infos };
 }
 
+/** Inserts already-validated images inside the caller's transaction. */
+export async function insertRecordImagesInTx(
+  tx: Tx,
+  projectId: string,
+  recordId: string,
+  files: readonly NewImageFile[],
+  infos: NonNullable<ReturnType<typeof sniffImage>>[],
+  options: { confirmProtected: boolean },
+): Promise<RecordImageView[]> {
+  const record = await findImageRecord(tx, projectId, recordId);
+  requireUnlock(record, options.confirmProtected);
+  const existing = await tx.recordImage.findMany({ where: { recordId }, select: { name: true, position: true } });
+  if (existing.length + files.length > MAX_IMAGES_PER_RECORD) {
+    throw rejected(
+      "IMAGE_INVALID",
+      `A document can have up to ${MAX_IMAGES_PER_RECORD} images; "${record.title}" has ${existing.length}.`,
+      { recordId },
+    );
+  }
+  const taken = new Set(existing.map((e) => e.name));
+  let position = existing.reduce((max, e) => Math.max(max, e.position), 0);
+  const created: RecordImageView[] = [];
+  for (const [i, file] of files.entries()) {
+    const info = infos[i]!;
+    const name = imageNameFor(file.filename, info.mimeType, taken);
+    taken.add(name);
+    position += 1;
+    const row = await tx.recordImage.create({
+      data: {
+        id: newId("img"),
+        projectId,
+        recordId,
+        name,
+        originalFilename: file.filename.slice(0, 255) || name,
+        mimeType: info.mimeType,
+        byteSize: file.bytes.byteLength,
+        width: info.width,
+        height: info.height,
+        contentHash: sha256Bytes(file.bytes),
+        data: Buffer.from(file.bytes),
+        position,
+      },
+      select: META,
+    });
+    created.push(view(row)!);
+  }
+  await writeAudit(tx, {
+    projectId,
+    action: "record.image.add",
+    actor: UI_ACTOR,
+    summary:
+      created.length === 1
+        ? `Added image "${created[0].name}" to "${record.title}"`
+        : `Added ${created.length} images to "${record.title}"`,
+    details: {
+      recordId,
+      images: created.map((c) => ({ imageId: c.id, name: c.name, mimeType: c.mimeType, byteSize: c.byteSize, contentHash: c.contentHash })),
+    },
+  });
+  return created;
+}
+
 export async function addRecordImages(
   db: Db,
   projectId: string,
@@ -201,60 +263,10 @@ export async function addRecordImages(
   if (!files.length) throw rejected("IMAGE_INVALID", "Choose at least one image.");
   const { issues, infos } = validateImageFiles(files);
   if (issues.length) throw new MutationRejectedError(issues);
+  const sniffed = infos.filter((info): info is NonNullable<typeof info> => info !== null);
+  if (sniffed.length !== files.length) throw new MutationRejectedError(issues);
 
-  return db.$transaction(async (tx) => {
-    const record = await findImageRecord(tx, projectId, recordId);
-    requireUnlock(record, options.confirmProtected);
-    const existing = await tx.recordImage.findMany({ where: { recordId }, select: { name: true, position: true } });
-    if (existing.length + files.length > MAX_IMAGES_PER_RECORD) {
-      throw rejected(
-        "IMAGE_INVALID",
-        `A document can have up to ${MAX_IMAGES_PER_RECORD} images; "${record.title}" has ${existing.length}.`,
-        { recordId },
-      );
-    }
-    const taken = new Set(existing.map((e) => e.name));
-    let position = existing.reduce((max, e) => Math.max(max, e.position), 0);
-    const created: RecordImageView[] = [];
-    for (const [i, file] of files.entries()) {
-      const info = infos[i]!;
-      const name = imageNameFor(file.filename, info.mimeType, taken);
-      taken.add(name);
-      position += 1;
-      const row = await tx.recordImage.create({
-        data: {
-          id: newId("img"),
-          projectId,
-          recordId,
-          name,
-          originalFilename: file.filename.slice(0, 255) || name,
-          mimeType: info.mimeType,
-          byteSize: file.bytes.byteLength,
-          width: info.width,
-          height: info.height,
-          contentHash: sha256Bytes(file.bytes),
-          data: Buffer.from(file.bytes),
-          position,
-        },
-        select: META,
-      });
-      created.push(view(row)!);
-    }
-    await writeAudit(tx, {
-      projectId,
-      action: "record.image.add",
-      actor: UI_ACTOR,
-      summary:
-        created.length === 1
-          ? `Added image "${created[0].name}" to "${record.title}"`
-          : `Added ${created.length} images to "${record.title}"`,
-      details: {
-        recordId,
-        images: created.map((c) => ({ imageId: c.id, name: c.name, mimeType: c.mimeType, byteSize: c.byteSize, contentHash: c.contentHash })),
-      },
-    });
-    return created;
-  });
+  return db.$transaction((tx) => insertRecordImagesInTx(tx, projectId, recordId, files, sniffed, options));
 }
 
 async function findImage(tx: Tx, projectId: string, imageId: string) {

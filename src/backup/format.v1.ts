@@ -327,7 +327,14 @@ export const workspaceBackupV1Schema = z
             id,
             mapId: id,
             projectId: id,
-            recordId: id,
+            /** Omitted or null when the marker opens a map only. Older backups always set this. */
+            recordId: id.nullable().optional(),
+            /** Another map this marker opens. Omitted in older backups. */
+            targetMapId: id.nullable().optional(),
+            /** places | waterways | transport | story. Omitted means places. */
+            markerGroup: z.enum(["places", "waterways", "transport", "story"]).optional(),
+            /** Optional display name. Omitted means empty; the linked title is used. */
+            label: z.string().optional(),
             xNorm: z.number().min(0).max(1),
             yNorm: z.number().min(0).max(1),
             createdAt: timestamp,

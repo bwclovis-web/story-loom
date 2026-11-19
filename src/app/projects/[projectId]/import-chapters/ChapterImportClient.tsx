@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useState, useTransition } from "react";
 import { ProtectionBadge } from "@/components/Badges";
 import { IssueList } from "@/components/IssueList";
+import { Banner } from "@/components/ui/Banner";
+import { Button } from "@/components/ui/Button";
 import type {
   ChapterDecision,
   ChapterFile,
@@ -106,9 +108,7 @@ export function ChapterImportClient({ projectId }: { projectId: string }) {
   if (outcome?.status === "applied") {
     return (
       <div className="stack">
-        <div className="banner ok" role="status">
-          {CHAPTER_IMPORT.done}
-        </div>
+        <Banner tone="ok">{CHAPTER_IMPORT.done}</Banner>
         <table>
           <thead>
             <tr>
@@ -131,9 +131,9 @@ export function ChapterImportClient({ projectId }: { projectId: string }) {
           </tbody>
         </table>
         <div>
-          <button className="secondary" onClick={() => { reset(); setFiles([]); }}>
+          <Button onClick={() => { reset(); setFiles([]); }} variant="secondary">
             {CHAPTER_IMPORT.importMore}
-          </button>
+          </Button>
         </div>
       </div>
     );
@@ -160,7 +160,7 @@ export function ChapterImportClient({ projectId }: { projectId: string }) {
           {CHAPTER_IMPORT.tidyHint}
         </p>
       </div>
-      {error ? <div className="banner error">{error}</div> : null}
+      {error ? <Banner tone="error">{error}</Banner> : null}
 
       {preview ? (
         <>
@@ -179,7 +179,11 @@ export function ChapterImportClient({ projectId }: { projectId: string }) {
                     </span>
                   </div>
                   <IssueList issues={f.issues} />
-                  {f.sameInBatch.length ? <div className="banner warn small">{CHAPTER_IMPORT.sameInBatch(f.sameInBatch.join(", "))}</div> : null}
+                  {f.sameInBatch.length ? (
+                    <Banner tone="warn" className="small">
+                      {CHAPTER_IMPORT.sameInBatch(f.sameInBatch.join(", "))}
+                    </Banner>
+                  ) : null}
                   {f.matches.length ? (
                     <div className="small">
                       <strong>{CHAPTER_IMPORT.matches}</strong>
@@ -237,7 +241,7 @@ export function ChapterImportClient({ projectId }: { projectId: string }) {
           <div className="panel stack">
             {outcome?.status === "rejected" ? (
               <>
-                <div className="banner error">{CHAPTER_IMPORT.rejected}</div>
+                <Banner tone="error">{CHAPTER_IMPORT.rejected}</Banner>
                 <IssueList issues={batchIssues} />
               </>
             ) : null}
@@ -248,9 +252,9 @@ export function ChapterImportClient({ projectId }: { projectId: string }) {
               </label>
             ) : null}
             <div className="row">
-              <button onClick={runImport} disabled={pending || incomplete || importing === 0}>
+              <Button onClick={runImport} disabled={pending || incomplete || importing === 0}>
                 {CHAPTER_IMPORT.importFiles(importing)}
-              </button>
+              </Button>
               {incomplete ? <span className="small muted">{CHAPTER_IMPORT.incomplete}</span> : null}
             </div>
           </div>

@@ -1,14 +1,15 @@
-import { ButtonLink } from "@/components/ui/Button";
 import Link from "next/link";
 import { StartAuthorRewriteButton } from "@/components/drafts/DraftControls";
+import { ContinueWriting, type ContinueWritingItem } from "@/components/shell/ContinueWriting";
+import { OverflowDisclosure } from "@/components/shell/OverflowDisclosure";
+import { ButtonLink } from "@/components/ui/Button";
+import { SearchPanel } from "@/components/ui/SearchPanel";
 import { RECORD_TYPE_LABELS } from "@/domain/recordTypes";
 import { getDb } from "@/server/db";
 import { readWriteDraftCookie, resolveWriteDraftId } from "@/server/draftSelection";
 import { listManuscriptDrafts } from "@/server/services/draftService";
 import { listRecordNav, listRecords } from "@/server/services/recordService";
 import { searchManuscript, type ManuscriptHit } from "@/server/services/searchService";
-import { ContinueWriting, type ContinueWritingItem } from "@/components/shell/ContinueWriting";
-import { OverflowDisclosure } from "@/components/shell/OverflowDisclosure";
 import { DRAFT, GROUP_PAGES, MANUSCRIPT_SEARCH, NAV, SHELL } from "@/ui/labels";
 import { buildManuscriptTree, type TreeScene } from "@/ui/manuscriptTree";
 import { RECORD_GROUPS } from "@/ui/navigation";
@@ -95,17 +96,19 @@ export default async function WritePage({
           <StartAuthorRewriteButton projectId={projectId} />
         </section>
       ) : null}
-      <form role="search" method="get" action={`${base}/write`} className="panel manuscript-search" aria-label={MANUSCRIPT_SEARCH.label}>
-        <label className="sr-only" htmlFor="manuscript-search-q">
-          {MANUSCRIPT_SEARCH.label}
-        </label>
-        <input id="manuscript-search-q" type="search" name="q" defaultValue={q} placeholder={MANUSCRIPT_SEARCH.label} />
+      <SearchPanel
+        action={`${base}/write`}
+        label={MANUSCRIPT_SEARCH.label}
+        inputId="manuscript-search-q"
+        defaultValue={q}
+        submitLabel={MANUSCRIPT_SEARCH.submit}
+        className="manuscript-search"
+      >
         <label className="inline">
           <input type="checkbox" name="case" value="1" defaultChecked={matchCase} />
           {MANUSCRIPT_SEARCH.matchCase}
         </label>
-        <button type="submit">{MANUSCRIPT_SEARCH.submit}</button>
-      </form>
+      </SearchPanel>
       {search ? (
         <SearchResults base={base} query={q} matchCase={matchCase} hits={search.hits} totalMatches={search.totalMatches} />
       ) : null}

@@ -4,6 +4,8 @@ import { useActionState, useDeferredValue, useEffect, useMemo, useRef, useState,
 import { HelpHint } from "@/components/HelpHint";
 import { IssueList } from "@/components/IssueList";
 import { submitWithoutReset } from "@/components/submitWithoutReset";
+import { Banner } from "@/components/ui/Banner";
+import { Button } from "@/components/ui/Button";
 import { FindReplace, type DirectUndo } from "@/components/writing/FindReplace";
 import { Proofreader, type ProofreadConfig } from "@/components/writing/Proofreader";
 import { setUnsaved } from "@/components/shell/unsaved";
@@ -25,7 +27,7 @@ import { saveRecordAction, setStatusAction, type FormResult } from "../../action
 function Result({ state }: { state: FormResult }) {
   return (
     <>
-      {state.message ? <div className={`banner ${state.ok ? "ok" : "error"}`}>{state.message}</div> : null}
+      {state.message ? <Banner tone={state.ok ? "ok" : "error"}>{state.message}</Banner> : null}
       <IssueList issues={state.issues ?? []} />
     </>
   );
@@ -69,9 +71,9 @@ function InsertImage({
           ))}
         </select>
       </label>
-      <button type="button" className="secondary" disabled={disabled} onClick={() => onInsert(imageMarkdown(selected.name, selected.label))}>
+      <Button type="button" disabled={disabled} onClick={() => onInsert(imageMarkdown(selected.name, selected.label))} variant="secondary">
         {IMAGES.insertButton}
-      </button>
+      </Button>
       <span className="small muted">{IMAGES.insertHint}</span>
     </div>
   );
@@ -291,9 +293,9 @@ export function RecordEditor(props: {
       <UnlockCheckbox key={props.revision} isProtected={props.isProtected} checked={unlocked} onChange={setUnlocked} />
       <Result state={state} />
       <div className="row">
-        <button type="submit" disabled={pending}>
+        <Button type="submit" disabled={pending}>
           {RECORD.saveAsRevision(props.revision + 1)}
-        </button>
+        </Button>
         <span className="small muted">Editing revision {props.revision}. Newer saves elsewhere will be detected.</span>
       </div>
     </form>
@@ -334,9 +336,9 @@ export function StatusForm(props: {
       <UnlockCheckbox key={props.revision} isProtected={props.isProtected} />
       <Result state={state} />
       <div>
-        <button type="submit" className="secondary" disabled={pending}>
+        <Button type="submit" disabled={pending} variant="secondary">
           {RECORD.updateStatus}
-        </button>
+        </Button>
       </div>
     </form>
   );

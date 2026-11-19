@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
 import { IssueList } from "@/components/IssueList";
+import { Button } from "@/components/ui/Button";
 import type { Issue } from "@/domain/issues";
 import { errorIssue } from "@/domain/issues";
 import type { WeaveBuildDecisions, WeaveBuildRunView } from "@/server/services/weaveBuildFromDraftService";
@@ -232,9 +233,9 @@ export function BuildGridFromDraftForm({
           </label>
         ) : null}
         <div className="row" style={{ gap: "0.5rem" }}>
-          <button type="submit" disabled={busy || !assistantConfigured}>
+          <Button type="submit" disabled={busy || !assistantConfigured}>
             {busy ? WEAVE.buildAnalyzing : WEAVE.buildAnalyze}
-          </button>
+          </Button>
         </div>
         <IssueList issues={issues} />
       </form>
@@ -296,23 +297,23 @@ export function BuildGridReview({ projectId, initial }: { projectId: string; ini
           {run.contentHash ? ` · ${run.contentHash.slice(0, 8)}` : ""}
         </p>
         <div className="row" style={{ flexWrap: "wrap", gap: "0.5rem", marginBottom: "0.75rem" }}>
-          <button
+          <Button
             type="button"
-            className="secondary small-button"
+           
             onClick={() => acceptAll([...threadKeys, ...rowKeys, ...beatKeys])}
-          >
+           variant="secondary" size="sm">
             {WEAVE.buildSelectAllAccept}
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
-            className="secondary small-button"
+           
             onClick={() => skipAll([...threadKeys, ...rowKeys, ...beatKeys])}
-          >
+           variant="secondary" size="sm">
             {WEAVE.buildSelectAllSkip}
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
-            className="small-button"
+           
             disabled={pending}
             onClick={() =>
               startTransition(async () => {
@@ -332,9 +333,9 @@ export function BuildGridReview({ projectId, initial }: { projectId: string; ini
                 router.refresh();
               })
             }
-          >
+           size="sm">
             {WEAVE.buildApplyAccepted}
-          </button>
+          </Button>
         </div>
         <IssueList issues={issues} />
       </section>
@@ -518,12 +519,22 @@ function DecisionRow({
 }) {
   return (
     <div className="row" style={{ gap: "0.35rem", flexWrap: "wrap" }}>
-      <button type="button" className={`small-button${value === "accept" ? "" : " secondary"}`} onClick={() => onChange("accept")}>
+      <Button
+        type="button"
+        size="sm"
+        variant={value === "accept" ? "primary" : "secondary"}
+        onClick={() => onChange("accept")}
+      >
         {WEAVE.buildAccept}
-      </button>
-      <button type="button" className={`small-button${value === "skip" ? "" : " secondary"}`} onClick={() => onChange("skip")}>
+      </Button>
+      <Button
+        type="button"
+        size="sm"
+        variant={value === "skip" ? "primary" : "secondary"}
+        onClick={() => onChange("skip")}
+      >
         {WEAVE.buildSkip}
-      </button>
+      </Button>
       <span className="small muted">{value === "pending" ? WEAVE.buildPending : null}</span>
     </div>
   );

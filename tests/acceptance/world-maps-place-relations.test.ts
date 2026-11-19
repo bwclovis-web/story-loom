@@ -8,11 +8,13 @@ import {
   listPlaceRelationsForRecord,
   removePlaceRelation,
 } from "@/server/services/placeRelationService";
-import { createRecord, moveRecordToTrash } from "@/server/services/recordService";
+import { createRecord, moveRecordToTrash, setProtection } from "@/server/services/recordService";
 import { deleteFromTrash } from "@/server/services/trashService";
 import {
   addWorldMapPin,
   createWorldMap,
+  createWorldMapWithUpload,
+  deleteWorldMap,
   getWorldMap,
   listWorldMaps,
   moveWorldMapPin,
@@ -231,6 +233,7 @@ describe("World maps and place relationships", () => {
     const backup = await createWorkspaceBackup(t.db, IDS.workspace);
     expect(backup.worldMaps?.length).toBe(1);
     expect(backup.worldMapPins?.length).toBe(2);
+    expect(backup.worldMapPins?.every((pin) => pin.markerGroup === undefined && pin.targetMapId === undefined)).toBe(true);
     expect(backup.placeRelations?.length).toBe(1);
     expect(backup.counts.worldMaps).toBe(1);
 
@@ -248,8 +251,10 @@ describe("World maps and place relationships", () => {
       const riverPin = view.pins.find((p) => p.title === "Silverwater");
       expect(riverPin?.xNorm).toBeCloseTo(0.12);
       expect(riverPin?.yNorm).toBeCloseTo(0.88);
-      const riverId = riverPin!.recordId;
-      const tidalId = view.pins.find((p) => p.title === "Tidal approach")!.recordId;
+      expect(riverPin?.markerGroup).toBe("places");
+      expect(riverPin?.targetMapId).toBeNull();
+      const riverId = riverPin!.recordId!;
+      const tidalId = view.pins.find((p) => p.title === "Tidal approach")!.recordId!;
       const rel = await listPlaceRelationsForRecord(target.db, projectId, riverId);
       expect(rel.outgoing.some((r) => r.kind === "flows_into" && r.toRecordId === tidalId)).toBe(true);
     } finally {
@@ -269,6 +274,136 @@ describe("World maps and place relationships", () => {
       expect(await listWorldMaps(emptyTarget.db, outcome.projects[0]!.id)).toEqual([]);
     } finally {
       await emptyTarget.cleanup();
+    }
+  });
+
+  it("uploads a backdrop with the map and leaves no image when the operation fails", async () => {
+    const before = await t.db.recordImage.count({ where: { projectId: IDS.project } });
+    await expect(
+      createWorldMapWithUpload(t.db, IDS.project, {
+        title: "   ",
+        recordId: IDS.world,
+        confirmProtected: false,
+        file: { filename: "quay.png", bytes: makePng(12, 8) },
+      }),
+    ).rejects.toBeInstanceOf(MutationRejectedError);
+    await expect(
+      createWorldMapWithUpload(t.db, IDS.project, {
+        title: "Bad file",
+        recordId: IDS.world,
+        confirmProtected: false,
+        file: { filename: "notes.txt", bytes: new Uint8Array([1, 2, 3, 4]) },
+      }),
+    ).rejects.toBeInstanceOf(MutationRejectedError);
+    await setProtection(t.db, IDS.project, IDS.world, true);
+    await expect(
+      createWorldMapWithUpload(t.db, IDS.project, {
+        title: "Protected quay",
+        recordId: IDS.world,
+        confirmProtected: false,
+        file: { filename: "quay.png", bytes: makePng(12, 8) },
+      }),
+    ).rejects.toBeInstanceOf(MutationRejectedError);
+    expect(await t.db.recordImage.count({ where: { projectId: IDS.project } })).toBe(before);
+    expect(await listWorldMaps(t.db, IDS.project)).toEqual([]);
+
+    const map = await createWorldMapWithUpload(t.db, IDS.project, {
+      title: "Protected quay",
+      recordId: IDS.world,
+      confirmProtected: true,
+      file: { filename: "quay.png", bytes: makePng(12, 8) },
+    });
+    expect(map.title).toBe("Protected quay");
+    expect(map.imageWidth).toBe(12);
+    expect(map.imageHeight).toBe(8);
+    expect(await t.db.recordImage.count({ where: { recordId: IDS.world } })).toBe(before + 1);
+  });
+
+  it("keeps nested, map-only, and legacy markers compatible", async () => {
+    const [overviewImage] = await addRecordImages(
+      t.db,
+      IDS.project,
+      IDS.world,
+      [{ filename: "overview.png", bytes: makePng(40, 20) }],
+      { confirmProtected: false },
+    );
+    const [detailImage] = await addRecordImages(
+      t.db,
+      IDS.project,
+      IDS.dossier,
+      [{ filename: "detail.png", bytes: makePng(20, 20) }],
+      { confirmProtected: false },
+    );
+    const overview = await createWorldMap(t.db, IDS.project, { title: "Coast overview", imageId: overviewImage.id });
+    const detail = await createWorldMap(t.db, IDS.project, { title: "Harbour detail", imageId: detailImage.id });
+
+    const both = await addWorldMapPin(t.db, IDS.project, overview.id, {
+      recordId: RIVER,
+      targetMapId: detail.id,
+      markerGroup: "waterways",
+      label: "Silverwater mouth",
+      xNorm: 0.25,
+      yNorm: 0.75,
+    });
+    expect(both.recordId).toBe(RIVER);
+    expect(both.targetMapId).toBe(detail.id);
+    expect(both.markerGroup).toBe("waterways");
+    expect(both.title).toBe("Silverwater mouth");
+    expect(both.xNorm).toBeCloseTo(0.25);
+
+    const mapOnly = await addWorldMapPin(t.db, IDS.project, overview.id, {
+      targetMapId: detail.id,
+      markerGroup: "story",
+      xNorm: 2,
+      yNorm: -1,
+    });
+    expect(mapOnly.recordId).toBeNull();
+    expect(mapOnly.xNorm).toBe(1);
+    expect(mapOnly.yNorm).toBe(0);
+    expect(mapOnly.targetMapTitle).toBe("Harbour detail");
+
+    await expect(
+      addWorldMapPin(t.db, IDS.project, overview.id, { targetMapId: overview.id, xNorm: 0.5, yNorm: 0.5 }),
+    ).rejects.toBeInstanceOf(MutationRejectedError);
+    await expect(
+      addWorldMapPin(t.db, IDS.project, overview.id, { xNorm: 0.5, yNorm: 0.5 }),
+    ).rejects.toBeInstanceOf(MutationRejectedError);
+
+    await moveRecordToTrash(t.db, IDS.project, IDS.dossier, false);
+    const hidden = await getWorldMap(t.db, IDS.project, overview.id);
+    const trashedTarget = hidden.pins.find((pin) => pin.id === mapOnly.id);
+    expect(trashedTarget?.targetUnavailable).toBe(true);
+    expect(trashedTarget?.targetMapId).toBe(detail.id);
+    await expect(getWorldMap(t.db, IDS.project, detail.id)).rejects.toBeInstanceOf(NotFoundError);
+
+    await deleteWorldMap(t.db, IDS.project, detail.id);
+    const kept = await getWorldMap(t.db, IDS.project, overview.id);
+    const remnant = kept.pins.find((pin) => pin.id === both.id);
+    expect(remnant?.targetMapId).toBeNull();
+    expect(remnant?.recordId).toBe(RIVER);
+    expect(remnant?.label).toBe("Silverwater mouth");
+    expect(remnant?.xNorm).toBeCloseTo(0.25);
+
+    const backup = await createWorkspaceBackup(t.db, IDS.workspace);
+    const exported = backup.worldMapPins?.find((pin) => pin.label === "Silverwater mouth");
+    expect(exported?.markerGroup).toBe("waterways");
+    expect(exported?.recordId).toBe(RIVER);
+    expect(exported?.xNorm).toBeCloseTo(0.25);
+    const target = await createTestDb();
+    try {
+      const restored = await restoreWorkspaceBackup(target.db, backup, { idStrategy: "remap" });
+      expect(restored.ok).toBe(true);
+      if (!restored.ok) return;
+      const projectId = restored.projects[0]!.id;
+      const maps = await listWorldMaps(target.db, projectId);
+      const view = await getWorldMap(target.db, projectId, maps[0]!.id);
+      const pin = view.pins.find((item) => item.title === "Silverwater mouth");
+      expect(pin?.markerGroup).toBe("waterways");
+      expect(pin?.targetMapId).toBeNull();
+      expect(pin?.yNorm).toBeCloseTo(0.75);
+      expect(pin?.xNorm).toBeCloseTo(0.25);
+    } finally {
+      await target.cleanup();
     }
   });
 

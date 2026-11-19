@@ -1,4 +1,5 @@
 "use client";
+import { Button } from "@/components/ui/Button";
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -111,9 +112,9 @@ export function EstablishedInRail({
               ))}
             </select>
           </label>
-          <button
+          <Button
             type="button"
-            className="small-button"
+           
             disabled={pending}
             onClick={() =>
               startTransition(async () => {
@@ -125,9 +126,9 @@ export function EstablishedInRail({
                 refreshFacts(result.facts);
               })
             }
-          >
+           size="sm">
             {pending ? WORLD.extractingFacts : WORLD.extractFacts}
-          </button>
+          </Button>
         </div>
 
         {pendingFacts.length ? (
@@ -139,9 +140,9 @@ export function EstablishedInRail({
                   <div>{f.statement}</div>
                   <div className="small muted">{f.evidenceKindLabel}</div>
                   <div className="row" style={{ gap: "0.35rem", marginTop: "0.25rem" }}>
-                    <button
+                    <Button
                       type="button"
-                      className="small-button"
+                     
                       disabled={pending}
                       onClick={() =>
                         startTransition(async () => {
@@ -150,12 +151,12 @@ export function EstablishedInRail({
                           else upsertFact(result.fact);
                         })
                       }
-                    >
+                     size="sm">
                       {WORLD.acceptFact}
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                       type="button"
-                      className="secondary small-button"
+                     
                       disabled={pending}
                       onClick={() =>
                         startTransition(async () => {
@@ -164,9 +165,9 @@ export function EstablishedInRail({
                           else upsertFact(result.fact);
                         })
                       }
-                    >
+                     variant="secondary" size="sm">
                       {WORLD.dismissFact}
-                    </button>
+                    </Button>
                   </div>
                 </li>
               ))}
@@ -202,9 +203,9 @@ export function EstablishedInRail({
                             </blockquote>
                             <div className="row" style={{ gap: "0.35rem" }}>
                               {e.needsRecheck ? (
-                                <button
+                                <Button
                                   type="button"
-                                  className="small-button"
+                                 
                                   disabled={pending}
                                   onClick={() =>
                                     startTransition(async () => {
@@ -228,13 +229,13 @@ export function EstablishedInRail({
                                       }
                                     })
                                   }
-                                >
+                                 size="sm">
                                   {WORLD.clearRecheck}
-                                </button>
+                                </Button>
                               ) : null}
-                              <button
+                              <Button
                                 type="button"
-                                className="secondary small-button"
+                               
                                 disabled={pending}
                                 onClick={() =>
                                   startTransition(async () => {
@@ -253,9 +254,9 @@ export function EstablishedInRail({
                                     }
                                   })
                                 }
-                              >
+                               variant="secondary" size="sm">
                                 {WORLD.removeFactEvidence}
-                              </button>
+                              </Button>
                             </div>
                           </li>
                         ))}
@@ -310,9 +311,9 @@ export function EstablishedInRail({
                           />
                         </label>
                       </div>
-                      <button
+                      <Button
                         type="button"
-                        className="small-button"
+                       
                         disabled={pending || !draft.sourceId}
                         onClick={() =>
                           startTransition(async () => {
@@ -325,9 +326,9 @@ export function EstablishedInRail({
                             else upsertFact(result.fact);
                           })
                         }
-                      >
+                       size="sm">
                         {WORLD.addFactEvidence}
-                      </button>
+                      </Button>
                     </div>
                   </li>
                 );
@@ -375,9 +376,9 @@ export function EstablishedInRail({
                 ))}
               </select>
             </label>
-            <button
+            <Button
               type="button"
-              className="small-button"
+             
               disabled={pending || !sceneId}
               onClick={() =>
                 startTransition(async () => {
@@ -395,9 +396,9 @@ export function EstablishedInRail({
                   setCheck(result.result);
                 })
               }
-            >
+             size="sm">
               {WORLD.runKnowledgeCheck}
-            </button>
+            </Button>
           </div>
 
           {check ? (

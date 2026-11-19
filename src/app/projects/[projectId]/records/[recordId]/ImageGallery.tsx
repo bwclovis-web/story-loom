@@ -4,6 +4,8 @@ import { useActionState, useRef, useState } from "react";
 import { CopyButton } from "@/components/CopyButton";
 import { HelpHint } from "@/components/HelpHint";
 import { IssueList } from "@/components/IssueList";
+import { Banner } from "@/components/ui/Banner";
+import { Button } from "@/components/ui/Button";
 import {
   formatBytes,
   IMAGE_ACCEPT,
@@ -34,11 +36,7 @@ export interface GalleryImage {
 function Result({ state }: { state: FormResult }) {
   return (
     <>
-      {state.message ? (
-        <div className={`banner ${state.ok ? "ok" : "error"}`} role="status">
-          {state.message}
-        </div>
-      ) : null}
+      {state.message ? <Banner tone={state.ok ? "ok" : "error"}>{state.message}</Banner> : null}
       <IssueList issues={state.issues ?? []} />
     </>
   );
@@ -72,9 +70,9 @@ function AddImages({ projectId, recordId, isProtected }: { projectId: string; re
       <Unlock isProtected={isProtected} />
       <Result state={state} />
       <div className="row">
-        <button type="submit" disabled={pending}>
+        <Button type="submit" disabled={pending}>
           {pending ? IMAGES.adding : IMAGES.add}
-        </button>
+        </Button>
       </div>
     </form>
   );
@@ -136,9 +134,9 @@ function ImageCard({
             <Unlock isProtected={isProtected} />
             <Result state={saveState} />
             <div className="row">
-              <button type="submit" className="secondary" disabled={saving}>
+              <Button type="submit" disabled={saving} variant="secondary">
                 {IMAGES.save}
-              </button>
+              </Button>
             </div>
           </form>
           <form action={remove} className="stack image-remove">
@@ -153,18 +151,18 @@ function ImageCard({
             <Result state={removeState} />
             {confirming && !inText ? (
               <div className="row">
-                <button type="submit" className="danger" disabled={removing}>
+                <Button type="submit" disabled={removing} variant="danger">
                   {IMAGES.confirmRemove(image.name)}
-                </button>
-                <button type="button" className="secondary" disabled={removing} onClick={() => setConfirming(false)}>
+                </Button>
+                <Button type="button" disabled={removing} onClick={() => setConfirming(false)} variant="secondary">
                   {IMAGES.cancel}
-                </button>
+                </Button>
               </div>
             ) : (
               <div className="row">
-                <button type="button" className="secondary" disabled={inText} onClick={() => setConfirming(true)}>
+                <Button type="button" disabled={inText} onClick={() => setConfirming(true)} variant="secondary">
                   {IMAGES.remove}
-                </button>
+                </Button>
               </div>
             )}
           </form>
@@ -198,7 +196,7 @@ export function ImageGallery({
         {IMAGES.heading} <span className="count">({images.length})</span>
       </h2>
       {unavailable ? (
-        <p className="banner warn">{IMAGES.migrationNeeded}</p>
+        <Banner tone="warn">{IMAGES.migrationNeeded}</Banner>
       ) : (
         <>
           <HelpHint anchor="images" topic="images">

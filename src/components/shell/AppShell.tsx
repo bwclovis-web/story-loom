@@ -7,6 +7,7 @@ import type { RecordType } from "@/domain/recordTypes";
 import { NAV, SHELL } from "@/ui/labels";
 import { activeGlobalItem, parseProjectPath, type ProjectSummary } from "@/ui/navigation";
 import { THEME_COOKIE, type Theme } from "@/ui/theme";
+import { IconButton } from "@/components/ui/IconButton";
 import { Drawer } from "./Drawer";
 import { GlobalNav } from "./GlobalNav";
 import { MenuIcon } from "./icons";
@@ -136,17 +137,14 @@ export function AppShell({
         </a>
 
         <div className="mobile-bar">
-          <button
-            type="button"
-            className="icon-button tip"
+          <IconButton
             aria-label={SHELL.openMenu}
-            data-tooltip={SHELL.openMenu}
             aria-expanded={drawerOpen}
             aria-controls="global-drawer"
             onClick={() => setDrawerOpen(true)}
           >
             <MenuIcon />
-          </button>
+          </IconButton>
           <Link href="/" className="brand" aria-label={NAV.brand}>
             <span className="brand-mark" aria-hidden="true">
               S

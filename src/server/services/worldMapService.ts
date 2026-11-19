@@ -2,21 +2,24 @@ import { newId } from "@/domain/ids";
 import { errorIssue } from "@/domain/issues";
 import { isLinkableReferenceType, isRecordType, RECORD_TYPE_LABELS } from "@/domain/recordTypes";
 import { isAuthorityStatus, type AuthorityStatus } from "@/domain/statuses";
+import { isMarkerGroup, type MarkerGroup } from "@/world/mapMarkers";
 import type { Db, DbOrTx, Tx } from "../db";
 import { writeAudit } from "./auditService";
 import { MutationRejectedError, NotFoundError } from "./errors";
 
 /*
- * World maps: an existing RecordImage as backdrop with pins to World records.
- * Pin xNorm/yNorm are fractions of image width/height (0–1) so alignment survives
- * resize. Several maps may pin the same place. Moving pins never creates or
- * changes PlaceRelation rows.
+ * World maps: a RecordImage backdrop with markers. A marker may link a
+ * reference record, another map, or both. xNorm/yNorm are fractions of image
+ * width/height (0–1) so alignment survives resize. Several maps may mark the
+ * same place. Moving markers never creates or changes PlaceRelation rows.
  *
  * Trash:
  * - Soft-trashed image host record → map omitted from lists / NotFound on open.
- * - Soft-trashed pin target → pin kept but marked unavailable (not opened in rail).
- * - Permanent image delete → maps using that image are deleted (with pins).
- * - Permanent record delete → pins for that record are deleted.
+ * - Soft-trashed reference target → marker kept but marked unavailable.
+ * - Soft-trashed detailed-map host → marker kept; Open detailed map is disabled.
+ * - Permanent image delete → maps using that image are deleted (with markers).
+ * - Permanent record delete → markers for that record are deleted.
+ * - Deleting a map clears links that opened it and keeps the other markers.
  */
 
 const UI_ACTOR = "author";
@@ -36,14 +39,27 @@ export interface WorldMapSummary {
 export interface WorldMapPinView {
   id: string;
   mapId: string;
-  recordId: string;
+  recordId: string | null;
+  targetMapId: string | null;
+  targetMapTitle: string | null;
+  /** True when a detailed-map link is set but that map cannot be opened. */
+  targetUnavailable: boolean;
+  markerGroup: MarkerGroup;
+  label: string;
   xNorm: number;
   yNorm: number;
   title: string;
   typeLabel: string;
-  authorityStatus: AuthorityStatus;
-  /** True when the linked record is in the Trash (pin kept until permanent delete). */
+  authorityStatus: AuthorityStatus | null;
+  /** True when the linked record is in the Trash (marker kept until permanent delete). */
   unavailable: boolean;
+}
+
+export interface WorldMapPinLinks {
+  recordId?: string | null;
+  targetMapId?: string | null;
+  markerGroup?: string | null;
+  label?: string | null;
 }
 
 export interface WorldMapView {
@@ -120,6 +136,13 @@ export async function getWorldMap(db: DbOrTx, projectId: string, mapId: string):
           record: {
             select: { id: true, title: true, type: true, authorityStatus: true, trashedAt: true },
           },
+          targetMap: {
+            select: {
+              id: true,
+              title: true,
+              image: { select: { record: { select: { trashedAt: true } } } },
+            },
+          },
         },
       },
     },
@@ -138,19 +161,33 @@ export async function getWorldMap(db: DbOrTx, projectId: string, mapId: string):
     hostRecordTitle: map.image.record.title,
     createdAt: map.createdAt,
     updatedAt: map.updatedAt,
-    pins: map.pins.flatMap((p) => {
-      if (!isRecordType(p.record.type) || !isAuthorityStatus(p.record.authorityStatus)) return [];
+    pins: map.pins.flatMap((p): WorldMapPinView[] => {
+      const record = p.record;
+      const linked =
+        record && isRecordType(record.type) && isAuthorityStatus(record.authorityStatus)
+          ? { id: record.id, title: record.title, type: record.type, authorityStatus: record.authorityStatus, trashedAt: record.trashedAt }
+          : null;
+      if (p.recordId && !linked) return [];
+      const target = p.targetMap;
+      const targetLive = Boolean(target && !target.image.record.trashedAt);
+      const label = p.label.trim();
+      const title = label || linked?.title || target?.title || "Marker";
       return [
         {
           id: p.id,
           mapId: p.mapId,
-          recordId: p.recordId,
+          recordId: linked?.id ?? null,
+          targetMapId: p.targetMapId,
+          targetMapTitle: target?.title ?? null,
+          targetUnavailable: Boolean(p.targetMapId) && !targetLive,
+          markerGroup: isMarkerGroup(p.markerGroup) ? p.markerGroup : "places",
+          label: p.label,
           xNorm: p.xNorm,
           yNorm: p.yNorm,
-          title: p.record.title,
-          typeLabel: RECORD_TYPE_LABELS[p.record.type],
-          authorityStatus: p.record.authorityStatus,
-          unavailable: p.record.trashedAt !== null,
+          title,
+          typeLabel: linked ? RECORD_TYPE_LABELS[linked.type] : "",
+          authorityStatus: linked ? linked.authorityStatus : null,
+          unavailable: Boolean(p.recordId) && (!record || record.trashedAt !== null),
         },
       ];
     }),
@@ -192,6 +229,43 @@ export async function createWorldMap(
   });
 }
 
+/** Uploads one image and creates the map in the same transaction. A failure leaves no image. */
+export async function createWorldMapWithUpload(
+  db: Db,
+  projectId: string,
+  input: { title: string; recordId: string; confirmProtected: boolean; file: { filename: string; bytes: Uint8Array } },
+): Promise<WorldMapView> {
+  const title = input.title.trim();
+  if (!title) throw rejected("Give the map a title.");
+  const { validateImageFiles, insertRecordImagesInTx } = await import("./imageService");
+  const { issues, infos } = validateImageFiles([input.file]);
+  if (issues.length) throw new MutationRejectedError(issues);
+  const info = infos[0];
+  if (!info) throw new MutationRejectedError(issues);
+
+  return db.$transaction(async (tx) => {
+    const project = await tx.project.findFirst({ where: { id: projectId, trashedAt: null }, select: { id: true } });
+    if (!project) throw new NotFoundError(`Project ${projectId} not found`);
+    const created = await insertRecordImagesInTx(tx, projectId, input.recordId, [input.file], [info], {
+      confirmProtected: input.confirmProtected,
+    });
+    const image = created[0];
+    if (!image) throw rejected("That image could not be stored.");
+    const id = newId("wmp");
+    await tx.worldMap.create({
+      data: { id, projectId, title, imageId: image.id },
+    });
+    await writeAudit(tx, {
+      projectId,
+      action: "world_map.create",
+      actor: UI_ACTOR,
+      summary: `Created map "${title}" on uploaded image "${image.name}"`,
+      details: { mapId: id, imageId: image.id, hostRecordId: input.recordId },
+    });
+    return getWorldMap(tx, projectId, id);
+  });
+}
+
 export async function renameWorldMap(db: Db, projectId: string, mapId: string, title: string): Promise<WorldMapView> {
   const next = title.trim();
   if (!next) throw rejected("Give the map a title.");
@@ -213,6 +287,7 @@ export async function deleteWorldMap(db: Db, projectId: string, mapId: string): 
   await db.$transaction(async (tx) => {
     const map = await tx.worldMap.findFirst({ where: { id: mapId, projectId } });
     if (!map) throw new NotFoundError(`Map ${mapId} not found`);
+    await detachDetailLinks(tx, [mapId], () => map.title);
     await tx.worldMapPin.deleteMany({ where: { mapId } });
     await tx.worldMap.delete({ where: { id: mapId } });
     await writeAudit(tx, {
@@ -229,34 +304,74 @@ export async function addWorldMapPin(
   db: Db,
   projectId: string,
   mapId: string,
-  input: { recordId: string; xNorm: number; yNorm: number },
+  input: WorldMapPinLinks & { xNorm: number; yNorm: number },
 ): Promise<WorldMapPinView> {
   return db.$transaction(async (tx) => {
     await requireLiveMap(tx, projectId, mapId);
-    const record = await tx.record.findFirst({
-      where: { id: input.recordId, projectId, trashedAt: null },
-      select: { id: true, title: true, type: true, authorityStatus: true },
-    });
-    if (!record) throw rejected("That place is not in this project.", input.recordId);
-    if (!isRecordType(record.type) || !isLinkableReferenceType(record.type)) {
-      throw rejected("Only reference records can be pinned on a map.", input.recordId);
-    }
+    const links = await resolvePinLinks(tx, projectId, mapId, input);
     const id = newId("wpn");
     const xNorm = clampNorm(input.xNorm);
     const yNorm = clampNorm(input.yNorm);
     await tx.worldMapPin.create({
-      data: { id, mapId, projectId, recordId: record.id, xNorm, yNorm },
+      data: {
+        id,
+        mapId,
+        projectId,
+        recordId: links.recordId,
+        targetMapId: links.targetMapId,
+        markerGroup: links.markerGroup,
+        label: links.label,
+        xNorm,
+        yNorm,
+      },
     });
     await tx.worldMap.update({ where: { id: mapId }, data: { updatedAt: new Date() } });
     await writeAudit(tx, {
       projectId,
       action: "world_map_pin.add",
       actor: UI_ACTOR,
-      summary: `Pinned "${record.title}" on a map`,
-      details: { mapId, pinId: id, recordId: record.id, xNorm, yNorm },
+      summary: `Marked "${links.summary}" on a map`,
+      details: { mapId, pinId: id, recordId: links.recordId, targetMapId: links.targetMapId, xNorm, yNorm },
     });
     const view = await getWorldMap(tx, projectId, mapId);
     return view.pins.find((p) => p.id === id)!;
+  });
+}
+
+/** Changes what a marker opens. Coordinates stay put. */
+export async function updateWorldMapPin(
+  db: Db,
+  projectId: string,
+  mapId: string,
+  pinId: string,
+  input: WorldMapPinLinks,
+): Promise<WorldMapPinView> {
+  return db.$transaction(async (tx) => {
+    await requireLiveMap(tx, projectId, mapId);
+    const pin = await tx.worldMapPin.findFirst({ where: { id: pinId, mapId, projectId } });
+    if (!pin) throw rejected("That pin is not on this map.");
+    const links = await resolvePinLinks(tx, projectId, mapId, input);
+    await tx.worldMapPin.update({
+      where: { id: pinId },
+      data: {
+        recordId: links.recordId,
+        targetMapId: links.targetMapId,
+        markerGroup: links.markerGroup,
+        label: links.label,
+      },
+    });
+    await tx.worldMap.update({ where: { id: mapId }, data: { updatedAt: new Date() } });
+    await writeAudit(tx, {
+      projectId,
+      action: "world_map_pin.update",
+      actor: UI_ACTOR,
+      summary: `Updated marker "${links.summary}"`,
+      details: { mapId, pinId, recordId: links.recordId, targetMapId: links.targetMapId },
+    });
+    const view = await getWorldMap(tx, projectId, mapId);
+    const found = view.pins.find((p) => p.id === pinId);
+    if (!found) throw rejected("That pin is not on this map.");
+    return found;
   });
 }
 
@@ -311,6 +426,8 @@ export async function removeWorldMapPin(db: Db, projectId: string, mapId: string
 /** Deletes every map that uses this image (and their pins). Called before image row delete. */
 export async function deleteMapsForImageInTx(tx: Tx, projectId: string, imageId: string): Promise<string[]> {
   const maps = await tx.worldMap.findMany({ where: { projectId, imageId }, select: { id: true, title: true } });
+  const titles = new Map(maps.map((m) => [m.id, m.title]));
+  await detachDetailLinks(tx, maps.map((m) => m.id), (id) => titles.get(id) ?? "Map");
   for (const m of maps) {
     await tx.worldMapPin.deleteMany({ where: { mapId: m.id } });
     await tx.worldMap.delete({ where: { id: m.id } });
@@ -332,4 +449,49 @@ async function requireLiveMap(tx: Tx, projectId: string, mapId: string) {
   });
   if (!map || map.image.record.trashedAt) throw new NotFoundError(`Map ${mapId} not found`);
   return map;
+}
+
+async function detachDetailLinks(tx: Tx, mapIds: string[], titleFor: (mapId: string) => string) {
+  if (!mapIds.length) return;
+  const pins = await tx.worldMapPin.findMany({ where: { targetMapId: { in: mapIds } } });
+  for (const pin of pins) {
+    if (!pin.targetMapId) continue;
+    await tx.worldMapPin.update({
+      where: { id: pin.id },
+      data: { targetMapId: null, label: pin.label.trim() || titleFor(pin.targetMapId) },
+    });
+  }
+}
+
+async function resolvePinLinks(tx: Tx, projectId: string, mapId: string, input: WorldMapPinLinks) {
+  const recordId = input.recordId?.trim() || null;
+  const targetMapId = input.targetMapId?.trim() || null;
+  if (!recordId && !targetMapId) throw rejected("Link a reference, a detailed map, or both.");
+  if (targetMapId === mapId) throw rejected("A marker cannot open the map it is already on.");
+  const markerGroup: MarkerGroup = isMarkerGroup(input.markerGroup) ? input.markerGroup : "places";
+  const label = (input.label ?? "").trim().slice(0, 120);
+  let recordTitle = "";
+  if (recordId) {
+    const record = await tx.record.findFirst({
+      where: { id: recordId, projectId, trashedAt: null },
+      select: { id: true, title: true, type: true },
+    });
+    if (!record) throw rejected("That place is not in this project.", recordId);
+    if (!isRecordType(record.type) || !isLinkableReferenceType(record.type)) {
+      throw rejected("Only reference records can be pinned on a map.", recordId);
+    }
+    recordTitle = record.title;
+  }
+  let mapTitle = "";
+  if (targetMapId) {
+    const target = await requireLiveMap(tx, projectId, targetMapId);
+    mapTitle = target.title;
+  }
+  return {
+    recordId,
+    targetMapId,
+    markerGroup,
+    label,
+    summary: [recordTitle, mapTitle, label].filter(Boolean).join(" · ") || "marker",
+  };
 }

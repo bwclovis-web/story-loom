@@ -141,7 +141,7 @@ describe("Step 0 upgrade rehearsal (isolated)", () => {
       expect(maps).toHaveLength(1);
       const pins = await copy.db.worldMapPin.findMany({ where: { mapId: maps[0]!.id } });
       expect(pins).toHaveLength(1);
-      const pinRecord = await copy.db.record.findUniqueOrThrow({ where: { id: pins[0]!.recordId } });
+      const pinRecord = await copy.db.record.findUniqueOrThrow({ where: { id: pins[0]!.recordId! } });
       expect(pinRecord.type).toBe("character_dossier");
       expect(pinRecord.title).toContain("Ivo");
     } finally {

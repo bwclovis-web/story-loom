@@ -1,4 +1,5 @@
 import { HelpHint } from "@/components/HelpHint";
+import { Banner } from "@/components/ui/Banner";
 import { inspectAdapter, inspectAssistant, type ConnectionState } from "@/mcp/status";
 import { getDb } from "@/server/db";
 import { readGrantSettings } from "@/server/services/grantSettingsService";
@@ -105,16 +106,16 @@ export default async function ConnectionsPage() {
         <p className="small muted">
           {CONNECTIONS.grantIntro} <code>{grantSettings.filePath}</code>
         </p>
-        {grantSettings.disabledByEnvironment ? <div className="banner warn">{CONNECTIONS.grantDisabledByEnv}</div> : null}
+        {grantSettings.disabledByEnvironment ? <Banner tone="warn">{CONNECTIONS.grantDisabledByEnv}</Banner> : null}
         {grantUnreadable ? (
-          <div className="banner error">
+          <Banner tone="error">
             {CONNECTIONS.grantFileInvalid}
             <ul>
               {grantLoad.problems.map((problem) => (
                 <li key={problem}>{problem}</li>
               ))}
             </ul>
-          </div>
+          </Banner>
         ) : (
           <GrantSettingsForm
             workspaces={workspaces.map((w) => ({ id: w.id, name: w.name, projects: w.projects.map((p) => ({ id: p.id, title: p.title })) }))}

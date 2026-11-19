@@ -344,44 +344,52 @@ model RecordImage {
   @@index([projectId])
 }
 
-/// A World map: an existing reference image used as a backdrop with pins to
-/// places. Pin positions are normalized (0–1) relative to the image so they
-/// stay aligned when the map is resized. Several maps may pin the same place.
-/// Not revisioned. Soft-trashed image/record: map or pin hidden; permanent
-/// delete of the image removes the map; permanent delete of a linked record
-/// removes its pins only.
+/// A World map: an existing reference image used as a backdrop with markers.
+/// Marker positions are normalized (0–1) relative to the image so they stay
+/// aligned when the map is resized. A marker may link a reference, another
+/// map, or both. Not revisioned. Soft-trashed image/record: map or marker
+/// hidden or marked unavailable; permanent delete of the image removes the
+/// map; permanent delete of a linked record removes markers that point at it.
 model WorldMap {
-  id        String       @id
-  projectId String
-  project   Project      @relation(fields: [projectId], references: [id])
-  title     String
-  imageId   String
-  image     RecordImage  @relation(fields: [imageId], references: [id])
-  createdAt DateTime     @default(now())
-  updatedAt DateTime     @updatedAt
-  pins      WorldMapPin[]
+  id         String        @id
+  projectId  String
+  project    Project       @relation(fields: [projectId], references: [id])
+  title      String
+  imageId    String
+  image      RecordImage   @relation(fields: [imageId], references: [id])
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+  pins       WorldMapPin[] @relation("MapPins")
+  detailPins WorldMapPin[] @relation("MapDetail")
 
   @@index([projectId])
   @@index([imageId])
 }
 
-/// A pin on a World map. xNorm/yNorm are fractions of image width/height (0–1).
-/// Moving a pin never creates or changes PlaceRelation rows.
+/// A marker on a World map. xNorm/yNorm are fractions of image width/height (0–1).
+/// recordId and targetMapId are each optional, but a new marker needs at least one.
+/// markerGroup is places | waterways | transport | story. Moving a marker never
+/// creates or changes PlaceRelation rows.
 model WorldMapPin {
-  id        String   @id
-  mapId     String
-  map       WorldMap @relation(fields: [mapId], references: [id], onDelete: Cascade)
-  projectId String
-  project   Project  @relation(fields: [projectId], references: [id])
-  recordId  String
-  record    Record   @relation(fields: [recordId], references: [id])
-  xNorm     Float
-  yNorm     Float
-  createdAt DateTime @default(now())
+  id          String    @id
+  mapId       String
+  map         WorldMap  @relation("MapPins", fields: [mapId], references: [id], onDelete: Cascade)
+  projectId   String
+  project     Project   @relation(fields: [projectId], references: [id])
+  recordId    String?
+  record      Record?   @relation(fields: [recordId], references: [id])
+  targetMapId String?
+  targetMap   WorldMap? @relation("MapDetail", fields: [targetMapId], references: [id], onDelete: SetNull)
+  markerGroup String    @default("places")
+  label       String    @default("")
+  xNorm       Float
+  yNorm       Float
+  createdAt   DateTime  @default(now())
 
   @@index([mapId])
   @@index([projectId])
   @@index([recordId])
+  @@index([targetMapId])
 }
 
 /// Explicit World place relationship. Not revisioned; independent of board/map

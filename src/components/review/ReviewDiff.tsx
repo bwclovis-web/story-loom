@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { IssueList } from "@/components/IssueList";
+import { Banner } from "@/components/ui/Banner";
 import type { JsonValue } from "@/domain/json";
 import { RECORD_TYPE_LABELS } from "@/domain/recordTypes";
 import type { OperationPreview } from "@/server/services/changePackageService";
@@ -215,7 +216,9 @@ export function ReviewDiff({ record, projectId, headingId }: { record: ReviewRec
               </p>
             ) : null}
             {stale && op.expectedRevision !== null && op.currentRevision !== null ? (
-              <p className="banner warn small">{REVIEW.staleRecord(op.expectedRevision, op.currentRevision)}</p>
+              <Banner tone="warn" className="small">
+                {REVIEW.staleRecord(op.expectedRevision, op.currentRevision)}
+              </Banner>
             ) : null}
             <IssueList issues={op.issues} />
             {op.note ? (

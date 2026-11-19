@@ -1419,15 +1419,38 @@ button.plot-grid-blank-add:focus-visible {
   text-transform: uppercase; color: var(--color-text-muted);
 }
 .rail-empty { margin: 0; font-size: 0.85rem; color: var(--color-text-muted); }
+.map-viewport {
+  width: 100%;
+  max-width: 56rem;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-2, var(--color-surface));
+  touch-action: none;
+}
+.map-mode-browse { cursor: grab; }
+.map-mode-edit { cursor: crosshair; }
+.map-stage { transform-origin: 0 0; }
+.map-mode { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin: 0.5rem 0; }
+.map-legend {
+  display: flex; flex-wrap: wrap; gap: 0.75rem 1rem; align-items: center;
+  margin: 0.5rem 0; border: 0; padding: 0;
+}
+.map-legend legend { padding: 0; margin-right: 0.25rem; }
+.map-legend label { display: inline-flex; align-items: center; gap: 0.35rem; min-height: 2.75rem; }
+.map-legend-swatch { width: 0.75rem; height: 0.75rem; border-radius: 50%; border: 2px solid var(--color-surface); }
+.map-group-places { background: var(--color-accent); }
+.map-group-waterways { background: var(--color-ok, #2f6f4e); }
+.map-group-transport { background: var(--color-warn, #a15c12); }
+.map-group-story { background: var(--color-violet, #5b4b8a); }
+.map-trail ol { display: flex; flex-wrap: wrap; gap: 0.35rem 0.75rem; list-style: none; margin: 0 0 0.5rem; padding: 0; }
+.map-trail button { background: transparent; color: var(--color-accent); padding: 0.35rem 0; min-height: 2.75rem; }
+.map-place-fields { flex-wrap: wrap; }
+label.map-source-choice { flex-direction: row; align-items: center; justify-content: flex-start; gap: 0.45rem; min-height: 2.75rem; }
 .map-surface {
   position: relative;
   width: 100%;
-  max-width: 56rem;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  overflow: hidden;
   background: var(--color-surface-2, var(--color-surface));
-  cursor: crosshair;
   user-select: none;
 }
 .map-backdrop {
@@ -1438,26 +1461,44 @@ button.plot-grid-blank-add:focus-visible {
 }
 .map-pin {
   position: absolute;
-  transform: translate(-50%, -50%);
-  width: 1.5rem;
-  height: 1.5rem;
+  transform: translate(-50%, -0.7rem);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+  min-width: 2.75rem;
+  min-height: 2.75rem;
   padding: 0;
   border: none;
   background: transparent;
-  cursor: grab;
+  color: var(--color-text);
+  cursor: pointer;
   z-index: 2;
 }
-.map-pin:active { cursor: grabbing; }
+.map-mode-edit .map-pin { cursor: grab; }
+.map-mode-edit .map-pin:active { cursor: grabbing; }
+.map-pin-label {
+  max-width: 8rem;
+  font-size: 0.75rem;
+  line-height: 1.2;
+  color: var(--color-text);
+  background: color-mix(in srgb, var(--color-surface) 90%, transparent);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 0.1rem 0.35rem;
+}
 .map-pin-dot {
   display: block;
   width: 0.85rem;
   height: 0.85rem;
-  margin: 0.325rem auto;
   border-radius: 50%;
   background: var(--color-accent);
   border: 2px solid var(--color-surface);
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-accent) 50%, transparent);
 }
+.map-pin[data-group="waterways"] .map-pin-dot { background: var(--color-ok, #2f6f4e); }
+.map-pin[data-group="transport"] .map-pin-dot { background: var(--color-warn, #a15c12); }
+.map-pin[data-group="story"] .map-pin-dot { background: var(--color-violet, #5b4b8a); }
 .map-pin.selected .map-pin-dot {
   box-shadow: 0 0 0 3px var(--color-accent-soft);
 }

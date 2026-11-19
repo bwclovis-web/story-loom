@@ -234,8 +234,9 @@ export function HelpContent() {
 
         <Sub id="optional-maps">
           <p>
-            <L>{WORLD.maps}</L> use a reference image as a backdrop. Pins link to World records; selecting a pin opens
-            that record. Moving a pin never creates a place relationship. Details: <See anchor="world-maps" />.
+            <L>{WORLD.maps}</L> use an uploaded image or an existing reference image as a backdrop. A marker can open a
+            reference, another map, or both. <L>{WORLD.mapModeBrowse}</L> pans the map; <L>{WORLD.mapModeEdit}</L> moves
+            markers. Details: <See anchor="world-maps" />.
           </p>
         </Sub>
 
@@ -1331,28 +1332,40 @@ export function HelpContent() {
 
         <Sub id="world-maps">
           <p>
-            <L>{WORLD.maps}</L> use an existing reference image as a backdrop. Create a map from{" "}
-            <L>{WORLD.newMap}</L>, choose the image, then place pins that link to World records. Pin positions are stored
-            as fractions of the image width and height (0–1), so they stay aligned when the map is resized.
+            <L>{WORLD.maps}</L> use a reference image as a backdrop. <L>{WORLD.newMap}</L> offers{" "}
+            <L>{WORLD.mapSourceUpload}</L> or <L>{WORLD.mapSourceExisting}</L>. An upload is stored with the same image
+            rules as a reference document, including the protection tick, and the image is kept only when the map is
+            created. Marker positions are fractions of the image width and height (0–1), so they stay aligned when the
+            map is resized.
           </p>
           <ul>
             <li>
-              The same place can appear on several maps. Selecting a pin (on the image or in the keyboard-accessible pin
-              list) opens that exact reference in the same inspector a board card uses — the record the pin stores, not a
-              guessed match. Map drawing tools beyond placing and moving pins are not part of this screen.
+              A marker can link a reference, another map, or both. <L>{WORLD.openReference}</L> opens the record.{" "}
+              <L>{WORLD.openDetailedMap}</L> opens that map and keeps a path you can follow back. Zoom and pan are
+              restored for the map you return to. The same place can appear on several maps.
             </li>
             <li>
-              <L>{WORLD.removePin}</L> removes the pin from that map only. Moving a pin never creates or changes a place
-              relationship (see <See anchor="place-relations" />).
+              <L>{WORLD.mapModeBrowse}</L> pans and zooms without moving markers. <L>{WORLD.mapModeEdit}</L> places and
+              drags them. Groups — <L>{WORLD.markerGroupPlaces}</L>, <L>{WORLD.markerGroupWaterways}</L>,{" "}
+              <L>{WORLD.markerGroupTransport}</L>, and <L>{WORLD.markerGroupStory}</L> — can be hidden from the legend.
+              The marker list can be searched and moved with the keyboard. Selecting a marker opens the same inspector a
+              board card uses when it links a reference. Freehand drawing is not part of this screen.
             </li>
             <li>
-              Soft-trashing the image&apos;s host record hides the map until restore. Soft-trashing a pinned place keeps
-              the pin but marks it unavailable. Permanently deleting the image deletes maps that used it; permanently
-              deleting a pinned record removes its pins (and place relationships involving that record).
+              <L>{WORLD.removePin}</L> removes the marker from that map only. Moving a marker never creates or changes a
+              place relationship (see <See anchor="place-relations" />).
+            </li>
+            <li>
+              Soft-trashing the image&apos;s host record hides the map until restore. Soft-trashing a linked reference
+              keeps the marker and marks it unavailable. A missing or trashed detailed map stays on the marker with{" "}
+              <L>{WORLD.openDetailedMap}</L> disabled. Permanently deleting the image deletes maps that used it;
+              permanently deleting a linked record removes markers that point at that record.
             </li>
           </ul>
           <p>
-            Maps and pins are included in workspace backups. Older backups that omit them restore with no maps.
+            Maps and markers are included in workspace backups. Older backups that omit maps restore with none. Older
+            backups that have pins but omit the newer marker fields restore those pins as Places, still linked to the
+            same records, at the same positions.
           </p>
         </Sub>
 
@@ -3186,7 +3199,7 @@ export function HelpContent() {
             or other subjects. Optional outlines add headings inside the document you already have; they do not change
             its type. The reference inspector has Overview, Sections, Images, Relationships, and Established in when
             the record supports it. There is no Open questions tab; open questions are a heading you can add with an
-            outline. Map drawing, beyond placing and moving pins, is not available.
+            outline. Maps can be browsed, zoomed, and marked. Freehand drawing is not available.
           </li>
           <li>The browser&apos;s Back button does not warn about unsaved changes.</li>
           <li>Find and replace works on one record&apos;s text at a time, with literal text only.</li>

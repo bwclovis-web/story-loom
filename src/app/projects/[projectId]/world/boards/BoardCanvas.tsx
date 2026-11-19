@@ -13,7 +13,9 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import { IssueList } from "@/components/IssueList";
+import { BoardOverflowMenu } from "@/components/ui/BoardOverflowMenu";
 import { Button } from "@/components/ui/Button";
+import { CanvasToolbar, CanvasToolbarGroup } from "@/components/ui/CanvasToolbar";
 import { IconButton } from "@/components/ui/IconButton";
 import { ReferenceInspector } from "@/components/world/ReferenceInspector";
 import { ContextRail, ContextRailToggle, useContextRail } from "@/components/shell/ContextRail";
@@ -21,7 +23,7 @@ import { CloseIcon } from "@/components/shell/icons";
 import type { Issue } from "@/domain/issues";
 import type { BoardCardView, BoardView } from "@/server/services/boardService";
 import type { LoadedInspector } from "@/server/services/referenceInspectorService";
-import { SHELL, WORLD, WRITE } from "@/ui/labels";
+import { WORLD, WRITE } from "@/ui/labels";
 import { inspectReferenceAction } from "../inspectorActions";
 import { AskAboutBoard } from "./AskAboutBoard";
 import {
@@ -229,8 +231,8 @@ export function BoardCanvas({
 
         <IssueList issues={issues} />
 
-        <div className="board-toolbar board-toolbar-compact" role="toolbar" aria-label={WORLD.boardCanvas}>
-          <div className="board-toolbar-group">
+        <CanvasToolbar label={WORLD.boardCanvas}>
+          <CanvasToolbarGroup>
             <label>
               <span className="sr-only">{WORLD.addRecordCard}</span>
               <select
@@ -263,7 +265,6 @@ export function BoardCanvas({
             </label>
             <Button
               type="button"
-             
               disabled={pending}
               onClick={() => {
                 const { x, y } = dropPoint();
@@ -283,12 +284,13 @@ export function BoardCanvas({
                   router.refresh();
                 });
               }}
-             size="sm">
+              size="sm"
+            >
               {WORLD.addNoteCard}
             </Button>
-          </div>
+          </CanvasToolbarGroup>
 
-          <div className="board-toolbar-group">
+          <CanvasToolbarGroup>
             <label className="small">
               <span className="sr-only">{WORLD.filterCardKind}</span>
               <select
@@ -304,25 +306,25 @@ export function BoardCanvas({
             </label>
             <Button
               type="button"
-             
               disabled={!selected}
               onClick={() => selected && fitRect([selected])}
-             variant="secondary" size="sm">
+              variant="secondary"
+              size="sm"
+            >
               {WORLD.fitSelection}
             </Button>
             <Button
               type="button"
-             
               disabled={!visibleCards.length}
               onClick={() => fitRect(visibleCards)}
-             variant="secondary" size="sm">
+              variant="secondary"
+              size="sm"
+            >
               {WORLD.fitAll}
             </Button>
-          </div>
+          </CanvasToolbarGroup>
 
-          <details className="board-overflow">
-            <summary>{SHELL.moreActions}</summary>
-            <div className="board-overflow-body">
+          <BoardOverflowMenu>
               <form
                 className="row"
                 style={{ gap: "0.35rem", flexWrap: "wrap" }}
@@ -384,7 +386,6 @@ export function BoardCanvas({
               ) : (
                 <Button
                   type="button"
-                 
                   disabled={pending}
                   onClick={() =>
                     startTransition(async () => {
@@ -397,13 +398,13 @@ export function BoardCanvas({
                       router.refresh();
                     })
                   }
-                 size="sm">
+                  size="sm"
+                >
                   {WORLD.confirmDeleteBoard(board.title)}
                 </Button>
               )}
-            </div>
-          </details>
-        </div>
+          </BoardOverflowMenu>
+        </CanvasToolbar>
 
         <div
           ref={surfaceRef}

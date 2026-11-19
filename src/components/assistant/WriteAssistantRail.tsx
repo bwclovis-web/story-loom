@@ -20,7 +20,8 @@ import {
 } from "@/components/shell/icons";
 import { ActionChip } from "@/components/ui/ActionChip";
 import { Button } from "@/components/ui/Button";
-import { IconButton } from "@/components/ui/IconButton";
+import { IconButton, iconButtonVariants } from "@/components/ui/IconButton";
+import { cn } from "@/ui/cn";
 import { PillLabel, PillSelect } from "@/components/ui/Pill";
 import type { RetrievalScope } from "@/assistant/tools";
 import type { ProposalView } from "@/server/services/assistantProposalService";
@@ -310,7 +311,7 @@ export function WriteAssistantRail({
             <MemoryIcon />
           </IconButton>
           <Link
-            className="icon-button tip tip-end"
+            className={cn(iconButtonVariants({ tip: "end" }))}
             href={expandHref}
             aria-label={ASSISTANT.expand}
             data-tooltip={ASSISTANT.expand}

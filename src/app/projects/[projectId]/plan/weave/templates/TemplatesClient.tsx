@@ -1,4 +1,5 @@
 "use client";
+import { Button } from "@/components/ui/Button";
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
@@ -57,9 +58,9 @@ export function TemplatesClient({
             {WEAVE.templateTitle}
             <input value={title} onChange={(e) => setTitle(e.target.value)} required />
           </label>
-          <button type="submit" disabled={pending}>
+          <Button type="submit" disabled={pending}>
             {WEAVE.createTemplate}
-          </button>
+          </Button>
         </form>
       </section>
 
@@ -80,9 +81,9 @@ export function TemplatesClient({
               ))}
             </ul>
             <div className="row" style={{ flexWrap: "wrap", gap: "0.5rem", marginTop: "0.75rem" }}>
-              <button
+              <Button
                 type="button"
-                className="secondary small-button"
+               
                 disabled={pending}
                 onClick={() =>
                   startTransition(async () => {
@@ -95,9 +96,9 @@ export function TemplatesClient({
                     else router.refresh();
                   })
                 }
-              >
+               variant="secondary" size="sm">
                 {WEAVE.addBeat}
-              </button>
+              </Button>
               <label>
                 {WEAVE.applyAsView}
                 <select
@@ -111,9 +112,9 @@ export function TemplatesClient({
                   ))}
                 </select>
               </label>
-              <button
+              <Button
                 type="button"
-                className="small-button"
+               
                 disabled={pending}
                 onClick={() =>
                   startTransition(async () => {
@@ -129,12 +130,12 @@ export function TemplatesClient({
                     );
                   })
                 }
-              >
+               size="sm">
                 {WEAVE.applyTemplate}
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
-                className="secondary small-button"
+               
                 disabled={pending}
                 onClick={() =>
                   startTransition(async () => {
@@ -143,9 +144,9 @@ export function TemplatesClient({
                     else router.refresh();
                   })
                 }
-              >
+               variant="secondary" size="sm">
                 {WEAVE.deleteTemplate}
-              </button>
+              </Button>
             </div>
           </section>
         ))

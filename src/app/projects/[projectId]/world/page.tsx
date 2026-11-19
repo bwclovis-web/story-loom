@@ -1,10 +1,12 @@
 import Link from "next/link";
-import { CanonBadge, ProtectionStateBadge, SavedVersionBadge } from "@/components/Badges";
+import { CanonBadge } from "@/components/Badges";
 import { OverflowDisclosure } from "@/components/shell/OverflowDisclosure";
 import { Breadcrumbs } from "@/components/ui/Breadcrumbs";
 import { ButtonLink } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { WorldRecordTableRow } from "@/components/ui/RecordRow";
+import { SearchPanel } from "@/components/ui/SearchPanel";
 import { WorldSurfaceNav } from "@/components/world/WorldSurfaceNav";
 import { stableStringify } from "@/domain/json";
 import { getDb } from "@/server/db";
@@ -73,14 +75,15 @@ export default async function WorldPage({
 
       {showHub ? (
         <>
-          <form role="search" action={worldHref(projectId)} method="get" className="panel world-hub-search" aria-label={WORLD.searchReferences}>
-            <label htmlFor="world-hub-q">{WORLD.searchReferences}</label>
-            <div className="row">
-              <input id="world-hub-q" type="search" name="q" placeholder={WORLD.searchReferences} />
-              <button type="submit">{WORLD.search}</button>
-            </div>
-            <p className="small muted">{WORLD.searchHint}</p>
-          </form>
+          <SearchPanel
+            action={worldHref(projectId)}
+            label={WORLD.searchReferences}
+            inputId="world-hub-q"
+            submitLabel={WORLD.search}
+            hint={WORLD.searchHint}
+            visibleLabel
+            className="world-hub-search"
+          />
           <section className="panel" aria-labelledby="world-recent-heading">
             <h2 id="world-recent-heading">{WORLD.recentReferences}</h2>
             {recent.length === 0 ? (
@@ -175,21 +178,16 @@ export default async function WorldPage({
               </thead>
               <tbody>
                 {listed.map((r) => (
-                  <tr key={r.id}>
-                    <td>
-                      <Link href={`${base}/records/${encodeURIComponent(r.id)}`}>{r.title}</Link>
-                    </td>
-                    {type ? null : <td className="small">{categoryLabel(r.type)}</td>}
-                    <td>
-                      <CanonBadge status={r.authorityStatus} />
-                    </td>
-                    <td>
-                      <SavedVersionBadge revision={r.currentRevision} />
-                    </td>
-                    <td>
-                      <ProtectionStateBadge isProtected={r.protected} />
-                    </td>
-                  </tr>
+                  <WorldRecordTableRow
+                    key={r.id}
+                    projectId={projectId}
+                    recordId={r.id}
+                    title={r.title}
+                    typeLabel={type ? undefined : categoryLabel(r.type)}
+                    authorityStatus={r.authorityStatus}
+                    currentRevision={r.currentRevision}
+                    isProtected={r.protected}
+                  />
                 ))}
               </tbody>
             </table>

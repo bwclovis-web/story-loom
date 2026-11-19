@@ -1,5 +1,6 @@
 import { DraftDefaultsPanel, VisitDraftSwitcher, type DraftOption } from "@/components/drafts/DraftControls";
 import { HelpHint } from "@/components/HelpHint";
+import { Banner } from "@/components/ui/Banner";
 import { isManuscriptType, isRecordType, RECORD_TYPE_LABELS, RECORD_TYPES, type RecordType } from "@/domain/recordTypes";
 import { getDb } from "@/server/db";
 import { resolveExportDraftId } from "@/server/draftSelection";
@@ -134,9 +135,7 @@ export default async function ExportPdfPage({
         <h2 id="pdf-references-heading">{PDF.referencesHeading}</h2>
         <p className="small muted">{PDF.referencesNote}</p>
         {initialSelection.length ? (
-          <div className="banner info" role="status">
-            {PDF.preselected(initialSelection.length)}
-          </div>
+          <Banner tone="info">{PDF.preselected(initialSelection.length)}</Banner>
         ) : null}
         {groups.length ? (
           <PdfReferencePicker action={pdfHref} groups={groups} initialSelection={initialSelection} />

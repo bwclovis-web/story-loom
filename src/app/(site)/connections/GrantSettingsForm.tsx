@@ -2,6 +2,8 @@
 
 import { useActionState } from "react";
 import { submitWithoutReset } from "@/components/submitWithoutReset";
+import { Banner } from "@/components/ui/Banner";
+import { Button } from "@/components/ui/Button";
 import { CONNECTIONS } from "@/ui/labels";
 import { saveGrantSettingsAction } from "./actions";
 
@@ -55,15 +57,11 @@ export function GrantSettingsForm({
       <p className="small muted">{CONNECTIONS.grantManuscriptHint}</p>
 
       <div className="row">
-        <button type="submit" disabled={pending}>
+        <Button type="submit" disabled={pending}>
           {pending ? CONNECTIONS.grantSaving : CONNECTIONS.grantSave}
-        </button>
+        </Button>
       </div>
-      {state ? (
-        <div className={`banner ${state.ok ? "ok" : "error"}`} role="status">
-          {state.message}
-        </div>
-      ) : null}
+      {state ? <Banner tone={state.ok ? "ok" : "error"}>{state.message}</Banner> : null}
     </form>
   );
 }

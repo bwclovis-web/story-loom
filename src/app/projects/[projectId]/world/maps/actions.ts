@@ -10,13 +10,17 @@ import {
   type PlaceRelationKind,
 } from "@/server/services/placeRelationService";
 import { MutationRejectedError, NotFoundError } from "@/server/services/errors";
+import { validateImageFiles } from "@/server/services/imageService";
 import {
   addWorldMapPin,
   createWorldMap,
+  createWorldMapWithUpload,
   deleteWorldMap,
   moveWorldMapPin,
   removeWorldMapPin,
   renameWorldMap,
+  updateWorldMapPin,
+  type WorldMapPinLinks,
 } from "@/server/services/worldMapService";
 
 function failure(error: unknown): { ok: false; issues: Issue[] } {
@@ -37,6 +41,34 @@ export async function createWorldMapAction(
 ): Promise<{ ok: true; mapId: string } | { ok: false; issues: Issue[] }> {
   try {
     const map = await createWorldMap(getDb(), projectId, input);
+    revalidateMaps(projectId, map.id);
+    return { ok: true, mapId: map.id };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+export async function createWorldMapUploadAction(
+  projectId: string,
+  formData: FormData,
+): Promise<{ ok: true; mapId: string } | { ok: false; issues: Issue[] }> {
+  const title = String(formData.get("title") ?? "");
+  const recordId = String(formData.get("recordId") ?? "");
+  const confirmProtected = formData.get("confirmProtected") === "on";
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size === 0) {
+    return { ok: false, issues: [errorIssue("IMAGE_INVALID", "Choose an image to upload.")] };
+  }
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const checked = validateImageFiles([{ filename: file.name, bytes }]);
+  if (checked.issues.length) return { ok: false, issues: checked.issues };
+  try {
+    const map = await createWorldMapWithUpload(getDb(), projectId, {
+      title,
+      recordId,
+      confirmProtected,
+      file: { filename: file.name, bytes },
+    });
     revalidateMaps(projectId, map.id);
     return { ok: true, mapId: map.id };
   } catch (error) {
@@ -74,10 +106,25 @@ export async function deleteWorldMapAction(
 export async function addWorldMapPinAction(
   projectId: string,
   mapId: string,
-  input: { recordId: string; xNorm: number; yNorm: number },
+  input: WorldMapPinLinks & { xNorm: number; yNorm: number },
 ) {
   try {
     const pin = await addWorldMapPin(getDb(), projectId, mapId, input);
+    revalidateMaps(projectId, mapId);
+    return { ok: true as const, pin };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+export async function updateWorldMapPinAction(
+  projectId: string,
+  mapId: string,
+  pinId: string,
+  input: WorldMapPinLinks,
+) {
+  try {
+    const pin = await updateWorldMapPin(getDb(), projectId, mapId, pinId, input);
     revalidateMaps(projectId, mapId);
     return { ok: true as const, pin };
   } catch (error) {

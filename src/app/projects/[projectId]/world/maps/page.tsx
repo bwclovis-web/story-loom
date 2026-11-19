@@ -12,6 +12,7 @@ import { isLinkableReferenceType } from "@/domain/recordTypes";
 import { isWorldType } from "@/ui/world";
 import { WorldSurfaceNav } from "@/components/world/WorldSurfaceNav";
 import { SHELL, WORLD } from "@/ui/labels";
+import { ClearMapTrail } from "./ClearMapTrail";
 import { CreateMapForm } from "./CreateMapForm";
 
 export const dynamic = "force-dynamic";
@@ -44,12 +45,18 @@ export default async function WorldMapsPage({ params }: { params: Promise<{ proj
       <PageHeader title={WORLD.maps} lead={WORLD.mapsLead} />
       <WorldSurfaceNav projectId={projectId} current="maps" />
       <HelpHint anchor="world-maps" topic="World maps">
-        Selecting a pin opens that place in the context rail. Moving pins never creates place relationships.
+        Upload a backdrop or choose an existing image. Markers can open a reference, another map, or both. Browse
+        pans the map; Edit moves markers.
       </HelpHint>
+      <ClearMapTrail projectId={projectId} />
 
       <section className="panel" aria-labelledby="new-map-heading">
         <h2 id="new-map-heading">{WORLD.newMap}</h2>
-        <CreateMapForm projectId={projectId} images={images} />
+        <CreateMapForm
+          projectId={projectId}
+          images={images}
+          hosts={records.map((record) => ({ id: record.id, title: record.title, isProtected: record.protected }))}
+        />
       </section>
 
       <section className="panel" aria-labelledby="maps-list-heading">

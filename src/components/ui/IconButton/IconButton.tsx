@@ -1,6 +1,6 @@
 "use client";
 
-import { forwardRef, type ButtonHTMLAttributes, type ReactNode } from "react";
+import { forwardRef, type AnchorHTMLAttributes, type ButtonHTMLAttributes, type ReactNode } from "react";
 import { iconButtonVariants, type IconButtonVariantProps } from "./iconButtonVariants";
 import { cn } from "@/ui/cn";
 
@@ -29,3 +29,19 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(functio
     </button>
   );
 });
+
+export type IconAnchorProps = AnchorHTMLAttributes<HTMLAnchorElement> &
+  IconButtonVariantProps & {
+    children: ReactNode;
+    tooltip?: string;
+  };
+
+/** Icon-styled anchor (in-page hash links, etc.). */
+export function IconAnchor({ className, tip, tooltip, children, ...props }: IconAnchorProps) {
+  const label = tooltip ?? (typeof props["aria-label"] === "string" ? props["aria-label"] : undefined);
+  return (
+    <a className={cn(iconButtonVariants({ tip }), className)} data-tooltip={label} {...props}>
+      {children}
+    </a>
+  );
+}

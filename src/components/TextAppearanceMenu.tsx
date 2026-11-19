@@ -3,6 +3,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { writePreference } from "@/components/shell/preferences";
 import { Button } from "@/components/ui/Button";
+import { IconButton } from "@/components/ui/IconButton";
 import { TEXT_APPEARANCE } from "@/ui/labels";
 import {
   DEFAULT_TEXT_APPEARANCE,
@@ -72,12 +73,10 @@ export function TextAppearanceMenu({ align = "right" }: { align?: "left" | "righ
 
   return (
     <div className="menu-wrap" ref={wrapRef}>
-      <button
+      <IconButton
         ref={buttonRef}
-        type="button"
-        className="icon-button tip tip-end"
+        tip="end"
         aria-label={TEXT_APPEARANCE.button}
-        data-tooltip={TEXT_APPEARANCE.button}
         aria-expanded={open}
         aria-controls={id}
         onClick={() => setOpen((o) => !o)}
@@ -85,7 +84,7 @@ export function TextAppearanceMenu({ align = "right" }: { align?: "left" | "righ
         <span aria-hidden="true" className="aa-icon">
           Aa
         </span>
-      </button>
+      </IconButton>
       <div id={id} className={`tool-menu text-appearance ${align}`} role="group" aria-label={TEXT_APPEARANCE.heading} hidden={!open}>
         <strong>{TEXT_APPEARANCE.heading}</strong>
         {choice("font", TEXT_APPEARANCE.font, TEXT_FONTS)}

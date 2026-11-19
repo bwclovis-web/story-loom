@@ -1,4 +1,5 @@
 "use client";
+import { Button } from "@/components/ui/Button";
 
 import Link from "next/link";
 import {
@@ -19,6 +20,7 @@ import { IssueList } from "@/components/IssueList";
 import { DraftScopeChip, type DraftOption } from "@/components/drafts/DraftControls";
 import { ContextRail, ContextRailToggle, useContextRail } from "@/components/shell/ContextRail";
 import { Banner } from "@/components/ui/Banner";
+import { IconAnchor, IconButton } from "@/components/ui/IconButton";
 import { HistoryIcon, MoreIcon } from "@/components/shell/icons";
 import { useLayout } from "@/components/shell/LayoutContext";
 import { setUnsaved } from "@/components/shell/unsaved";
@@ -333,26 +335,24 @@ export function WriteEditor(props: {
                 <p className={`save-status ${statusTone}`} role="status">
                   {saveStatus}
                 </p>
-                <button type="submit" className="small-button" disabled={pending} aria-keyshortcuts="Control+S" title={`${WRITE.save} (${shortcutHint("S")})`}>
+                <Button type="submit" disabled={pending} aria-keyshortcuts="Control+S" title={`${WRITE.save} (${shortcutHint("S")})`} size="sm">
                   {WRITE.save}
-                </button>
-                <a href="#history" className="icon-button tip" aria-label={WRITE.versionHistory} data-tooltip={WRITE.versionHistory}>
+                </Button>
+                <IconAnchor tip="tip" href="#history" aria-label={WRITE.versionHistory}>
                   <HistoryIcon />
-                </a>
+                </IconAnchor>
                 <ContextRailToggle rail={rail} controls={contextId} />
                 <TextAppearanceMenu />
                 <div className="menu-wrap">
-                  <button
-                    type="button"
-                    className="icon-button tip tip-end"
+                  <IconButton
+                    tip="end"
                     aria-label={WRITE.more}
-                    data-tooltip={WRITE.more}
                     aria-expanded={menuOpen}
                     aria-controls={`${idPrefix}-menu`}
                     onClick={() => setMenuOpen((open) => !open)}
                   >
                     <MoreIcon />
-                  </button>
+                  </IconButton>
                   <ul
                     id={`${idPrefix}-menu`}
                     className="tool-menu right"
@@ -428,9 +428,9 @@ export function WriteEditor(props: {
             {!state.ok ? <IssueList issues={state.issues ?? []} /> : null}
             {!state.ok && state.message ? <Banner tone="error">{state.message}</Banner> : null}
             {loadNote && (loadNote.tone !== "info" || dirty) ? (
-              <div className={`banner ${loadNote.tone === "error" ? "error" : ""} load-note`} role="status">
+              <Banner tone={loadNote.tone === "error" ? "error" : "info"} className="load-note">
                 {loadNote.text}
-              </div>
+              </Banner>
             ) : null}
             {props.isProtected ? (
               <div className="protect-bar">

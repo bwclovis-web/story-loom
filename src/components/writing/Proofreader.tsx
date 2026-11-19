@@ -328,7 +328,9 @@ export function Proofreader({
                 : PROOFREAD.noSuggestions
               : null}
           </p>
-          {result.errorMessage ? <div className={`banner ${result.status === "failed" ? "error" : ""}`}>{result.errorMessage}</div> : null}
+          {result.errorMessage ? (
+            <Banner tone={result.status === "failed" ? "error" : "info"}>{result.errorMessage}</Banner>
+          ) : null}
           {!editable && result.suggestions.length ? <ProtectionTick note={PROOFREAD.protectedNote} onUnlock={onUnlock} warning /> : null}
 
           {current && currentLoc ? (

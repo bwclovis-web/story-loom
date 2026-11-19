@@ -1,4 +1,5 @@
 "use client";
+import { Button } from "@/components/ui/Button";
 
 import { useState, useTransition } from "react";
 import { ProtectionBadge, StatusBadge } from "@/components/Badges";
@@ -95,17 +96,17 @@ export function ExportClient({
           {EXPORT.includeSchema}
         </label>
         <div className="row">
-          <button onClick={generate} disabled={pending || selected.size === 0}>
+          <Button onClick={generate} disabled={pending || selected.size === 0}>
             {EXPORT.generate(selected.size)}
-          </button>
+          </Button>
           {bundle ? (
             <>
-              <button className="secondary" onClick={download}>
+              <Button onClick={download} variant="secondary">
                 {EXPORT.download}
-              </button>
-              <button className="secondary" onClick={copy}>
+              </Button>
+              <Button onClick={copy} variant="secondary">
                 {copied ? EXPORT.copied : EXPORT.copy}
-              </button>
+              </Button>
             </>
           ) : null}
         </div>

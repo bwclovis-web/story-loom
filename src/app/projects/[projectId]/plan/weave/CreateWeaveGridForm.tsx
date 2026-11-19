@@ -1,4 +1,5 @@
 "use client";
+import { Button } from "@/components/ui/Button";
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
@@ -46,9 +47,9 @@ export function CreateWeaveGridForm({ projectId }: { projectId: string }) {
           ))}
         </select>
       </label>
-      <button type="submit" disabled={pending}>
+      <Button type="submit" disabled={pending}>
         {WEAVE.createGrid}
-      </button>
+      </Button>
       <IssueList issues={issues} />
     </form>
   );

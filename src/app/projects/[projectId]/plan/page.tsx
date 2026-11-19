@@ -62,9 +62,9 @@ export default async function PlanPage({ params }: { params: Promise<{ projectId
                           <Link href={`${base}/weave/${encodeURIComponent(g.id)}`}>{g.title}</Link>{" "}
                           <span className="small muted">{WEAVE.beatsCount(g.beatCount)}</span>
                         </div>
-                        <Link className="small-button" href={`${base}/weave/${encodeURIComponent(g.id)}`}>
+                        <ButtonLink href={`${base}/weave/${encodeURIComponent(g.id)}`} size="sm">
                           {WEAVE.openGrid}
-                        </Link>
+                        </ButtonLink>
                       </li>
                     ))}
                   </ul>

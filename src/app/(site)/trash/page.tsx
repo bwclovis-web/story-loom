@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { ActionButton, ConfirmAction } from "@/components/ConfirmAction";
 import { HelpHint } from "@/components/HelpHint";
+import { Banner } from "@/components/ui/Banner";
 import { RECORD_TYPE_LABELS } from "@/domain/recordTypes";
 import { getDb } from "@/server/db";
 import { listTrash, describeDeleteCounts } from "@/server/services/trashService";
@@ -25,10 +26,10 @@ function DeletedBanner({ query }: { query: Record<string, string | undefined> })
   if (!backup) return null;
   const counts = { workspaces: count(query.workspaces), projects: count(query.projects), records: count(query.records) };
   return (
-    <div className="banner ok" role="status">
+    <Banner tone="ok">
       Deleted permanently: {describeDeleteCounts(counts)}. A full backup was written first, to{" "}
       <code>backups/{backup}</code> in the project folder.
-    </div>
+    </Banner>
   );
 }
 
