@@ -1980,3 +1980,63 @@ increment only.
 
 Restore `backups/2026-11-19T01-18-09-049Z-pre-migrate` SQLite snapshot and check
 out the pre-feature commit.
+
+## Weave / World Board visual + interaction pass (Nov 19, 2026)
+
+Requested: cohesive visual/interaction pass starting with one Weave plot-grid,
+then shared patterns on World Board; selection rail with scene / World /
+setup→payoff; empty states, filters, fit-selection, keyboard; preserve unsaved
+edits across panel refresh; saved views only if the model supports them cleanly;
+browser verify desktop/narrow + light/dark with invented content.
+
+### Implemented
+
+- Shared canvas tokens in `globals.css`: toolbar groups, surface, card hierarchy,
+  selection, dimmed filter state, decision borders, link lines, rail sections.
+- `WeaveCanvas`: grouped toolbar; decision filter; fit selection/all; arrow /
+  Escape / Home; selection highlights setup→payoff SVG lines; right rail shows
+  scene, World cites, and setup→payoff for the selected beat; dirty title/notes
+  merge across `router.refresh`.
+- `BoardCanvas`: same toolbar/filter/fit/keyboard/empty patterns; note dirty
+  merge + live label while editing; rail sections for source vs remove.
+- Help (`plan-weave`, `world-boards`) documents the patterns. Camera/filter
+  **saved views** are not stored (only Weave create-time `viewKind`); documented
+  as the next increment.
+
+### Screenshots (invented Salt Archive content)
+
+| File | What |
+| --- | --- |
+| `docs/screenshots/ui-pass-weave-before-light.png` | Weave before polish (baseline) |
+| `docs/screenshots/ui-pass-weave-light-desktop.png` | Weave after, light, selection + link |
+| `docs/screenshots/ui-pass-weave-dark-desktop.png` | Weave after, dark |
+| `docs/screenshots/ui-pass-weave-dark-narrow.png` | Weave after, dark, narrow |
+| `docs/screenshots/ui-pass-weave-light-narrow.png` | Weave after, light, narrow |
+| `docs/screenshots/ui-pass-board-light-desktop.png` | Board after, light |
+| `docs/screenshots/ui-pass-board-dark-desktop.png` | Board after, dark |
+| `docs/screenshots/ui-pass-board-light-narrow.png` | Board after, light, narrow |
+
+### Verification
+
+| Check | Result |
+| --- | --- |
+| Browser Weave light/dark desktop + narrow | Selection rail + links observed on invented grid |
+| Browser Board light/dark desktop + narrow | Toolbar groups, rail source, invented cards |
+| `pnpm exec vitest run tests/unit/help.test.ts` | 4/4 passed |
+| `pnpm typecheck` | pass |
+| Working DB | Untouched schema; invented Weave/Board rows only on demo project |
+
+### Limits / next increment
+
+- Named camera or filter **saved views** for Weave/Board are not in the data
+  model; create-time Weave `viewKind` remains the only stored view classification.
+- Dev hydration warning from `ProjectNav` / Next overlay can appear on reload;
+  unrelated to canvas data.
+- Maps canvas not restyled in this pass (shared tokens exist for later reuse).
+- Stray default-titled Weave beat (“Beat”) left on the demo grid as invented
+  empty-state / no-decision content.
+
+### Rollback
+
+Checkout the pre-pass commit; invented demo Weave/Board rows can stay or be
+deleted from the UI (no migration).

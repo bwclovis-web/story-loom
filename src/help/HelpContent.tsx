@@ -1162,7 +1162,14 @@ export function HelpContent() {
           <p>
             Dragging a beat repositions it on the Weave grid only. It never changes book order or a scene&apos;s
             chapter (see <See anchor="book-order" />). Soft-trashed linked records stay on the beat as unavailable until
-            restore or permanent delete.
+            restore or permanent delete. Selecting a beat opens the shared context rail with notes, the linked scene,
+            World citations, and setup→payoff links that touch that beat; matching links draw on the grid. Filter by
+            decision, use <L>{WEAVE.fitSelection}</L> / <L>{WEAVE.fitAll}</L>, and move between beats with the arrow
+            keys. Unsaved title and notes stay when the page refreshes after a save elsewhere on the grid.
+          </p>
+          <p>
+            Camera or filter &ldquo;saved views&rdquo; beyond each grid&apos;s create-time view kind are not stored yet;
+            that is a next increment if needed.
           </p>
         </Sub>
 
@@ -1219,7 +1226,9 @@ export function HelpContent() {
             </li>
             <li>
               The same record can appear on several boards. Selecting a reference or image card opens its source in the
-              context rail (same collapse and resize behaviour as elsewhere in World).
+              context rail (same collapse and resize behaviour as elsewhere in World). Filter by card kind, use{" "}
+              <L>{WORLD.fitSelection}</L> / <L>{WORLD.fitAll}</L>, and move between cards with the arrow keys. Unsaved
+              note title and body stay when the board refreshes after another card save.
             </li>
             <li>
               <L>{WORLD.removeCard}</L> removes the card from that board only; the source record or image is unchanged.
@@ -1227,6 +1236,7 @@ export function HelpContent() {
           </ul>
           <p>
             Boards and cards are included in workspace backups. Older backups that omit them restore with no boards.
+            Named camera or filter views for a board are not stored yet; that is a next increment if needed.
           </p>
           <p>
             <L>{WORLD.askAboutBoard}</L> previews the linked records and their sections, then opens the assistant with
