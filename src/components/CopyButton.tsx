@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Button } from "@/components/ui/Button";
 
 export function CopyButton({ text, label = "Copy" }: { text: string; label?: string }) {
   const [state, setState] = useState<"idle" | "copied" | "failed">("idle");
@@ -14,9 +15,9 @@ export function CopyButton({ text, label = "Copy" }: { text: string; label?: str
   };
   return (
     <span className="row">
-      <button type="button" className="secondary" onClick={copy}>
+      <Button variant="secondary" size="sm" onClick={copy}>
         {state === "copied" ? "Copied" : label}
-      </button>
+      </Button>
       <span className="small muted" aria-live="polite">
         {state === "failed" ? "Could not copy. Select the text above and copy it yourself." : ""}
       </span>

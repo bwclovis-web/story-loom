@@ -1,5 +1,7 @@
 import Link from "next/link";
+import { buttonVariants } from "@/components/ui/Button";
 import type { ProposalView } from "@/server/services/assistantProposalService";
+import { cn } from "@/ui/cn";
 import { ASSISTANT } from "@/ui/labels";
 
 /** Compact proposal card for the Write rail and other dense surfaces. */
@@ -22,7 +24,7 @@ export function ProposalSummaryCard({ projectId, proposal }: { projectId: string
       </div>
       <p className="small">{detail}</p>
       <Link
-        className="button small-button"
+        className={cn(buttonVariants({ variant: "primary", size: "sm" }), "no-underline")}
         href={`/projects/${encodeURIComponent(projectId)}/assistant/proposals/${encodeURIComponent(proposal.id)}`}
       >
         {ASSISTANT.reviewProposal}

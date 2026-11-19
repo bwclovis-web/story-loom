@@ -2302,6 +2302,14 @@ Requested: correct Weave plot-grid screen to match attached design (toolbar, sti
 ### Rollback
 Restore WeaveCanvas / WeavePlotGrid / globals.css / labels / Help / page props from prior revision. Lantern fixture rows are invented demo DB only — do not reset the working database.
 
+## Tailwind + CVA Button (Nov 19, 2026)
+
+- Installed Tailwind v4 (`@tailwindcss/postcss`), `class-variance-authority`, `clsx`, `tailwind-merge`.
+- Preflight off: utilities only, so existing `globals.css` keeps working during migration.
+- `src/ui/cn.ts` + `src/components/ui/Button.tsx` with CVA variants (`primary` / `secondary` / `danger` / `outline` / `ghost` / `soft`) and sizes (`sm` / `md` / `lg` / `icon` / `chip`).
+- First consumers: `ActionChip`, `CopyButton`, Write assistant Send/Stop/Attach, `ProposalSummaryCard` review link via `buttonVariants`.
+- Restart `pnpm dev` after PostCSS config changes.
+
 ## Shared UI primitives from assistant rail (Nov 19, 2026)
 
 Extracted reusable pieces for app-wide use:

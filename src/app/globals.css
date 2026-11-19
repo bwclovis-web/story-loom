@@ -1,4 +1,26 @@
 /*
+ * Tailwind v4 (utilities + theme only — Preflight is off so legacy CSS keeps
+ * working while call sites migrate to `Button` / CVA components).
+ */
+@layer theme, base, components, utilities;
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
+
+/*
+ * Bridge existing Story Loom tokens into Tailwind utilities.
+ * Only reference differently named :root aliases (never --x: var(--x)).
+ */
+@theme inline {
+  --color-workspace: var(--bg);
+  --color-surface: var(--panel);
+  --color-ink: var(--text);
+  --color-muted: var(--muted);
+  --color-line: var(--border);
+  --color-accent: var(--accent);
+  --color-danger: var(--danger);
+}
+
+/*
  * Design tokens. Contrast (WCAG 2.2), measured against the background each is used on:
  *   text #1C1814 / workspace #FAF8F5 16.6:1; muted #6B645B / workspace 5.5:1, / white 5.8:1;
  *   accent #6E5618 / workspace 6.6:1, white on accent 7.0:1, accent / accent-soft 5.9:1;

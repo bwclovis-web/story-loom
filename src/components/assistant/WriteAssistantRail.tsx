@@ -19,6 +19,7 @@ import {
   SparkleIcon,
 } from "@/components/shell/icons";
 import { ActionChip } from "@/components/ui/ActionChip";
+import { Button } from "@/components/ui/Button";
 import { PillLabel, PillSelect } from "@/components/ui/Pill";
 import type { RetrievalScope } from "@/assistant/tools";
 import type { ProposalView } from "@/server/services/assistantProposalService";
@@ -471,30 +472,31 @@ export function WriteAssistantRail({
             {contextSummary}
           </button>
           <div className="assistant-composer-actions">
-            <button
-              type="button"
-              className="icon-button tip tip-end"
+            <Button
+              variant="ghost"
+              size="icon"
+              className="tip tip-end"
               aria-label={ASSISTANT.attachContext}
               data-tooltip={ASSISTANT.attachContext}
               disabled={!!live}
               onClick={() => (onOpenInclude ? onOpenInclude() : router.push(expandHref))}
             >
               <AttachIcon />
-            </button>
+            </Button>
             {live ? (
-              <button type="button" className="button assistant-send" onClick={() => void cancel()} aria-label={ASSISTANT.stop}>
+              <Button variant="primary" size="sm" onClick={() => void cancel()} aria-label={ASSISTANT.stop}>
                 {ASSISTANT.stop}
-              </button>
+              </Button>
             ) : (
-              <button
-                type="button"
-                className="button assistant-send"
+              <Button
+                variant="primary"
+                size="icon"
                 disabled={!configured || !question.trim()}
                 onClick={() => void submit("chat", question)}
                 aria-label={ASSISTANT.send}
               >
                 <SendIcon />
-              </button>
+              </Button>
             )}
           </div>
         </div>

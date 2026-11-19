@@ -1,14 +1,16 @@
 import type { ButtonHTMLAttributes, ReactNode } from "react";
+import { Button } from "@/components/ui/Button";
+import { cn } from "@/ui/cn";
 
-/** Compact pill action used in assistant suggestions, toolbars, and similar rails. */
+/** Compact pill action — thin wrapper over `Button` chip + outline. */
 export function ActionChip({
   children,
-  className = "",
+  className,
   ...rest
 }: ButtonHTMLAttributes<HTMLButtonElement> & { children: ReactNode }) {
   return (
-    <button type="button" className={`action-chip ${className}`.trim()} {...rest}>
+    <Button variant="outline" size="chip" className={cn(className)} {...rest}>
       {children}
-    </button>
+    </Button>
   );
 }
