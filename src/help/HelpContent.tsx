@@ -1180,21 +1180,26 @@ export function HelpContent() {
             never changes book order or a scene&apos;s chapter (see <See anchor="book-order" />).{" "}
             <L>{WEAVE.layoutPlotGrid}</L> shows scenes as rows grouped by collapsible chapters (for the current writing
             draft; chapter-only projects show chapter rows) and editable story-thread columns. Multiple beats can share
-            a cell; blank cells stay valid and can receive a beat inline. The Unplaced beats tray holds beats with no
-            scene link or a link outside the current draft. The toolbar switches view, filters by decision, sets
-            density, and adds beats. On narrow screens the grid becomes a single-thread scene list. Switching layout
-            keeps freeform positions and never reorders the manuscript — use Book order on Write for that.{" "}
+            a cell; blank cells stay valid and can receive a beat inline (subtle on desktop hover/focus; always
+            available by keyboard Enter and on touch). Sticky scene labels and thread headers stay visible while you
+            scroll. The collapsible Unplaced beats tray holds beats with no scene link or a link outside the current
+            draft. One toolbar sits above the grid: Grid / Freeform, Threads visibility, decision filter, density, and
+            gold <L>{WEAVE.addBeatPrimary}</L>. Compact scope chips show the project name as plain text; book switches
+            among series siblings when more than one exists; plan switches the Write draft when drafts exist. On narrow
+            screens the grid becomes a single-thread scene list. Switching layout keeps freeform positions and never
+            reorders the manuscript — use Book order on Write for that.{" "}
             <L>{WEAVE.openSceneInWrite}</L> opens the linked scene; Write&apos;s <L>{WRITE.plot}</L> tab shows the same
             beats.
           </p>
           <p>
             Soft-trashed linked records stay on the beat as unavailable until restore or permanent delete. Selecting a
-            beat opens the shared context rail with notes, the linked scene, story thread (in plot grid), World
-            citations, and setup→payoff links. On the freeform canvas, filter by decision, use{" "}
-            <L>{WEAVE.fitSelection}</L> / <L>{WEAVE.fitAll}</L>, and move between beats with the arrow keys. On the plot
-            grid, arrow keys move between cells; Enter selects or adds in a blank cell. Unsaved title and notes stay
-            when the page refreshes after a save elsewhere on the grid. Older projects open in freeform with their
-            existing canvas intact.
+            beat opens the shared context rail with thread, scene, note, setup/payoff links,{" "}
+            <L>{WEAVE.openSceneInWrite}</L>, and <L>{WEAVE.compareZeroDraft}</L> when the linked rewrite scene has pinned
+            Zero-draft sources (a chooser appears when several are pinned). On the freeform canvas, filter by decision,
+            use <L>{WEAVE.fitSelection}</L> / <L>{WEAVE.fitAll}</L>, and move between beats with the arrow keys. On the
+            plot grid, arrow keys move between cells; Enter selects or adds in a blank cell. Unsaved title and notes stay
+            across refreshes and draft switches on this grid. Older projects open in freeform with their existing canvas
+            intact.
           </p>
         </Sub>
 

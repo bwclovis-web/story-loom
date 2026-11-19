@@ -273,7 +273,12 @@ export async function prepareWeaveBuild(
   }
 
   if (!sources.length) {
-    throw new AssistantError("INVALID_REQUEST", "No manuscript chapters or scenes are in that draft range to analyze.");
+    throw new AssistantError(
+      "INVALID_REQUEST",
+      input.draftId
+        ? "No manuscript chapters or scenes are in that draft range to analyze."
+        : "This project uses manuscript drafts, so pick a draft (not legacy manuscript) before analyzing.",
+    );
   }
 
   const built = buildWeaveBuildRequest({

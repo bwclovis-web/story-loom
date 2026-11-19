@@ -786,11 +786,70 @@ button.context-select[aria-pressed="true"] {
   min-height: 1.85rem; padding: 0.35rem 0.55rem; font-size: 0.85rem;
 }
 .board-toolbar .small-button { min-height: 1.85rem; }
-.board-overflow { position: relative; margin-left: auto; }
+.board-toolbar-grow { flex: 1 1 auto; }
+.board-toolbar-actions { margin-left: auto; }
+.board-toolbar-select select { max-width: 11rem; }
+.segmented-control {
+  display: inline-flex; align-items: stretch; gap: 0;
+  border: 1px solid var(--color-border); border-radius: var(--radius-md);
+  background: var(--color-surface-sunken); overflow: hidden;
+}
+.segmented-control > button {
+  border: 0; border-right: 1px solid var(--color-border); border-radius: 0;
+  background: transparent; color: var(--color-text-muted);
+  font: inherit; font-size: 0.82rem; font-weight: 600;
+  min-height: 1.85rem; padding: 0.3rem 0.75rem; cursor: pointer;
+}
+.segmented-control > button:last-child { border-right: 0; }
+.segmented-control > button.is-selected {
+  background: var(--color-surface); color: var(--color-text);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-accent) 25%, transparent);
+}
+.segmented-control > button:disabled:not(.is-selected) {
+  opacity: 0.55; cursor: not-allowed;
+}
+.board-threads-menu { position: relative; }
+.board-threads-menu > summary {
+  display: inline-flex; align-items: center; gap: 0.3rem;
+  list-style: none; cursor: pointer; font-size: 0.85rem; font-weight: 600;
+  min-height: 1.85rem; padding: 0.3rem 0.65rem; border-radius: var(--radius-md);
+  border: 1px solid var(--color-border); background: var(--color-surface); color: var(--color-text);
+}
+.board-threads-menu > summary::-webkit-details-marker { display: none; }
+.board-threads-menu-body {
+  position: absolute; left: 0; top: calc(100% + 0.35rem); z-index: 30;
+  min-width: 12rem; padding: 0.65rem 0.75rem;
+  border: 1px solid var(--border); border-radius: var(--radius-md);
+  background: var(--color-surface); box-shadow: var(--shadow-lg);
+}
+.plot-grid-layout .board-main { gap: 0.45rem; }
+.plot-grid-layout .board-title-display {
+  font-size: 1.55rem; font-weight: 650; letter-spacing: -0.02em;
+}
+.plot-grid-selectors {
+  display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0.1rem 0 0.15rem;
+}
+.plot-grid-selector {
+  display: inline-flex; align-items: center; gap: 0.35rem;
+  max-width: 14rem; padding: 0.22rem 0.55rem;
+  border: 1px solid var(--color-border); border-radius: var(--radius-md);
+  background: var(--color-surface); color: var(--color-text);
+  font-size: 0.78rem; font-weight: 600; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis;
+}
+.plot-grid-selector-static { border-color: transparent; background: transparent; padding-inline: 0.15rem; }
+.plot-grid-selector-control { padding: 0; }
+.plot-grid-selector-control select {
+  border: 0; background: transparent; color: inherit; font: inherit; font-weight: 600;
+  max-width: 13rem; min-height: 1.7rem; padding: 0.22rem 0.55rem; cursor: pointer;
+}
+.plot-grid-selector-icon { color: var(--color-accent); font-size: 0.85rem; }
+.board-overflow { position: relative; margin-left: 0; }
 .board-overflow > summary {
   display: inline-flex; align-items: center; justify-content: center; gap: 0.3rem;
-  cursor: pointer; list-style: none; font-size: 0.85rem; font-weight: 600;
-  min-height: 1.85rem; padding: 0.35rem 0.7rem; border-radius: var(--radius-md);
+  cursor: pointer; list-style: none; font-size: 0.95rem; font-weight: 700;
+  letter-spacing: 0.08em; min-height: 1.85rem; min-width: 1.85rem; padding: 0.3rem 0.55rem;
+  border-radius: var(--radius-md);
   border: 1px solid var(--color-border); background: var(--color-surface); color: var(--color-text);
 }
 .board-overflow > summary::-webkit-details-marker { display: none; }
@@ -806,6 +865,8 @@ button.context-select[aria-pressed="true"] {
 }
 @media (max-width: 759px) {
   .board-overflow-body { left: 0; right: 0; min-width: 0; width: 100%; }
+  .board-toolbar-actions { margin-left: 0; width: 100%; }
+  .board-toolbar-actions .small-button { width: 100%; }
 }
 .board-surface {
   position: relative; min-height: 28rem; height: min(70vh, 40rem); overflow: auto;
@@ -822,21 +883,21 @@ button.context-select[aria-pressed="true"] {
 }
 
 /* Weave plot-grid (manuscript rows × story-thread columns) */
-.plot-grid-wrap { display: flex; flex-direction: column; gap: 0.75rem; min-width: 0; padding: 0.15rem 0 0.35rem; }
+.plot-grid-wrap { display: flex; flex-direction: column; gap: 0.55rem; min-width: 0; padding: 0.05rem 0 0.2rem; }
 .plot-grid-wrap.density-compact .plot-grid-table th,
-.plot-grid-wrap.density-compact .plot-grid-table td { padding: 0.35rem 0.45rem; }
-.plot-grid-wrap.density-compact button.plot-grid-beat { padding: 0.28rem 0.4rem 0.28rem 0.55rem; }
+.plot-grid-wrap.density-compact .plot-grid-table td { padding: 0.3rem 0.4rem; }
+.plot-grid-wrap.density-compact button.plot-grid-beat { padding: 0.32rem 0.45rem 0.32rem 0.65rem; }
 .plot-grid-wrap.density-comfortable .plot-grid-table th,
 .plot-grid-wrap.density-comfortable .plot-grid-table td { padding: 0.65rem 0.75rem; }
 .plot-grid-scroll {
   overflow: auto; max-width: 100%; max-height: min(72vh, 48rem);
   border: 1px solid var(--border); border-radius: var(--radius-lg);
-  background: var(--color-surface);
+  background: var(--color-accent-wash);
 }
 .plot-grid-scroll:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }
 .plot-grid-table {
   border-collapse: separate; border-spacing: 0; width: max(100%, 40rem);
-  font-size: 0.9rem;
+  font-size: 0.88rem;
 }
 .plot-grid-table th, .plot-grid-table td {
   border-bottom: 1px solid var(--border); border-right: 1px solid var(--border);
@@ -844,88 +905,178 @@ button.context-select[aria-pressed="true"] {
 }
 .plot-grid-table thead th {
   position: sticky; top: 0; z-index: 3;
-  background: var(--color-surface-sunken); font-weight: 600;
+  background: color-mix(in srgb, var(--color-surface) 88%, var(--color-surface-sunken));
+  font-weight: 600; box-shadow: 0 1px 0 var(--border);
 }
 .plot-grid-corner {
   position: sticky; left: 0; z-index: 4;
-  min-width: 11rem; background: var(--color-surface-sunken);
+  min-width: 12rem; background: color-mix(in srgb, var(--color-surface) 88%, var(--color-surface-sunken));
+  font-size: 0.78rem; letter-spacing: 0.02em; color: var(--color-text-muted);
 }
 .plot-grid-thread-head { min-width: 9.5rem; }
+.plot-grid-thread-head-row {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 0.35rem;
+}
 .plot-grid-thread-title {
-  display: inline-flex; align-items: center; gap: 0.4rem; margin-bottom: 0.35rem;
+  display: inline-flex; align-items: center; gap: 0.4rem; min-width: 0;
 }
 .plot-grid-thread-dot {
-  width: 0.55rem; height: 0.55rem; border-radius: 999px; flex: none;
+  width: 0.5rem; height: 0.5rem; border-radius: 999px; flex: none;
   background: var(--thread-tone, var(--color-accent));
 }
-.plot-grid-thread-actions { gap: 0.25rem; flex-wrap: wrap; }
+.plot-grid-thread-menu { position: relative; flex: none; }
+.plot-grid-thread-menu > summary {
+  list-style: none; cursor: pointer; border: 0; background: transparent;
+  color: var(--color-text-muted); font-size: 0.85rem; font-weight: 700;
+  letter-spacing: 0.06em; padding: 0.1rem 0.25rem; border-radius: var(--radius-sm);
+}
+.plot-grid-thread-menu > summary::-webkit-details-marker { display: none; }
+.plot-grid-thread-menu > summary:hover { color: var(--color-text); background: var(--color-surface-sunken); }
+.plot-grid-thread-menu-body {
+  position: absolute; right: 0; top: calc(100% + 0.25rem); z-index: 8;
+  display: flex; flex-direction: column; gap: 0.3rem; min-width: 9.5rem;
+  padding: 0.45rem; border: 1px solid var(--border); border-radius: var(--radius-md);
+  background: var(--color-surface); box-shadow: var(--shadow-lg);
+}
 .plot-grid-add-thread, .plot-grid-add-thread-cell {
   min-width: 5.5rem; background: color-mix(in srgb, var(--color-surface-sunken) 70%, transparent);
 }
 .thread-tone-0 { --thread-tone: #2a8f7c; }
 .thread-tone-1 { --thread-tone: #6b5ea8; }
-.thread-tone-2 { --thread-tone: #b04a4a; }
+.thread-tone-2 { --thread-tone: #a45a3a; }
 .thread-tone-3 { --thread-tone: #8a6a2f; }
 .thread-tone-4 { --thread-tone: #3d6ea5; }
 .thread-tone-5 { --thread-tone: #5f7a3a; }
 [data-theme="dark"] .thread-tone-0 { --thread-tone: #5cbcab; }
 [data-theme="dark"] .thread-tone-1 { --thread-tone: #9b8fd4; }
-[data-theme="dark"] .thread-tone-2 { --thread-tone: #d48080; }
+[data-theme="dark"] .thread-tone-2 { --thread-tone: #d49272; }
 [data-theme="dark"] .thread-tone-3 { --thread-tone: #c4a15a; }
 [data-theme="dark"] .thread-tone-4 { --thread-tone: #7aa4d4; }
 [data-theme="dark"] .thread-tone-5 { --thread-tone: #95b56a; }
-.plot-grid-chapter-row td {
-  background: color-mix(in srgb, var(--color-surface-sunken) 80%, var(--color-surface));
-  padding: 0.3rem 0.5rem;
+.plot-grid-chapter-row th {
+  background: color-mix(in srgb, var(--color-surface-sunken) 92%, var(--color-border));
+  padding: 0.35rem 0.55rem; border-right: 0;
 }
 .plot-grid-chapter-toggle {
-  display: inline-flex; align-items: center; gap: 0.4rem;
-  border: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; padding: 0.15rem 0;
+  display: inline-flex; align-items: center; gap: 0.45rem;
+  border: 0; background: transparent; color: inherit; cursor: pointer; padding: 0.1rem 0;
+  font-family: var(--font-document); font-size: 0.95rem; font-weight: 600;
 }
 .plot-grid-rowhead {
   position: sticky; left: 0; z-index: 2;
-  background: var(--color-surface); min-width: 11rem; max-width: 15rem;
-  display: flex; flex-direction: column; gap: 0.12rem; text-align: left;
+  background: var(--color-accent-wash); min-width: 12rem; max-width: 16rem;
+  display: flex; flex-direction: column; gap: 0.15rem; text-align: left;
+  box-shadow: 1px 0 0 var(--border);
+}
+.plot-grid-scene-line {
+  display: inline-flex; align-items: baseline; gap: 0.4rem; flex-wrap: wrap;
 }
 .plot-grid-scene-index {
-  font-size: 0.72rem; font-weight: 600; letter-spacing: 0.04em;
-  color: var(--color-text-muted);
+  font-size: 0.72rem; font-weight: 700; letter-spacing: 0.04em;
+  color: var(--color-text-muted); font-variant-numeric: tabular-nums;
 }
-.plot-grid-cell.blank { background: color-mix(in srgb, var(--color-surface-sunken) 55%, transparent); }
+.plot-grid-scene-sub {
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  overflow: hidden; line-height: 1.3;
+}
+.plot-grid-cell { background: var(--color-accent-wash); }
+.plot-grid-cell.blank { background: color-mix(in srgb, var(--color-surface-sunken) 40%, var(--color-accent-wash)); }
 .plot-grid-cell.focused { outline: 2px solid var(--color-focus); outline-offset: -2px; }
-.plot-grid-cell-beats { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.35rem; }
+.plot-grid-cell-beats { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.3rem; }
+.plot-grid-cell-add { opacity: 0; transition: opacity 0.12s ease; }
+.plot-grid-cell:hover .plot-grid-cell-add,
+.plot-grid-cell:focus-within .plot-grid-cell-add,
+.plot-grid-cell.focused .plot-grid-cell-add { opacity: 1; }
 button.plot-grid-beat {
   position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 0.1rem; width: 100%;
   padding: 0.4rem 0.5rem 0.4rem 0.7rem; border: 1px solid var(--border); border-radius: var(--radius-md);
   background: var(--color-surface); color: inherit; text-align: left; cursor: pointer; font: inherit;
+  box-shadow: var(--shadow-sm);
 }
-button.plot-grid-beat:hover { background: var(--color-surface-sunken); }
+button.plot-grid-beat:hover { background: color-mix(in srgb, var(--color-surface) 85%, var(--color-surface-sunken)); }
 button.plot-grid-beat.selected {
-  border-color: color-mix(in srgb, var(--color-accent) 55%, var(--border));
-  background: color-mix(in srgb, var(--color-accent-soft) 45%, var(--color-surface));
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-accent) 35%, transparent);
+  border-color: color-mix(in srgb, var(--color-accent) 70%, var(--border));
+  background: color-mix(in srgb, var(--color-accent-soft) 40%, var(--color-surface));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-accent) 40%, transparent);
 }
 .plot-grid-beat-bar {
-  position: absolute; left: 0; top: 0.3rem; bottom: 0.3rem; width: 0.22rem; border-radius: 999px;
+  position: absolute; left: 0; top: 0.28rem; bottom: 0.28rem; width: 0.2rem; border-radius: 999px;
   background: var(--thread-tone, var(--color-accent));
 }
-.plot-grid-beat-title { font-weight: 600; }
+.plot-grid-beat-title { font-weight: 600; font-size: 0.86rem; line-height: 1.25; }
 button.plot-grid-blank-add {
-  width: 100%; min-height: 2rem; padding: 0.25rem 0.4rem;
-  border: 1px dashed color-mix(in srgb, var(--border) 80%, transparent);
-  border-radius: var(--radius-md); background: transparent; color: var(--color-text-muted);
-  font: inherit; font-size: 0.82rem; cursor: pointer;
+  width: 100%; min-height: 1.7rem; padding: 0.2rem 0.35rem;
+  border: 1px dashed transparent; border-radius: var(--radius-md);
+  background: transparent; color: transparent;
+  font: inherit; font-size: 0.78rem; cursor: pointer;
+  opacity: 0; transition: opacity 0.12s ease, color 0.12s ease, border-color 0.12s ease;
 }
-button.plot-grid-blank-add:hover { border-color: var(--color-accent); color: var(--color-text); }
-.plot-unplaced {
-  padding: 0.75rem 1rem; margin-inline: 0.15rem;
+.plot-grid-cell:hover > button.plot-grid-blank-add,
+.plot-grid-cell:focus-within > button.plot-grid-blank-add,
+.plot-grid-cell.focused > button.plot-grid-blank-add,
+.plot-grid-cell-add button.plot-grid-blank-add:focus-visible,
+button.plot-grid-blank-add:focus-visible {
+  opacity: 1;
+  border-color: color-mix(in srgb, var(--border) 80%, transparent);
+  color: var(--color-text-muted);
 }
+button.plot-grid-blank-add:hover,
+button.plot-grid-blank-add:focus-visible {
+  border-color: var(--color-accent); color: var(--color-text);
+}
+@media (hover: none) {
+  button.plot-grid-blank-add {
+    opacity: 0.55;
+    border-color: color-mix(in srgb, var(--border) 55%, transparent);
+    color: var(--color-text-muted);
+  }
+}
+.plot-unplaced-tray {
+  border: 1px solid var(--border); border-radius: var(--radius-lg);
+  background: var(--color-surface); padding: 0.35rem 0.75rem 0.65rem;
+}
+.plot-unplaced-tray > summary {
+  list-style: none; cursor: pointer; font-weight: 650; font-size: 0.92rem;
+  padding: 0.35rem 0; color: var(--color-text);
+}
+.plot-unplaced-tray > summary::-webkit-details-marker { display: none; }
+.plot-unplaced-tray > summary::before {
+  content: "▾ "; color: var(--color-text-muted); font-weight: 400;
+}
+.plot-unplaced-tray:not([open]) > summary::before { content: "▸ "; }
+.plot-unplaced-hint { margin: 0 0 0.45rem; }
 .plot-unplaced-list {
-  list-style: none; margin: 0.5rem 0 0; padding: 0;
+  list-style: none; margin: 0; padding: 0;
   display: flex; flex-wrap: wrap; gap: 0.5rem;
 }
-.plot-unplaced-list > li { min-width: 10rem; max-width: 16rem; flex: 1 1 10rem; }
-.plot-grid-meta { margin: 0.15rem 0 0; }
+.plot-unplaced-list > li {
+  min-width: 9rem; max-width: 14rem; flex: 0 1 11rem;
+  display: flex; flex-direction: column; gap: 0.3rem;
+}
+.plot-grid-meta { margin: 0.1rem 0 0; }
+.plot-rail-compare {
+  display: flex; flex-direction: column; gap: 0.4rem;
+  padding-top: 0.35rem; border-top: 1px solid var(--border);
+}
+.plot-rail-compare-preview {
+  display: flex; flex-direction: column; gap: 0.35rem;
+  padding: 0.45rem 0.5rem; border: 1px solid var(--border); border-radius: var(--radius-md);
+  background: var(--color-surface-sunken);
+}
+.plot-rail-compare-body {
+  margin: 0; white-space: pre-wrap; max-height: 12rem; overflow: auto;
+  font-family: var(--font-document); line-height: 1.45;
+}
+.plot-rail-links { display: flex; flex-direction: column; gap: 0.45rem; }
+.plot-rail-links > li { display: flex; flex-direction: column; gap: 0.1rem; }
+.plot-rail-link-kind {
+  font-size: 0.72rem; font-weight: 700; letter-spacing: 0.04em;
+  text-transform: uppercase; color: var(--color-text-muted);
+}
+.plot-rail-actions { display: flex; flex-direction: column; gap: 0.65rem; }
+.plot-rail-footer {
+  display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;
+}
 .plot-grid-mobile .plot-grid-table { width: 100%; }
 .plot-grid-mobile .plot-grid-thread-head,
 .plot-grid-mobile .plot-grid-cell { min-width: 0; }

@@ -44,6 +44,7 @@ export function WeavePlotGrid({
   selectedId,
   decisionFilter,
   density,
+  hiddenThreadIds = [],
   mobileThreadId,
   onSelectBeat,
   onIssues,
@@ -58,6 +59,7 @@ export function WeavePlotGrid({
   selectedId: string | null;
   decisionFilter: string;
   density: PlotDensity;
+  hiddenThreadIds?: string[];
   /** When set (narrow), only this thread column is shown as a scene list. */
   mobileThreadId: string | null;
   onSelectBeat: (beat: WeaveBeatView | null) => void;
@@ -99,12 +101,14 @@ export function WeavePlotGrid({
   const rowIds = useMemo(() => new Set(flatRows.map((r) => r.id)), [flatRows]);
 
   const visibleThreads = useMemo(() => {
+    const filtered = threads.filter((t) => !hiddenThreadIds.includes(t.id));
+    const base = filtered.length ? filtered : threads;
     if (mobileThreadId) {
-      const one = threads.find((t) => t.id === mobileThreadId);
-      return one ? [one] : threads.slice(0, 1);
+      const one = base.find((t) => t.id === mobileThreadId) ?? threads.find((t) => t.id === mobileThreadId);
+      return one ? [one] : base.slice(0, 1);
     }
-    return threads;
-  }, [threads, mobileThreadId]);
+    return base;
+  }, [threads, mobileThreadId, hiddenThreadIds]);
 
   const matchesFilter = (beat: WeaveBeatView) => {
     if (decisionFilter === "all") return true;
@@ -226,8 +230,6 @@ export function WeavePlotGrid({
 
   return (
     <div className={`plot-grid-wrap density-${density}${mobileThreadId ? " plot-grid-mobile" : ""}`}>
-      <p className="small muted">{WEAVE.bookOrderNote}</p>
-
       {!threads.length ? (
         <div className="plot-grid-empty-threads">
           <p className="muted">{WEAVE.noThreadsYet}</p>
@@ -306,71 +308,76 @@ export function WeavePlotGrid({
                         </button>
                       </form>
                     ) : (
-                      <span className="plot-grid-thread-title">
-                        <span className="plot-grid-thread-dot" aria-hidden="true" />
-                        <strong>{thread.title}</strong>
-                      </span>
-                    )}
-                    {!mobileThreadId ? (
-                      <div className="row plot-grid-thread-actions">
-                        <button
-                          type="button"
-                          className="secondary small-button"
-                          disabled={pending || col === 0}
-                          onClick={() => moveThread(thread.id, -1)}
-                        >
-                          {WEAVE.moveThreadLeft}
-                        </button>
-                        <button
-                          type="button"
-                          className="secondary small-button"
-                          disabled={pending || col === threads.length - 1}
-                          onClick={() => moveThread(thread.id, 1)}
-                        >
-                          {WEAVE.moveThreadRight}
-                        </button>
-                        <button
-                          type="button"
-                          className="secondary small-button"
-                          onClick={() => {
-                            setRenameId(thread.id);
-                            setRenameTitle(thread.title);
-                          }}
-                        >
-                          {WEAVE.renameThread}
-                        </button>
-                        {confirmDeleteId === thread.id ? (
-                          <button
-                            type="button"
-                            className="small-button"
-                            disabled={pending}
-                            onClick={() =>
-                              startTransition(async () => {
-                                const result = await deleteWeaveThreadAction(projectId, gridId, thread.id);
-                                if (!result.ok) {
-                                  onIssues(result.issues);
-                                  return;
-                                }
-                                setConfirmDeleteId(null);
-                                onIssues([]);
-                                commitThreads((list) => list.filter((t) => t.id !== thread.id));
-                                router.refresh();
-                              })
-                            }
-                          >
-                            {WEAVE.confirmDeleteThread(thread.title)}
-                          </button>
-                        ) : (
-                          <button
-                            type="button"
-                            className="secondary small-button"
-                            onClick={() => setConfirmDeleteId(thread.id)}
-                          >
-                            {WEAVE.deleteThread}
-                          </button>
-                        )}
+                      <div className="plot-grid-thread-head-row">
+                        <span className="plot-grid-thread-title">
+                          <span className="plot-grid-thread-dot" aria-hidden="true" />
+                          <strong>{thread.title}</strong>
+                        </span>
+                        {!mobileThreadId ? (
+                          <details className="plot-grid-thread-menu">
+                            <summary aria-label={WEAVE.overflowMenu}>···</summary>
+                            <div className="plot-grid-thread-menu-body">
+                              <button
+                                type="button"
+                                className="secondary small-button"
+                                disabled={pending || col === 0}
+                                onClick={() => moveThread(thread.id, -1)}
+                              >
+                                {WEAVE.moveThreadLeft}
+                              </button>
+                              <button
+                                type="button"
+                                className="secondary small-button"
+                                disabled={pending || col === threads.length - 1}
+                                onClick={() => moveThread(thread.id, 1)}
+                              >
+                                {WEAVE.moveThreadRight}
+                              </button>
+                              <button
+                                type="button"
+                                className="secondary small-button"
+                                onClick={() => {
+                                  setRenameId(thread.id);
+                                  setRenameTitle(thread.title);
+                                }}
+                              >
+                                {WEAVE.renameThread}
+                              </button>
+                              {confirmDeleteId === thread.id ? (
+                                <button
+                                  type="button"
+                                  className="small-button"
+                                  disabled={pending}
+                                  onClick={() =>
+                                    startTransition(async () => {
+                                      const result = await deleteWeaveThreadAction(projectId, gridId, thread.id);
+                                      if (!result.ok) {
+                                        onIssues(result.issues);
+                                        return;
+                                      }
+                                      setConfirmDeleteId(null);
+                                      onIssues([]);
+                                      commitThreads((list) => list.filter((t) => t.id !== thread.id));
+                                      router.refresh();
+                                    })
+                                  }
+                                >
+                                  {WEAVE.confirmDeleteThread(thread.title)}
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  className="secondary small-button"
+                                  onClick={() => setConfirmDeleteId(thread.id)}
+                                >
+                                  {WEAVE.deleteThread}
+                                </button>
+                              )}
+                            </div>
+                          </details>
+                        ) : null}
                       </div>
-                    ) : null}
+                    )}
                   </th>
                 ))}
                 {!mobileThreadId ? (
@@ -400,17 +407,19 @@ export function WeavePlotGrid({
               </tr>
             </thead>
             <tbody>
-              {chapters.map((chapter) => {
+              {chapters.map((chapter, chapterIndex) => {
                 const isCollapsed = Boolean(collapsed[chapter.id]);
                 return (
                   <ChapterBlock
                     key={chapter.id}
                     chapter={chapter}
+                    chapterIndex={chapterIndex + 1}
                     collapsed={isCollapsed}
                     colSpan={visibleThreads.length + (mobileThreadId ? 1 : 2)}
                     onToggle={() => setCollapsed((c) => ({ ...c, [chapter.id]: !c[chapter.id] }))}
                     visibleThreads={visibleThreads}
                     flatRows={flatRows}
+                    beats={beats}
                     focus={focus}
                     selectedId={selectedId}
                     pending={pending}
@@ -427,9 +436,9 @@ export function WeavePlotGrid({
       )}
 
       {unplacedBeats.length ? (
-        <section className="plot-unplaced panel" aria-label={WEAVE.unplacedBeats(unplacedBeats.length)}>
-          <h3 style={{ marginTop: 0 }}>{WEAVE.unplacedBeats(unplacedBeats.length)}</h3>
-          <p className="small muted">{WEAVE.unplacedRowHint}</p>
+        <details className="plot-unplaced-tray" open>
+          <summary>{WEAVE.unplacedBeats(unplacedBeats.length)}</summary>
+          <p className="small muted plot-unplaced-hint">{WEAVE.unplacedRowHint}</p>
           <ul className="plot-unplaced-list">
             {unplacedBeats.map((beat) => (
               <li key={beat.id}>
@@ -438,9 +447,8 @@ export function WeavePlotGrid({
                   className={`plot-grid-beat${selectedId === beat.id ? " selected" : ""}`}
                   onClick={() => onSelectBeat(beat)}
                 >
+                  <span className="plot-grid-beat-bar" aria-hidden="true" />
                   <span className="plot-grid-beat-title">{beat.title}</span>
-                  {beat.decisionLabel ? <span className="small muted">{beat.decisionLabel}</span> : null}
-                  {beat.manuscriptTitle ? <span className="small muted"> · {beat.manuscriptTitle}</span> : null}
                 </button>
                 {threads.length && !beat.threadId ? (
                   <label className="small">
@@ -465,7 +473,7 @@ export function WeavePlotGrid({
               </li>
             ))}
           </ul>
-        </section>
+        </details>
       ) : null}
 
       <p className="plot-grid-meta small muted">{WEAVE.plotMeta(sceneCount, threads.length)}</p>
@@ -475,11 +483,13 @@ export function WeavePlotGrid({
 
 function ChapterBlock({
   chapter,
+  chapterIndex,
   collapsed,
   colSpan,
   onToggle,
   visibleThreads,
   flatRows,
+  beats,
   focus,
   selectedId,
   pending,
@@ -489,11 +499,13 @@ function ChapterBlock({
   onAddInCell,
 }: {
   chapter: PlotGridChapter;
+  chapterIndex: number;
   collapsed: boolean;
   colSpan: number;
   onToggle: () => void;
   visibleThreads: WeaveThreadView[];
   flatRows: PlotGridRow[];
+  beats: WeaveBeatView[];
   focus: { row: number; col: number };
   selectedId: string | null;
   pending: boolean;
@@ -502,6 +514,11 @@ function ChapterBlock({
   onSelectBeat: (beat: WeaveBeatView | null) => void;
   onAddInCell: (row: PlotGridRow, thread: WeaveThreadView) => void;
 }) {
+  const chapterHeading = (() => {
+    const stripped = chapter.title.replace(/^chapter\s+\d+\s*[:·.—-]?\s*/i, "").trim();
+    return WEAVE.chapterHeading(chapterIndex, stripped || chapter.title);
+  })();
+
   return (
     <>
       <tr className="plot-grid-chapter-row">
@@ -513,25 +530,34 @@ function ChapterBlock({
             onClick={onToggle}
           >
             <span aria-hidden="true">{collapsed ? "▸" : "▾"}</span>
-            {chapter.title}
+            {chapterHeading}
             <span className="sr-only">
               {collapsed ? WEAVE.expandChapter : WEAVE.collapseChapter}
             </span>
           </button>
         </th>
       </tr>
-                  {!collapsed
+      {!collapsed
         ? chapter.rows.map((row) => {
             const rowIdx = flatRows.findIndex((r) => r.id === row.id);
             const showAddCol = colSpan > visibleThreads.length + 1;
+            const rowBeats = beats.filter((b) => b.manuscriptRecordId === row.id);
+            const subtitle =
+              rowBeats.find((b) => b.decisionLabel)?.decisionLabel ||
+              rowBeats.find((b) => b.body.trim())?.body.trim().slice(0, 72) ||
+              null;
+            const sceneTitle =
+              row.kind === "chapter"
+                ? row.label.replace(/^chapter\s+\d+\s*[:·.—-]?\s*/i, "").trim() || row.label
+                : row.label;
             return (
               <tr key={row.id}>
                 <th scope="row" className="plot-grid-rowhead">
-                  {row.indexLabel ? <span className="plot-grid-scene-index">{row.indexLabel}</span> : null}
-                  <strong>{row.label}</strong>
-                  <span className="small muted">
-                    {row.kind === "chapter" ? WEAVE.chapterOnlyRow : WEAVE.sceneRow}
+                  <span className="plot-grid-scene-line">
+                    {row.indexLabel ? <span className="plot-grid-scene-index">{row.indexLabel}</span> : null}
+                    <strong>{sceneTitle}</strong>
                   </span>
+                  {subtitle ? <span className="plot-grid-scene-sub small muted">{subtitle}</span> : null}
                 </th>
                 {visibleThreads.map((thread, colIdx) => {
                   const inCell = cellBeats(row, thread);
@@ -547,6 +573,8 @@ function ChapterBlock({
                           type="button"
                           className="plot-grid-blank-add"
                           disabled={pending}
+                          aria-label={WEAVE.blankCellAddHint}
+                          title={WEAVE.blankCellAddHint}
                           onClick={() => onAddInCell(row, thread)}
                         >
                           {WEAVE.addBeatInCell}
@@ -562,13 +590,10 @@ function ChapterBlock({
                               >
                                 <span className="plot-grid-beat-bar" aria-hidden="true" />
                                 <span className="plot-grid-beat-title">{beat.title}</span>
-                                {beat.decisionLabel ? (
-                                  <span className="small muted">{beat.decisionLabel}</span>
-                                ) : null}
                               </button>
                             </li>
                           ))}
-                          <li>
+                          <li className="plot-grid-cell-add">
                             <button
                               type="button"
                               className="plot-grid-blank-add"

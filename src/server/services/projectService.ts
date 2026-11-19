@@ -82,6 +82,25 @@ export async function getProject(db: DbOrTx, projectId: string) {
   return project;
 }
 
+/** Sibling books in the same series (same workspace + seriesName). Empty when series is unset. */
+export async function listSeriesBookProjects(
+  db: DbOrTx,
+  projectId: string,
+): Promise<Array<{ id: string; title: string; bookName: string | null }>> {
+  const project = await findProject(db, projectId);
+  if (!project?.seriesName) return [];
+  const rows = await db.project.findMany({
+    where: {
+      workspaceId: project.workspaceId,
+      seriesName: project.seriesName,
+      trashedAt: null,
+    },
+    select: { id: true, title: true, bookName: true },
+    orderBy: [{ bookName: "asc" }, { title: "asc" }, { id: "asc" }],
+  });
+  return rows;
+}
+
 export async function findProject(db: DbOrTx, projectId: string) {
   return db.project.findFirst({ where: { id: projectId, ...LIVE_PROJECT }, include: { workspace: true } });
 }

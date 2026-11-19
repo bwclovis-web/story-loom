@@ -14,9 +14,12 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import { IssueList } from "@/components/IssueList";
+import type { DraftOption } from "@/components/drafts/DraftControls";
 import { ContextRail, ContextRailToggle, useContextRail } from "@/components/shell/ContextRail";
 import { CloseIcon } from "@/components/shell/icons";
+import { WRITE_DRAFT_COOKIE, writePreference } from "@/components/shell/preferences";
 import type { Issue } from "@/domain/issues";
+import type { RewriteSourceView } from "@/server/services/draftService";
 import {
   WEAVE_DECISIONS,
   WEAVE_DECISION_LABELS,
@@ -27,12 +30,14 @@ import {
   type WeaveSetupPayoffView,
   type WeaveThreadView,
 } from "@/server/services/weaveService";
-import { SHELL, WEAVE, WRITE } from "@/ui/labels";
+import { previewRewriteSourceAction } from "@/app/projects/[projectId]/drafts/actions";
+import { DRAFT, SHELL, WEAVE, WRITE } from "@/ui/labels";
 import {
   addWeaveBeatAction,
   addWeaveBeatWorldRefAction,
   addWeaveSetupPayoffAction,
   deleteWeaveGridAction,
+  listManuscriptRewriteSourcesAction,
   moveWeaveBeatAction,
   removeWeaveBeatAction,
   removeWeaveBeatWorldRefAction,
@@ -43,6 +48,40 @@ import {
   updateWeaveBeatAction,
 } from "./actions";
 import { WeavePlotGrid, type PlotDensity, type PlotGridChapter } from "./WeavePlotGrid";
+
+export interface SeriesBookOption {
+  id: string;
+  title: string;
+  bookName: string | null;
+}
+
+type DirtyBeatDraft = { title: string; body: string };
+
+function dirtyStorageKey(gridId: string) {
+  return `storyloom-weave-dirty:${gridId}`;
+}
+
+function readDirtyDrafts(gridId: string): Record<string, DirtyBeatDraft> {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = sessionStorage.getItem(dirtyStorageKey(gridId));
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as Record<string, DirtyBeatDraft>;
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeDirtyDrafts(gridId: string, drafts: Record<string, DirtyBeatDraft>) {
+  if (typeof window === "undefined") return;
+  try {
+    if (Object.keys(drafts).length === 0) sessionStorage.removeItem(dirtyStorageKey(gridId));
+    else sessionStorage.setItem(dirtyStorageKey(gridId), JSON.stringify(drafts));
+  } catch {
+    /* ignore quota */
+  }
+}
 
 export interface ManuscriptChoice {
   id: string;
@@ -92,6 +131,12 @@ function beatCenter(beat: WeaveBeatView) {
 export function WeaveCanvas({
   projectId,
   grid: initial,
+  projectTitle,
+  bookName,
+  seriesBooks = [],
+  drafts = [],
+  activeDraftId = null,
+  planLabel,
   manuscriptChoices,
   manuscriptChapters,
   worldChoices,
@@ -99,6 +144,12 @@ export function WeaveCanvas({
 }: {
   projectId: string;
   grid: WeaveGridView;
+  projectTitle?: string;
+  bookName?: string | null;
+  seriesBooks?: SeriesBookOption[];
+  drafts?: DraftOption[];
+  activeDraftId?: string | null;
+  planLabel?: string;
   manuscriptChoices: ManuscriptChoice[];
   manuscriptChapters: PlotGridChapter[];
   worldChoices: WorldChoice[];
@@ -110,12 +161,19 @@ export function WeaveCanvas({
   const titleId = `${railId}-title`;
   const rail = useContextRail();
   const [grid, setGrid] = useState(initial);
-  const [beats, setBeats] = useState(initial.beats);
+  const [beats, setBeats] = useState(() => {
+    const stored = readDirtyDrafts(initial.id);
+    return initial.beats.map((b) => {
+      const d = stored[b.id];
+      return d ? { ...b, title: d.title, body: d.body } : b;
+    });
+  });
   const [threads, setThreads] = useState<WeaveThreadView[]>(initial.threads);
   const [layoutMode, setLayoutMode] = useState<WeaveLayoutMode>(initial.layoutMode);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [decisionFilter, setDecisionFilter] = useState<string>("all");
   const [density, setDensity] = useState<PlotDensity>("compact");
+  const [hiddenThreadIds, setHiddenThreadIds] = useState<string[]>([]);
   const [mobileThreadId, setMobileThreadId] = useState<string | null>(null);
   const [narrow, setNarrow] = useState(false);
   const [issues, setIssues] = useState<Issue[]>([]);
@@ -125,8 +183,15 @@ export function WeaveCanvas({
   const [templateTitle, setTemplateTitle] = useState("");
   const [setupFrom, setSetupFrom] = useState("");
   const [setupTo, setSetupTo] = useState("");
+  const [rewriteSources, setRewriteSources] = useState<RewriteSourceView[]>([]);
+  const [compareSourceId, setCompareSourceId] = useState("");
+  const [comparePreview, setComparePreview] = useState<{
+    title: string;
+    body: string;
+    revisionNumber: number;
+  } | null>(null);
   const surfaceRef = useRef<HTMLDivElement>(null);
-  const dirtyIdsRef = useRef(new Set<string>());
+  const dirtyIdsRef = useRef(new Set(Object.keys(readDirtyDrafts(initial.id))));
   const dragRef = useRef<{
     beatId: string;
     startX: number;
@@ -142,6 +207,18 @@ export function WeaveCanvas({
     setThreads(initial.threads);
     setBeats((prev) => mergeBeatsPreservingDirty(prev, initial.beats, dirtyIdsRef.current));
   }, [initial]);
+
+  const persistDirty = useCallback(
+    (list: WeaveBeatView[]) => {
+      const next: Record<string, DirtyBeatDraft> = {};
+      for (const id of dirtyIdsRef.current) {
+        const beat = list.find((b) => b.id === id);
+        if (beat) next[id] = { title: beat.title, body: beat.body };
+      }
+      writeDirtyDrafts(initial.id, next);
+    },
+    [initial.id],
+  );
 
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 759px)");
@@ -181,6 +258,35 @@ export function WeaveCanvas({
   const clearDirty = (beatId: string) => {
     dirtyIdsRef.current.delete(beatId);
   };
+
+  useEffect(() => {
+    persistDirty(beats);
+  }, [beats, persistDirty]);
+
+  useEffect(() => {
+    if (!selected?.manuscriptRecordId || selected.manuscriptUnavailable) {
+      setRewriteSources([]);
+      setCompareSourceId("");
+      setComparePreview(null);
+      return;
+    }
+    const manuscriptRecordId = selected.manuscriptRecordId;
+    let cancelled = false;
+    void (async () => {
+      const result = await listManuscriptRewriteSourcesAction(projectId, manuscriptRecordId);
+      if (cancelled) return;
+      if (!result.ok) {
+        setRewriteSources([]);
+        return;
+      }
+      setRewriteSources(result.sources);
+      setCompareSourceId(result.sources[0]?.toRecordId ?? "");
+      setComparePreview(null);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [projectId, selected?.id, selected?.manuscriptRecordId, selected?.manuscriptUnavailable]);
 
   const selectBeat = useCallback(
     (beat: WeaveBeatView) => {
@@ -284,114 +390,216 @@ export function WeaveCanvas({
   const decisionClass = (decision: string) =>
     decision ? ` board-card-decision-${decision}` : "";
 
+  const setLayout = (next: WeaveLayoutMode) => {
+    setLayoutMode(next);
+    startTransition(async () => {
+      const result = await setWeaveLayoutModeAction(projectId, grid.id, next);
+      if (!result.ok) {
+        setIssues(result.issues);
+        setLayoutMode(initial.layoutMode);
+        return;
+      }
+      setIssues([]);
+      router.refresh();
+    });
+  };
+
+  const addBeat = () => {
+    if (layoutMode === "plot_grid" && threads[0]) {
+      const firstRow = manuscriptChapters[0]?.rows[0];
+      const visibleThread =
+        threads.find((t) => !hiddenThreadIds.includes(t.id)) ?? threads[0];
+      startTransition(async () => {
+        const result = await addWeaveBeatAction(projectId, grid.id, {
+          title: "Beat",
+          x: 40,
+          y: 40,
+          threadId: visibleThread.id,
+          manuscriptRecordId: firstRow?.id ?? null,
+          cellOrder: 0,
+        });
+        if (!result.ok) {
+          setIssues(result.issues);
+          return;
+        }
+        setBeats((list) => [...list, result.beat]);
+        selectBeat(result.beat);
+        router.refresh();
+      });
+      return;
+    }
+    const { x, y } = dropPoint();
+    startTransition(async () => {
+      const result = await addWeaveBeatAction(projectId, grid.id, {
+        title: "Beat",
+        x,
+        y,
+      });
+      if (!result.ok) {
+        setIssues(result.issues);
+        return;
+      }
+      setBeats((list) => [...list, result.beat]);
+      selectBeat(result.beat);
+      router.refresh();
+    });
+  };
+
+  const isPlotGrid = layoutMode === "plot_grid";
+  const visibleThreadCount = threads.filter((t) => !hiddenThreadIds.includes(t.id)).length;
+
   return (
-    <div className="write-layout reference-write-layout board-layout">
+    <div className={`write-layout reference-write-layout board-layout${isPlotGrid ? " plot-grid-layout" : ""}`}>
       <div className="write-main board-main">
+        {isPlotGrid ? (
+          <div className="plot-grid-selectors" role="group" aria-label={WEAVE.selectorsAria}>
+            {projectTitle ? (
+              <span className="plot-grid-selector plot-grid-selector-static">
+                <span className="plot-grid-selector-icon" aria-hidden="true">
+                  ▦
+                </span>
+                {projectTitle}
+              </span>
+            ) : null}
+            {seriesBooks.length > 1 ? (
+              <label className="plot-grid-selector plot-grid-selector-control">
+                <span className="sr-only">{WEAVE.bookSelector}</span>
+                <select
+                  value={projectId}
+                  aria-label={WEAVE.bookSelector}
+                  onChange={(e) => {
+                    const nextId = e.target.value;
+                    if (nextId && nextId !== projectId) {
+                      router.push(`/projects/${encodeURIComponent(nextId)}/plan/weave`);
+                    }
+                  }}
+                >
+                  {seriesBooks.map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.bookName || b.title}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : bookName ? (
+              <span className="plot-grid-selector plot-grid-selector-static">{bookName}</span>
+            ) : null}
+            {drafts.length > 0 ? (
+              <label className="plot-grid-selector plot-grid-selector-control">
+                <span className="sr-only">{WEAVE.planSelector}</span>
+                <select
+                  value={activeDraftId ?? ""}
+                  aria-label={WEAVE.planSelector}
+                  onChange={(e) => {
+                    writePreference(WRITE_DRAFT_COOKIE, e.target.value);
+                    router.refresh();
+                  }}
+                >
+                  {drafts.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : planLabel ? (
+              <span className="plot-grid-selector plot-grid-selector-static">{planLabel}</span>
+            ) : null}
+          </div>
+        ) : null}
+
         <div className="doc-toolbar">
-          <h2 className="board-title-display">{title}</h2>
+          <h2 className="board-title-display">{isPlotGrid ? WEAVE.plotGridHeading : title}</h2>
           <div className="doc-toolbar-end">
             <ContextRailToggle rail={rail} controls={railId} />
           </div>
         </div>
 
-        <p className="board-meta small muted">
-          <span>{grid.viewLabel}</span>
-          <span>{WEAVE_LAYOUT_LABELS[layoutMode]}</span>
-          <span>{WEAVE.beatsCount(beats.length)}</span>
-        </p>
-        <p className="small muted" style={{ margin: 0 }}>
-          {WEAVE.layoutHint}
-        </p>
+        {!isPlotGrid ? (
+          <>
+            <p className="board-meta small muted">
+              <span>{grid.viewLabel}</span>
+              <span>{WEAVE_LAYOUT_LABELS[layoutMode]}</span>
+              <span>{WEAVE.beatsCount(beats.length)}</span>
+            </p>
+            <p className="small muted" style={{ margin: 0 }}>
+              {WEAVE.layoutHint}
+            </p>
+          </>
+        ) : null}
         <IssueList issues={issues} />
 
         <div className="board-toolbar board-toolbar-compact" role="toolbar" aria-label={WEAVE.beatCanvas}>
           <div className="board-toolbar-group">
-            <label className="small">
-              <span className="sr-only">{WEAVE.toolbarView}</span>
-              <select
-                value={layoutMode}
-                aria-label={WEAVE.toolbarView}
+            <div className="segmented-control" role="group" aria-label={WEAVE.toolbarView}>
+              <button
+                type="button"
+                className={isPlotGrid ? "is-selected" : undefined}
+                aria-pressed={isPlotGrid}
                 disabled={pending}
-                onChange={(e) => {
-                  const next = e.target.value as WeaveLayoutMode;
-                  setLayoutMode(next);
-                  startTransition(async () => {
-                    const result = await setWeaveLayoutModeAction(projectId, grid.id, next);
-                    if (!result.ok) {
-                      setIssues(result.issues);
-                      setLayoutMode(initial.layoutMode);
-                      return;
-                    }
-                    setIssues([]);
-                    router.refresh();
-                  });
+                onClick={() => {
+                  if (!isPlotGrid) setLayout("plot_grid");
                 }}
               >
-                <option value="freeform">{WEAVE.layoutFreeform}</option>
-                <option value="plot_grid">{WEAVE.layoutPlotGrid}</option>
-              </select>
-            </label>
+                {WEAVE.layoutPlotGrid}
+              </button>
+              <button
+                type="button"
+                className={!isPlotGrid ? "is-selected" : undefined}
+                aria-pressed={!isPlotGrid}
+                disabled={pending}
+                onClick={() => {
+                  if (isPlotGrid) setLayout("freeform");
+                }}
+              >
+                {WEAVE.layoutFreeform}
+              </button>
+            </div>
           </div>
 
-          <div className="board-toolbar-group">
-            <button
-              type="button"
-              className="small-button"
-              disabled={pending}
-              onClick={() => {
-                if (layoutMode === "plot_grid" && threads[0]) {
-                  const firstRow = manuscriptChapters[0]?.rows[0];
-                  startTransition(async () => {
-                    const result = await addWeaveBeatAction(projectId, grid.id, {
-                      title: "Beat",
-                      x: 40,
-                      y: 40,
-                      threadId: threads[0]!.id,
-                      manuscriptRecordId: firstRow?.id ?? null,
-                      cellOrder: 0,
-                    });
-                    if (!result.ok) {
-                      setIssues(result.issues);
-                      return;
-                    }
-                    setBeats((list) => [...list, result.beat]);
-                    selectBeat(result.beat);
-                    router.refresh();
-                  });
-                  return;
-                }
-                const { x, y } = dropPoint();
-                startTransition(async () => {
-                  const result = await addWeaveBeatAction(projectId, grid.id, {
-                    title: "Beat",
-                    x,
-                    y,
-                  });
-                  if (!result.ok) {
-                    setIssues(result.issues);
-                    return;
-                  }
-                  setBeats((list) => [...list, result.beat]);
-                  selectBeat(result.beat);
-                  router.refresh();
-                });
-              }}
-            >
-              {WEAVE.addBeat}
-            </button>
-          </div>
-
-          <div className="board-toolbar-group">
-            {layoutMode === "plot_grid" ? (
-              <span className="small muted" aria-live="polite">
-                {WEAVE.threadsControl(threads.length)}
-              </span>
+          <div className="board-toolbar-group board-toolbar-grow">
+            {isPlotGrid ? (
+              <details className="board-threads-menu">
+                <summary>{WEAVE.threadsControl(visibleThreadCount)}</summary>
+                <div className="board-threads-menu-body">
+                  {threads.length === 0 ? (
+                    <p className="small muted">{WEAVE.noThreadsYet}</p>
+                  ) : (
+                    <ul className="stack">
+                      {threads.map((t, i) => {
+                        const checked = !hiddenThreadIds.includes(t.id);
+                        return (
+                          <li key={t.id}>
+                            <label className="row" style={{ gap: "0.4rem" }}>
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={() => {
+                                  setHiddenThreadIds((ids) => {
+                                    if (checked) {
+                                      if (ids.length + 1 >= threads.length) return ids;
+                                      return [...ids, t.id];
+                                    }
+                                    return ids.filter((id) => id !== t.id);
+                                  });
+                                }}
+                              />
+                              <span className={`plot-grid-thread-dot thread-tone-${i % 6}`} aria-hidden="true" />
+                              <span>{t.title}</span>
+                            </label>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </div>
+              </details>
             ) : null}
-            <label className="small">
+            <label className="small board-toolbar-select">
               <span className="sr-only">{WEAVE.filterDecision}</span>
               <select
                 value={decisionFilter}
-                aria-label={WEAVE.filterDecision}
+                aria-label={WEAVE.filterLabeled}
                 onChange={(e) => setDecisionFilter(e.target.value)}
               >
                 <option value="all">{WEAVE.filterAll}</option>
@@ -403,20 +611,20 @@ export function WeaveCanvas({
                 ))}
               </select>
             </label>
-            {layoutMode === "plot_grid" ? (
-              <label className="small">
+            {isPlotGrid ? (
+              <label className="small board-toolbar-select">
                 <span className="sr-only">{WEAVE.density}</span>
                 <select
                   value={density}
                   aria-label={WEAVE.density}
                   onChange={(e) => setDensity(e.target.value as PlotDensity)}
                 >
-                  <option value="compact">{WEAVE.densityCompact}</option>
-                  <option value="comfortable">{WEAVE.densityComfortable}</option>
+                  <option value="compact">{WEAVE.densityLabeled(WEAVE.densityCompact)}</option>
+                  <option value="comfortable">{WEAVE.densityLabeled(WEAVE.densityComfortable)}</option>
                 </select>
               </label>
             ) : null}
-            {layoutMode === "plot_grid" && narrow && threads.length ? (
+            {isPlotGrid && narrow && threads.length ? (
               <label className="small">
                 <span className="sr-only">{WEAVE.chooseMobileThread}</span>
                 <select
@@ -432,7 +640,7 @@ export function WeaveCanvas({
                 </select>
               </label>
             ) : null}
-            {layoutMode === "freeform" ? (
+            {!isPlotGrid ? (
               <>
                 <button
                   type="button"
@@ -454,8 +662,19 @@ export function WeaveCanvas({
             ) : null}
           </div>
 
+          <div className="board-toolbar-group board-toolbar-actions">
+            <button
+              type="button"
+              className={isPlotGrid ? "small-button" : "secondary small-button"}
+              disabled={pending}
+              onClick={addBeat}
+            >
+              {isPlotGrid ? WEAVE.addBeatPrimary : WEAVE.addBeat}
+            </button>
+          </div>
+
           <details className="board-overflow">
-            <summary>{SHELL.moreActions}</summary>
+            <summary aria-label={SHELL.moreActions}>{WEAVE.overflowMenu}</summary>
             <div className="board-overflow-body">
               <form
                 className="row"
@@ -506,6 +725,60 @@ export function WeaveCanvas({
                   {WEAVE.saveGridAsTemplate}
                 </button>
               </form>
+              {isPlotGrid ? (
+                <form
+                  className="stack"
+                  style={{ gap: "0.5rem" }}
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    if (!setupFrom || !setupTo) return;
+                    startTransition(async () => {
+                      const result = await addWeaveSetupPayoffAction(projectId, {
+                        fromBeatId: setupFrom,
+                        toBeatId: setupTo,
+                      });
+                      if (!result.ok) setIssues(result.issues);
+                      else {
+                        setSetupFrom("");
+                        setSetupTo("");
+                        router.refresh();
+                      }
+                    });
+                  }}
+                >
+                  <p className="small muted" style={{ margin: 0 }}>
+                    {WEAVE.setupPayoff}
+                  </p>
+                  <label className="small">
+                    {WEAVE.setupBeat}
+                    <select value={setupFrom} onChange={(e) => setSetupFrom(e.target.value)} required>
+                      <option value="">{WEAVE.chooseBeat}</option>
+                      {seriesBeats.map((b) => (
+                        <option key={b.id} value={b.id}>
+                          {b.title} — {b.bookName || b.projectTitle} / {b.gridTitle}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="small">
+                    {WEAVE.payoffBeat}
+                    <select value={setupTo} onChange={(e) => setSetupTo(e.target.value)} required>
+                      <option value="">{WEAVE.chooseBeat}</option>
+                      {seriesBeats.map((b) => (
+                        <option key={b.id} value={b.id}>
+                          {b.title} — {b.bookName || b.projectTitle} / {b.gridTitle}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <button type="submit" className="small-button" disabled={pending || !setupFrom || !setupTo}>
+                    {WEAVE.addSetupPayoff}
+                  </button>
+                </form>
+              ) : null}
+              <p className="small muted" style={{ margin: 0 }}>
+                {WEAVE.bookOrderNote}
+              </p>
               {!confirmDelete ? (
                 <button type="button" className="secondary small-button" onClick={() => setConfirmDelete(true)}>
                   {WEAVE.deleteGrid}
@@ -533,7 +806,7 @@ export function WeaveCanvas({
           </details>
         </div>
 
-        {layoutMode === "plot_grid" ? (
+        {isPlotGrid ? (
           <WeavePlotGrid
             projectId={projectId}
             gridId={grid.id}
@@ -543,6 +816,7 @@ export function WeaveCanvas({
             selectedId={selectedId}
             decisionFilter={decisionFilter}
             density={density}
+            hiddenThreadIds={hiddenThreadIds}
             mobileThreadId={narrow ? mobileThreadId ?? threads[0]?.id ?? null : null}
             onSelectBeat={(beat) => {
               if (beat) selectBeat(beat);
@@ -649,91 +923,93 @@ export function WeaveCanvas({
         </div>
         ) : null}
 
-        <section className="panel" aria-labelledby={`${idPrefix}-setup`}>
-          <h2 id={`${idPrefix}-setup`}>{WEAVE.setupPayoff}</h2>
-          <p className="small muted">{WEAVE.setupPayoffNote}</p>
-          {grid.setupPayoffs.length === 0 ? (
-            <p className="muted">{WEAVE.noSetupPayoff}</p>
-          ) : (
-            <ul className="stack">
-              {grid.setupPayoffs.map((link) => (
-                <li key={link.id} className="row" style={{ justifyContent: "space-between", gap: "0.5rem" }}>
-                  <span className="small">
-                    {link.fromTitle}
-                    {link.fromProjectId !== projectId ? ` (${link.fromProjectTitle})` : ""} → {link.toTitle}
-                    {link.toProjectId !== projectId ? ` (${link.toProjectTitle})` : ""}
-                    {link.note ? ` — ${link.note}` : ""}
-                  </span>
-                  <button
-                    type="button"
-                    className="secondary small-button"
-                    disabled={pending}
-                    onClick={() =>
-                      startTransition(async () => {
-                        const result = await removeWeaveSetupPayoffAction(projectId, link.id);
-                        if (!result.ok) setIssues(result.issues);
-                        else router.refresh();
-                      })
-                    }
-                  >
-                    {WEAVE.removeSetupPayoff}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-          <form
-            className="row"
-            style={{ flexWrap: "wrap", gap: "0.5rem", marginTop: "0.75rem" }}
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (!setupFrom || !setupTo) return;
-              startTransition(async () => {
-                const result = await addWeaveSetupPayoffAction(projectId, {
-                  fromBeatId: setupFrom,
-                  toBeatId: setupTo,
+        {!isPlotGrid ? (
+          <section className="panel" aria-labelledby={`${idPrefix}-setup`}>
+            <h2 id={`${idPrefix}-setup`}>{WEAVE.setupPayoff}</h2>
+            <p className="small muted">{WEAVE.setupPayoffNote}</p>
+            {grid.setupPayoffs.length === 0 ? (
+              <p className="muted">{WEAVE.noSetupPayoff}</p>
+            ) : (
+              <ul className="stack">
+                {grid.setupPayoffs.map((link) => (
+                  <li key={link.id} className="row" style={{ justifyContent: "space-between", gap: "0.5rem" }}>
+                    <span className="small">
+                      {link.fromTitle}
+                      {link.fromProjectId !== projectId ? ` (${link.fromProjectTitle})` : ""} → {link.toTitle}
+                      {link.toProjectId !== projectId ? ` (${link.toProjectTitle})` : ""}
+                      {link.note ? ` — ${link.note}` : ""}
+                    </span>
+                    <button
+                      type="button"
+                      className="secondary small-button"
+                      disabled={pending}
+                      onClick={() =>
+                        startTransition(async () => {
+                          const result = await removeWeaveSetupPayoffAction(projectId, link.id);
+                          if (!result.ok) setIssues(result.issues);
+                          else router.refresh();
+                        })
+                      }
+                    >
+                      {WEAVE.removeSetupPayoff}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <form
+              className="row"
+              style={{ flexWrap: "wrap", gap: "0.5rem", marginTop: "0.75rem" }}
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!setupFrom || !setupTo) return;
+                startTransition(async () => {
+                  const result = await addWeaveSetupPayoffAction(projectId, {
+                    fromBeatId: setupFrom,
+                    toBeatId: setupTo,
+                  });
+                  if (!result.ok) setIssues(result.issues);
+                  else {
+                    setSetupFrom("");
+                    setSetupTo("");
+                    router.refresh();
+                  }
                 });
-                if (!result.ok) setIssues(result.issues);
-                else {
-                  setSetupFrom("");
-                  setSetupTo("");
-                  router.refresh();
-                }
-              });
-            }}
-          >
-            <label>
-              {WEAVE.setupBeat}
-              <select value={setupFrom} onChange={(e) => setSetupFrom(e.target.value)} required>
-                <option value="">{WEAVE.chooseBeat}</option>
-                {seriesBeats.map((b) => (
-                  <option key={b.id} value={b.id}>
-                    {b.title} — {b.bookName || b.projectTitle} / {b.gridTitle}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              {WEAVE.payoffBeat}
-              <select value={setupTo} onChange={(e) => setSetupTo(e.target.value)} required>
-                <option value="">{WEAVE.chooseBeat}</option>
-                {seriesBeats.map((b) => (
-                  <option key={b.id} value={b.id}>
-                    {b.title} — {b.bookName || b.projectTitle} / {b.gridTitle}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <button type="submit" className="small-button" disabled={pending || !setupFrom || !setupTo}>
-              {WEAVE.addSetupPayoff}
-            </button>
-          </form>
-        </section>
+              }}
+            >
+              <label>
+                {WEAVE.setupBeat}
+                <select value={setupFrom} onChange={(e) => setSetupFrom(e.target.value)} required>
+                  <option value="">{WEAVE.chooseBeat}</option>
+                  {seriesBeats.map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.title} — {b.bookName || b.projectTitle} / {b.gridTitle}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                {WEAVE.payoffBeat}
+                <select value={setupTo} onChange={(e) => setSetupTo(e.target.value)} required>
+                  <option value="">{WEAVE.chooseBeat}</option>
+                  {seriesBeats.map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.title} — {b.bookName || b.projectTitle} / {b.gridTitle}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <button type="submit" className="small-button" disabled={pending || !setupFrom || !setupTo}>
+                {WEAVE.addSetupPayoff}
+              </button>
+            </form>
+          </section>
+        ) : null}
       </div>
 
       <ContextRail id={railId} labelledBy={titleId} rail={rail} focusOnOverlayOpen>
         <div className="context-head">
-          <h2 id={titleId}>{WEAVE.beatRail}</h2>
+          <h2 id={titleId}>{selected && isPlotGrid ? selected.title : WEAVE.beatRail}</h2>
           {!rail.wide ? (
             <button type="button" className="icon-button" aria-label={WRITE.hideContext} onClick={rail.close}>
               <CloseIcon />
@@ -746,77 +1022,204 @@ export function WeaveCanvas({
         ) : (
           <div className="stack">
             <div className="rail-section">
-              <label>
-                {WEAVE.beatTitle}
-                <input
-                  value={selected.title}
-                  onChange={(e) => {
-                    markDirty(selected.id);
-                    setBeats((list) => list.map((b) => (b.id === selected.id ? { ...b, title: e.target.value } : b)));
-                  }}
-                  onBlur={() =>
-                    startTransition(async () => {
-                      const result = await updateWeaveBeatAction(projectId, grid.id, selected.id, {
-                        title: selected.title,
-                      });
-                      if (!result.ok) setIssues(result.issues);
-                      else {
-                        clearDirty(selected.id);
-                        router.refresh();
+              {isPlotGrid ? (
+                <>
+                  <label>
+                    {WEAVE.storyThread}
+                    <select
+                      value={selected.threadId ?? ""}
+                      onChange={(e) => {
+                        const threadId = e.target.value || null;
+                        startTransition(async () => {
+                          const result = await updateWeaveBeatAction(projectId, grid.id, selected.id, { threadId });
+                          if (!result.ok) setIssues(result.issues);
+                          else {
+                            setBeats((list) => list.map((b) => (b.id === selected.id && result.ok ? result.beat : b)));
+                            router.refresh();
+                          }
+                        });
+                      }}
+                    >
+                      <option value="">{WEAVE.noThread}</option>
+                      {threads.map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.title}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    {WEAVE.linkManuscript}
+                    <select
+                      value={selected.manuscriptRecordId ?? ""}
+                      onChange={(e) => {
+                        const manuscriptRecordId = e.target.value || null;
+                        startTransition(async () => {
+                          const result = await updateWeaveBeatAction(projectId, grid.id, selected.id, {
+                            manuscriptRecordId,
+                          });
+                          if (!result.ok) setIssues(result.issues);
+                          else {
+                            setBeats((list) => list.map((b) => (b.id === selected.id && result.ok ? result.beat : b)));
+                            router.refresh();
+                          }
+                        });
+                      }}
+                    >
+                      <option value="">{WEAVE.chooseManuscript}</option>
+                      {manuscriptChoices.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.title} ({c.typeLabel})
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    {WEAVE.beatNote}
+                    <textarea
+                      rows={4}
+                      value={selected.body}
+                      onChange={(e) => {
+                        markDirty(selected.id);
+                        setBeats((list) => list.map((b) => (b.id === selected.id ? { ...b, body: e.target.value } : b)));
+                      }}
+                      onBlur={() =>
+                        startTransition(async () => {
+                          const result = await updateWeaveBeatAction(projectId, grid.id, selected.id, {
+                            body: selected.body,
+                          });
+                          if (!result.ok) setIssues(result.issues);
+                          else {
+                            clearDirty(selected.id);
+                            router.refresh();
+                          }
+                        })
                       }
-                    })
-                  }
-                />
-              </label>
-              <label>
-                {WEAVE.beatBody}
-                <textarea
-                  rows={4}
-                  value={selected.body}
-                  onChange={(e) => {
-                    markDirty(selected.id);
-                    setBeats((list) => list.map((b) => (b.id === selected.id ? { ...b, body: e.target.value } : b)));
-                  }}
-                  onBlur={() =>
-                    startTransition(async () => {
-                      const result = await updateWeaveBeatAction(projectId, grid.id, selected.id, {
-                        body: selected.body,
-                      });
-                      if (!result.ok) setIssues(result.issues);
-                      else {
-                        clearDirty(selected.id);
-                        router.refresh();
+                    />
+                  </label>
+                  <label>
+                    {WEAVE.beatTitle}
+                    <input
+                      value={selected.title}
+                      onChange={(e) => {
+                        markDirty(selected.id);
+                        setBeats((list) => list.map((b) => (b.id === selected.id ? { ...b, title: e.target.value } : b)));
+                      }}
+                      onBlur={() =>
+                        startTransition(async () => {
+                          const result = await updateWeaveBeatAction(projectId, grid.id, selected.id, {
+                            title: selected.title,
+                          });
+                          if (!result.ok) setIssues(result.issues);
+                          else {
+                            clearDirty(selected.id);
+                            router.refresh();
+                          }
+                        })
                       }
-                    })
-                  }
-                />
-              </label>
-              <label>
-                {WEAVE.decision}
-                <select
-                  value={selected.decision}
-                  onChange={(e) => {
-                    const decision = e.target.value;
-                    startTransition(async () => {
-                      const result = await updateWeaveBeatAction(projectId, grid.id, selected.id, { decision });
-                      if (!result.ok) setIssues(result.issues);
-                      else {
-                        setBeats((list) => list.map((b) => (b.id === selected.id && result.ok ? result.beat : b)));
-                        router.refresh();
+                    />
+                  </label>
+                  <label>
+                    {WEAVE.decision}
+                    <select
+                      value={selected.decision}
+                      onChange={(e) => {
+                        const decision = e.target.value;
+                        startTransition(async () => {
+                          const result = await updateWeaveBeatAction(projectId, grid.id, selected.id, { decision });
+                          if (!result.ok) setIssues(result.issues);
+                          else {
+                            setBeats((list) => list.map((b) => (b.id === selected.id && result.ok ? result.beat : b)));
+                            router.refresh();
+                          }
+                        });
+                      }}
+                    >
+                      <option value="">{WEAVE.decisionUnset}</option>
+                      {WEAVE_DECISIONS.map((d) => (
+                        <option key={d} value={d}>
+                          {WEAVE_DECISION_LABELS[d]}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </>
+              ) : (
+                <>
+                  <label>
+                    {WEAVE.beatTitle}
+                    <input
+                      value={selected.title}
+                      onChange={(e) => {
+                        markDirty(selected.id);
+                        setBeats((list) => list.map((b) => (b.id === selected.id ? { ...b, title: e.target.value } : b)));
+                      }}
+                      onBlur={() =>
+                        startTransition(async () => {
+                          const result = await updateWeaveBeatAction(projectId, grid.id, selected.id, {
+                            title: selected.title,
+                          });
+                          if (!result.ok) setIssues(result.issues);
+                          else {
+                            clearDirty(selected.id);
+                            router.refresh();
+                          }
+                        })
                       }
-                    });
-                  }}
-                >
-                  <option value="">{WEAVE.decisionUnset}</option>
-                  {WEAVE_DECISIONS.map((d) => (
-                    <option key={d} value={d}>
-                      {WEAVE_DECISION_LABELS[d]}
-                    </option>
-                  ))}
-                </select>
-              </label>
+                    />
+                  </label>
+                  <label>
+                    {WEAVE.beatBody}
+                    <textarea
+                      rows={4}
+                      value={selected.body}
+                      onChange={(e) => {
+                        markDirty(selected.id);
+                        setBeats((list) => list.map((b) => (b.id === selected.id ? { ...b, body: e.target.value } : b)));
+                      }}
+                      onBlur={() =>
+                        startTransition(async () => {
+                          const result = await updateWeaveBeatAction(projectId, grid.id, selected.id, {
+                            body: selected.body,
+                          });
+                          if (!result.ok) setIssues(result.issues);
+                          else {
+                            clearDirty(selected.id);
+                            router.refresh();
+                          }
+                        })
+                      }
+                    />
+                  </label>
+                  <label>
+                    {WEAVE.decision}
+                    <select
+                      value={selected.decision}
+                      onChange={(e) => {
+                        const decision = e.target.value;
+                        startTransition(async () => {
+                          const result = await updateWeaveBeatAction(projectId, grid.id, selected.id, { decision });
+                          if (!result.ok) setIssues(result.issues);
+                          else {
+                            setBeats((list) => list.map((b) => (b.id === selected.id && result.ok ? result.beat : b)));
+                            router.refresh();
+                          }
+                        });
+                      }}
+                    >
+                      <option value="">{WEAVE.decisionUnset}</option>
+                      {WEAVE_DECISIONS.map((d) => (
+                        <option key={d} value={d}>
+                          {WEAVE_DECISION_LABELS[d]}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </>
+              )}
             </div>
 
+            {!isPlotGrid ? (
             <div className="rail-section">
               <h3>{WEAVE.sceneSection}</h3>
               <label>
@@ -845,32 +1248,6 @@ export function WeaveCanvas({
                   ))}
                 </select>
               </label>
-              {layoutMode === "plot_grid" ? (
-                <label>
-                  {WEAVE.storyThread}
-                  <select
-                    value={selected.threadId ?? ""}
-                    onChange={(e) => {
-                      const threadId = e.target.value || null;
-                      startTransition(async () => {
-                        const result = await updateWeaveBeatAction(projectId, grid.id, selected.id, { threadId });
-                        if (!result.ok) setIssues(result.issues);
-                        else {
-                          setBeats((list) => list.map((b) => (b.id === selected.id && result.ok ? result.beat : b)));
-                          router.refresh();
-                        }
-                      });
-                    }}
-                  >
-                    <option value="">{WEAVE.noThread}</option>
-                    {threads.map((t) => (
-                      <option key={t.id} value={t.id}>
-                        {t.title}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              ) : null}
               {selected.manuscriptRecordId && !selected.manuscriptUnavailable ? (
                 <Link
                   className="button-link"
@@ -882,6 +1259,7 @@ export function WeaveCanvas({
                 <p className="rail-empty">{WEAVE.noSceneLinked}</p>
               )}
             </div>
+            ) : null}
 
             <div className="rail-section">
               <h3>{WEAVE.worldRefs}</h3>
@@ -954,44 +1332,179 @@ export function WeaveCanvas({
             </div>
 
             <div className="rail-section">
-              <h3>{WEAVE.relatedConnections}</h3>
+              <h3>{isPlotGrid ? WEAVE.linksSection : WEAVE.relatedConnections}</h3>
               {relatedLinks.length === 0 ? (
                 <p className="rail-empty">{WEAVE.noRelatedConnections}</p>
               ) : (
-                <ul className="context-links">
-                  {relatedLinks.map((link) => (
-                    <li key={link.id} className="small">
-                      {link.fromTitle} → {link.toTitle}
-                      {link.note ? ` — ${link.note}` : ""}
-                    </li>
-                  ))}
+                <ul className={`context-links${isPlotGrid ? " plot-rail-links" : ""}`}>
+                  {relatedLinks.map((link) => {
+                    const isSetup = link.fromBeatId === selected.id;
+                    return (
+                      <li key={link.id} className="small">
+                        {isPlotGrid ? (
+                          <>
+                            <span className="plot-rail-link-kind">{isSetup ? WEAVE.setupLink : WEAVE.payoffLink}</span>
+                            <span>
+                              {isSetup
+                                ? link.toTitle
+                                : link.fromTitle}
+                              {link.note ? ` — ${link.note}` : ""}
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            {link.fromTitle} → {link.toTitle}
+                            {link.note ? ` — ${link.note}` : ""}
+                          </>
+                        )}
+                      </li>
+                    );
+                  })}
                 </ul>
               )}
             </div>
 
-            <div className="rail-section">
-              <p className="small muted">{WEAVE.removeBeatNote}</p>
-              <button
-                type="button"
-                className="secondary small-button"
-                disabled={pending}
-                onClick={() =>
-                  startTransition(async () => {
-                    const result = await removeWeaveBeatAction(projectId, grid.id, selected.id);
-                    if (!result.ok) {
-                      setIssues(result.issues);
-                      return;
+            {isPlotGrid ? (
+              <div className="rail-section plot-rail-actions">
+                {selected.manuscriptRecordId && !selected.manuscriptUnavailable ? (
+                  <Link
+                    className="button-link"
+                    href={`/projects/${encodeURIComponent(projectId)}/records/${encodeURIComponent(selected.manuscriptRecordId)}`}
+                  >
+                    {WEAVE.openSceneInWrite}
+                  </Link>
+                ) : (
+                  <p className="rail-empty">{WEAVE.noSceneLinked}</p>
+                )}
+                {rewriteSources.length > 0 ? (
+                  <div className="plot-rail-compare">
+                    <p className="small" style={{ margin: 0 }}>
+                      <span className="muted">{WEAVE.compareZeroDraftSource}</span>
+                    </p>
+                    {rewriteSources.length > 1 ? (
+                      <label className="small">
+                        <span className="sr-only">{WEAVE.chooseZeroDraftSource}</span>
+                        <select
+                          value={compareSourceId}
+                          aria-label={WEAVE.chooseZeroDraftSource}
+                          onChange={(e) => {
+                            setCompareSourceId(e.target.value);
+                            setComparePreview(null);
+                          }}
+                        >
+                          {rewriteSources.map((s) => (
+                            <option key={s.toRecordId} value={s.toRecordId}>
+                              {s.title} ({DRAFT.sourceRevision(s.toRevisionNumber)})
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    ) : (
+                      <p className="small muted" style={{ margin: 0 }}>
+                        {rewriteSources[0]!.title} · {DRAFT.sourceRevision(rewriteSources[0]!.toRevisionNumber)}
+                      </p>
+                    )}
+                    <button
+                      type="button"
+                      className="secondary small-button"
+                      disabled={pending || !compareSourceId}
+                      onClick={() => {
+                        const source = rewriteSources.find((s) => s.toRecordId === compareSourceId);
+                        if (!source) return;
+                        startTransition(async () => {
+                          const result = await previewRewriteSourceAction(
+                            projectId,
+                            source.toRecordId,
+                            source.toRevisionNumber,
+                          );
+                          if (!result.ok) {
+                            setIssues(result.issues);
+                            return;
+                          }
+                          setComparePreview({
+                            title: result.title,
+                            body: result.body,
+                            revisionNumber: result.revisionNumber,
+                          });
+                        });
+                      }}
+                    >
+                      {WEAVE.compareZeroDraft}
+                    </button>
+                    {comparePreview ? (
+                      <div className="plot-rail-compare-preview" aria-label={comparePreview.title}>
+                        <div className="row" style={{ justifyContent: "space-between", gap: "0.35rem" }}>
+                          <strong className="small">
+                            {comparePreview.title}{" "}
+                            <span className="muted">{DRAFT.sourceRevision(comparePreview.revisionNumber)}</span>
+                          </strong>
+                          <button
+                            type="button"
+                            className="secondary small-button"
+                            onClick={() => setComparePreview(null)}
+                          >
+                            {WEAVE.closeZeroDraftCompare}
+                          </button>
+                        </div>
+                        <pre className="plot-rail-compare-body small">{comparePreview.body || "—"}</pre>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : selected.manuscriptRecordId && !selected.manuscriptUnavailable ? (
+                  <p className="small muted">{WEAVE.noZeroDraftSources}</p>
+                ) : null}
+                <div className="plot-rail-footer">
+                  <span className="small muted" aria-live="polite">
+                    {pending ? WEAVE.savingStatus : WEAVE.savedStatus}
+                  </span>
+                  <button
+                    type="button"
+                    className="secondary small-button"
+                    disabled={pending}
+                    onClick={() =>
+                      startTransition(async () => {
+                        const result = await removeWeaveBeatAction(projectId, grid.id, selected.id);
+                        if (!result.ok) {
+                          setIssues(result.issues);
+                          return;
+                        }
+                        dirtyIdsRef.current.delete(selected.id);
+                        persistDirty(beats.filter((b) => b.id !== selected.id));
+                        setBeats((list) => list.filter((b) => b.id !== selected.id));
+                        setSelectedId(null);
+                        router.refresh();
+                      })
                     }
-                    dirtyIdsRef.current.delete(selected.id);
-                    setBeats((list) => list.filter((b) => b.id !== selected.id));
-                    setSelectedId(null);
-                    router.refresh();
-                  })
-                }
-              >
-                {WEAVE.removeBeat}
-              </button>
-            </div>
+                  >
+                    {WEAVE.removeBeat}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="rail-section">
+                <p className="small muted">{WEAVE.removeBeatNote}</p>
+                <button
+                  type="button"
+                  className="secondary small-button"
+                  disabled={pending}
+                  onClick={() =>
+                    startTransition(async () => {
+                      const result = await removeWeaveBeatAction(projectId, grid.id, selected.id);
+                      if (!result.ok) {
+                        setIssues(result.issues);
+                        return;
+                      }
+                      dirtyIdsRef.current.delete(selected.id);
+                      setBeats((list) => list.filter((b) => b.id !== selected.id));
+                      setSelectedId(null);
+                      router.refresh();
+                    })
+                  }
+                >
+                  {WEAVE.removeBeat}
+                </button>
+              </div>
+            )}
           </div>
         )}
         </div>

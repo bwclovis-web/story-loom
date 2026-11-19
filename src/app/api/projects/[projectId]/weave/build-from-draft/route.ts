@@ -65,11 +65,24 @@ export async function POST(request: Request, ctx: { params: Promise<{ projectId:
   try {
     prep = await prepareWeaveBuild(getDb(), runtime, { projectId, ...parsed.data });
   } catch (error) {
-    if (error instanceof AssistantError) {
-      return errorResponse(error.code, error.message, HTTP_STATUS[error.code], error.size ? { size: error.size } : {});
+    // Duck-type: Next may duplicate the AssistantError class across bundles.
+    const assistant =
+      error instanceof AssistantError
+        ? error
+        : error instanceof Error && error.name === "AssistantError" && "code" in error
+          ? (error as AssistantError)
+          : null;
+    if (assistant && assistant.code in HTTP_STATUS) {
+      return errorResponse(
+        assistant.code,
+        assistant.message,
+        HTTP_STATUS[assistant.code as AssistantErrorCode],
+        assistant.size ? { size: assistant.size } : {},
+      );
     }
-    console.error("[weave-build] could not prepare a request:", error instanceof Error ? error.name : "unknown error");
-    return errorResponse("SERVER_ERROR", "The request could not be prepared.", 500);
+    const detail = error instanceof Error ? `${error.name}: ${error.message}` : "unknown error";
+    console.error("[weave-build] could not prepare a request:", detail);
+    return errorResponse("SERVER_ERROR", `The request could not be prepared. (${detail})`, 500);
   }
 
   const provider = createOpenAIProvider(config.apiKey ?? "");

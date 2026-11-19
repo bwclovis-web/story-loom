@@ -19,14 +19,24 @@ export function createDb(url: string): Db {
 
 const globalForDb = globalThis as unknown as { __wordlyDbClient?: { client: Db; generated: typeof PrismaClient } };
 
+function clientMatchesGeneratedModels(client: Db): boolean {
+  for (const model of Object.values(Prisma.ModelName)) {
+    const delegate = model.slice(0, 1).toLowerCase() + model.slice(1);
+    if (typeof (client as unknown as Record<string, unknown>)[delegate] === "undefined") return false;
+  }
+  return true;
+}
+
 /**
  * Process-wide client for the Next.js app. Services take a `db` argument instead of calling this.
  * The cache outlives dev reloads, so a client from before `prisma generate` is replaced
- * rather than kept with an outdated schema.
+ * rather than kept with an outdated schema (class identity or missing model delegates).
  */
 export function getDb(): Db {
   const cached = globalForDb.__wordlyDbClient;
-  if (cached?.generated === PrismaClient) return cached.client;
+  if (cached?.generated === PrismaClient && clientMatchesGeneratedModels(cached.client)) {
+    return cached.client;
+  }
   void cached?.client.$disconnect();
   const client = createDb(fileUrl(databaseFilePath()));
   globalForDb.__wordlyDbClient = { client, generated: PrismaClient };

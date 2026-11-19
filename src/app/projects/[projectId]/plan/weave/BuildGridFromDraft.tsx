@@ -55,7 +55,9 @@ export function BuildGridFromDraftForm({
   initialRun: WeaveBuildRunView | null;
 }) {
   const router = useRouter();
-  const [draftId, setDraftId] = useState<string>(drafts[0]?.id ?? "");
+  const [draftId, setDraftId] = useState<string>(
+    () => drafts.find((d) => d.kind === "zero_draft")?.id ?? drafts[0]?.id ?? "",
+  );
   const [viewKind, setViewKind] = useState<WeaveViewKind>("zero_draft_map");
   const [destMode, setDestMode] = useState<"new" | "existing">(grids[0] ? "existing" : "new");
   const [gridId, setGridId] = useState(grids[0]?.id ?? "");
@@ -97,8 +99,11 @@ export function BuildGridFromDraftForm({
         }),
       });
       if (!res.ok) {
-        const data = (await res.json().catch(() => null)) as { error?: { message?: string } } | null;
-        setIssues([errorIssue("INVALID_CHANGE", data?.error?.message ?? `Request failed (${res.status}).`)]);
+        const data = (await res.json().catch(() => null)) as {
+          error?: { code?: string; message?: string };
+        } | null;
+        const message = data?.error?.message ?? `Request failed (${res.status}).`;
+        setIssues([errorIssue("INVALID_CHANGE", message)]);
         return;
       }
       const reader = res.body?.getReader();

@@ -41,6 +41,7 @@ import {
   saveWeaveBuildDecisions,
   type WeaveBuildDecisions,
 } from "@/server/services/weaveBuildFromDraftService";
+import { listRewriteSources } from "@/server/services/draftService";
 
 function failure(error: unknown): { ok: false; issues: Issue[] } {
   if (error instanceof MutationRejectedError) return { ok: false, issues: error.issues };
@@ -412,6 +413,15 @@ export async function getWeaveBuildRunAction(projectId: string, runId: string) {
   try {
     const run = await getWeaveBuildRun(getDb(), projectId, runId);
     return { ok: true as const, run };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+export async function listManuscriptRewriteSourcesAction(projectId: string, manuscriptRecordId: string) {
+  try {
+    const sources = await listRewriteSources(getDb(), projectId, manuscriptRecordId);
+    return { ok: true as const, sources };
   } catch (error) {
     return failure(error);
   }

@@ -6,6 +6,7 @@ import { readWriteDraftCookie, resolveWriteDraftId } from "@/server/draftSelecti
 import { listManuscriptDrafts } from "@/server/services/draftService";
 import { NotFoundError } from "@/server/services/errors";
 import { listManuscriptNav, listRecords } from "@/server/services/recordService";
+import { getProject, listSeriesBookProjects } from "@/server/services/projectService";
 import { getWeaveGrid, listSeriesWeaveBeats } from "@/server/services/weaveService";
 import { SHELL, WEAVE } from "@/ui/labels";
 import { buildManuscriptTree } from "@/ui/manuscriptTree";
@@ -32,11 +33,19 @@ export default async function WeaveGridPage({
   const drafts = await listManuscriptDrafts(db, projectId).catch(() => []);
   const hasDrafts = drafts.length > 0;
   const activeDraftId = resolveWriteDraftId(drafts, await readWriteDraftCookie());
-  const [records, nav, seriesBeats] = await Promise.all([
+  const [project, records, nav, seriesBeats, seriesBooks] = await Promise.all([
+    getProject(db, projectId),
     listRecords(db, projectId),
     listManuscriptNav(db, projectId, { hasDrafts, draftId: activeDraftId }),
     listSeriesWeaveBeats(db, projectId).catch(() => []),
+    listSeriesBookProjects(db, projectId),
   ]);
+  const draftOptions = drafts.map((d) => ({
+    id: d.id,
+    kind: d.kind,
+    label: d.label,
+    completedAt: d.completedAt ? d.completedAt.toISOString() : null,
+  }));
   const manuscriptChoices = records
     .filter((r) => isManuscriptType(r.type) && r.type !== "scene_note")
     .map((r) => ({ id: r.id, title: r.title, typeLabel: RECORD_TYPE_LABELS[r.type] }));
@@ -114,6 +123,12 @@ export default async function WeaveGridPage({
       <WeaveCanvas
         projectId={projectId}
         grid={grid}
+        projectTitle={project.title}
+        bookName={project.bookName}
+        seriesBooks={seriesBooks}
+        drafts={draftOptions}
+        activeDraftId={activeDraftId}
+        planLabel={grid.viewLabel}
         manuscriptChoices={manuscriptChoices}
         manuscriptChapters={manuscriptChapters}
         worldChoices={worldChoices}

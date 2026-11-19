@@ -2265,3 +2265,39 @@ legacy, backup/restore.
 - Build runs are not workspace-backup fields; applied Weave content is.
 - Output limit may require a narrower chapter range.
 - Rollback: remove build UI/routes; drop `WeaveBuildRun` via reverse migration if needed.
+
+## Plot-grid design match (Nov 19, 2026)
+
+Requested: correct Weave plot-grid screen to match attached design (toolbar, sticky headers, beat cards, Unplaced tray, right rail, ivory/charcoal/gold).
+
+### Implemented
+- Compact project / book / plan chips; title **Plot grid**; single toolbar with segmented Grid|Freeform (Outline hidden until implemented), Threads visibility, Filter, Density, gold **+ Add beat**, ··· overflow.
+- Compact thread headers (··· menu); sticky scene/thread chrome; chapter bars; beat cards with left tone bars; collapsible Unplaced tray; meta footer without unimplemented shortcut hints.
+- Book select navigates series siblings; plan select switches Write draft cookie; non-interactive scope (project, sole book) is plain text.
+- Plot-grid rail: thread → scene → note → links → Open scene in Write → Compare zero draft (source chooser when several pinned) + Saved.
+- Empty-cell add stays subtle on desktop hover; keyboard/touch via focus + Enter / explicit Add beat.
+- Unsaved inspector title/note drafts kept in sessionStorage across navigation on the same grid.
+- Setup/payoff bulk panel moved to overflow in grid mode (freeform unchanged).
+- Invented Lantern Archive fixture: 3 chapters, multi-scene rows, 3 threads, multi-beat cell, empty cells, Unplaced (3), Book 2 sibling. Salt quay remains chapter-only.
+
+### Checks
+| Check | Result |
+| --- | --- |
+| `pnpm exec tsc --noEmit` | pass |
+| Lantern fixture (1280×800) | chapters 1–3, sticky heads/row labels, selection, inspector + Compare chooser (2 sources) |
+| Salt chapter-only | one chapter row, Unplaced tray, no Book select, Grid/Freeform only |
+| Screenshots | `tmp/plot-grid-design/fixture-*.png`, `salt-chapter-only.png` |
+
+### Remaining visual vs mock
+- Scope chips are native selects (not pill dropdowns); plan shows draft labels (Author manuscript / Zero draft), not the grid title.
+- Threads visibility pops as a checkbox list rather than a compact filter chip.
+- Inspector keeps Story thread / Linked chapter labels and Decision / World / Remove beat (mock is more minimal).
+- Setup/payoff and grid rename live under ··· rather than absent from the first paint.
+- Nav chrome still uses current Story Loom shell (icon rail labels Write/Plan/World/Assistant).
+
+### Remaining unimplemented
+- Outline view (intentionally hidden).
+- Global ⌘/Ctrl+⇧+G handler (hint removed).
+
+### Rollback
+Restore WeaveCanvas / WeavePlotGrid / globals.css / labels / Help / page props from prior revision. Lantern fixture rows are invented demo DB only — do not reset the working database.
