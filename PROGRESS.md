@@ -2387,3 +2387,38 @@ Revert `weaveService` relocate helper + action, `WeavePlotGrid` DnD, `globals.cs
 ## Dev and start port 2112 (Nov 19, 2026)
 
 `pnpm dev` and `pnpm start` listen on `127.0.0.1:2112`. Passing `-p` turns off Next.js’s free-port fallback, so a taken port fails instead of moving to 2113. Help, README, and the upgrade baseline match that address.
+
+## World reference inspector and original outlines (Nov 19, 2026)
+
+Requested: one inspector on reference pages, boards, and maps; board and map items open the same records; navigation between a record and the boards and maps that contain it; optional original templates; reviewed mappings instead of automatic rewrites; a World entry screen for search, recent references, and References / Maps / Boards. Map drawing stays as it is.
+
+### Implemented
+- `ReferenceInspector` tabs: Overview, Sections, Images, Relationships, and Established in when the record type can hold established facts. Arrow, Home, and End move between tabs.
+- Boards and maps load that same record. `?card=` and `?pin=` open the matching item. The record’s Overview lists those boards and maps and links back.
+- Optional outlines for Place, Religion, Culture, Organization, Species, Magic system, Object, and Language. Apply adds only missing headings after the existing prose. Title, structured fields, unknown fields, and canon status stay. A protected record needs an explicit unlock. Choosing an outline only shows the review; nothing is written until Apply. Apply is withheld while the editor has unsaved text. The inspector keeps showing the saved document.
+- The World page with no type, query, or `list=1` is search, recent references, and the three surface links. The full table remains on All references (`?list=1`) and on a category.
+- Primary and danger `ButtonLink` / `ButtonAnchor` set an inline label color so the unlayered `a { color: accent }` rule does not hide the label on the accent fill.
+
+### Checks
+| Check | Result |
+| --- | --- |
+| `pnpm exec tsc --noEmit` | pass |
+| `vitest run` reference templates, world hrefs, reference outlines, help | 14 passed |
+| Browser, Salt Archive demo, light | Hub search and recent references; inspector tabs; Place outline review left unapplied; unsaved body text still present after switching to Relationships; board card and map pin for The Salt Guild open that record, including Open record and the other surface |
+| Keyboard | ArrowRight moved Overview to Sections |
+| Themes | Light verified on the hub, inspector, outline review, board, and map. Dark hub screenshot saved from the same pass |
+| Linked image | `quay-sketch.png` on the record and in the Images tab; map backdrop names that image |
+| Protected updates, field preservation, backup restore | Covered by `tests/acceptance/reference-outlines.test.ts` on an isolated database. The demo and author databases were not rewritten |
+
+### Limits
+- No new record types and no schema change. Outlines are headings, not categories.
+- Map drawing beyond existing pins was not added.
+- On a window that is too narrow for the side-by-side rail, the board and map inspector sits past the canvas and needs a horizontal scroll. The reference page opens it as an overlay.
+- The dev overlay showed “1 Issue” on these pages. The pages still rendered. An earlier build error in the button migration (`"use client"` order, then a parse error) was already corrected on disk before this check finished.
+- The browser theme was left on Light after the screenshots.
+
+### Screenshots
+`docs/screenshots/world-hub-light.png`, `world-hub-dark.png`, `world-inspector-overview-light.png`, `world-inspector-sections-light.png`, `world-inspector-images-light.png`, `world-outline-review-light.png`, `world-board-inspector-light.png`, `world-map-pin-light.png`.
+
+### Rollback
+Revert the inspector, outline, placement, and World hub files, plus the Help and label copy for this behavior. No migration. Do not reset the working database.
