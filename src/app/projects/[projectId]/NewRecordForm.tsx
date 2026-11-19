@@ -3,6 +3,7 @@
 import { useActionState, useRef } from "react";
 import { HelpHint } from "@/components/HelpHint";
 import { IssueList } from "@/components/IssueList";
+import { Banner } from "@/components/ui/Banner";
 import { submitWithoutReset } from "@/components/submitWithoutReset";
 import { RECORD_TYPE_LABELS, RECORD_TYPES, requiresParent, type RecordType } from "@/domain/recordTypes";
 import { AUTHORITY_STATUSES } from "@/domain/statuses";
@@ -98,7 +99,7 @@ export function NewRecordForm({
           spellCheck={false}
         />
       </label>
-      {state.message ? <div className="banner error">{state.message}</div> : null}
+      {state.message ? <Banner tone="error">{state.message}</Banner> : null}
       <IssueList issues={state.issues ?? []} />
       <div>
         <button type="submit" disabled={pending}>

@@ -16,6 +16,7 @@ import type { ProofreadResult } from "@/server/services/proofreadService";
 import { PROOFREAD } from "@/ui/labels";
 import { ProtectionTick } from "./ProtectionTick";
 import { applyTextareaEdit, selectRange } from "./textareaEdit";
+import { Banner } from "@/components/ui/Banner";
 import { Button } from "@/components/ui/Button";
 
 export interface ProofreadConfig {
@@ -299,7 +300,7 @@ export function Proofreader({
       ) : null}
 
       {error ? (
-        <div className="banner error" role="alert">
+        <Banner tone="error" role="alert">
           <p style={{ margin: 0 }}>{error.message}</p>
           {error.size ? (
             <ul className="small">
@@ -310,7 +311,7 @@ export function Proofreader({
               ))}
             </ul>
           ) : null}
-        </div>
+        </Banner>
       ) : null}
 
       {result ? (

@@ -1,7 +1,10 @@
-import { ButtonLink } from "@/components/ui/Button";
 import Link from "next/link";
 import { CanonBadge, ProtectionStateBadge, SavedVersionBadge } from "@/components/Badges";
 import { OverflowDisclosure } from "@/components/shell/OverflowDisclosure";
+import { Breadcrumbs } from "@/components/ui/Breadcrumbs";
+import { ButtonLink } from "@/components/ui/Button";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { WorldSurfaceNav } from "@/components/world/WorldSurfaceNav";
 import { stableStringify } from "@/domain/json";
 import { getDb } from "@/server/db";
@@ -54,21 +57,18 @@ export default async function WorldPage({
   return (
     <>
       {type || q || list ? (
-        <nav aria-label={WORLD.breadcrumb} className="breadcrumbs">
-          <ol>
-            <li>
-              <Link href={worldHref(projectId)}>{SHELL.world}</Link>
-            </li>
-            <li>
-              <span aria-current="page">{crumb}</span>
-            </li>
-          </ol>
-        </nav>
+        <Breadcrumbs
+          label={WORLD.breadcrumb}
+          items={[
+            { href: worldHref(projectId), label: SHELL.world },
+            { label: crumb, current: true },
+          ]}
+        />
       ) : null}
-      <div className="page-head">
-        <h1>{q ? WORLD.resultsFor(q) : type ? WORLD_CATEGORY_LABELS[type] : list ? WORLD.allReferencesList : SHELL.world}</h1>
-      </div>
-      <p className="page-lead">{showHub ? WORLD.hubLead : GROUP_PAGES.world}</p>
+      <PageHeader
+        title={q ? WORLD.resultsFor(q) : type ? WORLD_CATEGORY_LABELS[type] : list ? WORLD.allReferencesList : SHELL.world}
+        lead={showHub ? WORLD.hubLead : GROUP_PAGES.world}
+      />
       <WorldSurfaceNav projectId={projectId} current="references" />
 
       {showHub ? (
@@ -84,7 +84,7 @@ export default async function WorldPage({
           <section className="panel" aria-labelledby="world-recent-heading">
             <h2 id="world-recent-heading">{WORLD.recentReferences}</h2>
             {recent.length === 0 ? (
-              <p className="muted">{WORLD.noRecent}</p>
+              <EmptyState>{WORLD.noRecent}</EmptyState>
             ) : (
               <ul className="world-recent">
                 {recent.map((r) => (
@@ -161,7 +161,7 @@ export default async function WorldPage({
             {type ? WORLD_CATEGORY_LABELS[type] : WORLD.allReferences}
           </h2>
           {listed.length === 0 ? (
-            <p className="muted">{WORLD.noReferences}</p>
+            <EmptyState>{WORLD.noReferences}</EmptyState>
           ) : (
             <table className="record-table world-table">
               <thead>

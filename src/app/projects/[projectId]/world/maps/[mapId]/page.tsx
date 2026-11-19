@@ -1,5 +1,5 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
+import { Breadcrumbs } from "@/components/ui/Breadcrumbs";
 import { getDb } from "@/server/db";
 import { NotFoundError } from "@/server/services/errors";
 import { listRecords } from "@/server/services/recordService";
@@ -36,19 +36,14 @@ export default async function WorldMapPage({
 
   return (
     <>
-      <nav aria-label={WORLD.breadcrumb} className="breadcrumbs">
-        <ol>
-          <li>
-            <Link href={`${base}/world`}>{SHELL.world}</Link>
-          </li>
-          <li>
-            <Link href={`${base}/world/maps`}>{WORLD.maps}</Link>
-          </li>
-          <li>
-            <span aria-current="page">{map.title}</span>
-          </li>
-        </ol>
-      </nav>
+      <Breadcrumbs
+        label={WORLD.breadcrumb}
+        items={[
+          { href: `${base}/world`, label: SHELL.world },
+          { href: `${base}/world/maps`, label: WORLD.maps },
+          { label: map.title, current: true },
+        ]}
+      />
       <MapCanvas
         projectId={projectId}
         map={map}

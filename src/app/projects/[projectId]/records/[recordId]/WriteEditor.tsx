@@ -18,6 +18,7 @@ import {
 import { IssueList } from "@/components/IssueList";
 import { DraftScopeChip, type DraftOption } from "@/components/drafts/DraftControls";
 import { ContextRail, ContextRailToggle, useContextRail } from "@/components/shell/ContextRail";
+import { Banner } from "@/components/ui/Banner";
 import { HistoryIcon, MoreIcon } from "@/components/shell/icons";
 import { useLayout } from "@/components/shell/LayoutContext";
 import { setUnsaved } from "@/components/shell/unsaved";
@@ -425,7 +426,7 @@ export function WriteEditor(props: {
               </div>
             </div>
             {!state.ok ? <IssueList issues={state.issues ?? []} /> : null}
-            {!state.ok && state.message ? <div className="banner error">{state.message}</div> : null}
+            {!state.ok && state.message ? <Banner tone="error">{state.message}</Banner> : null}
             {loadNote && (loadNote.tone !== "info" || dirty) ? (
               <div className={`banner ${loadNote.tone === "error" ? "error" : ""} load-note`} role="status">
                 {loadNote.text}

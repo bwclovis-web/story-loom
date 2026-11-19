@@ -12,6 +12,7 @@ import {
 import { RECORD_TYPE_LABELS } from "@/domain/recordTypes";
 import { DRAFT, NAV, SHELL, WEAVE, WRITE } from "@/ui/labels";
 import { groupForProjectPath, parseProjectPath, RECORD_GROUPS, type RecordNavEntry } from "@/ui/navigation";
+import { IconButton } from "@/components/ui/IconButton";
 import { CollapsibleNavSection } from "./CollapsibleNavSection";
 import { Drawer } from "./Drawer";
 import { PanelLeftIcon } from "./icons";
@@ -77,43 +78,53 @@ export function ProjectNav({
     onToggleSection: toggleSection,
   };
 
+  const secondaryOpen = !layout.secondaryHidden;
+
   return (
     <>
-      <div className="project-column" id={COLUMN_ID} hidden={layout.secondaryHidden}>
+      <div
+        className="project-column"
+        id={COLUMN_ID}
+        data-open={secondaryOpen ? "" : undefined}
+        aria-hidden={!secondaryOpen}
+        inert={!secondaryOpen ? true : undefined}
+      >
         <ProjectNavContent
           {...contentProps}
           hideButton={
-            <button
-              type="button"
-              className="icon-button tip tip-end panel-toggle"
+            <IconButton
+              tip="end"
+              className="panel-toggle"
               aria-label={hideLabel}
-              data-tooltip={hideLabel}
               aria-controls={COLUMN_ID}
-              aria-expanded="true"
+              aria-expanded={secondaryOpen}
               onClick={() => updateLayout({ secondaryHidden: true })}
             >
               <PanelLeftIcon />
-            </button>
+            </IconButton>
           }
         />
       </div>
-      {layout.secondaryHidden ? (
-        <div className="panel-strip left">
-          <button
-            type="button"
-            className="icon-button tip-right panel-toggle"
-            aria-label={showLabel}
-            data-tooltip={showLabel}
-            aria-controls={COLUMN_ID}
-            aria-expanded="false"
-            onClick={() => updateLayout({ secondaryHidden: false })}
-          >
-            <PanelLeftIcon />
-          </button>
-        </div>
-      ) : (
-        <PanelResizer panel="secondaryWidth" controls={COLUMN_ID} label={writing ? WRITE.resizeNavigation : SHELL.projectNav} />
-      )}
+      {/* Resizer stays mounted (like the context rail) so width can animate without a layout jump. */}
+      <PanelResizer
+        panel="secondaryWidth"
+        controls={COLUMN_ID}
+        label={writing ? WRITE.resizeNavigation : SHELL.projectNav}
+        hidden={!secondaryOpen}
+      />
+      <div className="panel-strip left" data-open={!secondaryOpen ? "" : undefined} aria-hidden={secondaryOpen}>
+        <IconButton
+          tip="right"
+          className="panel-toggle"
+          aria-label={showLabel}
+          aria-controls={COLUMN_ID}
+          aria-expanded={secondaryOpen}
+          tabIndex={secondaryOpen ? -1 : undefined}
+          onClick={() => updateLayout({ secondaryHidden: false })}
+        >
+          <PanelLeftIcon />
+        </IconButton>
+      </div>
       <div className="project-bar">
         <button
           type="button"

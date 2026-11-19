@@ -10,6 +10,7 @@ import {
 import { PanelRightIcon } from "@/components/shell/icons";
 import { useLayout } from "@/components/shell/LayoutContext";
 import { PanelResizer } from "@/components/shell/PanelResizer";
+import { IconButton } from "@/components/ui/IconButton";
 import { WRITE } from "@/ui/labels";
 
 /** At this viewport width and above the context panel sits beside the page; below it opens over the page. */
@@ -81,18 +82,17 @@ export function ContextRailToggle({
 }) {
   const label = rail.visible ? hideLabel : showLabel;
   return (
-    <button
+    <IconButton
       ref={rail.toggleRef}
-      type="button"
-      className="icon-button tip context-toggle"
+      tip="tip"
+      className="context-toggle"
       aria-label={label}
       aria-expanded={rail.visible}
       aria-controls={controls}
-      data-tooltip={label}
       onClick={rail.toggle}
     >
       <PanelRightIcon />
-    </button>
+    </IconButton>
   );
 }
 

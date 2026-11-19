@@ -1,5 +1,4 @@
 "use client";
-import { Button, ButtonLink } from "@/components/ui/Button";
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -18,6 +17,9 @@ import { IssueList } from "@/components/IssueList";
 import type { DraftOption } from "@/components/drafts/DraftControls";
 import { ContextRail, ContextRailToggle, useContextRail } from "@/components/shell/ContextRail";
 import { CloseIcon } from "@/components/shell/icons";
+import { Button, ButtonLink } from "@/components/ui/Button";
+import { IconButton } from "@/components/ui/IconButton";
+import { SegmentedControl, SegmentedOption } from "@/components/ui/SegmentedControl";
 import { WRITE_DRAFT_COOKIE, writePreference } from "@/components/shell/preferences";
 import type { Issue } from "@/domain/issues";
 import type { RewriteSourceView } from "@/server/services/draftService";
@@ -532,30 +534,26 @@ export function WeaveCanvas({
 
         <div className="board-toolbar board-toolbar-compact" role="toolbar" aria-label={WEAVE.beatCanvas}>
           <div className="board-toolbar-group">
-            <div className="segmented-control" role="group" aria-label={WEAVE.toolbarView}>
-              <button
-                type="button"
-                className={isPlotGrid ? "is-selected" : undefined}
-                aria-pressed={isPlotGrid}
+            <SegmentedControl label={WEAVE.toolbarView}>
+              <SegmentedOption
+                selected={isPlotGrid}
                 disabled={pending}
                 onClick={() => {
                   if (!isPlotGrid) setLayout("plot_grid");
                 }}
               >
                 {WEAVE.layoutPlotGrid}
-              </button>
-              <button
-                type="button"
-                className={!isPlotGrid ? "is-selected" : undefined}
-                aria-pressed={!isPlotGrid}
+              </SegmentedOption>
+              <SegmentedOption
+                selected={!isPlotGrid}
                 disabled={pending}
                 onClick={() => {
                   if (isPlotGrid) setLayout("freeform");
                 }}
               >
                 {WEAVE.layoutFreeform}
-              </button>
-            </div>
+              </SegmentedOption>
+            </SegmentedControl>
           </div>
 
           <div className="board-toolbar-group board-toolbar-grow">
@@ -1012,9 +1010,9 @@ export function WeaveCanvas({
         <div className="context-head">
           <h2 id={titleId}>{selected && isPlotGrid ? selected.title : WEAVE.beatRail}</h2>
           {!rail.wide ? (
-            <button type="button" className="icon-button" aria-label={WRITE.hideContext} onClick={rail.close}>
+            <IconButton tip="none" aria-label={WRITE.hideContext} onClick={rail.close}>
               <CloseIcon />
-            </button>
+            </IconButton>
           ) : null}
         </div>
         <div className="context-body">

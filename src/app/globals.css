@@ -168,7 +168,10 @@
   dialog.drawer::backdrop,
   .write-context,
   .context-backdrop,
-  .panel-resizer {
+  .panel-resizer,
+  .app-shell,
+  .project-column,
+  .panel-strip {
     transition: none !important;
   }
 }
@@ -261,7 +264,12 @@ button.small-button .icon { width: 14px; height: 14px; }
 
 /* ---- Application shell ---- */
 
-.app-shell { display: grid; grid-template-columns: var(--nav-width) minmax(0, 1fr); min-height: 100vh; }
+.app-shell {
+  display: grid;
+  grid-template-columns: var(--nav-width) minmax(0, 1fr);
+  min-height: 100vh;
+  transition: grid-template-columns var(--motion-med) var(--motion-ease);
+}
 .app-shell[data-nav="collapsed"] { grid-template-columns: var(--nav-width-collapsed) minmax(0, 1fr); }
 @media (max-width: 1179px) {
   .app-shell[data-nav="auto"] { grid-template-columns: var(--nav-width-collapsed) minmax(0, 1fr); }
@@ -271,6 +279,7 @@ button.small-button .icon { width: 14px; height: 14px; }
 .global-rail {
   position: sticky; top: 0; align-self: start; z-index: 20;
   height: 100vh; height: 100dvh;
+  overflow-x: clip;
   background: var(--color-nav); color: var(--color-nav-text);
   container: rail / inline-size;
   --color-focus: var(--color-accent-on-dark);
@@ -364,18 +373,53 @@ button.selector-button:hover { background: var(--color-nav-hover); }
 .project-frame { display: flex; align-items: flex-start; min-height: 100vh; }
 .project-frame > .workspace { flex: 1; }
 .project-column {
-  flex: none; width: var(--secondary-width);
-  position: sticky; top: 0; height: 100vh; height: 100dvh; overflow-y: auto;
-  border-right: 1px solid var(--color-border); background: var(--color-surface-sunken);
+  flex: none;
+  width: var(--secondary-width);
+  max-width: var(--secondary-width);
+  position: sticky; top: 0; height: 100vh; height: 100dvh;
+  overflow-x: clip; overflow-y: auto;
+  border-right: 1px solid var(--color-border);
+  background: var(--color-surface-sunken);
+  opacity: 1;
+  transition:
+    width var(--motion-med) var(--motion-ease),
+    max-width var(--motion-med) var(--motion-ease),
+    opacity var(--motion-med) var(--motion-ease),
+    border-color var(--motion-med) var(--motion-ease);
+}
+.project-column:not([data-open]) {
+  width: 0;
+  max-width: 0;
+  opacity: 0;
+  border-right-color: transparent;
+  overflow: hidden;
+  pointer-events: none;
 }
 .project-nav { padding: 1.1rem 0.7rem 2rem; font-size: 0.875rem; }
 .project-head { display: flex; align-items: flex-start; gap: 0.25rem; padding: 0 0 0.8rem 0.5rem; margin-bottom: 0.6rem; border-bottom: 1px solid var(--color-border); }
 .project-head-text { flex: 1; min-width: 0; }
 .project-head .panel-toggle { margin-top: -0.3rem; color: var(--color-text-muted); }
 .panel-strip {
-  flex: none; position: sticky; top: 0; height: 100vh; height: 100dvh; width: 2.75rem;
+  flex: none; position: sticky; top: 0; height: 100vh; height: 100dvh;
+  width: 0; max-width: 0;
   display: flex; justify-content: center; padding-top: 0.8rem;
-  border-right: 1px solid var(--color-border); background: var(--color-surface-sunken); color: var(--color-text-muted);
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+  border-right: 1px solid transparent;
+  background: var(--color-surface-sunken); color: var(--color-text-muted);
+  transition:
+    width var(--motion-med) var(--motion-ease),
+    max-width var(--motion-med) var(--motion-ease),
+    opacity var(--motion-med) var(--motion-ease),
+    border-color var(--motion-med) var(--motion-ease);
+}
+.panel-strip[data-open] {
+  width: 2.75rem;
+  max-width: 2.75rem;
+  opacity: 1;
+  pointer-events: auto;
+  border-right-color: var(--color-border);
 }
 /* Focusable drag handles between panels; keyboard users resize with the arrow keys. */
 .panel-resizer {

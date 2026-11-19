@@ -1,0 +1,39 @@
+import Link from "next/link";
+import type { ReactNode } from "react";
+import { cn } from "@/ui/cn";
+
+export type BreadcrumbItem = {
+  label: ReactNode;
+  href?: string;
+  current?: boolean;
+};
+
+/** Compact trail above a page title. Last item may omit href and set `current`. */
+export function Breadcrumbs({
+  label,
+  items,
+  className,
+}: {
+  label: string;
+  items: BreadcrumbItem[];
+  className?: string;
+}) {
+  return (
+    <nav aria-label={label} className={cn("breadcrumbs", className)}>
+      <ol>
+        {items.map((item, index) => {
+          const current = item.current || (!item.href && index === items.length - 1);
+          return (
+            <li key={index}>
+              {item.href && !current ? (
+                <Link href={item.href}>{item.label}</Link>
+              ) : (
+                <span aria-current={current ? "page" : undefined}>{item.label}</span>
+              )}
+            </li>
+          );
+        })}
+      </ol>
+    </nav>
+  );
+}

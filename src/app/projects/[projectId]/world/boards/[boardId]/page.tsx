@@ -1,5 +1,5 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
+import { Breadcrumbs } from "@/components/ui/Breadcrumbs";
 import { getDb } from "@/server/db";
 import { getBoard } from "@/server/services/boardService";
 import { NotFoundError } from "@/server/services/errors";
@@ -51,19 +51,14 @@ export default async function WorldBoardPage({
 
   return (
     <>
-      <nav aria-label={WORLD.breadcrumb} className="breadcrumbs">
-        <ol>
-          <li>
-            <Link href={`${base}/world`}>{SHELL.world}</Link>
-          </li>
-          <li>
-            <Link href={`${base}/world/boards`}>{WORLD.boards}</Link>
-          </li>
-          <li>
-            <span aria-current="page">{board.title}</span>
-          </li>
-        </ol>
-      </nav>
+      <Breadcrumbs
+        label={WORLD.breadcrumb}
+        items={[
+          { href: `${base}/world`, label: SHELL.world },
+          { href: `${base}/world/boards`, label: WORLD.boards },
+          { label: board.title, current: true },
+        ]}
+      />
       <BoardCanvas
         projectId={projectId}
         board={board}

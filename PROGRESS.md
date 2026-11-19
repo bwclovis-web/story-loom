@@ -2324,6 +2324,16 @@ Restore WeaveCanvas / WeavePlotGrid / globals.css / labels / Help / page props f
 - Fixed invisible secondary buttons: legacy unlayered `button { color: on-accent }` no longer applies to `.sl-btn`; variants use explicit `--color-*` tokens; `@theme` no longer circularly aliases accent/surface/danger.
 - Migrated WriteContext, WeaveCanvas, WeavePlotGrid, BoardCanvas, CreateBoardForm, boards page CTAs, DictionaryManager to `Button` / `ButtonLink`. Left icon-button, context tabs/selects, segmented layout toggles, and plot-grid beat cells on native buttons.
 
+### Shell panel motion (Nov 19, 2026)
+
+- Global nav collapse: `grid-template-columns` transition on `.app-shell` (same `--motion-med` tokens as the context rail).
+- Manuscript / project column: keep mounted and animate width/opacity via `data-open` (no `hidden` snap); resizer stays mounted; reopen strip animates in. Reduced-motion disables these transitions.
+
+### Shared UI Batch C (Nov 19, 2026)
+
+- Added folder primitives: `IconButton`, `SegmentedControl`, `Breadcrumbs`, `PageHeader`, `EmptyState`; `Banner` now supports `ref`.
+- Migrated high-reuse call sites: context/assistant/drawer/project panel closes; Weave layout toggle; World/Plan breadcrumbs + empty lists; PackageReview / Proofreader / NewRecordForm / WriteEditor / AssistantPanel banners; MapCanvas + PlaceRelations buttons.
+
 ## Shared UI primitives from assistant rail (Nov 19, 2026)
 
 Extracted reusable pieces for app-wide use:

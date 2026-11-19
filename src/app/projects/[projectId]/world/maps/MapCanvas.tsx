@@ -4,6 +4,8 @@ import { useRouter } from "next/navigation";
 import { useEffect, useId, useRef, useState, useTransition, type PointerEvent as ReactPointerEvent } from "react";
 import { StatusBadge } from "@/components/Badges";
 import { IssueList } from "@/components/IssueList";
+import { Button } from "@/components/ui/Button";
+import { IconButton } from "@/components/ui/IconButton";
 import { ReferenceInspector } from "@/components/world/ReferenceInspector";
 import { ContextRail, ContextRailToggle, useContextRail } from "@/components/shell/ContextRail";
 import { CloseIcon } from "@/components/shell/icons";
@@ -210,17 +212,17 @@ export function MapCanvas({
                 ))}
               </select>
             </label>
-            <button
+            <Button
               type="button"
-              className="small-button"
+             
               disabled={pending || !pendingPlaceId}
               onClick={() => {
                 if (!pendingPlaceId) return;
                 placePin(pendingPlaceId, 0.5, 0.5);
               }}
-            >
+             size="sm">
               {WORLD.addPin}
-            </button>
+            </Button>
           </div>
           <details className="board-overflow">
             <summary>{SHELL.moreActions}</summary>
@@ -244,18 +246,18 @@ export function MapCanvas({
                   <span className="sr-only">{WORLD.renameMap}</span>
                   <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} required />
                 </label>
-                <button type="submit" className="secondary small-button" disabled={pending}>
+                <Button type="submit" disabled={pending} variant="secondary" size="sm">
                   {WORLD.renameMap}
-                </button>
+                </Button>
               </form>
               {!confirmDelete ? (
-                <button type="button" className="secondary small-button" onClick={() => setConfirmDelete(true)}>
+                <Button type="button" onClick={() => setConfirmDelete(true)} variant="secondary" size="sm">
                   {WORLD.deleteMap}
-                </button>
+                </Button>
               ) : (
-                <button
+                <Button
                   type="button"
-                  className="small-button"
+                 
                   disabled={pending}
                   onClick={() =>
                     startTransition(async () => {
@@ -268,9 +270,9 @@ export function MapCanvas({
                       router.refresh();
                     })
                   }
-                >
+                 size="sm">
                   {WORLD.confirmDeleteMap(map.title)}
-                </button>
+                </Button>
               )}
             </div>
           </details>
@@ -351,9 +353,9 @@ export function MapCanvas({
         <div className="context-head">
           <h2 id={titleId}>{WORLD.mapRail}</h2>
           {!rail.wide ? (
-            <button type="button" className="icon-button" aria-label={WRITE.hideContext} onClick={rail.close}>
+            <IconButton tip="none" aria-label={WRITE.hideContext} onClick={rail.close}>
               <CloseIcon />
-            </button>
+            </IconButton>
           ) : null}
         </div>
         <div className="context-body">
@@ -380,9 +382,9 @@ export function MapCanvas({
               <p className="muted">{WORLD.inspectorLoading}</p>
             )}
             <p className="small muted">{WORLD.removePinNote}</p>
-            <button
+            <Button
               type="button"
-              className="secondary small-button"
+             
               disabled={pending}
               onClick={() =>
                 startTransition(async () => {
@@ -396,9 +398,9 @@ export function MapCanvas({
                   router.refresh();
                 })
               }
-            >
+             variant="secondary" size="sm">
               {WORLD.removePin}
-            </button>
+            </Button>
           </div>
         )}
         </div>

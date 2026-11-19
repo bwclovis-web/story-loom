@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, type MouseEvent, type ReactNode } from "react";
+import { IconButton } from "@/components/ui/IconButton";
 import { CloseIcon } from "./icons";
 
 /** Viewport width below which the side columns become drawers; matches globals.css. */
@@ -76,15 +77,14 @@ export function Drawer({
   return (
     <dialog ref={ref} id={id} aria-label={label} className={dark ? "drawer dark" : "drawer"} onClick={handleClick}>
       <div className="drawer-inner">
-        <button
-          type="button"
-          className="icon-button drawer-close tip tip-end"
+        <IconButton
+          tip="end"
+          className="drawer-close"
           aria-label={closeLabel}
-          data-tooltip={closeLabel}
           onClick={() => ref.current?.close()}
         >
           <CloseIcon />
-        </button>
+        </IconButton>
         {children}
       </div>
     </dialog>

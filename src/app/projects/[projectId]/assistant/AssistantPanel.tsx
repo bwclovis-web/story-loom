@@ -5,6 +5,8 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { SectionTagBadge, StatusBadge } from "@/components/Badges";
 import type { DraftOption } from "@/components/drafts/DraftControls";
 import { ContextRail, ContextRailToggle, useContextRail } from "@/components/shell/ContextRail";
+import { Banner } from "@/components/ui/Banner";
+import { Button } from "@/components/ui/Button";
 import { ASSISTANT_INSTRUCTIONS } from "@/assistant/prompt";
 import type { RetrievalScope } from "@/assistant/tools";
 import { takeWriteHandoff } from "@/assistant/writeHandoff";
@@ -535,19 +537,23 @@ export function AssistantPanel(props: {
             {m.role === "assistant" ? <AnswerDetails m={m} /> : null}
             {m.role === "assistant" && (m.status === "failed" || m.status === "cancelled") ? (
               <div className="row">
-                {m.errorMessage ? <div className={`banner ${m.status === "failed" ? "error" : ""}`}>{m.errorMessage}</div> : null}
-                <button type="button" className="secondary" disabled={!props.configured || busy || streamingStored} onClick={() => retry(m)}>
+                {m.errorMessage ? (
+                  <Banner tone={m.status === "failed" ? "error" : "info"}>{m.errorMessage}</Banner>
+                ) : null}
+                <Button type="button" variant="secondary" disabled={!props.configured || busy || streamingStored} onClick={() => retry(m)}>
                   {ASSISTANT.retry}
-                </button>
+                </Button>
               </div>
             ) : null}
-            {m.role === "assistant" && m.status === "incomplete" && m.errorMessage ? <div className="banner">{m.errorMessage}</div> : null}
+            {m.role === "assistant" && m.status === "incomplete" && m.errorMessage ? (
+              <Banner tone="info">{m.errorMessage}</Banner>
+            ) : null}
             {m.role === "assistant" && m.status === "streaming" && !busy ? (
               <div className="row small">
                 <span>This answer is still running or was interrupted.</span>
-                <button type="button" className="secondary" onClick={() => cancelStored(m.id)}>
+                <Button type="button" variant="secondary" onClick={() => cancelStored(m.id)}>
                   {ASSISTANT.cancel}
-                </button>
+                </Button>
               </div>
             ) : null}
           </li>
@@ -567,9 +573,9 @@ export function AssistantPanel(props: {
                 <span className="badge">
                   {!live.assistantMessageId ? "sending..." : live.mode === "proposal" ? "preparing proposal..." : "answering..."}
                 </span>
-                <button type="button" className="secondary" onClick={cancel}>
+                <Button type="button" variant="secondary" onClick={cancel}>
                   {ASSISTANT.cancel}
-                </button>
+                </Button>
               </div>
               <div className="message-text">
                 <AssistantAnswer text={live.text} />
@@ -580,7 +586,7 @@ export function AssistantPanel(props: {
       </ol>
 
       {error ? (
-        <div className="banner error" role="alert">
+        <Banner tone="error" role="alert">
           <p style={{ margin: 0 }}>{error.message}</p>
           {error.size ? (
             <ul className="small">
@@ -591,7 +597,7 @@ export function AssistantPanel(props: {
               ))}
             </ul>
           ) : null}
-        </div>
+        </Banner>
       ) : null}
 
       {props.configured ? (

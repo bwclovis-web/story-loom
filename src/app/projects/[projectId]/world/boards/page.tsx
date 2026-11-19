@@ -1,6 +1,9 @@
-import { ButtonLink } from "@/components/ui/Button";
 import Link from "next/link";
 import { HelpHint } from "@/components/HelpHint";
+import { Breadcrumbs } from "@/components/ui/Breadcrumbs";
+import { ButtonLink } from "@/components/ui/Button";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { getDb } from "@/server/db";
 import { listBoards } from "@/server/services/boardService";
 import { WorldSurfaceNav } from "@/components/world/WorldSurfaceNav";
@@ -16,20 +19,14 @@ export default async function WorldBoardsPage({ params }: { params: Promise<{ pr
 
   return (
     <>
-      <nav aria-label={WORLD.breadcrumb} className="breadcrumbs">
-        <ol>
-          <li>
-            <Link href={`${base}/world`}>{SHELL.world}</Link>
-          </li>
-          <li>
-            <span aria-current="page">{WORLD.boards}</span>
-          </li>
-        </ol>
-      </nav>
-      <div className="page-head">
-        <h1>{WORLD.boards}</h1>
-      </div>
-      <p className="page-lead">{WORLD.boardsLead}</p>
+      <Breadcrumbs
+        label={WORLD.breadcrumb}
+        items={[
+          { href: `${base}/world`, label: SHELL.world },
+          { label: WORLD.boards, current: true },
+        ]}
+      />
+      <PageHeader title={WORLD.boards} lead={WORLD.boardsLead} />
       <WorldSurfaceNav projectId={projectId} current="boards" />
       <HelpHint anchor="world-boards" topic="World boards">
         Boards are optional. Removing a card only removes it from that board. Ask about this board previews linked
@@ -47,7 +44,7 @@ export default async function WorldBoardsPage({ params }: { params: Promise<{ pr
       <section className="panel" aria-labelledby="boards-list-heading">
         <h2 id="boards-list-heading">{WORLD.boards}</h2>
         {boards.length === 0 ? (
-          <p className="muted">{WORLD.noBoards}</p>
+          <EmptyState>{WORLD.noBoards}</EmptyState>
         ) : (
           <ul className="nav-list">
             {boards.map((b) => (

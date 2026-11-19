@@ -20,6 +20,7 @@ import {
 } from "@/components/shell/icons";
 import { ActionChip } from "@/components/ui/ActionChip";
 import { Button } from "@/components/ui/Button";
+import { IconButton } from "@/components/ui/IconButton";
 import { PillLabel, PillSelect } from "@/components/ui/Pill";
 import type { RetrievalScope } from "@/assistant/tools";
 import type { ProposalView } from "@/server/services/assistantProposalService";
@@ -299,17 +300,15 @@ export function WriteAssistantRail({
           <h2 id={`${reactId}-title`}>{ASSISTANT.heading}</h2>
         </div>
         <div className="assistant-rail-actions">
-          <button
-            type="button"
-            className="icon-button tip tip-end"
+          <IconButton
+            tip="end"
             aria-expanded={memoryOpen}
             aria-label={ASSISTANT.memory}
-            data-tooltip={ASSISTANT.memory}
             disabled={!conversation}
             onClick={() => setMemoryOpen((o) => !o)}
           >
             <MemoryIcon />
-          </button>
+          </IconButton>
           <Link
             className="icon-button tip tip-end"
             href={expandHref}
@@ -319,9 +318,9 @@ export function WriteAssistantRail({
           >
             <ExpandCornersIcon />
           </Link>
-          <button type="button" className="icon-button tip tip-end" aria-label={ASSISTANT.closeRail} data-tooltip={ASSISTANT.closeRail} onClick={onClose}>
+          <IconButton tip="end" aria-label={ASSISTANT.closeRail} onClick={onClose}>
             <CloseIcon />
-          </button>
+          </IconButton>
         </div>
       </header>
 

@@ -14,6 +14,7 @@ import {
 } from "react";
 import { IssueList } from "@/components/IssueList";
 import { Button } from "@/components/ui/Button";
+import { IconButton } from "@/components/ui/IconButton";
 import { ReferenceInspector } from "@/components/world/ReferenceInspector";
 import { ContextRail, ContextRailToggle, useContextRail } from "@/components/shell/ContextRail";
 import { CloseIcon } from "@/components/shell/icons";
@@ -523,15 +524,9 @@ export function BoardCanvas({
               {WORLD.boardRail}
             </h2>
             {!rail.wide ? (
-              <button
-                type="button"
-                className="icon-button tip tip-end"
-                aria-label={WRITE.closeContext}
-                data-tooltip={WRITE.closeContext}
-                onClick={rail.close}
-              >
+              <IconButton tip="end" aria-label={WRITE.closeContext} onClick={rail.close}>
                 <CloseIcon />
-              </button>
+              </IconButton>
             ) : null}
           </div>
           <div className="context-body world-context-body">

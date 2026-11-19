@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { Button } from "@/components/ui/Button";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { IssueList } from "@/components/IssueList";
@@ -53,9 +54,9 @@ export function PlaceRelations({
                   <Link href={`${base}/${encodeURIComponent(r.toRecordId)}`}>{r.toTitle}</Link>
                   <span className="small muted"> ({r.toTypeLabel})</span>
                 </span>
-                <button
+                <Button
                   type="button"
-                  className="secondary small-button"
+                 
                   disabled={pending}
                   onClick={() =>
                     startTransition(async () => {
@@ -67,9 +68,9 @@ export function PlaceRelations({
                       }
                     })
                   }
-                >
+                 variant="secondary" size="sm">
                   {WORLD.removePlaceRelation}
-                </button>
+                </Button>
               </li>
             ))}
           </ul>
@@ -137,9 +138,9 @@ export function PlaceRelations({
                 ))}
             </select>
           </label>
-          <button type="submit" className="small-button" disabled={pending || !toRecordId}>
+          <Button type="submit" disabled={pending || !toRecordId} size="sm">
             {WORLD.addPlaceRelation}
-          </button>
+          </Button>
         </form>
       </div>
     </section>

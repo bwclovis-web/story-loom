@@ -1,5 +1,4 @@
 "use client";
-import { Button, ButtonLink } from "@/components/ui/Button";
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -8,6 +7,8 @@ import { WriteAssistantRail } from "@/components/assistant/WriteAssistantRail";
 import { StatusBadge } from "@/components/Badges";
 import { IssueList } from "@/components/IssueList";
 import { CloseIcon } from "@/components/shell/icons";
+import { Button, ButtonLink } from "@/components/ui/Button";
+import { IconButton } from "@/components/ui/IconButton";
 import { useLayout } from "@/components/shell/LayoutContext";
 import { CONTEXT_TABS, type ContextTab } from "@/components/shell/preferences";
 import { setUnsaved } from "@/components/shell/unsaved";
@@ -186,9 +187,9 @@ export function WriteContext({
           {WRITE.contextPanel}
         </h2>
         {overlay ? (
-          <button type="button" className="icon-button tip tip-end" aria-label={WRITE.closeContext} data-tooltip={WRITE.closeContext} onClick={onClose}>
+          <IconButton tip="end" aria-label={WRITE.closeContext} onClick={onClose}>
             <CloseIcon />
-          </button>
+          </IconButton>
         ) : null}
       </div>
       <div role="tablist" aria-label={WRITE.contextPanel} className="context-tabs" onKeyDown={onTabKey}>

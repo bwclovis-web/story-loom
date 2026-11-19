@@ -1,5 +1,9 @@
 import Link from "next/link";
 import { HelpHint } from "@/components/HelpHint";
+import { Breadcrumbs } from "@/components/ui/Breadcrumbs";
+import { ButtonLink } from "@/components/ui/Button";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { getDb } from "@/server/db";
 import { listRecordImages } from "@/server/services/imageService";
 import { listRecords } from "@/server/services/recordService";
@@ -30,20 +34,14 @@ export default async function WorldMapsPage({ params }: { params: Promise<{ proj
 
   return (
     <>
-      <nav aria-label={WORLD.breadcrumb} className="breadcrumbs">
-        <ol>
-          <li>
-            <Link href={`${base}/world`}>{SHELL.world}</Link>
-          </li>
-          <li>
-            <span aria-current="page">{WORLD.maps}</span>
-          </li>
-        </ol>
-      </nav>
-      <header className="page-header">
-        <h1>{WORLD.maps}</h1>
-      </header>
-      <p className="page-lead">{WORLD.mapsLead}</p>
+      <Breadcrumbs
+        label={WORLD.breadcrumb}
+        items={[
+          { href: `${base}/world`, label: SHELL.world },
+          { label: WORLD.maps, current: true },
+        ]}
+      />
+      <PageHeader title={WORLD.maps} lead={WORLD.mapsLead} />
       <WorldSurfaceNav projectId={projectId} current="maps" />
       <HelpHint anchor="world-maps" topic="World maps">
         Selecting a pin opens that place in the context rail. Moving pins never creates place relationships.
@@ -57,7 +55,7 @@ export default async function WorldMapsPage({ params }: { params: Promise<{ proj
       <section className="panel" aria-labelledby="maps-list-heading">
         <h2 id="maps-list-heading">{WORLD.maps}</h2>
         {maps.length === 0 ? (
-          <p className="muted">{WORLD.noMaps}</p>
+          <EmptyState>{WORLD.noMaps}</EmptyState>
         ) : (
           <ul className="stack">
             {maps.map((m) => (
@@ -68,9 +66,9 @@ export default async function WorldMapsPage({ params }: { params: Promise<{ proj
                     {m.imageName} · {WORLD.pinsCount(m.pinCount)} · on {m.hostRecordTitle}
                   </span>
                 </div>
-                <Link className="small-button secondary" href={`${base}/world/maps/${encodeURIComponent(m.id)}`}>
+                <ButtonLink href={`${base}/world/maps/${encodeURIComponent(m.id)}`} variant="secondary" size="sm">
                   {WORLD.openMap}
-                </Link>
+                </ButtonLink>
               </li>
             ))}
           </ul>

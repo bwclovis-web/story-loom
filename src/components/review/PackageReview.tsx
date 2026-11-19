@@ -6,6 +6,7 @@ import { useCallback, useEffect, useId, useMemo, useReducer, useRef, useState, t
 import { CANON_REASON_TEXT, canonChanges } from "@/assistant/canon";
 import { IssueList } from "@/components/IssueList";
 import { ResultSummary } from "@/components/PackagePreview";
+import { Banner } from "@/components/ui/Banner";
 import { Button, ButtonLink } from "@/components/ui/Button";
 import { RECORD_TYPE_LABELS } from "@/domain/recordTypes";
 import type { PackagePreview } from "@/server/services/changePackageService";
@@ -242,23 +243,21 @@ export function PackageReviewView(props: PackageReviewViewProps) {
 
   const outcomeBanner =
     phase.kind === "applied" ? (
-      <div className="banner ok" role="status" tabIndex={-1} ref={outcomeRef}>
+      <Banner tone="ok" tabIndex={-1} ref={outcomeRef}>
         {REVIEW.applied} <Link href={`/projects/${projectId}/history`}>{REVIEW.viewHistory}</Link>
-      </div>
+      </Banner>
     ) : phase.kind === "already_applied" ? (
-      <div className="banner info" role="status" tabIndex={-1} ref={outcomeRef}>
+      <Banner tone="info" tabIndex={-1} ref={outcomeRef}>
         {REVIEW.alreadyApplied} <Link href={`/projects/${projectId}/history`}>{REVIEW.viewHistory}</Link>
-      </div>
+      </Banner>
     ) : phase.kind === "rejected" ? (
-      <div className="banner error" role="alert" tabIndex={-1} ref={outcomeRef}>
-        <p className="banner-title">{REVIEW.rejected}</p>
+      <Banner tone="error" role="alert" title={REVIEW.rejected} tabIndex={-1} ref={outcomeRef}>
         <IssueList issues={phase.issues} />
-      </div>
+      </Banner>
     ) : phase.kind === "failed" ? (
-      <div className="banner error" role="alert" tabIndex={-1} ref={outcomeRef}>
-        <p className="banner-title">{phase.message}</p>
+      <Banner tone="error" role="alert" title={phase.message} tabIndex={-1} ref={outcomeRef}>
         {phase.message !== REVIEW.failed ? <p>{REVIEW.failed}</p> : null}
-      </div>
+      </Banner>
     ) : null;
 
   return (
@@ -534,18 +533,22 @@ export function PackageReviewView(props: PackageReviewViewProps) {
                   </p>
                 </>
               ) : vstate === "stale" ? (
-                <div className="banner warn" role="status" tabIndex={-1} ref={props.staleRef}>
-                  {state.becameStale ? <p className="banner-title">{REVIEW.becameStale}</p> : null}
+                <Banner
+                  tone="warn"
+                  tabIndex={-1}
+                  ref={props.staleRef}
+                  title={state.becameStale ? REVIEW.becameStale : undefined}
+                >
                   <p>{REVIEW.staleExplanation}</p>
                   <p>{kind === "proposal" ? REVIEW.staleProposal : REVIEW.staleImport}</p>
-                </div>
+                </Banner>
               ) : vstate === "not_approved" ? (
-                <div className="banner info">{REVIEW.notApprovedExplanation}</div>
+                <Banner tone="info">{REVIEW.notApprovedExplanation}</Banner>
               ) : (
-                <div className="banner error">
+                <Banner tone="error">
                   <p>{REVIEW.invalidExplanation}</p>
                   <IssueList issues={errors} />
-                </div>
+                </Banner>
               )}
               <div className="review-actions">
                 <BackControl back={props.back} />
