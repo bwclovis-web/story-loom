@@ -47,6 +47,7 @@ import {
   type ChoiceItem,
   type LinkedItem,
   type NoteItem,
+  type PlotBeatItem,
   type SourceItem,
 } from "./WriteContext";
 
@@ -79,6 +80,7 @@ export function WriteEditor(props: {
   draftScopeId: string | null;
   drafts?: DraftOption[];
   initialPins: import("@/server/services/readingPinService").ReadingPinView[];
+  plotBeats: PlotBeatItem[];
   /** Status, protection, history and compare, rendered by the server below the text. */
   details: ReactNode;
 }) {
@@ -551,6 +553,7 @@ export function WriteEditor(props: {
           attachableSources={props.attachableSources}
           draftScopeId={props.draftScopeId}
           initialPins={props.initialPins}
+          plotBeats={props.plotBeats}
           overlay={!rail.wide}
           onClose={rail.close}
           proofreader={

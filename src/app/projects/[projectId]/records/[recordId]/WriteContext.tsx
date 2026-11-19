@@ -13,7 +13,7 @@ import { submitWithoutReset } from "@/components/submitWithoutReset";
 import type { Issue } from "@/domain/issues";
 import { RECORD_TYPE_LABELS, type RecordType } from "@/domain/recordTypes";
 import type { AuthorityStatus } from "@/domain/statuses";
-import { DRAFT, RECORD, WRITE } from "@/ui/labels";
+import { DRAFT, RECORD, WEAVE, WRITE } from "@/ui/labels";
 import {
   attachRewriteSourceAction,
   detachRewriteSourceAction,
@@ -79,8 +79,19 @@ const TAB_LABELS: Record<ContextTab, string> = {
   source: DRAFT.sourceTab,
   references: WRITE.references,
   notes: WRITE.notes,
+  plot: WRITE.plot,
   proofread: WRITE.proofread,
 };
+
+export interface PlotBeatItem {
+  id: string;
+  title: string;
+  body: string;
+  decisionLabel: string;
+  threadTitle: string | null;
+  gridId: string;
+  gridTitle: string;
+}
 
 const CHOICES_SHOWN = 8;
 
@@ -97,6 +108,7 @@ export function WriteContext({
   attachableSources,
   draftScopeId,
   initialPins,
+  plotBeats,
   proofreader,
   overlay,
   onClose,
@@ -114,6 +126,7 @@ export function WriteContext({
   /** Active Write draft id, or null for legacy project-level pins. */
   draftScopeId: string | null;
   initialPins: ReadingPinView[];
+  plotBeats: PlotBeatItem[];
   proofreader: ReactNode;
   /** Shown over the page on narrow screens; closes with Escape. */
   overlay: boolean;
@@ -182,6 +195,7 @@ export function WriteContext({
             {t === "source" && sources.length ? <span className="nav-count"> {sources.length}</span> : null}
             {t === "notes" && notes.length ? <span className="nav-count"> {notes.length}</span> : null}
             {t === "references" && linked.length ? <span className="nav-count"> {linked.length}</span> : null}
+            {t === "plot" && plotBeats.length ? <span className="nav-count"> {plotBeats.length}</span> : null}
           </button>
         ))}
       </div>
@@ -203,10 +217,46 @@ export function WriteContext({
       <div role="tabpanel" id={`${idPrefix}-panel-notes`} aria-labelledby={`${idPrefix}-tab-notes`} hidden={tab !== "notes"} className="context-body">
         <Notes projectId={projectId} recordId={recordId} recordTitle={recordTitle} notes={notes} />
       </div>
+      <div role="tabpanel" id={`${idPrefix}-panel-plot`} aria-labelledby={`${idPrefix}-tab-plot`} hidden={tab !== "plot"} className="context-body">
+        <PlotBeats projectId={projectId} beats={plotBeats} />
+      </div>
       <div role="tabpanel" id={`${idPrefix}-panel-proofread`} aria-labelledby={`${idPrefix}-tab-proofread`} hidden={tab !== "proofread"} className="context-body">
         {proofreader}
       </div>
     </div>
+  );
+}
+
+function PlotBeats({ projectId, beats }: { projectId: string; beats: PlotBeatItem[] }) {
+  if (!beats.length) {
+    return (
+      <p className="rail-empty">
+        {WEAVE.writePlotEmpty}{" "}
+        <Link href={`/projects/${encodeURIComponent(projectId)}/plan/weave`}>{WEAVE.writePlotOpenGrid}</Link>
+      </p>
+    );
+  }
+  return (
+    <ul className="write-plot-list">
+      {beats.map((beat) => (
+        <li key={beat.id} className="write-plot-item">
+          <strong>{beat.title}</strong>
+          {beat.threadTitle ? (
+            <span className="small muted">
+              {WEAVE.writePlotThread}: {beat.threadTitle}
+            </span>
+          ) : null}
+          {beat.decisionLabel ? <span className="small muted">{beat.decisionLabel}</span> : null}
+          {beat.body ? <p className="small">{beat.body}</p> : null}
+          <Link
+            href={`/projects/${encodeURIComponent(projectId)}/plan/weave/${encodeURIComponent(beat.gridId)}`}
+            className="small"
+          >
+            {beat.gridTitle} — {WEAVE.writePlotOpenGrid}
+          </Link>
+        </li>
+      ))}
+    </ul>
   );
 }
 

@@ -1053,7 +1053,7 @@ export function HelpContent() {
 
         <Sub id="scene-context">
           <p>
-            The panel to the right of the text, <L>{WRITE.contextPanel}</L>, has four tabs. Choose a tab, or move
+            The panel to the right of the text, <L>{WRITE.contextPanel}</L>, has five tabs. Choose a tab, or move
             between them with the arrow keys. Opening a source or reference in the panel does not leave the writing page,
             so unsaved text, the cursor and undo stay as they are.
           </p>
@@ -1116,6 +1116,12 @@ export function HelpContent() {
             Notes are records like any other: every save keeps the earlier versions, and a note can be protected. Each
             note also has its own page, reached from the record lists.
           </p>
+          <h4>{WRITE.plot}</h4>
+          <p>
+            Lists Weave beats linked to this chapter or scene — the same stable beat IDs as Plan → Weave (freeform or
+            plot grid), including story thread when set. Open a grid from a beat without leaving the manuscript
+            identity. Linking or unlinking a beat on Weave updates this list after refresh; it never reorders the book.
+          </p>
           <h4>{WRITE.proofread}</h4>
           <p>
             The optional AI proofreading, described in <See anchor="proofreading" />. Until the assistant is set up, the
@@ -1168,18 +1174,23 @@ export function HelpContent() {
           <p>
             Each grid has two layouts. <L>{WEAVE.layoutFreeform}</L> is the original drag canvas: repositioning a beat
             never changes book order or a scene&apos;s chapter (see <See anchor="book-order" />).{" "}
-            <L>{WEAVE.layoutPlotGrid}</L> shows manuscript rows (for the current writing draft; chapter-only projects
-            show chapter rows) and editable story-thread columns. Blank cells can receive a beat;{" "}
-            <L>{WEAVE.unplacedRow}</L> holds beats with no scene link or a link outside the current draft. Switching
-            layout keeps freeform positions and never reorders the manuscript — use Book order on Write for that.
+            <L>{WEAVE.layoutPlotGrid}</L> shows scenes as rows grouped by collapsible chapters (for the current writing
+            draft; chapter-only projects show chapter rows) and editable story-thread columns. Multiple beats can share
+            a cell; blank cells stay valid and can receive a beat inline. The Unplaced beats tray holds beats with no
+            scene link or a link outside the current draft. The toolbar switches view, filters by decision, sets
+            density, and adds beats. On narrow screens the grid becomes a single-thread scene list. Switching layout
+            keeps freeform positions and never reorders the manuscript — use Book order on Write for that.{" "}
+            <L>{WEAVE.openSceneInWrite}</L> opens the linked scene; Write&apos;s <L>{WRITE.plot}</L> tab shows the same
+            beats.
           </p>
           <p>
             Soft-trashed linked records stay on the beat as unavailable until restore or permanent delete. Selecting a
             beat opens the shared context rail with notes, the linked scene, story thread (in plot grid), World
             citations, and setup→payoff links. On the freeform canvas, filter by decision, use{" "}
             <L>{WEAVE.fitSelection}</L> / <L>{WEAVE.fitAll}</L>, and move between beats with the arrow keys. On the plot
-            grid, arrow keys move between cells. Unsaved title and notes stay when the page refreshes after a save
-            elsewhere on the grid. Older projects open in freeform with their existing canvas intact.
+            grid, arrow keys move between cells; Enter selects or adds in a blank cell. Unsaved title and notes stay
+            when the page refreshes after a save elsewhere on the grid. Older projects open in freeform with their
+            existing canvas intact.
           </p>
         </Sub>
 

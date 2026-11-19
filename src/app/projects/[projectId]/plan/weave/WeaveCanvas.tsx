@@ -42,7 +42,7 @@ import {
   setWeaveLayoutModeAction,
   updateWeaveBeatAction,
 } from "./actions";
-import { WeavePlotGrid, type PlotGridRow } from "./WeavePlotGrid";
+import { WeavePlotGrid, type PlotDensity, type PlotGridChapter } from "./WeavePlotGrid";
 
 export interface ManuscriptChoice {
   id: string;
@@ -93,14 +93,14 @@ export function WeaveCanvas({
   projectId,
   grid: initial,
   manuscriptChoices,
-  manuscriptRows,
+  manuscriptChapters,
   worldChoices,
   seriesBeats,
 }: {
   projectId: string;
   grid: WeaveGridView;
   manuscriptChoices: ManuscriptChoice[];
-  manuscriptRows: PlotGridRow[];
+  manuscriptChapters: PlotGridChapter[];
   worldChoices: WorldChoice[];
   seriesBeats: SeriesBeatChoice[];
 }) {
@@ -115,6 +115,9 @@ export function WeaveCanvas({
   const [layoutMode, setLayoutMode] = useState<WeaveLayoutMode>(initial.layoutMode);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [decisionFilter, setDecisionFilter] = useState<string>("all");
+  const [density, setDensity] = useState<PlotDensity>("compact");
+  const [mobileThreadId, setMobileThreadId] = useState<string | null>(null);
+  const [narrow, setNarrow] = useState(false);
   const [issues, setIssues] = useState<Issue[]>([]);
   const [pending, startTransition] = useTransition();
   const [title, setTitle] = useState(initial.title);
@@ -139,6 +142,18 @@ export function WeaveCanvas({
     setThreads(initial.threads);
     setBeats((prev) => mergeBeatsPreservingDirty(prev, initial.beats, dirtyIdsRef.current));
   }, [initial]);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 759px)");
+    const sync = () => {
+      setNarrow(mq.matches);
+      if (!mq.matches) setMobileThreadId(null);
+      else if (threads[0]) setMobileThreadId((id) => id ?? threads[0]!.id);
+    };
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, [threads]);
 
   const selected = beats.find((b) => b.id === selectedId) ?? null;
 
@@ -318,19 +333,22 @@ export function WeaveCanvas({
             </label>
           </div>
 
-          {layoutMode === "freeform" ? (
-            <div className="board-toolbar-group">
-              <button
-                type="button"
-                className="small-button"
-                disabled={pending}
-                onClick={() => {
-                  const { x, y } = dropPoint();
+          <div className="board-toolbar-group">
+            <button
+              type="button"
+              className="small-button"
+              disabled={pending}
+              onClick={() => {
+                if (layoutMode === "plot_grid" && threads[0]) {
+                  const firstRow = manuscriptChapters[0]?.rows[0];
                   startTransition(async () => {
                     const result = await addWeaveBeatAction(projectId, grid.id, {
                       title: "Beat",
-                      x,
-                      y,
+                      x: 40,
+                      y: 40,
+                      threadId: threads[0]!.id,
+                      manuscriptRecordId: firstRow?.id ?? null,
+                      cellOrder: 0,
                     });
                     if (!result.ok) {
                       setIssues(result.issues);
@@ -340,15 +358,35 @@ export function WeaveCanvas({
                     selectBeat(result.beat);
                     router.refresh();
                   });
-                }}
-              >
-                {WEAVE.addBeat}
-              </button>
-            </div>
-          ) : null}
+                  return;
+                }
+                const { x, y } = dropPoint();
+                startTransition(async () => {
+                  const result = await addWeaveBeatAction(projectId, grid.id, {
+                    title: "Beat",
+                    x,
+                    y,
+                  });
+                  if (!result.ok) {
+                    setIssues(result.issues);
+                    return;
+                  }
+                  setBeats((list) => [...list, result.beat]);
+                  selectBeat(result.beat);
+                  router.refresh();
+                });
+              }}
+            >
+              {WEAVE.addBeat}
+            </button>
+          </div>
 
-          {layoutMode === "freeform" ? (
           <div className="board-toolbar-group">
+            {layoutMode === "plot_grid" ? (
+              <span className="small muted" aria-live="polite">
+                {WEAVE.threadsControl(threads.length)}
+              </span>
+            ) : null}
             <label className="small">
               <span className="sr-only">{WEAVE.filterDecision}</span>
               <select
@@ -365,24 +403,56 @@ export function WeaveCanvas({
                 ))}
               </select>
             </label>
-            <button
-              type="button"
-              className="secondary small-button"
-              disabled={!selected}
-              onClick={() => selected && fitRect([selected])}
-            >
-              {WEAVE.fitSelection}
-            </button>
-            <button
-              type="button"
-              className="secondary small-button"
-              disabled={!visibleBeats.length}
-              onClick={() => fitRect(visibleBeats)}
-            >
-              {WEAVE.fitAll}
-            </button>
+            {layoutMode === "plot_grid" ? (
+              <label className="small">
+                <span className="sr-only">{WEAVE.density}</span>
+                <select
+                  value={density}
+                  aria-label={WEAVE.density}
+                  onChange={(e) => setDensity(e.target.value as PlotDensity)}
+                >
+                  <option value="compact">{WEAVE.densityCompact}</option>
+                  <option value="comfortable">{WEAVE.densityComfortable}</option>
+                </select>
+              </label>
+            ) : null}
+            {layoutMode === "plot_grid" && narrow && threads.length ? (
+              <label className="small">
+                <span className="sr-only">{WEAVE.chooseMobileThread}</span>
+                <select
+                  value={mobileThreadId ?? threads[0]!.id}
+                  aria-label={WEAVE.chooseMobileThread}
+                  onChange={(e) => setMobileThreadId(e.target.value)}
+                >
+                  {threads.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.title}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
+            {layoutMode === "freeform" ? (
+              <>
+                <button
+                  type="button"
+                  className="secondary small-button"
+                  disabled={!selected}
+                  onClick={() => selected && fitRect([selected])}
+                >
+                  {WEAVE.fitSelection}
+                </button>
+                <button
+                  type="button"
+                  className="secondary small-button"
+                  disabled={!visibleBeats.length}
+                  onClick={() => fitRect(visibleBeats)}
+                >
+                  {WEAVE.fitAll}
+                </button>
+              </>
+            ) : null}
           </div>
-          ) : null}
 
           <details className="board-overflow">
             <summary>{SHELL.moreActions}</summary>
@@ -469,13 +539,18 @@ export function WeaveCanvas({
             gridId={grid.id}
             threads={threads}
             beats={beats}
-            rows={manuscriptRows}
+            chapters={manuscriptChapters}
             selectedId={selectedId}
+            decisionFilter={decisionFilter}
+            density={density}
+            mobileThreadId={narrow ? mobileThreadId ?? threads[0]?.id ?? null : null}
             onSelectBeat={(beat) => {
               if (beat) selectBeat(beat);
               else setSelectedId(null);
             }}
             onIssues={setIssues}
+            onBeatsChange={setBeats}
+            onThreadsChange={setThreads}
           />
         ) : null}
 
@@ -798,9 +873,10 @@ export function WeaveCanvas({
               ) : null}
               {selected.manuscriptRecordId && !selected.manuscriptUnavailable ? (
                 <Link
+                  className="button-link"
                   href={`/projects/${encodeURIComponent(projectId)}/records/${encodeURIComponent(selected.manuscriptRecordId)}`}
                 >
-                  {WEAVE.openLinkedScene}
+                  {WEAVE.openSceneInWrite}
                 </Link>
               ) : (
                 <p className="rail-empty">{WEAVE.noSceneLinked}</p>

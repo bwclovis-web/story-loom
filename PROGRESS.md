@@ -2170,3 +2170,41 @@ scope, blank cells, keyboard, and legacy restore.
 
 - Plot-grid cell order is within a cell only; manuscript order stays on Write → Book order.
 - Rollback: restore a pre-migration DB backup; drop `WeaveThread` / new columns via reverse migration if needed. Older backups without threads remain valid.
+
+## Weave plot-grid compact UI (Nov 18, 2026)
+
+Requested: scene-by-thread plot grid matching the compact design — chapter-grouped
+collapsible rows; multi-beat cells + Unplaced; sticky scene/thread headers; one
+toolbar (view, threads/filter, density, Add beat); inline empty-cell create;
+selection → right rail; Open scene in Write + Write Plot tab; keyboard +
+single-thread mobile list; overflow rename/templates/delete; blank cells valid;
+preserve prose/IDs; verify legacy, drafts, scene moves, restore, unsaved
+inspector, desktop/narrow, both themes.
+
+### Implemented
+
+- Page builds `PlotGridChapter[]` from draft-scoped manuscript tree (chapter-only
+  rows when a chapter has no scenes; Unplaced scenes group when needed).
+- `WeavePlotGrid`: chapter collapse, sticky corner/headers, thread CRUD/reorder,
+  multi-beat cells, Unplaced tray, density, narrow single-thread list, keyboard
+  cell navigation, blank-cell add.
+- `WeaveCanvas` toolbar: layout toggle, Add beat, decision filter, density, mobile
+  thread picker; rail CTA `Open scene in Write`.
+- Write context `plot` tab via `listWeaveBeatsForManuscript` (same beat IDs as Weave).
+- CSS: thread tone bars/dots, density, sticky scene column, Unplaced padding,
+  light/dark tones.
+
+### Checks
+
+| Check | Result |
+| --- | --- |
+| `pnpm exec tsc --noEmit` | pass |
+| `pnpm exec vitest run tests/acceptance/plan-weave.test.ts tests/unit/help.test.ts` | 11/11 |
+| Browser (Salt quay story map) | Freeform intact → Grid → chapter row + Mara Venn thread → Quay at dusk into cell via thread assign → rail Open scene in Write → Write Plot tab lists same beats (count 2) → theme cycle dark/system |
+| Working database | unchanged (no reset/reseed) |
+
+### Limits / rollback
+
+- Outline view from the design mock is not a separate mode; Grid + Freeform remain.
+- Manuscript reorder still only via Write → Book order.
+- Rollback: switch grids to freeform; Write Plot tab is read-only listing.

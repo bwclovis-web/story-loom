@@ -799,11 +799,17 @@ button.context-select[aria-pressed="true"] {
 
 /* Weave plot-grid (manuscript rows × story-thread columns) */
 .plot-grid-wrap { display: flex; flex-direction: column; gap: 0.75rem; min-width: 0; padding: 0.15rem 0 0.35rem; }
+.plot-grid-wrap.density-compact .plot-grid-table th,
+.plot-grid-wrap.density-compact .plot-grid-table td { padding: 0.35rem 0.45rem; }
+.plot-grid-wrap.density-compact button.plot-grid-beat { padding: 0.28rem 0.4rem 0.28rem 0.55rem; }
+.plot-grid-wrap.density-comfortable .plot-grid-table th,
+.plot-grid-wrap.density-comfortable .plot-grid-table td { padding: 0.65rem 0.75rem; }
 .plot-grid-scroll {
-  overflow: auto; max-width: 100%;
+  overflow: auto; max-width: 100%; max-height: min(72vh, 48rem);
   border: 1px solid var(--border); border-radius: var(--radius-lg);
   background: var(--color-surface);
 }
+.plot-grid-scroll:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }
 .plot-grid-table {
   border-collapse: separate; border-spacing: 0; width: max(100%, 40rem);
   font-size: 0.9rem;
@@ -813,28 +819,99 @@ button.context-select[aria-pressed="true"] {
   vertical-align: top; padding: 0.55rem 0.6rem;
 }
 .plot-grid-table thead th {
-  position: sticky; top: 0; z-index: 2;
+  position: sticky; top: 0; z-index: 3;
   background: var(--color-surface-sunken); font-weight: 600;
 }
+.plot-grid-corner {
+  position: sticky; left: 0; z-index: 4;
+  min-width: 11rem; background: var(--color-surface-sunken);
+}
+.plot-grid-thread-head { min-width: 9.5rem; }
+.plot-grid-thread-title {
+  display: inline-flex; align-items: center; gap: 0.4rem; margin-bottom: 0.35rem;
+}
+.plot-grid-thread-dot {
+  width: 0.55rem; height: 0.55rem; border-radius: 999px; flex: none;
+  background: var(--thread-tone, var(--color-accent));
+}
+.plot-grid-thread-actions { gap: 0.25rem; flex-wrap: wrap; }
+.plot-grid-add-thread, .plot-grid-add-thread-cell {
+  min-width: 5.5rem; background: color-mix(in srgb, var(--color-surface-sunken) 70%, transparent);
+}
+.thread-tone-0 { --thread-tone: #2a8f7c; }
+.thread-tone-1 { --thread-tone: #6b5ea8; }
+.thread-tone-2 { --thread-tone: #b04a4a; }
+.thread-tone-3 { --thread-tone: #8a6a2f; }
+.thread-tone-4 { --thread-tone: #3d6ea5; }
+.thread-tone-5 { --thread-tone: #5f7a3a; }
+[data-theme="dark"] .thread-tone-0 { --thread-tone: #5cbcab; }
+[data-theme="dark"] .thread-tone-1 { --thread-tone: #9b8fd4; }
+[data-theme="dark"] .thread-tone-2 { --thread-tone: #d48080; }
+[data-theme="dark"] .thread-tone-3 { --thread-tone: #c4a15a; }
+[data-theme="dark"] .thread-tone-4 { --thread-tone: #7aa4d4; }
+[data-theme="dark"] .thread-tone-5 { --thread-tone: #95b56a; }
+.plot-grid-chapter-row td {
+  background: color-mix(in srgb, var(--color-surface-sunken) 80%, var(--color-surface));
+  padding: 0.3rem 0.5rem;
+}
+.plot-grid-chapter-toggle {
+  display: inline-flex; align-items: center; gap: 0.4rem;
+  border: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; padding: 0.15rem 0;
+}
 .plot-grid-rowhead {
-  position: sticky; left: 0; z-index: 1;
-  background: var(--color-surface); min-width: 10rem; max-width: 14rem;
-  display: flex; flex-direction: column; gap: 0.15rem; text-align: left;
+  position: sticky; left: 0; z-index: 2;
+  background: var(--color-surface); min-width: 11rem; max-width: 15rem;
+  display: flex; flex-direction: column; gap: 0.12rem; text-align: left;
+}
+.plot-grid-scene-index {
+  font-size: 0.72rem; font-weight: 600; letter-spacing: 0.04em;
+  color: var(--color-text-muted);
 }
 .plot-grid-cell.blank { background: color-mix(in srgb, var(--color-surface-sunken) 55%, transparent); }
 .plot-grid-cell.focused { outline: 2px solid var(--color-focus); outline-offset: -2px; }
 .plot-grid-cell-beats { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.35rem; }
 button.plot-grid-beat {
-  display: flex; flex-direction: column; align-items: flex-start; gap: 0.1rem; width: 100%;
-  padding: 0.4rem 0.5rem; border: 1px solid var(--border); border-radius: var(--radius-md);
+  position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 0.1rem; width: 100%;
+  padding: 0.4rem 0.5rem 0.4rem 0.7rem; border: 1px solid var(--border); border-radius: var(--radius-md);
   background: var(--color-surface); color: inherit; text-align: left; cursor: pointer; font: inherit;
 }
 button.plot-grid-beat:hover { background: var(--color-surface-sunken); }
 button.plot-grid-beat.selected {
-  border-color: color-mix(in srgb, var(--color-accent) 45%, var(--border));
+  border-color: color-mix(in srgb, var(--color-accent) 55%, var(--border));
   background: color-mix(in srgb, var(--color-accent-soft) 45%, var(--color-surface));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-accent) 35%, transparent);
+}
+.plot-grid-beat-bar {
+  position: absolute; left: 0; top: 0.3rem; bottom: 0.3rem; width: 0.22rem; border-radius: 999px;
+  background: var(--thread-tone, var(--color-accent));
 }
 .plot-grid-beat-title { font-weight: 600; }
+button.plot-grid-blank-add {
+  width: 100%; min-height: 2rem; padding: 0.25rem 0.4rem;
+  border: 1px dashed color-mix(in srgb, var(--border) 80%, transparent);
+  border-radius: var(--radius-md); background: transparent; color: var(--color-text-muted);
+  font: inherit; font-size: 0.82rem; cursor: pointer;
+}
+button.plot-grid-blank-add:hover { border-color: var(--color-accent); color: var(--color-text); }
+.plot-unplaced {
+  padding: 0.75rem 1rem; margin-inline: 0.15rem;
+}
+.plot-unplaced-list {
+  list-style: none; margin: 0.5rem 0 0; padding: 0;
+  display: flex; flex-wrap: wrap; gap: 0.5rem;
+}
+.plot-unplaced-list > li { min-width: 10rem; max-width: 16rem; flex: 1 1 10rem; }
+.plot-grid-meta { margin: 0.15rem 0 0; }
+.plot-grid-mobile .plot-grid-table { width: 100%; }
+.plot-grid-mobile .plot-grid-thread-head,
+.plot-grid-mobile .plot-grid-cell { min-width: 0; }
+.write-plot-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.75rem; }
+.write-plot-item {
+  display: flex; flex-direction: column; gap: 0.2rem;
+  padding: 0.55rem 0.65rem; border: 1px solid var(--border); border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+.write-plot-item p { margin: 0.15rem 0 0; white-space: pre-wrap; }
 .board-surface:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }
 .board-surface-empty {
   position: absolute; inset: 0; display: grid; place-content: center; gap: 0.35rem;

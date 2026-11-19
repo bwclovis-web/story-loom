@@ -779,6 +779,55 @@ export async function removeWeaveSetupPayoff(db: Db, projectId: string, relation
   });
 }
 
+/**
+ * Beats linked to a chapter or scene (Write Plot tab). Same stable beat IDs as
+ * Weave freeform / plot grid. Does not create or reorder manuscript records.
+ */
+export async function listWeaveBeatsForManuscript(
+  db: DbOrTx,
+  projectId: string,
+  manuscriptRecordId: string,
+): Promise<
+  Array<{
+    id: string;
+    title: string;
+    body: string;
+    decision: WeaveDecision | "";
+    decisionLabel: string;
+    threadId: string | null;
+    threadTitle: string | null;
+    gridId: string;
+    gridTitle: string;
+    layoutMode: WeaveLayoutMode;
+  }>
+> {
+  const record = await db.record.findFirst({
+    where: { id: manuscriptRecordId, projectId, trashedAt: null },
+    select: { id: true, type: true },
+  });
+  if (!record || !isManuscriptType(record.type) || record.type === "scene_note") return [];
+  const beats = await db.weaveBeat.findMany({
+    where: { projectId, manuscriptRecordId },
+    orderBy: [{ gridId: "asc" }, { cellOrder: "asc" }, { zIndex: "asc" }, { id: "asc" }],
+    include: {
+      grid: { select: { id: true, title: true, layoutMode: true } },
+      thread: { select: { id: true, title: true } },
+    },
+  });
+  return beats.map((b) => ({
+    id: b.id,
+    title: b.title,
+    body: b.body,
+    decision: isWeaveDecision(b.decision) ? b.decision : "",
+    decisionLabel: decisionLabel(b.decision),
+    threadId: b.threadId,
+    threadTitle: b.thread?.title ?? null,
+    gridId: b.grid.id,
+    gridTitle: b.grid.title,
+    layoutMode: layoutModeOf(b.grid.layoutMode),
+  }));
+}
+
 /** Beats in other projects of the same workspace (for series setup/payoff pickers). */
 export async function listSeriesWeaveBeats(
   db: DbOrTx,

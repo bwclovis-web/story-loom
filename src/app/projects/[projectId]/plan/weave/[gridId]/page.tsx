@@ -10,7 +10,7 @@ import { getWeaveGrid, listSeriesWeaveBeats } from "@/server/services/weaveServi
 import { SHELL, WEAVE } from "@/ui/labels";
 import { buildManuscriptTree } from "@/ui/manuscriptTree";
 import { WeaveCanvas } from "../WeaveCanvas";
-import type { PlotGridRow } from "../WeavePlotGrid";
+import type { PlotGridChapter } from "../WeavePlotGrid";
 
 export const dynamic = "force-dynamic";
 
@@ -45,25 +45,54 @@ export default async function WeaveGridPage({
     .map((r) => ({ id: r.id, title: r.title, typeLabel: RECORD_TYPE_LABELS[r.type] }));
 
   const tree = buildManuscriptTree(nav);
-  const manuscriptRows: PlotGridRow[] = [];
+  const manuscriptChapters: PlotGridChapter[] = [];
+  let sceneIndex = 0;
   for (const chapter of tree.chapters) {
     if (chapter.scenes.length === 0) {
-      manuscriptRows.push({ id: chapter.id, label: chapter.title, kind: "chapter" });
+      sceneIndex += 1;
+      manuscriptChapters.push({
+        id: chapter.id,
+        title: chapter.title,
+        rows: [
+          {
+            id: chapter.id,
+            label: chapter.title,
+            kind: "chapter",
+            indexLabel: String(sceneIndex).padStart(2, "0"),
+          },
+        ],
+      });
     } else {
-      for (const scene of chapter.scenes) {
-        manuscriptRows.push({
-          id: scene.id,
-          label: scene.title,
-          kind: "scene",
-          chapterTitle: chapter.title,
-        });
-      }
+      manuscriptChapters.push({
+        id: chapter.id,
+        title: chapter.title,
+        rows: chapter.scenes.map((scene) => {
+          sceneIndex += 1;
+          return {
+            id: scene.id,
+            label: scene.title,
+            kind: "scene" as const,
+            indexLabel: String(sceneIndex).padStart(2, "0"),
+          };
+        }),
+      });
     }
   }
-  for (const scene of tree.unplaced) {
-    manuscriptRows.push({ id: scene.id, label: scene.title, kind: "scene" });
+  if (tree.unplaced.length) {
+    manuscriptChapters.push({
+      id: "__unplaced_scenes__",
+      title: WEAVE.unplacedRow,
+      rows: tree.unplaced.map((scene) => {
+        sceneIndex += 1;
+        return {
+          id: scene.id,
+          label: scene.title,
+          kind: "scene" as const,
+          indexLabel: String(sceneIndex).padStart(2, "0"),
+        };
+      }),
+    });
   }
-  manuscriptRows.push({ id: null, label: WEAVE.unplacedRow, kind: "unplaced" });
 
   const base = `/projects/${encodeURIComponent(projectId)}`;
 
@@ -86,7 +115,7 @@ export default async function WeaveGridPage({
         projectId={projectId}
         grid={grid}
         manuscriptChoices={manuscriptChoices}
-        manuscriptRows={manuscriptRows}
+        manuscriptChapters={manuscriptChapters}
         worldChoices={worldChoices}
         seriesBeats={seriesBeats}
       />

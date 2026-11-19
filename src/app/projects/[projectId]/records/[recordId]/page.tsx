@@ -33,6 +33,7 @@ import { manuscriptWordCounts, sumWordCounts } from "@/server/services/wordCount
 import { dictionaryWordsForProject } from "@/server/services/dictionaryService";
 import { getSpellChecker, getSpellingLanguage } from "@/server/spelling";
 import { loadCrossRefIndex } from "@/server/services/crossRefService";
+import { listWeaveBeatsForManuscript } from "@/server/services/weaveService";
 import { RECORD, XREF } from "@/ui/labels";
 import { crossRefsFor, type RecordCrossRefs } from "@/writing/crossRefs";
 import { CrossRefsPanel } from "@/components/CrossRefsPanel";
@@ -87,13 +88,14 @@ export default async function RecordPage({
 
   if (manuscript) {
     const pinScopeId = await resolvePinScope(db, projectId, recordDraftId);
-    const [notes, linked, choices, sources, attachableSources, pins] = await Promise.all([
+    const [notes, linked, choices, sources, attachableSources, pins, plotBeats] = await Promise.all([
       listNotes(db, projectId, record.id),
       listLinkedReferences(db, projectId, record.id),
       listReferenceChoices(db, projectId),
       listRewriteSources(db, projectId, record.id),
       listAttachableRewriteSources(db, projectId, record.id),
       listReadingPins(db, projectId, pinScopeId),
+      listWeaveBeatsForManuscript(db, projectId, record.id),
     ]);
     return (
       <WriteEditor
@@ -142,6 +144,15 @@ export default async function RecordPage({
           completedAt: d.completedAt?.toISOString() ?? null,
         }))}
         initialPins={pins}
+        plotBeats={plotBeats.map((b) => ({
+          id: b.id,
+          title: b.title,
+          body: b.body,
+          decisionLabel: b.decisionLabel,
+          threadTitle: b.threadTitle,
+          gridId: b.gridId,
+          gridTitle: b.gridTitle,
+        }))}
         details={
           <RecordDetails
             projectId={projectId}
