@@ -2040,3 +2040,59 @@ browser verify desktop/narrow + light/dark with invented content.
 
 Checkout the pre-pass commit; invented demo Weave/Board rows can stay or be
 deleted from the UI (no migration).
+
+## Discoverability pass (Nov 19, 2026)
+
+Requested: clearer entry points and feedback for six author tasks; optional
+one-task walkthrough (skip/resume); verify in browser including keyboard and
+narrow; preserve routes/data/compatibility.
+
+### Unclear points found (then fixed)
+
+1. Continue writing buried under Book order / New record; manuscript panel often
+   collapsed.
+2. “Pin” and “Show context panel” did not read as keep-beside-writing.
+3. Board vs map vs Weave undifferentiated on entry pages.
+4. Maps with no backdrop image only said “No maps yet” with no next step.
+5. Weave / Plan CTAs were secondary; empty beat next step weak.
+6. Assistant empty state did not push Include / New conversation.
+
+### Implemented
+
+- `Continue writing` panel on Write with primary Open CTAs; Book order Open.
+- Pin copy → Keep beside writing / Beside writing / Show references beside writing.
+- `WorkspaceToolsChooser` on World, Boards, Maps, Plan.
+- Map empty state → add image on a World record first + Browse World.
+- Guided tasks walkthrough (cookie `wordly-onboarding`, version
+  `storyloom-walk-2026-11`): one real task at a time; skip / next / dismiss /
+  resume. Help updated.
+- Assistant empty: Start by including project context + New conversation.
+
+### Paths verified (invented Salt Archive)
+
+| Task | Path |
+| --- | --- |
+| 1 Continue writing | Write → Continue writing → Open chapter → editor |
+| 2 Keep beside writing | Chapter → Show references beside writing → References → Keep beside writing |
+| 3 Board | World → Boards (chooser) → Create a board / Open existing |
+| 4 Map + pin | World record image → Maps → Create / Open map → Add pin / select pin |
+| 5 Plot beat | Plan / Weave → Open plot grid → Add beat → select → link scene in rail |
+| 6 Assistant | Assistant → New conversation → Choose what to include → Ask |
+
+Screenshots: `docs/screenshots/discover-1-…` through `discover-6-…`.
+
+### Checks
+
+| Check | Result |
+| --- | --- |
+| Browser six tasks + narrow assistant | Observed |
+| Keyboard hints on Weave/Board surfaces | Unchanged, still present |
+| `pnpm exec vitest run tests/unit/help.test.ts` | 4/4 |
+| `pnpm typecheck` | pass |
+
+### Limits
+
+- Walkthrough progress is browser-cookie only (not synced across devices).
+- Opening Continue writing still relies on author expanding the manuscript panel
+  for the full tree when it was collapsed.
+- Map still requires an image on a World record before Create map is available.

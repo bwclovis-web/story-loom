@@ -6,6 +6,7 @@ import { readWriteDraftCookie, resolveWriteDraftId } from "@/server/draftSelecti
 import { listManuscriptDrafts } from "@/server/services/draftService";
 import { listRecordNav, listRecords } from "@/server/services/recordService";
 import { searchManuscript, type ManuscriptHit } from "@/server/services/searchService";
+import { ContinueWriting, type ContinueWritingItem } from "@/components/shell/ContinueWriting";
 import { DRAFT, GROUP_PAGES, MANUSCRIPT_SEARCH, NAV, SHELL } from "@/ui/labels";
 import { buildManuscriptTree, type TreeScene } from "@/ui/manuscriptTree";
 import { RECORD_GROUPS } from "@/ui/navigation";
@@ -47,6 +48,16 @@ export default async function WritePage({
   const unplaced = tree.unplaced.map(item);
   const bookWords = [...chapters.flatMap((c) => [c, ...c.scenes]), ...unplaced].reduce((sum, r) => sum + r.words, 0);
   const activeDraft = drafts.find((d) => d.id === activeDraftId) ?? null;
+  const continueItems: ContinueWritingItem[] = [];
+  for (const c of chapters) {
+    continueItems.push({ id: c.id, title: c.title, kind: "chapter" });
+    for (const s of c.scenes) {
+      continueItems.push({ id: s.id, title: s.title, kind: "scene", parentTitle: c.title });
+    }
+  }
+  for (const s of unplaced) {
+    continueItems.push({ id: s.id, title: s.title, kind: "scene" });
+  }
 
   return (
     <RecordListPage
@@ -67,6 +78,7 @@ export default async function WritePage({
         </p>
       }
     >
+      <ContinueWriting projectId={projectId} items={continueItems.slice(0, 8)} />
       {hasDrafts && activeDraft ? (
         <p className="small muted">
           {DRAFT.writeDraft}: {activeDraft.label}

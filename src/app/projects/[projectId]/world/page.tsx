@@ -5,6 +5,7 @@ import { getDb } from "@/server/db";
 import { listRecords } from "@/server/services/recordService";
 import { searchProjectRecords, type SearchHit } from "@/server/services/searchService";
 import { getSpellingLanguage } from "@/server/spelling";
+import { WorkspaceToolsChooser } from "@/components/shell/WorkspaceToolsChooser";
 import { GROUP_PAGES, RECORD, SHELL, WORLD } from "@/ui/labels";
 import { categoryLabel, isWorldType, WORLD_CATEGORY_LABELS, WORLD_TYPES, worldHref } from "@/ui/world";
 import { NewRecordForm } from "../NewRecordForm";
@@ -70,6 +71,7 @@ export default async function WorldPage({
         </div>
       </div>
       <p className="page-lead">{GROUP_PAGES.world}</p>
+      <WorkspaceToolsChooser projectId={projectId} />
 
       {hits ? (
         <section className="panel" aria-label={WORLD.resultsFor(q)}>

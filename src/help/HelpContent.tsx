@@ -129,8 +129,9 @@ export function HelpContent() {
           To stop the app, press <kbd>Ctrl</kbd>+<kbd>C</kbd> in the terminal. Your work is already saved.
         </p>
         <p>
-          After a project opens, a skippable checklist offers optional next steps (upgrade, pins, boards, maps, author
-          rewrite). See <See anchor="optional-features" />. You can skip it; nothing is required.
+          After a project opens, a skippable guided walkthrough offers one real task at a time (continue writing, keep a
+          reference beside writing, board, map, plot beat, assistant). See <See anchor="optional-features" />. You can
+          skip it; nothing is required.
         </p>
       </Section>
 
@@ -195,10 +196,11 @@ export function HelpContent() {
 
       <Section id="optional-features">
         <p>
-          When a project is open, Story Loom can show a skippable checklist titled <L>{ONBOARDING.heading}</L>. It covers
-          optional features added after the Step 0 baseline: project upgrades, reference pins, World boards, World maps,
-          and author rewrites. Choose <L>{ONBOARDING.skip}</L> or <L>{ONBOARDING.dismiss}</L> anytime — nothing is
-          written to your records. <L>{ONBOARDING.showAgain}</L> brings the list back in this browser.
+          When a project is open, Story Loom can show a skippable walkthrough titled <L>{ONBOARDING.heading}</L>. It
+          walks one real task at a time (continue writing, keep a reference beside writing, board, map, plot beat,
+          assistant). Choose <L>{ONBOARDING.skip}</L>, <L>{ONBOARDING.skipTask}</L>, or <L>{ONBOARDING.dismiss}</L> anytime
+          — nothing is written to your records. Progress is stored in this browser only so you can resume.{" "}
+          <L>{ONBOARDING.showAgain}</L> starts the guide again.
         </p>
         <p>
           Older projects open and edit as before until you use these features. Change packages, backups and history keep

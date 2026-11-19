@@ -11,12 +11,38 @@ export const LAYOUT_COOKIE = "wordly-layout";
 export const WRITE_DRAFT_COOKIE = "wordly-write-draft";
 
 /**
- * Skippable project onboarding checklist. Value is the dismissed checklist
- * version (or empty when still shown). Stored in this browser only.
+ * Optional guided walkthrough. Cookie values (this browser only):
+ * - missing / empty → show from task 0
+ * - `step:N` → resume at task N
+ * - `done` or a legacy version string → dismissed
  */
 export const ONBOARDING_COOKIE = "wordly-onboarding";
-/** Bump when the checklist topics change so authors see the new list once. */
-export const ONBOARDING_VERSION = "storyloom-2026-11";
+/** Bump when walkthrough tasks change so authors see the new guide once. */
+export const ONBOARDING_VERSION = "storyloom-walk-2026-11";
+
+export type WalkthroughState = { kind: "active"; step: number } | { kind: "done" };
+
+export function parseWalkthroughCookie(raw: string | undefined): WalkthroughState {
+  if (!raw) return { kind: "active", step: 0 };
+  let value = raw;
+  try {
+    value = decodeURIComponent(raw);
+  } catch {
+    /* keep raw */
+  }
+  if (value === "done" || value === ONBOARDING_VERSION || value === "storyloom-2026-11") {
+    return { kind: "done" };
+  }
+  const stepMatch = /^step:(\d+)$/.exec(value);
+  if (stepMatch) {
+    return { kind: "active", step: Number(stepMatch[1]) };
+  }
+  return { kind: "done" };
+}
+
+export function walkthroughCookieValue(state: WalkthroughState): string {
+  return state.kind === "done" ? "done" : `step:${state.step}`;
+}
 
 /** "auto" collapses the navigation on medium-width windows and expands it on wide ones. */
 export type NavPreference = "auto" | "collapsed" | "expanded";

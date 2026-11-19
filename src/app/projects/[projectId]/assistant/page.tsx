@@ -170,8 +170,11 @@ export default async function AssistantPage({
             }
           />
         ) : (
-          <section className="panel">
+          <section className="panel stack">
+            <h2 style={{ marginTop: 0 }}>{ASSISTANT.getStarted}</h2>
             <p>{c ? "That conversation is not in this project." : ASSISTANT.noConversation}</p>
+            <p className="small muted">{ASSISTANT.getStartedHint}</p>
+            <NewConversationButton projectId={projectId} />
             {seed ? (
               <p className="small muted">
                 Open or start a conversation to find relevant context for the scene you came from.

@@ -147,6 +147,9 @@ function OrderRow({
         <span className="muted">{formatWordCount(item.words)}</span>
       </span>
       <span className="book-order-actions">
+        <Link className="small-button" href={href}>
+          {BOOK_ORDER.open}
+        </Link>
         {onUp || onDown ? (
           <>
             <button

@@ -118,30 +118,80 @@ export const THEME = {
 
 /** Lead text under each list page's heading. */
 export const GROUP_PAGES = {
-  write: "Manuscript chapters and scenes, and notes on them.",
-  plan: "Weave story grids, chapter outlines and story architecture.",
-  world: "Character dossiers, worldbuilding, canon decisions, continuity notes and reference notes.",
+  write: "Open a chapter to continue writing, or manage book order and notes.",
+  plan: "Plot grids (Weave), chapter outlines and story architecture.",
+  world: "Characters, places, decisions, boards and maps — keep references beside writing when you need them.",
   all: "Every record in this project, grouped by type.",
 } as const;
 
-/** Skippable project checklist for optional Story Loom features. */
+/**
+ * Optional guided walkthrough: one real task at a time. Stored in this browser
+ * only (cookie); never writes project data.
+ */
 export const ONBOARDING = {
-  heading: "Optional next steps",
-  lead:
-    "These are optional. Skip anytime — your records stay as they are. Each step links into the app and to How to use.",
+  heading: "Guided tasks",
+  lead: "One task at a time. Skip anytime — your records stay as they are.",
+  progress: (step: Count, total: Count) => `Task ${step} of ${total}`,
   skip: "Skip for now",
+  skipTask: "Skip this task",
   dismiss: "Don't show again",
-  showAgain: "Show optional next steps",
+  showAgain: "Show guided tasks",
+  resume: "Resume guided tasks",
+  next: "Done — next task",
+  finish: "Finish",
+  openTask: "Go do this",
+  howTo: "How to use",
+  /** Legacy checklist keys kept for Help anchors that still mention them. */
   upgrade: "Upgrade this project",
   upgradeHint: "Optionally name the series and book, group chapters, and mark World scope.",
-  pins: "Pin references beside Write",
-  pinsHint: "Pins stay with the draft; they are not scene links and do not send text to the assistant by themselves.",
-  boards: "Try a World board",
-  boardsHint: "Place references, images and notes on a focused board without moving manuscript order.",
-  maps: "Try a World map",
-  mapsHint: "Pin places on a reference image; selecting a pin opens that record.",
+  pins: "Keep a character beside writing",
+  pinsHint: "Open a chapter, show the context panel, then Keep beside writing on a dossier.",
+  boards: "Create a board from references",
+  boardsHint: "Place existing World records on a freeform board; positions stay on that board only.",
+  maps: "Add a map and place a pin",
+  mapsHint: "Needs a backdrop image on a World record first; then pin places on the image.",
   rewrite: "Start an author rewrite",
   rewriteHint: "Keep the Zero draft and write an Author manuscript beside it; set reading and export drafts explicitly.",
+  taskContinue: "Continue writing a scene",
+  taskContinueHint: "Open an existing chapter or scene and keep typing. Save when you are ready.",
+  taskPin: "Keep a character or place beside the editor",
+  taskPinHint:
+    "From a chapter, open the context panel, find a dossier or place, and choose Keep beside writing. That is not a scene link.",
+  taskBoard: "Create a board from existing references",
+  taskBoardHint: "Create a blank board, then place records you already have. Cards never reorder the manuscript.",
+  taskMap: "Add a geographic map and pin a place",
+  taskMapHint:
+    "Add an image to a World record, create a map with that image, then place a pin linked to a place.",
+  taskWeave: "Add a scene beat to a plot grid",
+  taskWeaveHint: "Open a Weave plot grid, add a beat, and link it to a chapter or scene.",
+  taskAssistant: "Ask the assistant with project context",
+  taskAssistantHint: "Start a conversation, choose Include items from this project, then ask your question.",
+} as const;
+
+/** Plain-language chooser between map, board, and plot grid. */
+export const WORKSPACE_TOOLS = {
+  heading: "Map, board, or plot grid?",
+  lead: "Pick the tool that matches the job. You can use more than one.",
+  weave: "Plot grid (Weave)",
+  weaveHint: "Arrange scene beats and rewrite decisions. Moving a beat never reorders the book.",
+  board: "Board",
+  boardHint: "Place characters, places, images, and freeform notes on a free canvas.",
+  map: "Map",
+  mapHint: "Pin places on a geographic image. Needs an image on a World record first.",
+  openWeave: "Open plot grids",
+  openBoard: "Open boards",
+  openMap: "Open maps",
+} as const;
+
+/** Write landing: clear path into an existing scene. */
+export const CONTINUE_WRITING = {
+  heading: "Continue writing",
+  lead: "Open a chapter or scene to keep working. The manuscript panel on the left lists the same pages.",
+  open: (title: string) => `Open “${title}”`,
+  empty: "No chapters yet.",
+  emptyHint: "Import chapters or create a manuscript chapter to start writing.",
+  importChapters: "Import chapters",
+  showManuscript: "Show manuscript list",
 } as const;
 
 /** Plan → Weave grids, beats, decisions, setup/payoff and templates. */
@@ -152,12 +202,14 @@ export const WEAVE = {
   viewOriginal: "Original plan",
   viewZeroDraft: "Zero-draft story map",
   viewAuthorRewrite: "Author rewrite plan",
-  noGrids: "No Weave grids yet. Create one for each view you need.",
-  newGrid: "New Weave grid",
+  noGrids: "No plot grids yet. Create one below, then add scene beats.",
+  newGrid: "Create a plot grid",
   gridTitle: "Grid title",
   viewKind: "View",
-  createGrid: "Create grid",
-  openGrid: "Open",
+  createGrid: "Create plot grid",
+  openGrid: "Open plot grid",
+  emptyBeats: "No beats yet.",
+  emptyBeatsHint: "Add a beat, then link it to a chapter or scene in the panel on the right.",
   renameGrid: "Rename grid",
   deleteGrid: "Delete grid",
   confirmDeleteGrid: (title: string) => `Yes, delete Weave grid "${title}"`,
@@ -183,7 +235,8 @@ export const WEAVE = {
   beatRail: "Selected beat",
   noBeatSelected: "Select a beat to edit notes, scene link, World citations, and setup→payoff links here.",
   emptyCanvas: "No beats on this grid yet.",
-  emptyCanvasHint: "Add a beat to start mapping the story. Drag to reposition — manuscript order stays unchanged.",
+  emptyCanvasHint:
+    "Choose Add beat, then select the beat to link a chapter or scene in the right panel. Dragging never reorders the book.",
   dragBeatHint: "Drag beats to reposition. Moving a beat never reorders manuscript chapters or scenes.",
   beatsCount: (n: Count) => `${n} beat${n === 1 ? "" : "s"}`,
   filterDecision: "Filter by decision",
@@ -308,10 +361,10 @@ export const WRITE = {
   showProjectPanel: "Show project panel",
   resizeNavigation: "Resize manuscript panel",
   resizeContext: "Resize context panel",
-  showContext: "Show context panel",
-  hideContext: "Hide context panel",
-  closeContext: "Close context panel",
-  contextPanel: "Scene context",
+  showContext: "Show references beside writing",
+  hideContext: "Hide references panel",
+  closeContext: "Close references panel",
+  contextPanel: "Beside writing",
   sourcePanel: "Zero draft source",
   inChapter: "In chapter",
   // Save status, from the server's answer to the last save.
@@ -376,11 +429,12 @@ export const WRITE = {
   matchedInSection: "Section",
   showingChoices: (shown: Count, total: Count) => `Showing ${shown} of ${total}`,
   noReferences: "This project has no reference records yet. Add character dossiers, world notes and other references from Plan or World.",
-  pinnedReferences: "Pinned",
-  noPins: "No reading pins yet. Pin a reference to keep it beside this draft without linking it to the scene.",
-  pinReference: "Pin",
-  unpinReference: "Unpin",
-  pinNote: "A pin keeps a reference handy for reading. It does not link it to the scene, and it does not send it to the assistant.",
+  pinnedReferences: "Beside writing",
+  noPins: "Nothing kept beside writing yet. Find a character or place below, then choose Keep beside writing.",
+  pinReference: "Keep beside writing",
+  unpinReference: "Remove from beside writing",
+  pinNote:
+    "Keeps a reference open beside the editor for reading. It does not link it to the scene, and it does not send it to the assistant by itself.",
   linkToScene: "Link to scene",
   unlinkFromScene: "Unlink from scene",
   linkReference: "Link",
@@ -412,6 +466,7 @@ export const WRITE = {
 export const BOOK_ORDER = {
   heading: "Book order",
   note: "The order of the manuscript panel, Read the book and PDF export. Moving changes no text, so it needs no protection tick, and every move is listed in History & review.",
+  open: "Open",
   moveUp: "Move up",
   moveDown: "Move down",
   moveUpLabel: (title: string) => `Move ${title} up`,
@@ -518,8 +573,8 @@ export const WORLD = {
   boards: "Boards",
   boardsLead:
     "Place references, images and freeform notes on a focused board. Positions stay on the board; the same record can appear on several boards. Removing a card only removes it from that board.",
-  noBoards: "No boards yet. Create a blank board or start from the geography template.",
-  newBoard: "New board",
+  noBoards: "No boards yet. Create one below, then place references you already have.",
+  newBoard: "Create a board",
   boardTitle: "Board title",
   boardTemplate: "Template",
   templateBlank: "Blank board",
@@ -564,8 +619,11 @@ export const WORLD = {
   maps: "Maps",
   mapsLead:
     "Use an existing reference image as a map and place pins on World records. Pin positions are stored relative to the image so they stay aligned when resized. The same place can appear on several maps. Removing a pin only removes it from that map.",
-  noMaps: "No maps yet. Choose a reference image to use as a backdrop.",
-  newMap: "New map",
+  noMaps: "No maps yet.",
+  mapsNeedImage:
+    "A map needs a backdrop image first. Open a place or worldbuilding record, add an image there, then return here to create the map.",
+  mapsBrowseWorld: "Browse World records",
+  newMap: "Create a map",
   mapTitle: "Map title",
   mapImage: "Backdrop image",
   chooseMapImage: "Choose an image…",
@@ -1103,7 +1161,10 @@ export const ASSISTANT = {
   prepareHint: "Prepare change proposal asks for proposed changes to reference records. Nothing changes until you apply the proposal.",
   sendHint: "Send sends your question and the items chosen in Include in the next question to OpenAI.",
   questionPlaceholder: "Ask about the records you include...",
-  emptyConversation: "No messages yet. Choose what to include, then ask your question below.",
+  emptyConversation:
+    "No messages yet. Open Choose what to include, tick records from this project, then ask your question below.",
+  getStarted: "Start by including project context",
+  getStartedHint: "Tick manuscript scenes and World records in the Include panel before you send a question.",
   composerIncluded: (n: Count) => `${n} item${n === 1 ? "" : "s"} included.`,
   composerNothing: "Only your question will be sent.",
   composerSize: (total: string, max: string) => `About ${total} of ${max} characters.`,

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { IssueList } from "@/components/IssueList";
@@ -19,9 +20,19 @@ export function CreateMapForm({
   const [imageId, setImageId] = useState(images[0]?.id ?? "");
   const [issues, setIssues] = useState<Issue[]>([]);
   const [pending, startTransition] = useTransition();
+  const worldHref = `/projects/${encodeURIComponent(projectId)}/world`;
 
   if (images.length === 0) {
-    return <p className="muted">{WORLD.noMaps}</p>;
+    return (
+      <div className="stack">
+        <p className="muted" style={{ margin: 0 }}>
+          {WORLD.mapsNeedImage}
+        </p>
+        <Link className="button-link" href={worldHref}>
+          {WORLD.mapsBrowseWorld}
+        </Link>
+      </div>
+    );
   }
 
   return (

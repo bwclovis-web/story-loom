@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { getDb } from "@/server/db";
 import { listWeaveGrids, WEAVE_VIEW_KINDS, WEAVE_VIEW_LABELS } from "@/server/services/weaveService";
-import { GROUP_PAGES, WEAVE } from "@/ui/labels";
+import { WorkspaceToolsChooser } from "@/components/shell/WorkspaceToolsChooser";
+import { GROUP_PAGES, WEAVE, WORKSPACE_TOOLS } from "@/ui/labels";
 import { RECORD_GROUPS } from "@/ui/navigation";
 import { RecordListPage } from "../RecordListPage";
 import { CreateWeaveGridForm } from "./weave/CreateWeaveGridForm";
@@ -20,11 +21,12 @@ export default async function PlanPage({ params }: { params: Promise<{ projectId
           <h1 id="weave-heading">{WEAVE.heading}</h1>
         </header>
         <p className="page-lead">{WEAVE.lead}</p>
+        <WorkspaceToolsChooser projectId={projectId} emphasize="weave" />
         <p className="row" style={{ gap: "0.75rem", flexWrap: "wrap", marginBottom: "1rem" }}>
-          <Link className="small-button secondary" href={`${base}/weave`}>
-            {WEAVE.heading}
+          <Link className="button-link" href={`${base}/weave`}>
+            {WORKSPACE_TOOLS.openWeave}
           </Link>
-          <Link className="small-button secondary" href={`${base}/weave/templates`}>
+          <Link className="button-link secondary" href={`${base}/weave/templates`}>
             {WEAVE.templates}
           </Link>
         </p>

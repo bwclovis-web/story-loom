@@ -1,134 +1,168 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import { helpHref } from "@/help/outline";
-import { ONBOARDING, NAV, WORLD, DRAFT, WRITE } from "@/ui/labels";
-import { ONBOARDING_COOKIE, ONBOARDING_VERSION, writePreference } from "./preferences";
+import { useEffect, useMemo, useState } from "react";
+import { helpHref, type HelpAnchor } from "@/help/outline";
+import { ONBOARDING } from "@/ui/labels";
+import {
+  ONBOARDING_COOKIE,
+  parseWalkthroughCookie,
+  walkthroughCookieValue,
+  writePreference,
+  type WalkthroughState,
+} from "./preferences";
 
-function readDismissed(): boolean {
-  if (typeof document === "undefined") return true;
+type WalkStep = {
+  id: string;
+  title: string;
+  hint: string;
+  href: (base: string) => string;
+  help: HelpAnchor;
+};
+
+const STEPS: WalkStep[] = [
+  {
+    id: "continue",
+    title: ONBOARDING.taskContinue,
+    hint: ONBOARDING.taskContinueHint,
+    href: (base) => `${base}/write`,
+    help: "write-page",
+  },
+  {
+    id: "pin",
+    title: ONBOARDING.taskPin,
+    hint: ONBOARDING.taskPinHint,
+    href: (base) => `${base}/write`,
+    help: "scene-context",
+  },
+  {
+    id: "board",
+    title: ONBOARDING.taskBoard,
+    hint: ONBOARDING.taskBoardHint,
+    href: (base) => `${base}/world/boards`,
+    help: "world-boards",
+  },
+  {
+    id: "map",
+    title: ONBOARDING.taskMap,
+    hint: ONBOARDING.taskMapHint,
+    href: (base) => `${base}/world/maps`,
+    help: "world-maps",
+  },
+  {
+    id: "weave",
+    title: ONBOARDING.taskWeave,
+    hint: ONBOARDING.taskWeaveHint,
+    href: (base) => `${base}/plan/weave`,
+    help: "plan-weave",
+  },
+  {
+    id: "assistant",
+    title: ONBOARDING.taskAssistant,
+    hint: ONBOARDING.taskAssistantHint,
+    href: (base) => `${base}/assistant`,
+    help: "assistant",
+  },
+];
+
+function readState(): WalkthroughState {
+  if (typeof document === "undefined") return { kind: "done" };
   const match = document.cookie.match(new RegExp(`(?:^|; )${ONBOARDING_COOKIE}=([^;]*)`));
-  if (!match) return false;
-  try {
-    return decodeURIComponent(match[1]!) === ONBOARDING_VERSION;
-  } catch {
-    return match[1] === ONBOARDING_VERSION;
-  }
+  return parseWalkthroughCookie(match?.[1]);
+}
+
+function persist(state: WalkthroughState) {
+  writePreference(ONBOARDING_COOKIE, walkthroughCookieValue(state));
 }
 
 /**
- * Skippable checklist for optional Story Loom features. Dismissal is per
- * browser (cookie); it never writes project data.
+ * Optional one-task-at-a-time walkthrough. Cookie-only; never writes project data.
  */
 export function ProjectOnboarding({ projectId }: { projectId: string }) {
-  const [dismissed, setDismissed] = useState(true);
+  const [state, setState] = useState<WalkthroughState>({ kind: "done" });
   const [ready, setReady] = useState(false);
   const base = `/projects/${encodeURIComponent(projectId)}`;
 
   useEffect(() => {
-    setDismissed(readDismissed());
+    setState(readState());
     setReady(true);
   }, []);
 
+  const stepIndex = state.kind === "active" ? Math.min(state.step, STEPS.length - 1) : 0;
+  const step = STEPS[stepIndex]!;
+  const isLast = stepIndex >= STEPS.length - 1;
+
+  const setActive = (next: WalkthroughState) => {
+    persist(next);
+    setState(next);
+  };
+
+  const advance = () => {
+    if (isLast) setActive({ kind: "done" });
+    else setActive({ kind: "active", step: stepIndex + 1 });
+  };
+
+  const restoreLabel = useMemo(() => {
+    if (state.kind === "done") return ONBOARDING.showAgain;
+    return ONBOARDING.resume;
+  }, [state.kind]);
+
   if (!ready) return null;
 
-  if (dismissed) {
+  if (state.kind === "done") {
     return (
       <p className="small muted onboarding-restore">
         <button
           type="button"
           className="linkish"
-          onClick={() => {
-            writePreference(ONBOARDING_COOKIE, "");
-            setDismissed(false);
-          }}
+          onClick={() => setActive({ kind: "active", step: 0 })}
         >
-          {ONBOARDING.showAgain}
+          {restoreLabel}
         </button>
       </p>
     );
   }
 
-  const items = [
-    {
-      href: `${base}/upgrade`,
-      help: "upgrade-project" as const,
-      title: ONBOARDING.upgrade,
-      hint: ONBOARDING.upgradeHint,
-      label: NAV.upgradeProject,
-    },
-    {
-      href: `${base}/write`,
-      help: "scene-context" as const,
-      title: ONBOARDING.pins,
-      hint: ONBOARDING.pinsHint,
-      label: WRITE.pinnedReferences,
-    },
-    {
-      href: `${base}/world/boards`,
-      help: "world-boards" as const,
-      title: ONBOARDING.boards,
-      hint: ONBOARDING.boardsHint,
-      label: WORLD.boards,
-    },
-    {
-      href: `${base}/world/maps`,
-      help: "world-maps" as const,
-      title: ONBOARDING.maps,
-      hint: ONBOARDING.mapsHint,
-      label: WORLD.maps,
-    },
-    {
-      href: `${base}/write`,
-      help: "author-rewrite" as const,
-      title: ONBOARDING.rewrite,
-      hint: ONBOARDING.rewriteHint,
-      label: DRAFT.startRewrite,
-    },
-  ];
-
   return (
-    <section className="panel onboarding-panel" aria-labelledby="onboarding-heading">
-      <div className="row" style={{ justifyContent: "space-between", gap: "0.75rem", flexWrap: "wrap" }}>
-        <h2 id="onboarding-heading" style={{ margin: 0 }}>
-          {ONBOARDING.heading}
-        </h2>
-        <div className="row" style={{ gap: "0.5rem" }}>
-          <button
-            type="button"
-            className="secondary small-button"
-            onClick={() => {
-              writePreference(ONBOARDING_COOKIE, ONBOARDING_VERSION);
-              setDismissed(true);
-            }}
-          >
+    <section className="panel onboarding-panel walkthrough-panel" aria-labelledby="walkthrough-heading">
+      <div className="row walkthrough-head">
+        <div>
+          <h2 id="walkthrough-heading" style={{ margin: 0 }}>
+            {ONBOARDING.heading}
+          </h2>
+          <p className="small muted" style={{ margin: "0.2rem 0 0" }}>
+            {ONBOARDING.progress(stepIndex + 1, STEPS.length)}
+          </p>
+        </div>
+        <div className="row" style={{ gap: "0.5rem", flexWrap: "wrap" }}>
+          <button type="button" className="secondary small-button" onClick={() => setActive({ kind: "done" })}>
             {ONBOARDING.skip}
           </button>
-          <button
-            type="button"
-            className="secondary small-button"
-            onClick={() => {
-              writePreference(ONBOARDING_COOKIE, ONBOARDING_VERSION);
-              setDismissed(true);
-            }}
-          >
+          <button type="button" className="secondary small-button" onClick={() => setActive({ kind: "done" })}>
             {ONBOARDING.dismiss}
           </button>
         </div>
       </div>
       <p className="small muted">{ONBOARDING.lead}</p>
-      <ol className="onboarding-list">
-        {items.map((item) => (
-          <li key={item.help}>
-            <Link href={item.href}>{item.title}</Link>
-            <span className="small muted"> — {item.hint} </span>
-            <Link className="small" href={helpHref(item.help)}>
-              How to use: {item.label}
-            </Link>
-          </li>
-        ))}
-      </ol>
+
+      <article className="walkthrough-task" aria-labelledby="walkthrough-task-title">
+        <h3 id="walkthrough-task-title">{step.title}</h3>
+        <p>{step.hint}</p>
+        <div className="row walkthrough-actions">
+          <Link className="button-link" href={step.href(base)}>
+            {ONBOARDING.openTask}
+          </Link>
+          <button type="button" className="small-button" onClick={advance}>
+            {isLast ? ONBOARDING.finish : ONBOARDING.next}
+          </button>
+          <button type="button" className="secondary small-button" onClick={advance}>
+            {ONBOARDING.skipTask}
+          </button>
+          <Link className="small" href={helpHref(step.help)}>
+            {ONBOARDING.howTo}
+          </Link>
+        </div>
+      </article>
     </section>
   );
 }
