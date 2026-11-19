@@ -6,6 +6,11 @@ import { SectionTagBadge, StatusBadge } from "@/components/Badges";
 import type { DraftOption } from "@/components/drafts/DraftControls";
 import { ContextRail, ContextRailToggle, useContextRail } from "@/components/shell/ContextRail";
 import { ASSISTANT_INSTRUCTIONS } from "@/assistant/prompt";
+import type { RetrievalScope } from "@/assistant/tools";
+import { takeWriteHandoff } from "@/assistant/writeHandoff";
+import { AssistantAnswer } from "@/components/assistant/AssistantAnswer";
+import { loadAssistantDraft, saveAssistantDraft } from "@/components/assistant/assistantDraft";
+import { SourcePills } from "@/components/assistant/SourcePills";
 import { RECORD_TYPE_LABELS } from "@/domain/recordTypes";
 import type { ProposalView } from "@/server/services/assistantProposalService";
 import {
@@ -89,6 +94,8 @@ export function AssistantPanel(props: {
   settings: AssistantSettingsView;
   /** Manuscript record id from Write “Find relevant context” deep link. */
   seedRecordId?: string | null;
+  /** When set, consume a Write sessionStorage handoff (question, unsaved prose, scope). */
+  consumeWriteHandoff?: boolean;
   /** World board deep link: preselect linked records/sections and suggest a prompt. */
   boardSeed?: {
     boardId: string;
@@ -106,12 +113,21 @@ export function AssistantPanel(props: {
   const messageById = useMemo(() => new Map(conversation.messages.map((m) => [m.id, m])), [conversation.messages]);
 
   const [selectedRefs, setSelectedRefs] = useState<string[]>([]);
+  const [excludedIds, setExcludedIds] = useState<string[]>([]);
   const [chapter, setChapter] = useState<LoadedChapter | null>(null);
   const [chapterError, setChapterError] = useState("");
   const [passage, setPassage] = useState<{ start: number; end: number } | null>(null);
   const [mode, setMode] = useState<"whole" | "passage">("whole");
   const [includeIds, setIncludeIds] = useState<string[]>([]);
   const [question, setQuestion] = useState("");
+  const [retrievalScope, setRetrievalScope] = useState<RetrievalScope>("book");
+  const [enableTools, setEnableTools] = useState(true);
+  const [writeHandoff, setWriteHandoff] = useState<{
+    includeUnsavedProse: boolean;
+    unsavedBody: string | null;
+    draftId: string | null;
+    recordId: string;
+  } | null>(null);
   const [live, setLive] = useState<Live | null>(null);
   const [error, setError] = useState<ApiError | null>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -122,6 +138,7 @@ export function AssistantPanel(props: {
   const rail = useContextRail();
   const budgetAppliedRef = useRef<string | null>(null);
   const [budgetedIds, setBudgetedIds] = useState<string[]>([]);
+  const handoffConsumed = useRef(false);
 
   // Keep the newest message in view unless the author has scrolled up to read.
   const messageCount = conversation.messages.length;
@@ -191,6 +208,40 @@ export function AssistantPanel(props: {
     // Intentionally once per seed id when the panel mounts / seed changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [props.seedRecordId]);
+
+  useEffect(() => {
+    if (!props.consumeWriteHandoff || handoffConsumed.current) return;
+    handoffConsumed.current = true;
+    const payload = takeWriteHandoff(projectId);
+    if (!payload) return;
+    setQuestion(payload.question);
+    setRetrievalScope(payload.scope);
+    if (payload.passage) {
+      setMode("passage");
+      setPassage(payload.passage);
+    }
+    setWriteHandoff({
+      includeUnsavedProse: payload.includeUnsavedProse,
+      unsavedBody: payload.unsavedBody,
+      draftId: payload.draftId,
+      recordId: payload.recordId,
+    });
+  }, [props.consumeWriteHandoff, projectId]);
+
+  useEffect(() => {
+    const draft = loadAssistantDraft(projectId);
+    if (!draft) return;
+    if (draft.question) setQuestion((q) => q || draft.question);
+    if (draft.scope) setRetrievalScope(draft.scope);
+  }, [projectId]);
+
+  useEffect(() => {
+    saveAssistantDraft(projectId, {
+      conversationId: conversation.id,
+      question,
+      scope: retrievalScope,
+    });
+  }, [projectId, conversation.id, question, retrievalScope]);
 
   useEffect(() => {
     if (!props.boardSeed) return;
@@ -339,6 +390,25 @@ export function AssistantPanel(props: {
         mode: turnMode,
         conversationId: conversation.id,
         question,
+        retrievalScope,
+        enableTools: turnMode === "chat" ? enableTools : false,
+        write: writeHandoff
+          ? {
+              recordId: writeHandoff.recordId,
+              draftId: writeHandoff.draftId,
+              passage: mode === "passage" && passage ? passage : undefined,
+              includeUnsavedProse: writeHandoff.includeUnsavedProse,
+              unsavedBody: writeHandoff.unsavedBody,
+            }
+          : chapter
+            ? {
+                recordId: chapter.recordId,
+                draftId: props.draftScopeId ?? null,
+                passage: mode === "passage" && passage ? passage : undefined,
+                includeUnsavedProse: false,
+                unsavedBody: null,
+              }
+            : null,
         selection: {
           references: [
             ...selectedRefs.flatMap((id) => {
@@ -353,6 +423,7 @@ export function AssistantPanel(props: {
           ],
           manuscript,
           includeMessageIds: includeIds,
+          excludeRecordIds: excludedIds,
         },
       },
       question,
@@ -452,8 +523,15 @@ export function AssistantPanel(props: {
                 </label>
               ) : null}
             </div>
-            <div className="message-text">{m.content || (m.role === "assistant" ? <em className="muted">(no text)</em> : null)}</div>
+            <div className="message-text">
+              {m.role === "assistant" ? (
+                <AssistantAnswer text={m.content} />
+              ) : (
+                m.content || null
+              )}
+            </div>
             {props.proposals[m.id] ? <ProposalCard projectId={projectId} proposal={props.proposals[m.id]} /> : null}
+            {m.role === "assistant" ? <SourcePills projectId={projectId} items={m.contextItems} /> : null}
             {m.role === "assistant" ? <AnswerDetails m={m} /> : null}
             {m.role === "assistant" && (m.status === "failed" || m.status === "cancelled") ? (
               <div className="row">
@@ -493,7 +571,9 @@ export function AssistantPanel(props: {
                   {ASSISTANT.cancel}
                 </button>
               </div>
-              <div className="message-text">{live.text}</div>
+              <div className="message-text">
+                <AssistantAnswer text={live.text} />
+              </div>
             </li>
           </>
         ) : null}
@@ -781,15 +861,22 @@ function SectionPicker({
 
 function AnswerDetails({ m }: { m: MessageView }) {
   const passageItems = m.contextItems;
+  const retrieval = m.retrieval;
+  const originOf = (recordId: string) => retrieval?.sources.find((s) => s.recordId === recordId)?.origin;
   return (
     <div className="small muted answer-details">
       {passageItems.length ? (
         <p>
-          Used:{" "}
+          {ASSISTANT.sourcesUsed}:{" "}
           {passageItems.map((c, i) => (
             <span key={`${c.recordId}-${c.kind}-${i}`}>
               {i > 0 ? "; " : ""}
               {c.title} rev {c.revisionNumber}
+              {originOf(c.recordId) === "tool"
+                ? " (tool)"
+                : originOf(c.recordId) === "unsaved"
+                  ? " (unsaved)"
+                  : ""}
               {c.kind === "section" && c.passageStart !== null && c.passageEnd !== null
                 ? ` (section, ${(c.passageEnd - c.passageStart).toLocaleString("en-US")} characters)`
                 : c.kind === "passage" && c.passageStart !== null && c.passageEnd !== null
@@ -802,8 +889,33 @@ function AnswerDetails({ m }: { m: MessageView }) {
           ))}
         </p>
       ) : (
-        <p>Used: no records.</p>
+        <p>
+          {ASSISTANT.sourcesUsed}: {ASSISTANT.sourcesNone}
+        </p>
       )}
+      {retrieval?.omissions.length ? (
+        <p>
+          {ASSISTANT.omissions}:{" "}
+          {retrieval.omissions.map((o, i) => (
+            <span key={`${o.label}-${i}`}>
+              {i > 0 ? "; " : ""}
+              {o.label} — {o.reason}
+            </span>
+          ))}
+        </p>
+      ) : null}
+      {retrieval?.ambiguousNames.length ? (
+        <p>
+          {ASSISTANT.ambiguousName}: {retrieval.ambiguousNames.join(", ")}
+        </p>
+      ) : null}
+      {retrieval?.insufficientEvidence ? <p className="error-text">{ASSISTANT.insufficientEvidence}</p> : null}
+      {retrieval && retrieval.toolCallCount > 0 ? (
+        <p>
+          {ASSISTANT.toolCalls}: {retrieval.toolCallCount} ({retrieval.toolRoundCount} round
+          {retrieval.toolRoundCount === 1 ? "" : "s"}, {retrieval.elapsedMs} ms). Scope: {retrieval.scope}.
+        </p>
+      ) : null}
       {m.includedMessageIds.length ? <p>Plus {m.includedMessageIds.length} earlier message(s).</p> : null}
       <p>
         {m.model ? `Model ${m.model}. ` : ""}

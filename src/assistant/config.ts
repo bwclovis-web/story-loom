@@ -15,6 +15,12 @@ export interface AssistantLimits {
   monthlyTokenCap: number;
   /** Seconds before an unfinished request is abandoned. */
   requestTimeoutSeconds: number;
+  /** Max tool invocations per discussion turn (search/read). */
+  maxToolCalls: number;
+  /** Max tool rounds (model asks → tools run → model continues). */
+  maxToolRounds: number;
+  /** Cap on characters returned by a single tool read. */
+  maxToolResultChars: number;
 }
 
 interface LimitSpec {
@@ -30,6 +36,9 @@ export const LIMIT_SPECS: Record<keyof AssistantLimits, LimitSpec> = {
   maxRequestsPerHour: { env: "ASSISTANT_MAX_REQUESTS_PER_HOUR", defaultValue: 30, min: 1, max: 1_000 },
   monthlyTokenCap: { env: "ASSISTANT_MONTHLY_TOKEN_CAP", defaultValue: 3_000_000, min: 1_000, max: 1_000_000_000 },
   requestTimeoutSeconds: { env: "ASSISTANT_REQUEST_TIMEOUT_SECONDS", defaultValue: 120, min: 10, max: 600 },
+  maxToolCalls: { env: "ASSISTANT_MAX_TOOL_CALLS", defaultValue: 12, min: 0, max: 40 },
+  maxToolRounds: { env: "ASSISTANT_MAX_TOOL_ROUNDS", defaultValue: 4, min: 0, max: 12 },
+  maxToolResultChars: { env: "ASSISTANT_MAX_TOOL_RESULT_CHARS", defaultValue: 80_000, min: 2_000, max: 400_000 },
 };
 
 /**

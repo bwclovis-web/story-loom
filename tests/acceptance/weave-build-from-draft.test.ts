@@ -35,6 +35,9 @@ const runtime = {
     maxRequestsPerHour: 100,
     monthlyTokenCap: 1_000_000,
     requestTimeoutSeconds: 30,
+    maxToolCalls: 12,
+    maxToolRounds: 4,
+    maxToolResultChars: 80_000,
   },
 };
 

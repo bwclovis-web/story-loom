@@ -16,6 +16,18 @@ const body = z.discriminatedUnion("kind", [
     mode: z.enum(["chat", "proposal"]).default("chat"),
     conversationId: z.string().min(1).max(100),
     question: z.string().max(200_000),
+    retrievalScope: z.enum(["chapter", "book", "series"]).optional(),
+    enableTools: z.boolean().optional(),
+    write: z
+      .object({
+        recordId: z.string().min(1).max(100),
+        draftId: z.string().min(1).max(100).nullable().optional(),
+        passage: passage.optional(),
+        includeUnsavedProse: z.boolean(),
+        unsavedBody: z.string().max(2_000_000).nullable().optional(),
+      })
+      .nullable()
+      .optional(),
     selection: z.object({
       references: z
         .array(
@@ -30,6 +42,7 @@ const body = z.discriminatedUnion("kind", [
         .object({ recordId: z.string().min(1).max(100), revision: z.number().int().min(1), passage: passage.optional() })
         .nullable(),
       includeMessageIds: z.array(z.string().min(1).max(100)).max(500),
+      excludeRecordIds: z.array(z.string().min(1).max(100)).max(500).optional(),
     }),
   }),
   z.object({ kind: z.literal("retry"), conversationId: z.string().min(1).max(100), messageId: z.string().min(1).max(100) }),

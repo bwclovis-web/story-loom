@@ -12,7 +12,20 @@ import {
   type TurnMode,
 } from "@/assistant/prompt";
 import { PROPOSAL_OUTPUT_JSON_SCHEMA } from "@/assistant/proposalOutput";
-import { ProviderError, type AssistantProvider, type ProviderRequest, type ProviderUsage } from "@/assistant/provider";
+import {
+  emptyRetrievalMeta,
+  parseRetrievalMeta,
+  type RetrievalContextState,
+  type RetrievalMeta,
+} from "@/assistant/retrievalMeta";
+import { ASSISTANT_TOOLS, type RetrievalScope } from "@/assistant/tools";
+import {
+  ProviderError,
+  type AssistantProvider,
+  type ProviderRequest,
+  type ProviderToolItem,
+  type ProviderUsage,
+} from "@/assistant/provider";
 import { newId } from "@/domain/ids";
 import { parseJsonObject } from "@/domain/json";
 import { contentClassOf, isRecordType, type ContentClass, type RecordType } from "@/domain/recordTypes";
@@ -85,10 +98,34 @@ export interface TurnSelection {
   references: ReferenceSelection[];
   manuscript: ManuscriptSelection | null;
   includeMessageIds: string[];
+  /** Records the author excluded from tool retrieval (manual Include still wins if also selected). */
+  excludeRecordIds?: string[];
+}
+
+/** Write → Assistant handoff: open record, draft, selection, optional unsaved prose. */
+export interface WriteHandoff {
+  recordId: string;
+  draftId?: string | null;
+  passage?: { start: number; end: number };
+  /** Explicit: when true and unsavedBody is set, include that editor text as a labeled source. */
+  includeUnsavedProse: boolean;
+  unsavedBody?: string | null;
 }
 
 export type TurnInput =
-  | { kind: "ask"; projectId: string; conversationId: string; question: string; selection: TurnSelection; mode?: TurnMode }
+  | {
+      kind: "ask";
+      projectId: string;
+      conversationId: string;
+      question: string;
+      selection: TurnSelection;
+      mode?: TurnMode;
+      /** chapter | book | series; tools stay inside this scope. Default book. */
+      retrievalScope?: RetrievalScope;
+      write?: WriteHandoff | null;
+      /** When false, discussion has no tools (manual sources only). Default true for chat. */
+      enableTools?: boolean;
+    }
   | { kind: "retry"; projectId: string; conversationId: string; messageId: string };
 
 export interface AssistantRuntime {
@@ -104,6 +141,10 @@ export interface PreparedTurn {
   assistantMessageId: string;
   request: ProviderRequest;
   requestChars: number;
+  projectId: string;
+  retrieval: RetrievalContextState | null;
+  maxToolCalls: number;
+  maxToolRounds: number;
 }
 
 export interface ContextItemView {
@@ -137,6 +178,7 @@ export interface MessageView {
   createdAt: string;
   contextItems: ContextItemView[];
   basedOnOlderVersions: boolean;
+  retrieval: RetrievalMeta | null;
 }
 
 export interface ConversationView {
@@ -404,6 +446,7 @@ export async function getConversationView(
         createdAt: m.createdAt.toISOString(),
         contextItems,
         basedOnOlderVersions: contextItems.some((c) => c.olderVersion),
+        retrieval: parseRetrievalMeta(m.retrievalJson),
       };
     }),
   };
@@ -643,6 +686,11 @@ export async function prepareTurn(db: Db, runtime: AssistantRuntime, input: Turn
   let mode: TurnMode;
   let existingUserMessage: { id: string; createdAt: Date } | null = null;
 
+  let writeHandoff: WriteHandoff | null = null;
+  let retrievalScope: RetrievalScope = "book";
+  let enableTools = false;
+  let excludeIds: string[] = [];
+
   if (input.kind === "ask") {
     mode = input.mode ?? "chat";
     question = input.question.trim();
@@ -650,6 +698,7 @@ export async function prepareTurn(db: Db, runtime: AssistantRuntime, input: Turn
       throw new AssistantError("INVALID_REQUEST", mode === "proposal" ? "Describe the changes to prepare first." : "Type a question first.");
     }
     const { references, manuscript, includeMessageIds } = input.selection;
+    excludeIds = [...new Set(input.selection.excludeRecordIds ?? [])];
     if (references.length > MAX_REFERENCES_PER_REQUEST) {
       throw new AssistantError("INVALID_REQUEST", `Select at most ${MAX_REFERENCES_PER_REQUEST} reference records.`);
     }
@@ -667,6 +716,9 @@ export async function prepareTurn(db: Db, runtime: AssistantRuntime, input: Turn
       });
     }
     includeIds = includeMessageIds;
+    writeHandoff = input.write ?? null;
+    retrievalScope = input.retrievalScope ?? "book";
+    enableTools = mode === "chat" && input.enableTools !== false && limits.maxToolCalls > 0 && limits.maxToolRounds > 0;
   } else {
     const failed = await db.assistantMessage.findFirst({
       where: { id: input.messageId, conversationId: conv.id, role: "assistant" },
@@ -691,10 +743,74 @@ export async function prepareTurn(db: Db, runtime: AssistantRuntime, input: Turn
   }
 
   const documents = await loadDocuments(db, input.projectId, refs, input.kind === "ask");
+  const sourceNotes: RetrievalMeta["sources"] = documents.map((d) => ({
+    recordId: d.recordId,
+    title: d.title,
+    kind: d.kind,
+    revision: d.revision,
+    passageStart: d.passage?.start ?? null,
+    passageEnd: d.passage?.end ?? null,
+    origin: "manual" as const,
+  }));
+
+  if (input.kind === "ask" && writeHandoff?.includeUnsavedProse) {
+    const body = writeHandoff.unsavedBody ?? "";
+    if (!body.trim()) {
+      throw new AssistantError("INVALID_REQUEST", "Include unsaved prose was requested, but no unsaved text was provided.");
+    }
+    const record = await db.record.findFirst({
+      where: { id: writeHandoff.recordId, projectId: input.projectId, trashedAt: null },
+    });
+    if (!record || !isRecordType(record.type) || contentClassOf(record.type) !== "manuscript") {
+      throw new AssistantError("INVALID_REQUEST", "Unsaved prose must belong to a manuscript chapter or scene in this project.");
+    }
+    const already = documents.some((d) => d.recordId === record.id);
+    if (!already) {
+      let text = body;
+      let passage: { start: number; end: number } | undefined;
+      if (writeHandoff.passage) {
+        const p = writeHandoff.passage;
+        if (p.start < 0 || p.end > body.length || p.start >= p.end) {
+          throw new AssistantError("INVALID_REQUEST", "The selected unsaved passage is outside the editor text.");
+        }
+        text = body.slice(p.start, p.end);
+        passage = p;
+      }
+      const unsavedDoc: ContextDocument = {
+        recordId: record.id,
+        title: `${record.title} (unsaved editor text)`,
+        type: record.type,
+        authorityStatus: isAuthorityStatus(record.authorityStatus) ? record.authorityStatus : "draft",
+        revision: record.currentRevision,
+        kind: passage ? "passage" : "manuscript",
+        text,
+        passage,
+      };
+      documents.push(unsavedDoc);
+      sourceNotes.push({
+        recordId: unsavedDoc.recordId,
+        title: unsavedDoc.title,
+        kind: unsavedDoc.kind,
+        revision: unsavedDoc.revision,
+        passageStart: passage?.start ?? null,
+        passageEnd: passage?.end ?? null,
+        origin: "unsaved",
+        evidenceLabel: "Unsaved editor prose (not yet a saved revision)",
+      });
+    }
+  }
+
   const prior = await loadPriorMessages(db, conv.id, includeIds, existingUserMessage?.createdAt);
   const conversationSummary = conv.summary?.trim() ? conv.summary : "";
+  const focusForScope =
+    writeHandoff?.recordId ??
+    (input.kind === "ask" ? (input.selection.manuscript?.recordId ?? null) : null);
+  const scopeLine =
+    mode === "chat" && enableTools
+      ? `Retrieval scope for tools: ${retrievalScope}. Focus record: ${focusForScope ?? "none"}. Draft: ${writeHandoff?.draftId ?? "legacy/default"}.`
+      : "";
   const boundary = chooseBoundary(
-    [...documents.map((d) => d.text), ...prior.map((p) => p.content), question, conversationSummary],
+    [...documents.map((d) => d.text), ...prior.map((p) => p.content), question, conversationSummary, scopeLine],
     () => randomBytes(6).toString("hex"),
   );
   const built = buildRequest({
@@ -706,11 +822,36 @@ export async function prepareTurn(db: Db, runtime: AssistantRuntime, input: Turn
     schemaChars: PROPOSAL_SCHEMA_CHARS,
     conversationSummary: conversationSummary || undefined,
   });
+  if (scopeLine) {
+    built.instructions = `${built.instructions}\n${scopeLine}`;
+    built.totalChars += scopeLine.length + 1;
+  }
 
   const size = checkSize(built, limits.maxInputChars);
   if (size) throw new AssistantError("TOO_LARGE", describeSizeProblem(size), size);
 
   await checkRequestLimits(db, limits, built.totalChars, now);
+
+  const retrievalMeta = emptyRetrievalMeta(retrievalScope);
+  retrievalMeta.excludedRecordIds = excludeIds;
+  retrievalMeta.unsavedProseIncluded = sourceNotes.some((s) => s.origin === "unsaved");
+  retrievalMeta.sources = sourceNotes;
+
+  const focusRecordId =
+    writeHandoff?.recordId ??
+    (input.kind === "ask" ? (input.selection.manuscript?.recordId ?? null) : null);
+  const draftId = writeHandoff?.draftId ?? null;
+  const retrieval: RetrievalContextState | null = enableTools
+    ? {
+        projectId: input.projectId,
+        scope: retrievalScope,
+        focusRecordId,
+        draftId,
+        excludeRecordIds: new Set(excludeIds),
+        maxResultChars: limits.maxToolResultChars,
+        meta: retrievalMeta,
+      }
+    : null;
 
   const userMessageId = existingUserMessage?.id ?? newId("asm");
   const assistantMessageId = newId("asm");
@@ -741,6 +882,7 @@ export async function prepareTurn(db: Db, runtime: AssistantRuntime, input: Turn
         model: runtime.model,
         includedMessageIds: JSON.stringify(prior.map((p) => p.id)),
         requestChars: built.totalChars,
+        retrievalJson: JSON.stringify(retrievalMeta),
         createdAt: new Date(now.getTime() + 1),
         contextItems: {
           create: documents.map((d) => ({
@@ -773,13 +915,18 @@ export async function prepareTurn(db: Db, runtime: AssistantRuntime, input: Turn
     conversationId: conv.id,
     userMessageId,
     assistantMessageId,
+    projectId: input.projectId,
     requestChars: built.totalChars,
+    retrieval,
+    maxToolCalls: limits.maxToolCalls,
+    maxToolRounds: limits.maxToolRounds,
     request: {
-      model: runtime.model,
+      model: runtime.model!,
       instructions: built.instructions,
       input: built.input,
       maxOutputTokens: limits.maxOutputTokens,
       timeoutMs: limits.requestTimeoutSeconds * 1000,
+      ...(enableTools ? { tools: ASSISTANT_TOOLS, toolChoice: "auto" as const } : {}),
     },
   };
 }
@@ -790,9 +937,19 @@ export function estimatedUsage(requestChars: number, outputChars: number): Provi
   return { inputTokens, outputTokens, totalTokens: inputTokens + outputTokens };
 }
 
+function addUsage(a: ProviderUsage | undefined, b: ProviderUsage | undefined): ProviderUsage | undefined {
+  if (!a) return b;
+  if (!b) return a;
+  return {
+    inputTokens: a.inputTokens + b.inputTokens,
+    outputTokens: a.outputTokens + b.outputTokens,
+    totalTokens: a.totalTokens + b.totalTokens,
+  };
+}
+
 /**
- * Streams one answer and always stores the outcome: complete, incomplete
- * (output limit), cancelled (with the partial text) or failed.
+ * Streams one answer (optionally with a bounded read-only tool loop) and always
+ * stores the outcome: complete, incomplete, cancelled (with partial text) or failed.
  */
 export async function runTurn(
   db: Db,
@@ -809,34 +966,130 @@ export async function runTurn(
   let usage: ProviderUsage | undefined;
   let usageEstimated = false;
   let responseId: string | undefined;
+  const started = Date.now();
+  const toolDocs: ContextDocument[] = [];
+  const retrieval = turn.retrieval;
 
   try {
-    let done = false;
-    for await (const event of provider.stream(turn.request, signal)) {
-      if (signal.aborted) throw new ProviderError("cancelled", "The request was cancelled.");
-      if (event.type === "delta") {
-        text += event.text;
-        onDelta(event.text);
-        continue;
+    if (retrieval && provider.complete && turn.request.tools?.length) {
+      let request = turn.request;
+      let rounds = 0;
+      const maxToolRounds = turn.maxToolRounds;
+      const maxToolCalls = turn.maxToolCalls;
+
+      while (true) {
+        if (signal.aborted) throw new ProviderError("cancelled", "The request was cancelled.");
+        if (Date.now() - started > request.timeoutMs) {
+          throw new ProviderError("timeout", "The assistant ran out of time while gathering evidence.");
+        }
+        if ((rounds >= maxToolRounds || retrieval.meta.toolCallCount >= maxToolCalls) && request.toolChoice !== "none") {
+          request = { ...request, toolChoice: "none" };
+        }
+        const round = await provider.complete(request, signal);
+        usage = addUsage(usage, round.usage);
+        responseId = round.responseId ?? responseId;
+
+        if (round.kind === "tool_calls") {
+          rounds += 1;
+          retrieval.meta.toolRoundCount = rounds;
+          if (rounds > maxToolRounds || retrieval.meta.toolCallCount + round.calls.length > maxToolCalls) {
+            retrieval.meta.omissions.push({
+              label: "Further tool calls",
+              reason: "Tool-call budget reached; answering with evidence gathered so far.",
+            });
+            const exhausted: ProviderToolItem[] = [
+              ...(request.toolItems ?? []),
+              ...round.calls.map((c) => ({
+                type: "function_call" as const,
+                call_id: c.callId,
+                name: c.name,
+                arguments: c.arguments,
+              })),
+              ...round.calls.map((c) => ({
+                type: "function_call_output" as const,
+                call_id: c.callId,
+                output: JSON.stringify({ error: "tool_budget_exhausted" }),
+              })),
+            ];
+            request = { ...request, toolChoice: "none", toolItems: exhausted };
+            continue;
+          }
+
+          const nextTools: ProviderToolItem[] = [...(request.toolItems ?? [])];
+          for (const call of round.calls) {
+            retrieval.meta.toolCallCount += 1;
+            nextTools.push({
+              type: "function_call",
+              call_id: call.callId,
+              name: call.name,
+              arguments: call.arguments,
+            });
+            const { executeAssistantTool } = await import("./assistantRetrievalService");
+            const result = await executeAssistantTool(db, retrieval, call.name, call.arguments);
+            for (const doc of result.documents) toolDocs.push(doc);
+            nextTools.push({ type: "function_call_output", call_id: call.callId, output: result.output });
+          }
+          request = { ...request, toolItems: nextTools };
+          continue;
+        }
+
+        text = round.text;
+        status = round.status;
+        if (round.status === "incomplete") {
+          errorCode = round.incompleteReason ?? "incomplete";
+          errorMessage =
+            round.incompleteReason === "max_output_tokens"
+              ? "The answer stopped at the output limit (ASSISTANT_MAX_OUTPUT_TOKENS)."
+              : `The answer is incomplete (${round.incompleteReason ?? "no reason given"}).`;
+        }
+        if (!round.usage) {
+          usage = estimatedUsage(turn.requestChars + toolDocs.reduce((n, d) => n + d.text.length, 0), text.length);
+          usageEstimated = true;
+        }
+        onDelta(text);
+        break;
       }
-      done = true;
-      status = event.status;
-      responseId = event.responseId;
-      if (event.status === "incomplete") {
-        errorCode = event.incompleteReason ?? "incomplete";
-        errorMessage =
-          event.incompleteReason === "max_output_tokens"
-            ? "The answer stopped at the output limit (ASSISTANT_MAX_OUTPUT_TOKENS)."
-            : `The answer is incomplete (${event.incompleteReason ?? "no reason given"}).`;
+    } else {
+      let done = false;
+      for await (const event of provider.stream(turn.request, signal)) {
+        if (signal.aborted) throw new ProviderError("cancelled", "The request was cancelled.");
+        if (event.type === "delta") {
+          text += event.text;
+          onDelta(event.text);
+          continue;
+        }
+        done = true;
+        status = event.status;
+        responseId = event.responseId;
+        if (event.status === "incomplete") {
+          errorCode = event.incompleteReason ?? "incomplete";
+          errorMessage =
+            event.incompleteReason === "max_output_tokens"
+              ? "The answer stopped at the output limit (ASSISTANT_MAX_OUTPUT_TOKENS)."
+              : `The answer is incomplete (${event.incompleteReason ?? "no reason given"}).`;
+        }
+        if (event.usage) usage = event.usage;
+        else {
+          usage = estimatedUsage(turn.requestChars, text.length);
+          usageEstimated = true;
+        }
+        break;
       }
-      if (event.usage) usage = event.usage;
-      else {
-        usage = estimatedUsage(turn.requestChars, text.length);
-        usageEstimated = true;
-      }
-      break;
+      if (!done) throw new ProviderError("provider_failed", "The response ended before it was complete.");
     }
-    if (!done) throw new ProviderError("provider_failed", "The response ended before it was complete.");
+
+    if (retrieval) {
+      retrieval.meta.elapsedMs = Date.now() - started;
+      const lower = text.toLowerCase();
+      if (
+        lower.includes("insufficient evidence") ||
+        lower.includes("not enough evidence") ||
+        lower.includes("cannot determine") ||
+        (retrieval.meta.toolCallCount > 0 && retrieval.meta.sources.filter((s) => s.origin === "tool").length === 0)
+      ) {
+        retrieval.meta.insufficientEvidence = true;
+      }
+    }
   } catch (error) {
     const e = error instanceof ProviderError ? error : new ProviderError("provider_failed", "The assistant request failed unexpectedly.");
     const cancelled = e.code === "cancelled" || signal.aborted;
@@ -847,6 +1100,23 @@ export async function runTurn(
       usage = estimatedUsage(turn.requestChars, text.length);
       usageEstimated = true;
     }
+    if (retrieval) retrieval.meta.elapsedMs = Date.now() - started;
+  }
+
+  if (toolDocs.length) {
+    await db.assistantContextItem.createMany({
+      data: toolDocs.map((d) => ({
+        id: newId("aci"),
+        messageId: turn.assistantMessageId,
+        recordId: d.recordId,
+        revisionNumber: d.revision,
+        kind: d.kind,
+        passageStart: d.passage?.start ?? null,
+        passageEnd: d.passage?.end ?? null,
+        charCount: d.text.length,
+        contentHash: sha256(d.text),
+      })),
+    });
   }
 
   await db.assistantMessage.update({
@@ -861,6 +1131,7 @@ export async function runTurn(
       outputTokens: usage?.outputTokens ?? null,
       totalTokens: usage?.totalTokens ?? null,
       usageEstimated,
+      retrievalJson: retrieval ? JSON.stringify(retrieval.meta) : undefined,
       completedAt: new Date(),
     },
   });

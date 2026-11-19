@@ -13,6 +13,7 @@ import {
   type OutputSchema,
   type ProviderEvent,
   type ProviderRequest,
+  type ProviderRound,
   type ProviderUsage,
   type StructuredResult,
 } from "@/assistant/provider";
@@ -52,25 +53,88 @@ export function defaultClient(apiKey: string): ResponsesClient {
   });
 }
 
+function mapInput(request: ProviderRequest) {
+  const messages = request.input.map((m) => ({ role: m.role, content: m.content }));
+  const tools = (request.toolItems ?? []).map((item) =>
+    item.type === "function_call"
+      ? { type: "function_call" as const, call_id: item.call_id, name: item.name, arguments: item.arguments }
+      : { type: "function_call_output" as const, call_id: item.call_id, output: item.output },
+  );
+  return [...messages, ...tools];
+}
+
 export function buildCreateParams(request: ProviderRequest): ResponseCreateParamsStreaming {
   return {
     model: request.model,
     instructions: request.instructions,
-    input: request.input.map((m) => ({ role: m.role, content: m.content })),
+    input: mapInput(request),
     max_output_tokens: request.maxOutputTokens,
     store: false,
     truncation: "disabled",
     stream: true,
+    ...(request.tools?.length
+      ? {
+          tools: request.tools.map((t) => ({
+            type: "function" as const,
+            name: t.name,
+            description: t.description,
+            parameters: t.parameters,
+            strict: t.strict ?? true,
+          })),
+          tool_choice: request.toolChoice ?? "auto",
+        }
+      : {}),
   };
 }
 
 export function buildStructuredParams(request: ProviderRequest, schema: OutputSchema): ResponseCreateParamsNonStreaming {
-  const { stream: _stream, ...base } = buildCreateParams(request);
+  const { stream: _stream, tools: _tools, tool_choice: _choice, ...base } = buildCreateParams(request);
   return {
     ...base,
     stream: false,
     text: { format: { type: "json_schema", name: schema.name, schema: schema.schema, strict: true } },
   };
+}
+
+export function buildCompleteParams(request: ProviderRequest): ResponseCreateParamsNonStreaming {
+  const { stream: _stream, ...base } = buildCreateParams(request);
+  return { ...base, stream: false };
+}
+
+export function readRound(r: OpenAIResponse): ProviderRound {
+  const meta = { responseId: r.id, usage: usageOf(r) };
+  if (r.status === "incomplete") {
+    let text = "";
+    for (const item of r.output ?? []) {
+      if (item.type !== "message") continue;
+      for (const part of item.content) {
+        if (part.type === "output_text") text += part.text;
+      }
+    }
+    return { kind: "message", text, status: "incomplete", incompleteReason: r.incomplete_details?.reason ?? undefined, ...meta };
+  }
+  if (r.status !== "completed") {
+    throw new ProviderError(
+      "provider_failed",
+      `The model could not complete the response (${r.status ?? "unknown status"}${r.error ? `, ${r.error.code}` : ""}).`,
+    );
+  }
+  const calls = (r.output ?? [])
+    .filter((item): item is Extract<(typeof r.output)[number], { type: "function_call" }> => item.type === "function_call")
+    .map((c) => ({ callId: c.call_id, name: c.name, arguments: c.arguments }));
+  if (calls.length) return { kind: "tool_calls", calls, ...meta };
+
+  let text = "";
+  for (const item of r.output ?? []) {
+    if (item.type !== "message") continue;
+    for (const part of item.content) {
+      if (part.type === "refusal") {
+        throw new ProviderError("provider_failed", `The model refused: ${part.refusal}`);
+      }
+      if (part.type === "output_text") text += part.text;
+    }
+  }
+  return { kind: "message", text, status: "complete", ...meta };
 }
 
 function usageOf(r: Pick<OpenAIResponse, "usage">): ProviderUsage | undefined {
@@ -197,6 +261,19 @@ export function createOpenAIProvider(apiKey: string, makeClient: (key: string) =
           timeout: request.timeoutMs,
         })) as OpenAIResponse;
         return readStructuredResponse(response);
+      } catch (error) {
+        throw toProviderError(error, signal);
+      }
+    },
+    async complete(request: ProviderRequest, signal: AbortSignal): Promise<ProviderRound> {
+      try {
+        if (signal.aborted) throw new ProviderError("cancelled", "The request was cancelled.");
+        const client = makeClient(apiKey);
+        const response = (await client.responses.create(buildCompleteParams(request), {
+          signal,
+          timeout: request.timeoutMs,
+        })) as OpenAIResponse;
+        return readRound(response);
       } catch (error) {
         throw toProviderError(error, signal);
       }

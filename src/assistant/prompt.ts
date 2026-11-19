@@ -57,8 +57,12 @@ export const ASSISTANT_INSTRUCTIONS = [
   'Each source states its canon status. Only records with status "approved" are canon. Draft, proposed, unresolved and superseded records are not canon. Say which kind you are relying on when it matters.',
   'Some documents also mark status in their own text, usually at the end of headings, such as "[APPROVED FRAMEWORK]", "[WORKING PROPOSAL]" or "— SELECTED", or with words such as OPEN or PROPOSED. Such sources say statusMarkedInText="yes". In them, the markings in the text govern the sections they head; the record status describes the document as a whole. Treat a section marked as working, proposed, open or not approved as not settled, whatever the record status. Quote the marking you rely on, word for word. A source of kind "section" is one section of a longer document; its sectionStatus is the tag on its own heading, and tags on the headings above it are in its section path.',
   'Keep your own ideas separate from canon: put suggestions under a heading "Proposals (not canon)". Never present a proposal as settled.',
-  "If the material does not answer a question, say so instead of inventing canon.",
-  "You see only the material in this request. You have no access to the author's ChatGPT account, memory, conversations, Projects or files, or to anything else in the workspace.",
+  "If the material does not answer a question, say so instead of inventing canon. When tools find nothing useful, say the available evidence is insufficient rather than guessing.",
+  "You may call read-only project tools to search and fetch more evidence before answering. Prefer tools over guessing. Request additional evidence when the included sources are thin. Tool results and author-selected sources are both source material.",
+  "Resolve character and place names with resolve_name. When it reports ambiguous matches, ask the author which record they mean; do not pick one.",
+  "For what a character knows or prior meetings, examine earlier scenes (list_earlier_scenes / search / read). Manuscript book order is not story chronology — say so when they may diverge. Label zero-draft evidence and Weave planning as such; never present them as settled author-manuscript canon.",
+  "Respect author exclusions: tools refuse excluded records. Manual Include ticks are always sent; tools only add more evidence.",
+  "You have no access to the author's ChatGPT account, memory, conversations, Projects or files outside this request and the read-only tools provided here.",
 ].join("\n");
 
 export const PROPOSAL_INSTRUCTIONS = [

@@ -237,3 +237,73 @@ export const HistoryIcon = () => (
     <path d="M3 3v5h5M12 7v5l3 2" />
   </Icon>
 );
+
+export const SparkleIcon = () => (
+  <Icon>
+    <path
+      d="M12 3l1.2 4.2L17.5 8.5 13.2 9.8 12 14l-1.2-4.2L6.5 8.5l4.3-1.3L12 3zM18.5 14l.7 2.3 2.3.7-2.3.7-.7 2.3-.7-2.3-2.3-.7 2.3-.7.7-2.3zM6 15.5l.55 1.8 1.8.55-1.8.55L6 20.2l-.55-1.8-1.8-.55 1.8-.55L6 15.5z"
+      fill="currentColor"
+      stroke="none"
+    />
+  </Icon>
+);
+
+export const MemoryIcon = () => (
+  <Icon>
+    <rect x="4" y="5" width="16" height="4" rx="1" />
+    <rect x="4" y="10" width="16" height="4" rx="1" />
+    <rect x="4" y="15" width="16" height="4" rx="1" />
+  </Icon>
+);
+
+export const ExpandCornersIcon = () => (
+  <Icon>
+    <path d="M9 3H3v6M15 3h6v6M9 21H3v-6M15 21h6v-6" />
+    <path d="M3 3l7 7M21 3l-7 7M3 21l7-7M21 21l-7-7" />
+  </Icon>
+);
+
+export const ExtLinkIcon = () => (
+  <svg
+    className="icon"
+    viewBox="0 0 24 24"
+    width="12"
+    height="12"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.75"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true"
+    focusable="false"
+  >
+    <path d="M14 5h5v5M19 5l-8 8M10 5H5v14h14v-5" />
+  </svg>
+);
+
+export const SendIcon = () => (
+  <Icon>
+    <path d="M4 12l15-7-7 15-2-6-6-2z" />
+  </Icon>
+);
+
+export const AttachIcon = () => (
+  <Icon>
+    <path d="M8 12.5V8a4 4 0 018 0v7a2.5 2.5 0 01-5 0V9" />
+  </Icon>
+);
+
+export const BranchIcon = () => (
+  <Icon>
+    <circle cx="6" cy="6" r="2" />
+    <circle cx="18" cy="6" r="2" />
+    <circle cx="12" cy="18" r="2" />
+    <path d="M6 8v4a4 4 0 004 4M18 8v4a4 4 0 01-4 4" />
+  </Icon>
+);
+
+export const ListRowsIcon = () => (
+  <Icon>
+    <path d="M8 7h12M8 12h12M8 17h12M4 7h.01M4 12h.01M4 17h.01" />
+  </Icon>
+);

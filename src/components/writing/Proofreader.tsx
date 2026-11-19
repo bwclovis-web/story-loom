@@ -22,6 +22,8 @@ export interface ProofreadConfig {
   maxInputChars: number;
   /** Characters every request adds: instructions, output format, labels. */
   fixedChars: number;
+  /** Why the assistant/proofread connection is off; empty when configured. */
+  problems?: string[];
 }
 
 interface ApiError {

@@ -84,6 +84,7 @@ export default async function RecordPage({
     configured: assistant.configured,
     maxInputChars: assistant.limits.maxInputChars,
     fixedChars: proofreadFixedChars,
+    problems: assistant.problems,
   };
 
   if (manuscript) {

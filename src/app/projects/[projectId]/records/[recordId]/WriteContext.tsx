@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useId, useMemo, useRef, useState, useTransition, type KeyboardEvent, type ReactNode } from "react";
+import { WriteAssistantRail } from "@/components/assistant/WriteAssistantRail";
 import { StatusBadge } from "@/components/Badges";
 import { IssueList } from "@/components/IssueList";
 import { CloseIcon } from "@/components/shell/icons";
@@ -13,7 +14,7 @@ import { submitWithoutReset } from "@/components/submitWithoutReset";
 import type { Issue } from "@/domain/issues";
 import { RECORD_TYPE_LABELS, type RecordType } from "@/domain/recordTypes";
 import type { AuthorityStatus } from "@/domain/statuses";
-import { DRAFT, RECORD, WEAVE, WRITE } from "@/ui/labels";
+import { ASSISTANT, DRAFT, RECORD, WEAVE, WRITE } from "@/ui/labels";
 import {
   attachRewriteSourceAction,
   detachRewriteSourceAction,
@@ -76,6 +77,7 @@ export interface AttachableSource {
 }
 
 const TAB_LABELS: Record<ContextTab, string> = {
+  assistant: ASSISTANT.tabAssistant,
   source: DRAFT.sourceTab,
   references: WRITE.references,
   notes: WRITE.notes,
@@ -109,6 +111,12 @@ export function WriteContext({
   draftScopeId,
   initialPins,
   plotBeats,
+  editorText,
+  editorDirty,
+  editorSelection,
+  draftLabel,
+  assistantConfigured,
+  assistantProblems,
   proofreader,
   overlay,
   onClose,
@@ -127,6 +135,13 @@ export function WriteContext({
   draftScopeId: string | null;
   initialPins: ReadingPinView[];
   plotBeats: PlotBeatItem[];
+  /** Current editor text (may be unsaved). */
+  editorText: string;
+  editorDirty: boolean;
+  editorSelection: { start: number; end: number };
+  draftLabel: string;
+  assistantConfigured: boolean;
+  assistantProblems: string[];
   proofreader: ReactNode;
   /** Shown over the page on narrow screens; closes with Escape. */
   overlay: boolean;
@@ -157,7 +172,7 @@ export function WriteContext({
 
   return (
     <div
-      className="context-inner"
+      className={`context-inner${tab === "assistant" ? " context-inner-assistant" : ""}`}
       onKeyDown={(e) => {
         if (overlay && e.key === "Escape" && !e.defaultPrevented) {
           e.preventDefault();
@@ -200,6 +215,22 @@ export function WriteContext({
         ))}
       </div>
       {/* Every panel stays mounted, so switching tabs never discards a note being written or a proofreading run. */}
+      <div role="tabpanel" id={`${idPrefix}-panel-assistant`} aria-labelledby={`${idPrefix}-tab-assistant`} hidden={tab !== "assistant"} className="context-body context-body-assistant">
+        <WriteAssistantRail
+          projectId={projectId}
+          recordId={recordId}
+          recordTitle={recordTitle}
+          draftScopeId={draftScopeId}
+          draftLabel={draftLabel}
+          editorText={editorText}
+          editorDirty={editorDirty}
+          editorSelection={editorSelection}
+          configured={assistantConfigured}
+          configProblems={assistantProblems}
+          onClose={onClose}
+          onOpenInclude={() => choose("references")}
+        />
+      </div>
       <div role="tabpanel" id={`${idPrefix}-panel-source`} aria-labelledby={`${idPrefix}-tab-source`} hidden={tab !== "source"} className="context-body">
         <Sources projectId={projectId} recordId={recordId} sources={sources} attachable={attachableSources} />
       </div>
@@ -993,3 +1024,4 @@ function NewNote({ projectId, recordId }: { projectId: string; recordId: string 
     </form>
   );
 }
+

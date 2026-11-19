@@ -813,6 +813,8 @@ model AssistantMessage {
   includedMessageIds String                 @default("[]")
   /// Characters sent (instructions + context + prior messages + question).
   requestChars       Int?
+  /// JSON RetrievalMeta: tool audit, omissions, unsaved-prose flag (discussion turns).
+  retrievalJson      String?
   createdAt          DateTime               @default(now())
   completedAt        DateTime?
   contextItems       AssistantContextItem[]

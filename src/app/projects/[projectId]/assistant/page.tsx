@@ -32,10 +32,10 @@ export default async function AssistantPage({
   searchParams,
 }: {
   params: Promise<{ projectId: string }>;
-  searchParams: Promise<{ c?: string; seed?: string; board?: string }>;
+  searchParams: Promise<{ c?: string; seed?: string; board?: string; handoff?: string }>;
 }) {
   const { projectId } = await params;
-  const { c, seed, board } = await searchParams;
+  const { c, seed, board, handoff } = await searchParams;
   const db = getDb();
   const project = await findProject(db, projectId);
   if (!project) notFound();
@@ -157,6 +157,7 @@ export default async function AssistantPage({
             drafts={draftOptions}
             settings={settings}
             seedRecordId={seed ?? null}
+            consumeWriteHandoff={handoff === "1"}
             boardSeed={
               boardPreview
                 ? {

@@ -2264,11 +2264,22 @@ export function HelpContent() {
 
         <Sub id="assistant-context">
           <p>
-            The conversation fills the middle of the page, with the question box directly under the latest message. What
-            to send is chosen in <L>{ASSISTANT.contextHeading}</L>, the shared context rail on the right (collapse, resize,
-            and overlay on a narrow window, same as Write). Closing the rail does not change what is sent. The line above
-            the question box shows how many items are included and the approximate size.{" "}
-            <L>{ASSISTANT.conversations}</L> stays in the left column of the assistant page.
+            On Write, open the context rail and choose the <L>{ASSISTANT.tabAssistant}</L> tab for an in-page assistant:
+            conversation selector, <L>{ASSISTANT.memory}</L>, <L>{ASSISTANT.expand}</L> to the full assistant page, scope
+            (chapter / book / series), streaming answers with safe Markdown, source pills, coverage details, proposal
+            cards, and suggested actions (<L>{ASSISTANT.checkContinuity}</L>, <L>{ASSISTANT.exploreOptions}</L>,{" "}
+            <L>{ASSISTANT.prepareChanges}</L>). The composer draft and selected conversation are kept when you expand.
+            Unsaved manuscript text stays in the editor; only the optional{" "}
+            <L>{ASSISTANT.includeUnsavedProse}</L> tick sends it.
+          </p>
+          <p>
+            The full assistant page still puts the conversation in the middle, with the question box under the latest
+            message. What to send is chosen in <L>{ASSISTANT.contextHeading}</L>, the shared context rail on the right
+            (collapse, resize, and overlay on a narrow window, same as Write). Closing the rail does not change what is
+            sent. The line above the question box shows how many items are included and the approximate size.{" "}
+            <L>{ASSISTANT.conversations}</L> stays in the left column of the assistant page. Discussion may use
+            read-only project search tools within the chosen scope; change proposals still apply only through Include and
+            the existing review / Apply flow.
           </p>
           <ol>
             <li>

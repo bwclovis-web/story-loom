@@ -35,7 +35,7 @@ import type { AuthorityStatus } from "@/domain/statuses";
 import { normalizeNewlines } from "@/proofread/anchors";
 import type { DictionaryWord } from "@/spelling/dictionary";
 import { TextAppearanceMenu } from "@/components/TextAppearanceMenu";
-import { RECORD, tidySummary, WRITE, WRITING } from "@/ui/labels";
+import { ASSISTANT, RECORD, tidySummary, WRITE, WRITING } from "@/ui/labels";
 import { invertEdit } from "@/writing/findReplace";
 import { minimalEdit, toggleInline } from "@/writing/markdownFormat";
 import { tidyText } from "@/writing/tidy";
@@ -554,6 +554,12 @@ export function WriteEditor(props: {
           draftScopeId={props.draftScopeId}
           initialPins={props.initialPins}
           plotBeats={props.plotBeats}
+          editorText={text}
+          editorDirty={dirty}
+          editorSelection={selection}
+          draftLabel={props.drafts?.find((d) => d.id === props.draftScopeId)?.label ?? ASSISTANT.draftScopeNone}
+          assistantConfigured={props.proofread.configured}
+          assistantProblems={props.proofread.problems ?? []}
           overlay={!rail.wide}
           onClose={rail.close}
           proofreader={

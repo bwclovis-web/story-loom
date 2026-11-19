@@ -2302,6 +2302,43 @@ Requested: correct Weave plot-grid screen to match attached design (toolbar, sti
 ### Rollback
 Restore WeaveCanvas / WeavePlotGrid / globals.css / labels / Help / page props from prior revision. Lantern fixture rows are invented demo DB only — do not reset the working database.
 
+## Shared UI primitives from assistant rail (Nov 19, 2026)
+
+Extracted reusable pieces for app-wide use:
+- `ActionChip`, `PillSelect` / `PillLabel` under `src/components/ui/`
+- `SourcePills`, `ProposalSummaryCard`, `AssistantAnswer` under `src/components/assistant/`
+- Shared icons in `shell/icons.tsx` (Sparkle, Memory, ExpandCorners, Send, Attach, Branch, ListRows, ExtLink)
+- Expanded Assistant page restores composer draft via the same `assistantDraft` sessionStorage key as the Write rail
+
+Legacy CSS class aliases (`.assistant-chip`, `.assistant-source-pill`, …) kept for safety.
+
+## Assistant rail UI + project retrieval tools (Nov 19, 2026)
+
+Requested: match the approved Write assistant-rail mockup; extend discussion with read-only project search/read tools; preserve Apply / history / backup.
+
+### Implemented
+- Write context tab **Assistant** (`WriteAssistantRail`): header (Memory / Expand / Close), conversation select, chapter·draft + scope pills, Markdown answers (UI sans / document serif in blockquotes), source pills + coverage, compact proposal card, continuity / explore / prepare chips, anchored composer with context summary, Send, Stop.
+- Composer draft + conversation id persisted in `sessionStorage` across rail ↔ expanded `/assistant`.
+- Discussion tool loop (chat only): `search_project`, `read_passage`, `list_sections`, `resolve_name`, `list_accepted_facts`, `search_planning`, `list_earlier_scenes`; bounds via `ASSISTANT_MAX_TOOL_*`; sources audited in `AssistantContextItem` + `retrievalJson` (migration `20261119140000_assistant_retrieval`).
+- Explicit Write unsaved-prose handoff (`includeUnsavedProse`); proposals unchanged (no tools; Apply via existing package path).
+
+### Checks
+| Check | Result |
+| --- | --- |
+| `pnpm exec tsc --noEmit` | pass |
+| `vitest run tests/acceptance/assistant.test.ts` | pass (15) |
+
+### Gaps vs mockup / request
+- Attach opens References tab (full Include UI still on expanded page), not an in-rail paperclip picker.
+- Composer context summary uses the open record title (+ last-answer source count when available); it does not yet mirror expanded-page Include tick counts until Include is used from Expand.
+- Empty rail shows **New conversation** beside the selector (mockup shows selector only).
+- Global nav iconography in the mockup (Weave/Review) differs from current Plan/World labels — not changed.
+- Dedicated fixture tests for alias ambiguity / magic-rules tool scenarios not yet added (tools covered by unit wiring + existing assistant scripted provider).
+- Working DB needs `pnpm db:deploy` (after backup) for `retrievalJson` before tool-audited answers persist on author data.
+
+### Rollback
+Revert assistant UI/CSS/labels/Help, `assistantService` tool loop, retrieval service, provider `complete`, migration (after backup). Do not reset the working database.
+
 ## Plot-grid beat DnD and app motion (Nov 19, 2026)
 
 Requested: drag-and-drop beats on the plot grid; tasteful app-wide motion without a new animation library.

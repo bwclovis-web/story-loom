@@ -20,6 +20,54 @@ export async function newConversationAction(projectId: string): Promise<void> {
   redirect(`/projects/${projectId}/assistant?c=${id}`);
 }
 
+/** Create a conversation without redirecting (Write assistant rail). */
+export async function newConversationForRailAction(
+  projectId: string,
+): Promise<{ ok: true; id: string; title: string } | { ok: false; message: string }> {
+  try {
+    const { DEFAULT_CONVERSATION_TITLE } = await import("@/server/services/assistantService");
+    const conv = await createConversation(getDb(), projectId);
+    revalidatePath(`/projects/${projectId}/assistant`);
+    return { ok: true, id: conv.id, title: DEFAULT_CONVERSATION_TITLE };
+  } catch (error) {
+    if (error instanceof AssistantError) return { ok: false, message: error.message };
+    throw error;
+  }
+}
+
+/** Load conversation list + one conversation for the Write rail. */
+export async function loadAssistantRailAction(projectId: string, conversationId: string | null) {
+  try {
+    const { getAssistantConfig } = await import("@/server/assistantConfig");
+    const { getConversationView, listConversations } = await import("@/server/services/assistantService");
+    const { listProposalViews } = await import("@/server/services/assistantProposalService");
+    const db = getDb();
+    const { status } = getAssistantConfig();
+    const conversations = await listConversations(db, projectId);
+    const activeId =
+      conversationId && conversations.some((c) => c.id === conversationId) ? conversationId : (conversations[0]?.id ?? null);
+    if (!activeId) {
+      return {
+        ok: true as const,
+        conversations: [] as Array<{ id: string; title: string }>,
+        conversation: null,
+        proposals: {} as Awaited<ReturnType<typeof listProposalViews>>,
+      };
+    }
+    const conversation = await getConversationView(db, projectId, activeId, status.limits);
+    const proposals = await listProposalViews(db, projectId, activeId);
+    return {
+      ok: true as const,
+      conversations: conversations.map((c) => ({ id: c.id, title: c.title })),
+      conversation,
+      proposals,
+    };
+  } catch (error) {
+    if (error instanceof AssistantError) return { ok: false as const, message: error.message };
+    throw error;
+  }
+}
+
 export async function deleteConversationAction(projectId: string, conversationId: string): Promise<{ ok: boolean; message?: string }> {
   try {
     await deleteConversation(getDb(), projectId, conversationId);

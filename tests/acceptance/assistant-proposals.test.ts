@@ -39,7 +39,7 @@ import { createTestDb, IDS, seedProject, snapshotState, type TestDb } from "../h
 const runtime: AssistantRuntime = {
   configured: true,
   model: "test-model",
-  limits: { maxInputChars: 30_000, maxOutputTokens: 2_000, maxRequestsPerHour: 100, monthlyTokenCap: 10_000_000, requestTimeoutSeconds: 60 },
+  limits: { maxInputChars: 30_000, maxOutputTokens: 2_000, maxRequestsPerHour: 100, monthlyTokenCap: 10_000_000, requestTimeoutSeconds: 60, maxToolCalls: 12, maxToolRounds: 4, maxToolResultChars: 80_000 },
 };
 
 const OTHER = { workspace: "wsp_other", project: "prj_other_novel", record: "rec_other_secret" };

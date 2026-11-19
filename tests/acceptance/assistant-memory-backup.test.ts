@@ -16,6 +16,9 @@ const limits = {
   maxRequestsPerHour: 30,
   monthlyTokenCap: 300_000,
   requestTimeoutSeconds: 120,
+  maxToolCalls: 12,
+  maxToolRounds: 4,
+  maxToolResultChars: 80_000,
 };
 
 describe("Assistant memory backup", () => {
