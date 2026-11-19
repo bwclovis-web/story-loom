@@ -44,7 +44,8 @@ export default async function WeaveIndexPage({ params }: { params: Promise<{ pro
 
       <OverflowDisclosure summary={WEAVE.newGrid} className="panel" defaultOpen={!grids.length}>
         <CreateWeaveGridForm projectId={projectId} />
-        <p style={{ marginTop: "0.75rem" }}>
+        <p className="row" style={{ marginTop: "0.75rem", gap: "1rem", flexWrap: "wrap" }}>
+          <Link href={`${base}/plan/weave/build`}>{WEAVE.buildFromDraft}</Link>
           <Link href={`${base}/plan/weave/templates`}>{WEAVE.templates}</Link>
           {templates.length ? <span className="small muted"> ({templates.length})</span> : null}
         </p>

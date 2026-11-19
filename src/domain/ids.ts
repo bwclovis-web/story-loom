@@ -36,6 +36,7 @@ export type IdPrefix =
   | "wvs" // weave setup/payoff
   | "wvt" // weave template
   | "wvx" // weave template beat
+  | "wbr" // weave build-from-draft run
   | "fct" // established fact
   | "fev" // fact evidence
   | "pas"; // project assistant settings

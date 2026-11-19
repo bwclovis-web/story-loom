@@ -35,6 +35,12 @@ import {
   type WeaveLayoutMode,
   type WeaveViewKind,
 } from "@/server/services/weaveService";
+import {
+  applyWeaveBuild,
+  getWeaveBuildRun,
+  saveWeaveBuildDecisions,
+  type WeaveBuildDecisions,
+} from "@/server/services/weaveBuildFromDraftService";
 
 function failure(error: unknown): { ok: false; issues: Issue[] } {
   if (error instanceof MutationRejectedError) return { ok: false, issues: error.issues };
@@ -373,6 +379,39 @@ export async function saveWeaveGridAsTemplateAction(
     const template = await saveWeaveGridAsTemplate(getDb(), projectId, gridId, input);
     revalidateWeave(projectId, gridId);
     return { ok: true as const, templateId: template.id };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+export async function saveWeaveBuildDecisionsAction(
+  projectId: string,
+  runId: string,
+  contentHash: string,
+  decisions: WeaveBuildDecisions,
+) {
+  try {
+    const run = await saveWeaveBuildDecisions(getDb(), projectId, runId, decisions, contentHash);
+    return { ok: true as const, run };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+export async function applyWeaveBuildAction(projectId: string, runId: string, contentHash: string) {
+  try {
+    const result = await applyWeaveBuild(getDb(), projectId, runId, contentHash);
+    revalidateWeave(projectId, result.gridId);
+    return { ok: true as const, result };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+export async function getWeaveBuildRunAction(projectId: string, runId: string) {
+  try {
+    const run = await getWeaveBuildRun(getDb(), projectId, runId);
+    return { ok: true as const, run };
   } catch (error) {
     return failure(error);
   }

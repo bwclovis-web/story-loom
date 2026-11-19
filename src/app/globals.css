@@ -303,6 +303,30 @@ button.selector-button:hover { background: var(--color-nav-hover); }
 .project-workspace { margin: 0.15rem 0 0; font-size: 0.78rem; color: var(--color-text-muted); }
 .nav-heading { margin: 1.1rem 0.5rem 0.35rem; font-size: 0.7rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-text-muted); }
 .nav-subheading { display: flex; justify-content: space-between; gap: 0.5rem; margin: 0.9rem 0.5rem 0.25rem; font-size: 0.78rem; font-weight: 600; color: var(--color-text-muted); }
+button.nav-section-toggle {
+  display: flex; align-items: center; gap: 0.2rem; width: 100%;
+  margin: 0.75rem 0 0.2rem; padding: 0.2rem 0.35rem; min-height: 0;
+  border: 0; border-radius: var(--radius-md); background: transparent;
+  color: var(--color-text-muted); font-size: 0.78rem; font-weight: 600; text-align: left; cursor: pointer;
+}
+button.nav-section-toggle:where(:hover:not(:disabled)) {
+  background: var(--color-accent-tint); color: var(--color-text); border-color: transparent;
+}
+button.nav-section-toggle .icon { width: 14px; height: 14px; transition: transform 0.12s; }
+button.nav-section-toggle[aria-expanded="true"] .icon { transform: rotate(90deg); }
+.nav-section-label { flex: 1; min-width: 0; }
+.type-group > details > summary {
+  display: flex; align-items: center; gap: 0.35rem;
+  cursor: pointer; list-style: none;
+}
+.type-group > details > summary::-webkit-details-marker { display: none; }
+.type-group > details > summary::marker { content: ""; }
+.type-group > details > summary::before {
+  content: "▸"; color: var(--color-text-muted); transition: transform 0.12s ease;
+}
+.type-group > details[open] > summary::before { transform: rotate(90deg); }
+.type-group > details > summary h2 { display: inline; margin: 0; }
+.type-group-body { margin-top: 0.75rem; }
 .nav-empty { margin: 0 0.5rem; font-size: 0.8rem; color: var(--color-text-muted); }
 .nav-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 1px; }
 .nav-list a {
@@ -912,6 +936,27 @@ button.plot-grid-blank-add:hover { border-color: var(--color-accent); color: var
   background: var(--color-surface);
 }
 .write-plot-item p { margin: 0.15rem 0 0; white-space: pre-wrap; }
+
+/* Weave build-from-draft review */
+.weave-build-review { display: flex; flex-direction: column; gap: 1rem; }
+.weave-build-columns {
+  display: grid; gap: 1rem;
+  grid-template-columns: minmax(0, 1.4fr) minmax(14rem, 0.8fr);
+}
+@media (max-width: 900px) {
+  .weave-build-columns { grid-template-columns: 1fr; }
+}
+.weave-build-card {
+  display: flex; flex-direction: column; gap: 0.35rem;
+  padding: 0.65rem 0.75rem; border: 1px solid var(--border); border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+.weave-build-excerpt {
+  margin: 0.25rem 0 0; padding: 0.4rem 0.55rem;
+  border-left: 3px solid color-mix(in srgb, var(--color-accent) 45%, var(--border));
+  background: color-mix(in srgb, var(--color-surface-sunken) 70%, transparent);
+  white-space: pre-wrap; font-size: 0.88rem;
+}
 .board-surface:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }
 .board-surface-empty {
   position: absolute; inset: 0; display: grid; place-content: center; gap: 0.35rem;

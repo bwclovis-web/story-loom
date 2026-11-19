@@ -70,6 +70,7 @@ model Project {
   weaveBeatWorldRefs     WeaveBeatWorldRef[]
   weaveThreads           WeaveThread[]
   weaveTemplates         WeaveTemplate[]
+  weaveBuildRuns         WeaveBuildRun[]
   establishedFacts       EstablishedFact[]
   factEvidence           FactEvidence[]
 
@@ -543,6 +544,53 @@ model WeaveTemplateBeat {
   position   Int           @default(0)
 
   @@index([templateId])
+}
+
+/// Assistant "Build grid from draft" run. Proposal JSON is Weave-only (threads /
+/// beats / planning notes). Never writes manuscript prose. Apply uses
+/// weaveService with stale source checks and retry-safe suggestion keys.
+model WeaveBuildRun {
+  id                 String    @id
+  workspaceId        String
+  projectId          String
+  project            Project   @relation(fields: [projectId], references: [id])
+  draftId            String?
+  /// Destination grid; null until apply creates one (new-grid mode).
+  gridId             String?
+  gridTitle          String    @default("")
+  /// original | zero_draft_map | author_rewrite
+  viewKind           String
+  chapterFromId      String?
+  chapterToId        String?
+  /// preparing | proposed | applying | applied | failed | cancelled
+  status             String
+  errorCode          String?
+  errorMessage       String?
+  /// sha256 of exact source material sent.
+  sourceHash         String    @default("")
+  /// sha256 of proposalJson once proposed.
+  contentHash        String    @default("")
+  /// JSON map recordId → revisionNumber sent with the request.
+  sentRevisionsJson  String    @default("{}")
+  /// Immutable proposal once status is proposed/applied.
+  proposalJson       String    @default("")
+  /// JSON array of suggestion keys already applied (retry-safe).
+  appliedKeysJson    String    @default("[]")
+  /// Author decisions JSON: { [key]: "accept"|"skip", edits, matches }.
+  decisionsJson      String    @default("{}")
+  model              String?
+  providerResponseId String?
+  inputTokens        Int?
+  outputTokens       Int?
+  totalTokens        Int?
+  usageEstimated     Boolean   @default(false)
+  requestChars       Int       @default(0)
+  createdAt          DateTime  @default(now())
+  completedAt        DateTime?
+
+  @@index([projectId, createdAt])
+  @@index([projectId, status])
+  @@index([gridId])
 }
 
 /// A fact about a reference record ("Established in"). Not revisioned content:

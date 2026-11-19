@@ -12,6 +12,7 @@ import {
 import { RECORD_TYPE_LABELS } from "@/domain/recordTypes";
 import { DRAFT, NAV, SHELL, WEAVE, WRITE } from "@/ui/labels";
 import { groupForProjectPath, parseProjectPath, RECORD_GROUPS, type RecordNavEntry } from "@/ui/navigation";
+import { CollapsibleNavSection } from "./CollapsibleNavSection";
 import { Drawer } from "./Drawer";
 import { PanelLeftIcon } from "./icons";
 import { useLayout } from "./LayoutContext";
@@ -46,6 +47,14 @@ export function ProjectNav({
 }) {
   const pathname = usePathname();
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set());
+  const toggleSection = (key: string) =>
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
   const { layout, updateLayout } = useLayout();
   const typeOf = useMemo(() => {
     const types = new Map(records.map((r) => [r.id, r.type]));
@@ -55,7 +64,18 @@ export function ProjectNav({
   const writing = parsed ? groupForProjectPath(parsed.rest, typeOf) === "write" : false;
   const showLabel = writing ? WRITE.showNavigation : WRITE.showProjectPanel;
   const hideLabel = writing ? WRITE.hideNavigation : WRITE.hideProjectPanel;
-  const contentProps = { project, records, openReviewItems, pathname, drafts, activeDraftId, boards, maps };
+  const contentProps = {
+    project,
+    records,
+    openReviewItems,
+    pathname,
+    drafts,
+    activeDraftId,
+    boards,
+    maps,
+    collapsed,
+    onToggleSection: toggleSection,
+  };
 
   return (
     <>
@@ -128,6 +148,8 @@ function ProjectNavContent({
   activeDraftId,
   boards = [],
   maps = [],
+  collapsed,
+  onToggleSection,
   hideButton,
 }: {
   project: ProjectInfo;
@@ -138,6 +160,8 @@ function ProjectNavContent({
   activeDraftId: string | null;
   boards?: Array<{ id: string; title: string }>;
   maps?: Array<{ id: string; title: string }>;
+  collapsed: ReadonlySet<string>;
+  onToggleSection: (key: string) => void;
   hideButton?: React.ReactNode;
 }) {
   const base = `/projects/${encodeURIComponent(project.id)}`;
@@ -241,38 +265,50 @@ function ProjectNavContent({
           currentRecordId={currentRecordId}
           boards={boards}
           maps={maps}
+          collapsed={collapsed}
+          onToggleSection={onToggleSection}
         />
       ) : group === "plan" ? (
         <>
-          <p className="nav-subheading" id={`${idPrefix}-weave`}>
-            {WEAVE.heading}
-          </p>
-          <ul className="nav-list" aria-labelledby={`${idPrefix}-weave`}>
-            <li>
-              <Link
-                href={`${base}/plan/weave`}
-                aria-current={pathname.includes("/plan/weave") && !pathname.includes("/templates") ? "page" : undefined}
-              >
-                {WEAVE.heading}
-              </Link>
-            </li>
-            <li>
-              <Link
-                href={`${base}/plan/weave/templates`}
-                aria-current={pathname.includes("/plan/weave/templates") ? "page" : undefined}
-              >
-                {WEAVE.templates}
-              </Link>
-            </li>
-          </ul>
+          <CollapsibleNavSection
+            sectionKey="weave"
+            collapsed={collapsed}
+            onToggle={onToggleSection}
+            headingId={`${idPrefix}-weave`}
+            heading={WEAVE.heading}
+          >
+            <ul className="nav-list" aria-labelledby={`${idPrefix}-weave`}>
+              <li>
+                <Link
+                  href={`${base}/plan/weave`}
+                  aria-current={pathname.includes("/plan/weave") && !pathname.includes("/templates") ? "page" : undefined}
+                >
+                  {WEAVE.heading}
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href={`${base}/plan/weave/templates`}
+                  aria-current={pathname.includes("/plan/weave/templates") ? "page" : undefined}
+                >
+                  {WEAVE.templates}
+                </Link>
+              </li>
+            </ul>
+          </CollapsibleNavSection>
           {RECORD_GROUPS.plan.map((type) => {
             const ofType = records.filter((r) => r.type === type);
             const headingId = `${idPrefix}-${type}`;
             return (
-              <div key={type} className="nav-section">
-                <p className="nav-subheading" id={headingId}>
-                  {RECORD_TYPE_LABELS[type]}
-                </p>
+              <CollapsibleNavSection
+                key={type}
+                sectionKey={`type:${type}`}
+                collapsed={collapsed}
+                onToggle={onToggleSection}
+                headingId={headingId}
+                heading={RECORD_TYPE_LABELS[type]}
+                count={ofType.length}
+              >
                 {ofType.length === 0 ? (
                   <p className="nav-empty">None yet</p>
                 ) : (
@@ -286,7 +322,7 @@ function ProjectNavContent({
                     ))}
                   </ul>
                 )}
-              </div>
+              </CollapsibleNavSection>
             );
           })}
         </>
@@ -298,10 +334,14 @@ function ProjectNavContent({
       {toolGroups.map((group) => {
         const headingId = `${idPrefix}-tools-${group.id}`;
         return (
-          <div key={group.id} className="nav-section">
-            <p className="nav-subheading" id={headingId}>
-              {group.heading}
-            </p>
+          <CollapsibleNavSection
+            key={group.id}
+            sectionKey={`tools:${group.id}`}
+            collapsed={collapsed}
+            onToggle={onToggleSection}
+            headingId={headingId}
+            heading={group.heading}
+          >
             <ul className="nav-list" aria-labelledby={headingId}>
               {group.items.map((t) => (
                 <li key={t.href}>
@@ -317,7 +357,7 @@ function ProjectNavContent({
                 </li>
               ))}
             </ul>
-          </div>
+          </CollapsibleNavSection>
         );
       })}
     </nav>

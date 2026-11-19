@@ -2208,3 +2208,60 @@ inspector, desktop/narrow, both themes.
 - Outline view from the design mock is not a separate mode; Grid + Freeform remain.
 - Manuscript reorder still only via Write → Book order.
 - Rollback: switch grids to freeform; Write Plot tab is read-only listing.
+
+## Collapsible type groups (Nov 18, 2026)
+
+Plan, World, and project-tool headings in the project column fold their lists.
+Record list pages (Plan, Records, and scene notes on Write) fold each type
+table the same way. Lists start open. A World title search keeps that list open.
+
+### Checks
+
+| Check | Result |
+| --- | --- |
+| `pnpm exec vitest run tests/unit/help.test.ts` | 4/4 |
+| `pnpm exec tsc --noEmit` | fails in unrelated in-progress Weave build-from-draft files |
+| Browser (The Devil You Know, Plan) | Chapter outline column and page table collapse and reopen; Story architecture stays open; count stays on the heading |
+| Browser (World) | Boards and the title list collapse; search and categories stay visible |
+
+### Limits / rollback
+
+- Collapse state lasts for the project layout session. A full reload opens every group again.
+- Rollback: restore the previous project-column headings and the type-table markup.
+
+## Weave Build grid from draft (Nov 18, 2026)
+
+Requested: assistant-backed “Build grid from draft” — choose draft, chapter
+range, destination grid; analyze pinned source revisions; propose threads,
+summaries, beats with exact passages; preview beside existing grid; accept /
+skip / match; atomic apply with stale checks and retry-safe IDs; chapter-level
+rows; scene boundaries for review only (no auto-split); optional scene-purpose
+fields; no prose generation into author rewrite; verify draft scope, partial
+acceptance, stale sources, duplicate retries, existing-grid preservation,
+legacy, backup/restore.
+
+### Implemented
+
+- Migration `20261119120000_weave_build_from_draft`: `WeaveBuildRun` stores
+  proposal, sent revisions, decisions, applied keys (local review state).
+- `src/weave/buildFromDraftOutput.ts` + prompt; `weaveBuildFromDraftService`
+  prepare / run / decisions / apply (Weave-only writes; never `mutationService`).
+- API `POST .../weave/build-from-draft` (NDJSON); UI at `/plan/weave/build`.
+- Apply: stable `wth_`/`wvb_` IDs from run+key; skip already-applied keys;
+  preserve unmatched existing beats/threads; refuse stale current revisions.
+- Help + `docs/assistant.md` + labels.
+
+### Checks
+
+| Check | Result |
+| --- | --- |
+| `pnpm db:deploy` | pass (pre-migrate backup written) |
+| `pnpm exec tsc --noEmit` | pass |
+| `pnpm exec vitest run tests/unit/weave-build-from-draft.test.ts tests/acceptance/weave-build-from-draft.test.ts tests/unit/help.test.ts` | 8/8 |
+| Working database | migration only; no reset/reseed |
+
+### Limits / rollback
+
+- Build runs are not workspace-backup fields; applied Weave content is.
+- Output limit may require a narrower chapter range.
+- Rollback: remove build UI/routes; drop `WeaveBuildRun` via reverse migration if needed.

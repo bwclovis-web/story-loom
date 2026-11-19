@@ -6,6 +6,7 @@ import { useId, useMemo, useState } from "react";
 import { WORLD } from "@/ui/labels";
 import type { RecordNavEntry } from "@/ui/navigation";
 import { categoryLabel, filterWorldTitles, isWorldType, WORLD_CATEGORY_LABELS, WORLD_TYPES, worldCounts, worldHref, type WorldType } from "@/ui/world";
+import { CollapsibleNavSection } from "./CollapsibleNavSection";
 import { SearchIcon } from "./icons";
 
 /**
@@ -20,6 +21,8 @@ export function WorldNav({
   currentRecordId,
   boards = [],
   maps = [],
+  collapsed,
+  onToggleSection,
 }: {
   projectId: string;
   records: RecordNavEntry[];
@@ -27,6 +30,8 @@ export function WorldNav({
   currentRecordId: string | null;
   boards?: Array<{ id: string; title: string }>;
   maps?: Array<{ id: string; title: string }>;
+  collapsed: ReadonlySet<string>;
+  onToggleSection: (key: string) => void;
 }) {
   const idPrefix = useId();
   const params = useSearchParams();
@@ -57,49 +62,61 @@ export function WorldNav({
 
   return (
     <section className="world-nav" aria-labelledby={`${idPrefix}-heading`}>
-      <p className="nav-subheading" id={`${idPrefix}-boards`}>
-        {WORLD.boards}
-      </p>
-      <ul className="nav-list" aria-labelledby={`${idPrefix}-boards`}>
-        <li>
-          <Link href={boardsBase} aria-current={onBoards && !pathname.includes("/boards/") ? "page" : undefined}>
-            {WORLD.boards}
-            <span className="nav-count">{boards.length}</span>
-          </Link>
-        </li>
-        {boards.map((b) => (
-          <li key={b.id}>
-            <Link
-              href={`${boardsBase}/${encodeURIComponent(b.id)}`}
-              aria-current={pathname.endsWith(`/boards/${b.id}`) || pathname.includes(`/boards/${b.id}`) ? "page" : undefined}
-            >
-              {b.title}
+      <CollapsibleNavSection
+        sectionKey="world:boards"
+        collapsed={collapsed}
+        onToggle={onToggleSection}
+        headingId={`${idPrefix}-boards`}
+        heading={WORLD.boards}
+        count={boards.length}
+      >
+        <ul className="nav-list" aria-labelledby={`${idPrefix}-boards`}>
+          <li>
+            <Link href={boardsBase} aria-current={onBoards && !pathname.includes("/boards/") ? "page" : undefined}>
+              {WORLD.boards}
+              <span className="nav-count">{boards.length}</span>
             </Link>
           </li>
-        ))}
-      </ul>
+          {boards.map((b) => (
+            <li key={b.id}>
+              <Link
+                href={`${boardsBase}/${encodeURIComponent(b.id)}`}
+                aria-current={pathname.endsWith(`/boards/${b.id}`) || pathname.includes(`/boards/${b.id}`) ? "page" : undefined}
+              >
+                {b.title}
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </CollapsibleNavSection>
 
-      <p className="nav-subheading" id={`${idPrefix}-maps`}>
-        {WORLD.maps}
-      </p>
-      <ul className="nav-list" aria-labelledby={`${idPrefix}-maps`}>
-        <li>
-          <Link href={mapsBase} aria-current={onMaps && !pathname.includes("/maps/") ? "page" : undefined}>
-            {WORLD.maps}
-            <span className="nav-count">{maps.length}</span>
-          </Link>
-        </li>
-        {maps.map((m) => (
-          <li key={m.id}>
-            <Link
-              href={`${mapsBase}/${encodeURIComponent(m.id)}`}
-              aria-current={pathname.endsWith(`/maps/${m.id}`) || pathname.includes(`/maps/${m.id}`) ? "page" : undefined}
-            >
-              {m.title}
+      <CollapsibleNavSection
+        sectionKey="world:maps"
+        collapsed={collapsed}
+        onToggle={onToggleSection}
+        headingId={`${idPrefix}-maps`}
+        heading={WORLD.maps}
+        count={maps.length}
+      >
+        <ul className="nav-list" aria-labelledby={`${idPrefix}-maps`}>
+          <li>
+            <Link href={mapsBase} aria-current={onMaps && !pathname.includes("/maps/") ? "page" : undefined}>
+              {WORLD.maps}
+              <span className="nav-count">{maps.length}</span>
             </Link>
           </li>
-        ))}
-      </ul>
+          {maps.map((m) => (
+            <li key={m.id}>
+              <Link
+                href={`${mapsBase}/${encodeURIComponent(m.id)}`}
+                aria-current={pathname.endsWith(`/maps/${m.id}`) || pathname.includes(`/maps/${m.id}`) ? "page" : undefined}
+              >
+                {m.title}
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </CollapsibleNavSection>
 
       <p className="nav-subheading" id={`${idPrefix}-heading`}>
         {WORLD.references}
@@ -144,27 +161,33 @@ export function WorldNav({
       </ul>
       <p className="tree-note">{WORLD.categoryNote}</p>
 
-      <p className="nav-subheading" id={`${idPrefix}-list`}>
-        {listHeading}
-        <span className="nav-count">{listed.length}</span>
-      </p>
-      <p className="sr-only" role="status">
-        {searching ? (listed.length ? WORLD.titleMatches(listed.length) : WORLD.noTitleMatches) : ""}
-      </p>
-      {listed.length === 0 ? (
-        <p className="nav-empty">{searching ? WORLD.noTitleMatches : WORLD.noneYet}</p>
-      ) : (
-        <ul className="nav-list record-list" aria-labelledby={`${idPrefix}-list`}>
-          {listed.map((r) => (
-            <li key={r.id}>
-              <Link href={recordHref(r.id)} aria-current={r.id === currentRecordId ? "page" : undefined}>
-                <span className="world-nav-title">{r.title}</span>
-                {searching || !category ? <span className="nav-count">{categoryLabel(r.type)}</span> : null}
-              </Link>
-            </li>
-          ))}
-        </ul>
-      )}
+      <CollapsibleNavSection
+        sectionKey="world:titles"
+        collapsed={collapsed}
+        onToggle={onToggleSection}
+        headingId={`${idPrefix}-list`}
+        heading={listHeading}
+        count={listed.length}
+        forceOpen={searching}
+      >
+        <p className="sr-only" role="status">
+          {searching ? (listed.length ? WORLD.titleMatches(listed.length) : WORLD.noTitleMatches) : ""}
+        </p>
+        {listed.length === 0 ? (
+          <p className="nav-empty">{searching ? WORLD.noTitleMatches : WORLD.noneYet}</p>
+        ) : (
+          <ul className="nav-list record-list" aria-labelledby={`${idPrefix}-list`}>
+            {listed.map((r) => (
+              <li key={r.id}>
+                <Link href={recordHref(r.id)} aria-current={r.id === currentRecordId ? "page" : undefined}>
+                  <span className="world-nav-title">{r.title}</span>
+                  {searching || !category ? <span className="nav-count">{categoryLabel(r.type)}</span> : null}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </CollapsibleNavSection>
     </section>
   );
 }

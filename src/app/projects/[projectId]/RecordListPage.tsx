@@ -8,6 +8,7 @@ import { getSpellingLanguage } from "@/server/spelling";
 import { RECORD, SHELL, WRITING } from "@/ui/labels";
 import { countWords, formatWordCount } from "@/writing/wordCount";
 import { NewRecordForm } from "./NewRecordForm";
+import { TypeGroup } from "./TypeGroup";
 
 /** A project's records of the given types, grouped by type, with the new-record form. */
 export async function RecordListPage({
@@ -49,8 +50,10 @@ export async function RecordListPage({
         const ofType = records.filter((r) => r.type === type);
         if (ofType.length === 0 || hideTypes.includes(type)) return null;
         return (
-          <section key={type} className="panel">
-            <h2>{RECORD_TYPE_LABELS[type]}</h2>
+          <TypeGroup
+            key={type}
+            title={`${RECORD_TYPE_LABELS[type]} (${ofType.length})`}
+          >
             {type === firstManuscriptType ? (
               <p className="small">
                 {WRITING.bookCount}: <strong>{formatWordCount(bookWords)}</strong>{" "}
@@ -80,7 +83,7 @@ export async function RecordListPage({
                 ))}
               </tbody>
             </table>
-          </section>
+          </TypeGroup>
         );
       })}
       {records.length === 0 ? <p className="muted">No records yet.</p> : null}

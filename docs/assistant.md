@@ -7,7 +7,9 @@ request it prepares a change proposal for reference records, which the author
 reviews and applies explicitly through the existing change-package pipeline
 (see [Change proposals](#change-proposals)). Record pages also offer AI
 proofreading through the same connection (see [Proofreading](#proofreading)).
-The model has no tools; no assistant code calls `mutationService` directly.
+Plan → Weave offers **Build grid from draft** through the same connection (see
+[Weave build from draft](#weave-build-from-draft)). The model has no tools; no
+assistant code calls `mutationService` directly.
 
 It is off unless `WORDLY_OPENAI_API_KEY` and `OPENAI_MODEL` are set. Without
 them the page says what is missing, nothing can be sent, and the rest of the
@@ -223,6 +225,28 @@ The proposal's JSON (marked proposed) is shown and can be copied. The manual
 import page previews it but will not apply it until `approval.status` is
 `approved`, as for any package. Manual import and context export are
 unchanged.
+
+## Weave build from draft
+
+Plan → Weave → **Build grid from draft** analyzes a chosen manuscript draft
+(chapter range optional) or pinned Zero-draft revisions and proposes Weave
+story threads, chapter/scene summaries (optional goal / change / forward),
+scene-boundary suggestions for review only, and beats with exact source
+passages. It uses `provider.structured` with
+`src/weave/buildFromDraftOutput.ts`, the same OpenAI connection and usage
+limits as proofreading, and never writes manuscript prose or calls
+`mutationService`.
+
+- `POST /api/projects/[projectId]/weave/build-from-draft` streams NDJSON
+  (`started`, then `done` with the run). Cross-site and non-JSON bodies are
+  refused.
+- The author Accept / Skip / matches suggestions, then Apply. Apply is atomic
+  through `weaveBuildFromDraftService.applyWeaveBuild`: stale source revision
+  checks, stable suggestion IDs for retry safety, existing unmatched grid
+  content preserved. Proposed scene boundaries are stored for review only and
+  never create or split manuscript scenes.
+- Applied Weave grids/threads/beats are included in workspace backups like any
+  other Weave data. Build runs are local review state (not backup fields).
 
 ## Proofreading
 

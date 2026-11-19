@@ -306,7 +306,9 @@ export function HelpContent() {
             <L>{NAV.records}</L>, with the number of records.
           </li>
           <li>
-            On <L>{SHELL.plan}</L> and its records, the records of that part by type. Choose a title to open it. On{" "}
+            On <L>{SHELL.plan}</L> and its records, the records of that part by type. Choose a type heading, such as{" "}
+            <L>{RECORD_TYPE_LABELS.chapter_outline}</L>, to show or hide its list, then choose a title to open it.{" "}
+            <L>{WEAVE.heading}</L> and each <L>{SHELL.projectTools}</L> group work the same way. On{" "}
             <L>{SHELL.world}</L> and its records, search and categories instead (see <See anchor="world-nav" />
             ). On <L>{SHELL.write}</L> and its records, the chapters and scenes (see <See anchor="manuscript-panel" />
             ).
@@ -557,7 +559,8 @@ export function HelpContent() {
       <Section id="editing">
         <h3>Find a record</h3>
         <p>
-          The project&apos;s <L>{NAV.records}</L> page lists records grouped by type, in title order. Each row shows the
+          The project&apos;s <L>{NAV.records}</L> page lists records grouped by type, in title order. Choose a type
+          heading to show or hide that group. Each row shows the
           record ID, its canon status, <L>rev N</L> (the number of its current saved version), and{" "}
           <L>manuscript</L> or <L>protected</L> labels where they apply. Choose a title to open it.
         </p>
@@ -1161,7 +1164,8 @@ export function HelpContent() {
       <Section id="plan">
         <p>
           <L>{SHELL.plan}</L> keeps the existing <code>/plan</code> route for chapter outlines and story architecture,
-          and extends it with <L>{WEAVE.heading}</L>: story grids that do not rewrite manuscript text.
+          and extends it with <L>{WEAVE.heading}</L>: story grids that do not rewrite manuscript text. On the page, each
+          type such as <L>{RECORD_TYPE_LABELS.chapter_outline}</L> starts open; choose its heading to fold the table.
         </p>
 
         <Sub id="plan-weave">
@@ -1191,6 +1195,24 @@ export function HelpContent() {
             grid, arrow keys move between cells; Enter selects or adds in a blank cell. Unsaved title and notes stay
             when the page refreshes after a save elsewhere on the grid. Older projects open in freeform with their
             existing canvas intact.
+          </p>
+        </Sub>
+
+        <Sub id="weave-build-from-draft">
+          <p>
+            <L>{WEAVE.buildFromDraft}</L> (Plan → Weave) uses the same optional assistant connection as discussion and
+            proofreading. Choose a manuscript draft, optional chapter range, and a destination grid (new or existing).
+            For an Author rewrite plan you may analyze pinned Zero-draft revisions instead of blank rewrite pages.
+          </p>
+          <p>
+            The model proposes story threads, concise chapter/scene summaries (with optional goal / change / forward
+            fields), optional scene-boundary suggestions for review only, and beats that each quote an exact source
+            passage. It never rewrites manuscript prose and never splits chapters into scenes automatically. Preview
+            suggestions beside the existing grid; <L>{WEAVE.buildAccept}</L>, <L>{WEAVE.buildSkip}</L>, or match a
+            suggestion to an existing thread or beat. <L>{WEAVE.buildApplyAccepted}</L> writes Weave threads and beats
+            only, in one transaction, with stale-source checks. Retrying an apply reuses stable suggestion identities so
+            duplicates are not created. Applied grids remain in workspace backups like any other Weave content; build
+            runs themselves are local review state.
           </p>
         </Sub>
 
@@ -1338,7 +1360,9 @@ export function HelpContent() {
         <Sub id="world-nav">
           <p>
             On <L>{SHELL.world}</L> and on a World document&apos;s page, the second column shows{" "}
-            <L>{WORLD.boards}</L>, <L>{WORLD.maps}</L>, and <L>{WORLD.references}</L>:
+            <L>{WORLD.boards}</L>, <L>{WORLD.maps}</L>, and <L>{WORLD.references}</L>. Choose the{" "}
+            <L>{WORLD.boards}</L>, <L>{WORLD.maps}</L>, or title-list heading to show or hide that list. Search and the
+            categories stay visible, and a title search keeps the title list open:
           </p>
           <ul>
             <li>
