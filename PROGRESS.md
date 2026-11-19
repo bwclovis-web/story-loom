@@ -2318,6 +2318,12 @@ Restore WeaveCanvas / WeavePlotGrid / globals.css / labels / Help / page props f
 - `pnpm exec tsc --noEmit` pass.
 - Remaining: WriteContext / Weave / Board canvases / DictionaryManager (Batch B); leave shell nav and plot-grid CSS.
 
+### Batch B migration + Button folder (Nov 19, 2026)
+
+- Colocated `Button` / `ButtonLink` / `buttonVariants` under `src/components/ui/Button/` and `Banner` under `Banner/`; import from folder barrels. Rule: `.cursor/rules/ui-components.mdc`.
+- Fixed invisible secondary buttons: legacy unlayered `button { color: on-accent }` no longer applies to `.sl-btn`; variants use explicit `--color-*` tokens; `@theme` no longer circularly aliases accent/surface/danger.
+- Migrated WriteContext, WeaveCanvas, WeavePlotGrid, BoardCanvas, CreateBoardForm, boards page CTAs, DictionaryManager to `Button` / `ButtonLink`. Left icon-button, context tabs/selects, segmented layout toggles, and plot-grid beat cells on native buttons.
+
 ## Shared UI primitives from assistant rail (Nov 19, 2026)
 
 Extracted reusable pieces for app-wide use:

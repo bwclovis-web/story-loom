@@ -1,4 +1,5 @@
 "use client";
+import { Button } from "@/components/ui/Button";
 
 import Link from "next/link";
 import { useMemo, useState, type FormEvent } from "react";
@@ -98,9 +99,9 @@ function AddForm({ projectId }: { projectId: string }) {
           <input type="checkbox" checked={caseSensitive} onChange={(e) => setMatchCase(e.target.checked)} />
           {DICTIONARY.matchCase}
         </label>
-        <button type="submit" disabled={busy}>
+        <Button type="submit" disabled={busy}>
           {DICTIONARY.add}
-        </button>
+        </Button>
       </div>
       <MessageLine message={message} />
     </form>
@@ -160,16 +161,16 @@ function EntryRow({ projectId, entry, similar }: { projectId: string; entry: Dic
         <td />
         <td>
           <div className="row">
-            <button
+            <Button
               type="button"
               disabled={busy}
               onClick={() => run(() => updateDictionaryWordAction(projectId, entry.id, draft), () => setEditing(false))}
             >
               {DICTIONARY.save}
-            </button>
-            <button type="button" className="secondary" disabled={busy} onClick={() => setEditing(false)}>
+            </Button>
+            <Button type="button" disabled={busy} onClick={() => setEditing(false)} variant="secondary">
               {DICTIONARY.cancel}
-            </button>
+            </Button>
           </div>
         </td>
       </tr>
@@ -189,33 +190,33 @@ function EntryRow({ projectId, entry, similar }: { projectId: string; entry: Dic
       <td>
         {confirming ? (
           <div className="row">
-            <button
+            <Button
               type="button"
-              className="danger"
+             
               disabled={busy}
               onClick={() => run(() => removeDictionaryWordAction(projectId, entry.id), () => setConfirming(false))}
-            >
+             variant="danger">
               {DICTIONARY.confirmRemove} &ldquo;{entry.word}&rdquo;
-            </button>
-            <button type="button" className="secondary" disabled={busy} onClick={() => setConfirming(false)}>
+            </Button>
+            <Button type="button" disabled={busy} onClick={() => setConfirming(false)} variant="secondary">
               {DICTIONARY.cancel}
-            </button>
+            </Button>
           </div>
         ) : (
           <div className="row">
-            <button
+            <Button
               type="button"
-              className="secondary"
+             
               onClick={() => {
                 setDraft({ word: entry.word, caseSensitive: entry.caseSensitive, note: entry.note, scope: entry.scope });
                 setEditing(true);
               }}
-            >
+             variant="secondary">
               {DICTIONARY.edit}
-            </button>
-            <button type="button" className="secondary" onClick={() => setConfirming(true)}>
+            </Button>
+            <Button type="button" onClick={() => setConfirming(true)} variant="secondary">
               {DICTIONARY.remove}
-            </button>
+            </Button>
           </div>
         )}
       </td>
@@ -361,16 +362,16 @@ function ImportSection({ projectId, existing }: { projectId: string; existing: D
             {rows.length === 1 ? "" : "s"}, {newCount} new.
           </div>
           <div className="row">
-            <button type="button" className="secondary" disabled={newCount === 0} onClick={() => setSelected(new Set(rows.filter((r) => r.status === "new").map((r) => r.position)))}>
+            <Button type="button" disabled={newCount === 0} onClick={() => setSelected(new Set(rows.filter((r) => r.status === "new").map((r) => r.position)))} variant="secondary">
               {DICTIONARY.selectAllNew}
-            </button>
-            <button type="button" className="secondary" disabled={selected.size === 0} onClick={() => setSelected(new Set())}>
+            </Button>
+            <Button type="button" disabled={selected.size === 0} onClick={() => setSelected(new Set())} variant="secondary">
               {DICTIONARY.selectNone}
-            </button>
+            </Button>
             <ScopeSelect value={scope} onChange={setScope} />
-            <button type="button" disabled={busy || chosen.length === 0} onClick={add}>
+            <Button type="button" disabled={busy || chosen.length === 0} onClick={add}>
               {DICTIONARY.addSelected(chosen.length)}
-            </button>
+            </Button>
           </div>
           <BulkResult result={result} />
           <table>
@@ -464,9 +465,9 @@ function ReferenceSection({ projectId, language, matcher }: { projectId: string;
         {DICTIONARY.referencesNote}
       </p>
       <div>
-        <button type="button" className="secondary" disabled={busy} onClick={find}>
+        <Button type="button" disabled={busy} onClick={find} variant="secondary">
           {DICTIONARY.findNames}
-        </button>
+        </Button>
       </div>
       {error ? <div className="small error-text">{error}</div> : null}
       <BulkResult result={result} />
@@ -475,9 +476,9 @@ function ReferenceSection({ projectId, language, matcher }: { projectId: string;
         <>
           <div className="row">
             <ScopeSelect value={scope} onChange={setScope} />
-            <button type="button" disabled={busy || chosen.length === 0} onClick={add}>
+            <Button type="button" disabled={busy || chosen.length === 0} onClick={add}>
               {DICTIONARY.addSelected(chosen.length)}
-            </button>
+            </Button>
           </div>
           <table>
             <thead>

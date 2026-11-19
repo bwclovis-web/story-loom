@@ -1,16 +1,17 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useRef, useState, useTransition, type PointerEvent as ReactPointerEvent } from "react";
 import { StatusBadge } from "@/components/Badges";
 import { IssueList } from "@/components/IssueList";
+import { ReferenceInspector } from "@/components/world/ReferenceInspector";
 import { ContextRail, ContextRailToggle, useContextRail } from "@/components/shell/ContextRail";
 import { CloseIcon } from "@/components/shell/icons";
 import type { Issue } from "@/domain/issues";
 import type { WorldMapPinView, WorldMapView } from "@/server/services/worldMapService";
 import { SHELL, WORLD, WRITE } from "@/ui/labels";
-import { previewReferenceAction, type ReferencePreview } from "../../write/actions";
+import type { LoadedInspector } from "@/server/services/referenceInspectorService";
+import { inspectReferenceAction } from "../inspectorActions";
 import {
   addWorldMapPinAction,
   deleteWorldMapAction,
@@ -29,10 +30,12 @@ export function MapCanvas({
   projectId,
   map: initial,
   records,
+  initialPinId = null,
 }: {
   projectId: string;
   map: WorldMapView;
   records: PlaceableRecord[];
+  initialPinId?: string | null;
 }) {
   const router = useRouter();
   const idPrefix = useId();
@@ -42,8 +45,11 @@ export function MapCanvas({
   const rail = useContextRail();
   const [map, setMap] = useState(initial);
   const [pins, setPins] = useState(initial.pins);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [preview, setPreview] = useState<ReferencePreview | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(initialPinId);
+  const [inspection, setInspection] = useState<LoadedInspector | null>(null);
+  const didDeepLink = useRef(false);
+  const railRef = useRef(rail);
+  railRef.current = rail;
   const [issues, setIssues] = useState<Issue[]>([]);
   const [pending, startTransition] = useTransition();
   const [title, setTitle] = useState(initial.title);
@@ -66,19 +72,30 @@ export function MapCanvas({
 
   const selected = pins.find((p) => p.id === selectedId) ?? null;
 
+  const inspectRecordId = selected && !selected.unavailable ? selected.recordId : null;
+
   useEffect(() => {
-    if (!selected || selected.unavailable) {
-      setPreview(null);
+    if (!didDeepLink.current && initialPinId && initial.pins.some((pin) => pin.id === initialPinId)) {
+      didDeepLink.current = true;
+      setSelectedId(initialPinId);
+      if (!railRef.current.visible) railRef.current.toggle();
+    }
+  }, [initialPinId, initial.pins]);
+
+  useEffect(() => {
+    if (!inspectRecordId) {
+      setInspection(null);
       return;
     }
     let cancelled = false;
-    void previewReferenceAction(projectId, selected.recordId).then((result) => {
-      if (!cancelled) setPreview(result);
+    setInspection(null);
+    void inspectReferenceAction(projectId, inspectRecordId).then((result) => {
+      if (!cancelled) setInspection(result);
     });
     return () => {
       cancelled = true;
     };
-  }, [projectId, selected]);
+  }, [projectId, inspectRecordId]);
 
   const selectPin = (pin: WorldMapPinView) => {
     setSelectedId(pin.id);
@@ -350,23 +367,17 @@ export function MapCanvas({
               <StatusBadge status={selected.authorityStatus} />
               {selected.unavailable ? <p className="small muted">{WORLD.pinUnavailable}</p> : null}
             </div>
-            {preview?.ok ? (
-              <div className="stack">
-                <p className="small muted">
-                  {preview.typeLabel} · revision {preview.revision}
-                </p>
-                <p className="small" style={{ whiteSpace: "pre-wrap" }}>
-                  {preview.body.slice(0, 800)}
-                  {preview.body.length > 800 ? "…" : ""}
-                </p>
-                <Link href={`/projects/${encodeURIComponent(projectId)}/records/${encodeURIComponent(selected.recordId)}`}>
-                  Open full record
-                </Link>
-              </div>
-            ) : preview && !preview.ok ? (
-              <p className="muted">{preview.message}</p>
-            ) : selected.unavailable ? null : (
-              <p className="muted">Loading…</p>
+            {selected.unavailable ? null : inspection?.ok ? (
+              <ReferenceInspector
+                projectId={projectId}
+                model={inspection.model}
+                established={inspection.established}
+                linkMode="remote"
+              />
+            ) : inspection && !inspection.ok ? (
+              <p className="muted">{inspection.message}</p>
+            ) : (
+              <p className="muted">{WORLD.inspectorLoading}</p>
             )}
             <p className="small muted">{WORLD.removePinNote}</p>
             <button

@@ -1,3 +1,4 @@
+import { ButtonLink } from "@/components/ui/Button";
 import Link from "next/link";
 import { HelpHint } from "@/components/HelpHint";
 import { getDb } from "@/server/db";
@@ -58,9 +59,9 @@ export default async function WorldBoardsPage({ params }: { params: Promise<{ pr
                     {WORLD.cardsCount(b.cardCount)}
                   </span>
                 </span>
-                <Link className="small-button secondary" href={`${base}/world/boards/${encodeURIComponent(b.id)}`}>
+                <ButtonLink href={`${base}/world/boards/${encodeURIComponent(b.id)}`} variant="secondary" size="sm">
                   {WORLD.openBoard}
-                </Link>
+                </ButtonLink>
               </li>
             ))}
           </ul>

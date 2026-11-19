@@ -13,10 +13,13 @@ export const dynamic = "force-dynamic";
 
 export default async function WorldMapPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ projectId: string; mapId: string }>;
+  searchParams: Promise<{ pin?: string }>;
 }) {
   const { projectId, mapId } = await params;
+  const query = await searchParams;
   const db = getDb();
   let map;
   try {
@@ -54,6 +57,7 @@ export default async function WorldMapPage({
           title: r.title,
           typeLabel: RECORD_TYPE_LABELS[r.type],
         }))}
+        initialPinId={query.pin ?? null}
       />
     </>
   );

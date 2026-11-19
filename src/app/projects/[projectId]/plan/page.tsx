@@ -1,3 +1,4 @@
+import { ButtonLink } from "@/components/ui/Button";
 import Link from "next/link";
 import { OverflowDisclosure } from "@/components/shell/OverflowDisclosure";
 import { WorkspaceToolsChooser } from "@/components/shell/WorkspaceToolsChooser";
@@ -7,8 +8,6 @@ import { GROUP_PAGES, WEAVE, WORKSPACE_TOOLS } from "@/ui/labels";
 import { RECORD_GROUPS } from "@/ui/navigation";
 import { RecordListPage } from "../RecordListPage";
 import { CreateWeaveGridForm } from "./weave/CreateWeaveGridForm";
-import { ButtonLink } from "@/components/ui/ButtonLink";
-
 export const dynamic = "force-dynamic";
 
 export default async function PlanPage({ params }: { params: Promise<{ projectId: string }> }) {

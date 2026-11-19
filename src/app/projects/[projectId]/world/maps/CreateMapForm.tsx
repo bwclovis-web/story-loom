@@ -1,14 +1,13 @@
 "use client";
 
 import Link from "next/link";
+import { ButtonLink } from "@/components/ui/Button";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { IssueList } from "@/components/IssueList";
 import type { Issue } from "@/domain/issues";
 import { WORLD } from "@/ui/labels";
 import { createWorldMapAction } from "./actions";
-import { ButtonLink } from "@/components/ui/ButtonLink";
-
 export function CreateMapForm({
   projectId,
   images,

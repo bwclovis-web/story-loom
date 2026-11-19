@@ -1,15 +1,13 @@
 "use client";
 
 import Link from "next/link";
+import { Button, ButtonLink } from "@/components/ui/Button";
 import { useState, useTransition } from "react";
 import { IssueList } from "@/components/IssueList";
 import type { Issue } from "@/domain/issues";
 import type { BoardAskPreview } from "@/server/services/establishedFactService";
 import { WORLD } from "@/ui/labels";
 import { previewBoardAskAction } from "./actions";
-import { Button } from "@/components/ui/Button";
-import { ButtonLink } from "@/components/ui/ButtonLink";
-
 export function AskAboutBoard({ projectId, boardId }: { projectId: string; boardId: string }) {
   const [pending, startTransition] = useTransition();
   const [issues, setIssues] = useState<Issue[]>([]);

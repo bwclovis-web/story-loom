@@ -3,8 +3,7 @@
 import Link from "next/link";
 import { useState, useTransition } from "react";
 import { ProtectionBadge, StatusBadge } from "@/components/Badges";
-import { Button } from "@/components/ui/Button";
-import { ButtonLink } from "@/components/ui/ButtonLink";
+import { Button, ButtonLink } from "@/components/ui/Button";
 import type { AuthorityStatus } from "@/domain/statuses";
 import { BOOK_ORDER, WRITING } from "@/ui/labels";
 import { formatWordCount } from "@/writing/wordCount";

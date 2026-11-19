@@ -1,3 +1,4 @@
+import { ButtonLink } from "@/components/ui/Button";
 import Link from "next/link";
 import { StartAuthorRewriteButton } from "@/components/drafts/DraftControls";
 import { RECORD_TYPE_LABELS } from "@/domain/recordTypes";
@@ -14,8 +15,6 @@ import { RECORD_GROUPS } from "@/ui/navigation";
 import { countWords } from "@/writing/wordCount";
 import { RecordListPage } from "../RecordListPage";
 import { BookOrder, type OrderItem } from "./BookOrder";
-import { ButtonLink } from "@/components/ui/ButtonLink";
-
 export const dynamic = "force-dynamic";
 
 export default async function WritePage({

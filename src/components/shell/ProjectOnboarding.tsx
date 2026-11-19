@@ -1,10 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { Button, ButtonLink } from "@/components/ui/Button";
 import { useEffect, useState } from "react";
 import { helpHref, type HelpAnchor } from "@/help/outline";
-import { Button } from "@/components/ui/Button";
-import { ButtonLink } from "@/components/ui/ButtonLink";
 import { ONBOARDING } from "@/ui/labels";
 import {
   ONBOARDING_COOKIE,

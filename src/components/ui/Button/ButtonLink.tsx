@@ -1,10 +1,7 @@
 import Link from "next/link";
-import type { VariantProps } from "class-variance-authority";
 import type { AnchorHTMLAttributes, ComponentProps } from "react";
-import { buttonVariants } from "@/components/ui/Button";
+import { buttonVariants, type ButtonVariantProps } from "./buttonVariants";
 import { cn } from "@/ui/cn";
-
-type ButtonVariantProps = VariantProps<typeof buttonVariants>;
 
 /** Next.js Link styled like `Button`. Replaces `a.button-link` / `a.button-link.secondary`. */
 export function ButtonLink({
@@ -16,7 +13,14 @@ export function ButtonLink({
   ButtonVariantProps & {
     className?: string;
   }) {
-  return <Link className={cn(buttonVariants({ variant, size }), "no-underline", className)} {...props} />;
+  const onAccent = variant === "primary" || variant === "danger";
+  return (
+    <Link
+      {...props}
+      className={cn(buttonVariants({ variant, size }), "no-underline", className)}
+      style={onAccent ? { ...props.style, color: "var(--color-on-accent)" } : props.style}
+    />
+  );
 }
 
 /** Plain anchor (download / hash links) with the same variants. */
@@ -29,5 +33,12 @@ export function ButtonAnchor({
   ButtonVariantProps & {
     className?: string;
   }) {
-  return <a className={cn(buttonVariants({ variant, size }), "no-underline", className)} {...props} />;
+  const onAccent = variant === "primary" || variant === "danger";
+  return (
+    <a
+      {...props}
+      className={cn(buttonVariants({ variant, size }), "no-underline", className)}
+      style={onAccent ? { ...props.style, color: "var(--color-on-accent)" } : props.style}
+    />
+  );
 }

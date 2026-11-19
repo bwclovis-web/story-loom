@@ -6,6 +6,7 @@ import { useCallback, useEffect, useId, useMemo, useReducer, useRef, useState, t
 import { CANON_REASON_TEXT, canonChanges } from "@/assistant/canon";
 import { IssueList } from "@/components/IssueList";
 import { ResultSummary } from "@/components/PackagePreview";
+import { Button, ButtonLink } from "@/components/ui/Button";
 import { RECORD_TYPE_LABELS } from "@/domain/recordTypes";
 import type { PackagePreview } from "@/server/services/changePackageService";
 import { REVIEW } from "@/ui/labels";
@@ -24,9 +25,6 @@ import {
   type ValidationState,
 } from "@/ui/packageReview";
 import { ReviewDiff } from "./ReviewDiff";
-import { ButtonLink } from "@/components/ui/ButtonLink";
-import { Button } from "@/components/ui/Button";
-
 /*
  * The change review screen. It shows exactly what the validated package would
  * do and applies it whole through the caller's action; selecting a record only

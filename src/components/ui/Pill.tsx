@@ -14,7 +14,7 @@ export function PillSelect({
       <select
         className={cn(
           "m-0 w-full rounded-full border border-[var(--color-border-strong)]",
-          "bg-[var(--color-surface-sunken)] px-2.5 py-1.5 text-[0.85rem] text-ink",
+          "bg-[var(--color-surface-sunken)] px-2.5 py-1.5 text-[0.85rem] text-[var(--color-text)]",
         )}
         {...rest}
       >
@@ -31,7 +31,7 @@ export function PillLabel({ children, title, className }: { children: ReactNode;
       className={cn(
         "inline-flex max-w-full items-center overflow-hidden text-ellipsis whitespace-nowrap",
         "rounded-full border border-[var(--color-accent-soft-border)] bg-[var(--color-accent-soft)]",
-        "px-2.5 py-1.5 text-[0.78rem] font-semibold text-ink",
+        "px-2.5 py-1.5 text-[0.78rem] font-semibold text-[var(--color-text)]",
         className,
       )}
       title={title}

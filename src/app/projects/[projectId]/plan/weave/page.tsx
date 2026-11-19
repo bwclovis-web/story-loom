@@ -1,11 +1,10 @@
 import Link from "next/link";
+import { ButtonLink } from "@/components/ui/Button";
 import { OverflowDisclosure } from "@/components/shell/OverflowDisclosure";
 import { getDb } from "@/server/db";
 import { listWeaveGrids, listWeaveTemplates, WEAVE_VIEW_KINDS, WEAVE_VIEW_LABELS } from "@/server/services/weaveService";
 import { SHELL, WEAVE } from "@/ui/labels";
 import { CreateWeaveGridForm } from "./CreateWeaveGridForm";
-import { ButtonLink } from "@/components/ui/ButtonLink";
-
 export const dynamic = "force-dynamic";
 
 export default async function WeaveIndexPage({ params }: { params: Promise<{ projectId: string }> }) {

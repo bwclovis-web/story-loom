@@ -1,7 +1,7 @@
+import { ButtonLink } from "@/components/ui/Button";
 import Link from "next/link";
 import { CanonBadge, ProtectionStateBadge, SavedVersionBadge } from "@/components/Badges";
 import { OverflowDisclosure } from "@/components/shell/OverflowDisclosure";
-import { ButtonLink } from "@/components/ui/ButtonLink";
 import { WorldSurfaceNav } from "@/components/world/WorldSurfaceNav";
 import { stableStringify } from "@/domain/json";
 import { getDb } from "@/server/db";

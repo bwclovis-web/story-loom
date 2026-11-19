@@ -1,4 +1,5 @@
 "use client";
+import { Button, ButtonLink } from "@/components/ui/Button";
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -347,12 +348,12 @@ function Sources({
                   <span className="small muted">{DRAFT.sourceRevision(s.toRevisionNumber)}</span>
                   {s.newerThanPin ? <span className="small muted"> · {DRAFT.sourceNewer}</span> : null}
                 </span>
-                <button type="button" className="secondary small-button" disabled={pending} onClick={() => open(s)}>
+                <Button type="button" disabled={pending} onClick={() => open(s)} variant="secondary" size="sm">
                   {DRAFT.openSourcePreview}
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
-                  className="secondary small-button"
+                 
                   disabled={pending}
                   onClick={() => {
                     startTransition(async () => {
@@ -361,9 +362,9 @@ function Sources({
                       router.refresh();
                     });
                   }}
-                >
+                 variant="secondary" size="sm">
                   {DRAFT.detachSource}
-                </button>
+                </Button>
               </li>
             ))}
           </ul>
@@ -374,9 +375,9 @@ function Sources({
           <div className="row">
             <strong>{preview.title}</strong>
             <span className="small muted">{DRAFT.sourceRevision(preview.revisionNumber)}</span>
-            <button type="button" className="secondary small-button" onClick={() => setPreview(null)}>
+            <Button type="button" onClick={() => setPreview(null)} variant="secondary" size="sm">
               {DRAFT.closeSourcePreview}
-            </button>
+            </Button>
           </div>
           <div className="reference-text document">{preview.body || WRITE.noLinkedReferences}</div>
         </section>
@@ -391,9 +392,9 @@ function Sources({
                   {a.title}{" "}
                   <span className="small muted">{DRAFT.sourceRevision(a.currentRevision)}</span>
                 </span>
-                <button
+                <Button
                   type="button"
-                  className="secondary small-button"
+                 
                   disabled={pending}
                   onClick={() => {
                     startTransition(async () => {
@@ -401,9 +402,9 @@ function Sources({
                       router.refresh();
                     });
                   }}
-                >
+                 variant="secondary" size="sm">
                   {DRAFT.attachSource}
-                </button>
+                </Button>
               </li>
             ))}
           </ul>
@@ -568,39 +569,39 @@ function References({
               </p>
               <div className="row reference-preview-actions">
                 {pinnedIds.has(preview.id) ? (
-                  <button type="button" className="secondary small-button" disabled={pending} onClick={() => unpinRecord(preview.id)}>
+                  <Button type="button" disabled={pending} onClick={() => unpinRecord(preview.id)} variant="secondary" size="sm">
                     {WRITE.unpinReference}
-                  </button>
+                  </Button>
                 ) : (
-                  <button type="button" className="small-button" disabled={pending} onClick={() => pinRecord(preview.id)}>
+                  <Button type="button" disabled={pending} onClick={() => pinRecord(preview.id)} size="sm">
                     {WRITE.pinReference}
-                  </button>
+                  </Button>
                 )}
                 {linkedIds.has(preview.id) ? (
-                  <button
+                  <Button
                     type="button"
-                    className="secondary small-button"
+                   
                     disabled={pending}
                     onClick={() => run(() => unlinkReferenceAction(projectId, recordId, preview.id))}
-                  >
+                   variant="secondary" size="sm">
                     {WRITE.unlinkFromScene}
-                  </button>
+                  </Button>
                 ) : (
-                  <button
+                  <Button
                     type="button"
-                    className="small-button"
+                   
                     disabled={pending}
                     onClick={() => run(() => linkReferenceAction(projectId, recordId, preview.id))}
-                  >
+                   size="sm">
                     {WRITE.linkToScene}
-                  </button>
+                  </Button>
                 )}
                 <Link href={`/projects/${encodeURIComponent(projectId)}/records/${encodeURIComponent(preview.id)}`} className="small">
                   {WRITE.openFull}
                 </Link>
-                <button type="button" className="secondary small-button" onClick={() => setPreview(null)}>
+                <Button type="button" onClick={() => setPreview(null)} variant="secondary" size="sm">
                   {WRITE.closeReference}
-                </button>
+                </Button>
               </div>
               {preview.sections.length ? (
                 <div className="reference-jump">
@@ -656,9 +657,9 @@ function References({
               <p id={`${idPrefix}-preview`} className="error-text">
                 {preview.message}
               </p>
-              <button type="button" className="secondary small-button" onClick={() => setPreview(null)}>
+              <Button type="button" onClick={() => setPreview(null)} variant="secondary" size="sm">
                 {WRITE.closeReference}
-              </button>
+              </Button>
             </>
           )}
         </section>
@@ -678,43 +679,43 @@ function References({
                 </span>
                 <span className="small muted">{RECORD_TYPE_LABELS[p.type]}</span>
                 <div className="row">
-                  <button type="button" className="secondary small-button" onClick={() => void open(p.recordId)} disabled={previewing === p.recordId}>
+                  <Button type="button" onClick={() => void open(p.recordId)} disabled={previewing === p.recordId} variant="secondary" size="sm">
                     {WRITE.openReference}
                     <span className="sr-only"> {p.title}</span>
-                  </button>
-                  <button type="button" className="secondary small-button" disabled={pending || index === 0} onClick={() => movePin(p.recordId, -1)}>
+                  </Button>
+                  <Button type="button" disabled={pending || index === 0} onClick={() => movePin(p.recordId, -1)} variant="secondary" size="sm">
                     {WRITE.movePinUp}
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     type="button"
-                    className="secondary small-button"
+                   
                     disabled={pending || index === pins.length - 1}
                     onClick={() => movePin(p.recordId, 1)}
-                  >
+                   variant="secondary" size="sm">
                     {WRITE.movePinDown}
-                  </button>
-                  <button type="button" className="secondary small-button" disabled={pending} onClick={() => unpinRecord(p.recordId)}>
+                  </Button>
+                  <Button type="button" disabled={pending} onClick={() => unpinRecord(p.recordId)} variant="secondary" size="sm">
                     {WRITE.unpinReference}
                     <span className="sr-only"> {p.title}</span>
-                  </button>
+                  </Button>
                   {linkedIds.has(p.recordId) ? (
-                    <button
+                    <Button
                       type="button"
-                      className="secondary small-button"
+                     
                       disabled={pending}
                       onClick={() => run(() => unlinkReferenceAction(projectId, recordId, p.recordId))}
-                    >
+                     variant="secondary" size="sm">
                       {WRITE.unlinkFromScene}
-                    </button>
+                    </Button>
                   ) : (
-                    <button
+                    <Button
                       type="button"
-                      className="small-button"
+                     
                       disabled={pending}
                       onClick={() => run(() => linkReferenceAction(projectId, recordId, p.recordId))}
-                    >
+                     size="sm">
                       {WRITE.linkToScene}
-                    </button>
+                    </Button>
                   )}
                 </div>
               </li>
@@ -736,28 +737,28 @@ function References({
                 </span>
                 <span className="small muted">{RECORD_TYPE_LABELS[l.type]}</span>
                 <div className="row">
-                  <button type="button" className="secondary small-button" onClick={() => void open(l.recordId)} disabled={previewing === l.recordId}>
+                  <Button type="button" onClick={() => void open(l.recordId)} disabled={previewing === l.recordId} variant="secondary" size="sm">
                     {WRITE.openReference}
                     <span className="sr-only"> {l.title}</span>
-                  </button>
+                  </Button>
                   {pinnedIds.has(l.recordId) ? (
-                    <button type="button" className="secondary small-button" disabled={pending} onClick={() => unpinRecord(l.recordId)}>
+                    <Button type="button" disabled={pending} onClick={() => unpinRecord(l.recordId)} variant="secondary" size="sm">
                       {WRITE.unpinReference}
-                    </button>
+                    </Button>
                   ) : (
-                    <button type="button" className="secondary small-button" disabled={pending} onClick={() => pinRecord(l.recordId)}>
+                    <Button type="button" disabled={pending} onClick={() => pinRecord(l.recordId)} variant="secondary" size="sm">
                       {WRITE.pinReference}
-                    </button>
+                    </Button>
                   )}
-                  <button
+                  <Button
                     type="button"
-                    className="secondary small-button"
+                   
                     disabled={pending}
                     onClick={() => run(() => unlinkReferenceAction(projectId, recordId, l.recordId))}
-                  >
+                   variant="secondary" size="sm">
                     {WRITE.unlinkFromScene}
                     <span className="sr-only"> {l.title}</span>
-                  </button>
+                  </Button>
                 </div>
               </li>
             ))}
@@ -840,12 +841,12 @@ function References({
         <h3 id={`${idPrefix}-find-context`}>{WRITE.findRelevantContext}</h3>
         <p className="small muted">{WRITE.findRelevantHint}</p>
         <p>
-          <Link
-            className="small-button"
+          <ButtonLink
+           
             href={`/projects/${encodeURIComponent(projectId)}/assistant?seed=${encodeURIComponent(recordId)}`}
-          >
+           size="sm">
             {WRITE.findRelevantContext}
-          </Link>
+          </ButtonLink>
         </p>
       </section>
       {isProtected ? <p className="small muted">{WRITE.referenceProtectedNote}</p> : null}
@@ -909,10 +910,10 @@ function Notes({
                   <span className="context-item-title">{n.title}</span>
                   <div className="note-text">{n.body}</div>
                   <div className="row">
-                    <button type="button" className="secondary small-button" onClick={() => setEditing(n.id)}>
+                    <Button type="button" onClick={() => setEditing(n.id)} variant="secondary" size="sm">
                       {WRITE.editNote}
                       <span className="sr-only"> {n.title}</span>
-                    </button>
+                    </Button>
                     <span className="small muted">revision {n.revision}</span>
                   </div>
                 </li>
@@ -966,12 +967,12 @@ function NoteEditor({ projectId, note, onDone }: { projectId: string; note: Note
       {!state.ok ? <IssueList issues={state.issues ?? []} /> : null}
       {!state.ok && state.message ? <p className="error-text small">{state.message}</p> : null}
       <div className="row">
-        <button type="submit" className="small-button" disabled={pending}>
+        <Button type="submit" disabled={pending} size="sm">
           {pending ? WRITE.saving : WRITE.saveNote}
-        </button>
-        <button type="button" className="secondary small-button" onClick={onDone}>
+        </Button>
+        <Button type="button" onClick={onDone} variant="secondary" size="sm">
           {WRITE.closeNote}
-        </button>
+        </Button>
       </div>
     </form>
   );
@@ -1017,9 +1018,9 @@ function NewNote({ projectId, recordId }: { projectId: string; recordId: string 
       {!state.ok ? <IssueList issues={state.issues ?? []} /> : null}
       {!state.ok && state.message ? <p className="error-text small">{state.message}</p> : null}
       <div>
-        <button type="submit" className="small-button" disabled={pending}>
+        <Button type="submit" disabled={pending} size="sm">
           {pending ? WRITE.saving : WRITE.addNote}
-        </button>
+        </Button>
       </div>
     </form>
   );

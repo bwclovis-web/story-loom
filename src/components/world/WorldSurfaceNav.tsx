@@ -1,5 +1,5 @@
-import { ButtonLink } from "@/components/ui/ButtonLink";
 import { WORLD } from "@/ui/labels";
+import { ButtonLink } from "@/components/ui/Button";
 import { worldHref } from "@/ui/world";
 
 /** References, Maps, and Boards — the World entry surfaces. */
@@ -28,7 +28,7 @@ export function WorldSurfaceNav({
                 {item.hint}
               </p>
             </div>
-            <ButtonLink variant={current === item.key ? "primary" : "secondary"} href={item.href}>
+            <ButtonLink variant="secondary" href={item.href} aria-current={current === item.key ? "page" : undefined}>
               {WORLD.openSurface}
             </ButtonLink>
           </li>

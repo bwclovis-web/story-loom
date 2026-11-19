@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ButtonLink } from "@/components/ui/ButtonLink";
+import { ButtonLink } from "@/components/ui/Button";
 import { CONTINUE_WRITING, NAV } from "@/ui/labels";
 
 export interface ContinueWritingItem {

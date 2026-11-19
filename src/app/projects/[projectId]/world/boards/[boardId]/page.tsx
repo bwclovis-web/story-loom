@@ -14,10 +14,13 @@ export const dynamic = "force-dynamic";
 
 export default async function WorldBoardPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ projectId: string; boardId: string }>;
+  searchParams: Promise<{ card?: string }>;
 }) {
   const { projectId, boardId } = await params;
+  const query = await searchParams;
   const db = getDb();
   let board;
   try {
@@ -70,6 +73,7 @@ export default async function WorldBoardPage({
           typeLabel: RECORD_TYPE_LABELS[r.type],
         }))}
         images={images}
+        initialCardId={query.card ?? null}
       />
     </>
   );

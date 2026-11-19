@@ -1,12 +1,13 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useRef } from "react";
 import { HelpHint } from "@/components/HelpHint";
 import { IssueList } from "@/components/IssueList";
 import { submitWithoutReset } from "@/components/submitWithoutReset";
 import { RECORD_TYPE_LABELS, RECORD_TYPES, requiresParent, type RecordType } from "@/domain/recordTypes";
 import { AUTHORITY_STATUSES } from "@/domain/statuses";
-import { RECORD } from "@/ui/labels";
+import { RECORD, WORLD } from "@/ui/labels";
+import { isReferenceTemplateKey, REFERENCE_TEMPLATES, referenceTemplate, scaffoldBody } from "@/world/referenceTemplates";
 import type { SpellingLanguage } from "@/writing/spelling";
 import { createRecordAction, type FormResult } from "./actions";
 
@@ -23,6 +24,8 @@ export function NewRecordForm({
     createRecordAction.bind(null, projectId),
     { ok: true },
   );
+  const bodyRef = useRef<HTMLTextAreaElement>(null);
+  const lastScaffold = useRef("");
 
   return (
     <form onSubmit={submitWithoutReset(action)} className="stack">
@@ -57,8 +60,33 @@ export function NewRecordForm({
         protected automatically.
       </HelpHint>
       <label>
+        {WORLD.outlineNew}
+        <select
+          name="outline"
+          defaultValue=""
+          onChange={(event) => {
+            const key = event.target.value;
+            const el = bodyRef.current;
+            if (!el) return;
+            const next = isReferenceTemplateKey(key) ? scaffoldBody(referenceTemplate(key)) : "";
+            if (el.value.trim() === "" || el.value === lastScaffold.current) {
+              el.value = next;
+              lastScaffold.current = next;
+            }
+          }}
+        >
+          <option value="">{WORLD.outlineNone}</option>
+          {REFERENCE_TEMPLATES.map((template) => (
+            <option key={template.key} value={template.key}>
+              {template.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <p className="small muted">{WORLD.outlineNewHint}</p>
+      <label>
         {RECORD.bodyLabel}
-        <textarea name="body" className="document" spellCheck lang={spellingLanguage} />
+        <textarea ref={bodyRef} name="body" className="document" spellCheck lang={spellingLanguage} />
       </label>
       <label>
         {RECORD.newFieldsLabel}

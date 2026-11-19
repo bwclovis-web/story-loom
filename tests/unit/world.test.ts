@@ -47,5 +47,6 @@ describe("world categories", () => {
     expect(worldHref("prj_x")).toBe("/projects/prj_x/world");
     expect(worldHref("prj_x", { type: "canon_decision" })).toBe("/projects/prj_x/world?type=canon_decision");
     expect(worldHref("prj_x", { q: " salt & tide " })).toBe("/projects/prj_x/world?q=salt+%26+tide");
+    expect(worldHref("prj_x", { list: true })).toBe("/projects/prj_x/world?list=1");
   });
 });

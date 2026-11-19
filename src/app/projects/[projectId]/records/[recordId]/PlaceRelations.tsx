@@ -35,7 +35,7 @@ export function PlaceRelations({
   const base = `/projects/${encodeURIComponent(projectId)}/records`;
 
   return (
-    <section className="panel" aria-labelledby="place-relations-heading">
+    <section className="panel" id="place-relations" aria-labelledby="place-relations-heading">
       <h2 id="place-relations-heading">{WORLD.placeRelations}</h2>
       <p className="small muted">{WORLD.placeRelationsNote}</p>
       <IssueList issues={issues} />

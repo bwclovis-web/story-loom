@@ -1,4 +1,5 @@
 "use client";
+import { Button } from "@/components/ui/Button";
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
@@ -59,9 +60,9 @@ export function CreateBoardForm({ projectId }: { projectId: string }) {
         {templateKey === "geography" ? <p className="small muted">{WORLD.templateGeographyHint}</p> : null}
       </fieldset>
       <IssueList issues={issues} />
-      <button type="submit" className="small-button" disabled={pending}>
+      <Button type="submit" disabled={pending} size="sm">
         {WORLD.createBoard}
-      </button>
+      </Button>
     </form>
   );
 }

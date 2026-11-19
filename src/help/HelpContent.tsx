@@ -1246,10 +1246,12 @@ export function HelpContent() {
       <Section id="world">
         <p>
           <L>{SHELL.world}</L> holds the project&apos;s reference documents of these types:{" "}
-          {WORLD_TYPES.map((t) => RECORD_TYPE_LABELS[t]).join(", ")}. Its page lists them in a table with each
-          document&apos;s type, canon status, saved version and protection. Under <L>{WORLD.boards}</L> you can place
-          references, images and freeform notes on a focused board (see <See anchor="world-boards" />). Under{" "}
-          <L>{WORLD.maps}</L> you can pin places on an existing reference image (see <See anchor="world-maps" />).
+          {WORLD_TYPES.map((t) => RECORD_TYPE_LABELS[t]).join(", ")}. The World page opens on search, recent references,
+          and <L>{WORLD.references}</L>, <L>{WORLD.maps}</L>, and <L>{WORLD.boards}</L>.{" "}
+          <L>{WORLD.allReferences}</L> and each category still list documents in a table with type, canon status, saved
+          version, and protection. Under <L>{WORLD.boards}</L> you can place references, images and freeform notes on a
+          focused board (see <See anchor="world-boards" />). Under <L>{WORLD.maps}</L> you can pin places on an existing
+          reference image (see <See anchor="world-maps" />). Plot grids stay under <L>{SHELL.plan}</L>.
         </p>
         <p>
           <L>{WORLD.importReferences}</L> opens <L>{NAV.importMarkdown}</L> (see <See anchor="importing" />).{" "}
@@ -1277,8 +1279,11 @@ export function HelpContent() {
               is stored on that board only.
             </li>
             <li>
-              The same record can appear on several boards. Selecting a reference or image card opens its source in the
-              context rail (same collapse and resize behaviour as elsewhere in World). Filter by card kind, use{" "}
+              The same record can appear on several boards. Selecting a reference or image card opens that record in the
+              reference inspector (Overview, Sections, Images, Relationships, and Established in when the record supports
+              it). <L>{WORLD.inspectorOpenRecord}</L> opens the record page. The record&apos;s Overview lists the boards
+              and maps that contain it. The rail still collapses, resizes, and overlays on a narrow window. Filter by
+              card kind, use{" "}
               <L>{WORLD.fitSelection}</L> / <L>{WORLD.fitAll}</L>, and move between cards with the arrow keys. Unsaved
               note title and body stay when the board refreshes after another card save.
             </li>
@@ -1300,7 +1305,7 @@ export function HelpContent() {
 
         <Sub id="established-in">
           <p>
-            On a reference page, the context rail&apos;s <L>{WORLD.establishedIn}</L> links facts to exact manuscript or
+            On a reference page, the inspector&apos;s <L>{WORLD.establishedIn}</L> tab links facts to exact manuscript or
             plan passages at a saved revision. Planned material, zero-draft evidence, and author-rewrite evidence stay
             distinct. Offering extracted facts creates pending items you can accept or dismiss — nothing is accepted
             until you review it.
@@ -1333,7 +1338,8 @@ export function HelpContent() {
           <ul>
             <li>
               The same place can appear on several maps. Selecting a pin (on the image or in the keyboard-accessible pin
-              list) opens that exact reference in the context rail — the same record the pin stores, not a guessed match.
+              list) opens that exact reference in the same inspector a board card uses — the record the pin stores, not a
+              guessed match. Map drawing tools beyond placing and moving pins are not part of this screen.
             </li>
             <li>
               <L>{WORLD.removePin}</L> removes the pin from that map only. Moving a pin never creates or changes a place
@@ -1374,8 +1380,8 @@ export function HelpContent() {
             <li>
               <L>{WORLD.searchReferences}</L>. Typing filters the titles listed in the column. Press <kbd>Enter</kbd> to
               also search the text and structured fields of every World document. The results page says where each match
-              was found and shows the surrounding text. Every match is listed. <L>{WORLD.clearSearch}</L> returns to the
-              list. Search ignores upper and lower case.
+            was found and shows the surrounding text. Every match is listed. <L>{WORLD.clearSearch}</L> returns to the
+            World page. Search ignores upper and lower case.
             </li>
             <li>
               <L>{WORLD.allReferences}</L> and one category per document type:{" "}
@@ -1465,23 +1471,32 @@ export function HelpContent() {
         <Sub id="reference-context">
           <p>
             The context rail beside the document uses the same collapse, resize, and narrow-screen overlay as Write
-            (<L>{WRITE.showContext}</L> / <L>{WRITE.hideContext}</L>). It includes <L>{WRITE.pinnedReferences}</L> for
-            the active draft (or the whole project when there are no drafts). Pin and unpin never link or unlink
-            manuscript scenes. On narrower windows sections start closed; choose a heading to open it.
+            (<L>{WRITE.showContext}</L> / <L>{WRITE.hideContext}</L>). Arrow keys move between the inspector tabs. The
+            same tabs open when you select a board card or a map pin. The inspector shows the saved document, so unsaved
+            text stays in the editor until you save.
           </p>
           <ul>
             <li>
-              <L>{WORLD.contents}</L>: the document&apos;s headings, with any status tags from the headings shown word for
-              word. See <See anchor="section-status" />.
+              <L>{WORLD.inspectorOverview}</L>: type, canon status, saved version, protection, a short lead, structured
+              field names, and the boards and maps that contain this record. It also includes{" "}
+              <L>{WRITE.pinnedReferences}</L> for the active draft (or the whole project when there are no drafts). Pin
+              and unpin never link or unlink manuscript scenes.
             </li>
             <li>
-              <L>{XREF.heading}</L>: IDs this document defines, the filenames and IDs it mentions, and the documents that
-              mention it. See <See anchor="cross-references" />.
+              <L>{WORLD.inspectorSections}</L>: the document&apos;s headings, with any status tags shown word for word.
+              Choose one to jump to it. See <See anchor="section-status" />.
             </li>
             <li>
-              <L>{WORLD.linkedManuscript}</L>: the chapters and scenes that link to this document from their{" "}
-              <L>{WRITE.references}</L> tab (see <See anchor="scene-context" />). A scene note shows{" "}
-              <L>{WORLD.noteOn}</L> and its chapter or scene instead.
+              <L>{WORLD.inspectorImages}</L>: images attached to this record. See <See anchor="images" />.
+            </li>
+            <li>
+              <L>{WORLD.inspectorRelationships}</L>: place relationships, <L>{WORLD.linkedManuscript}</L> from a chapter
+              or scene&apos;s <L>{WRITE.references}</L> tab, and <L>{XREF.heading}</L>. A scene note shows{" "}
+              <L>{WORLD.noteOn}</L> instead of linked chapters. See <See anchor="place-relations" /> and{" "}
+              <See anchor="cross-references" />.
+            </li>
+            <li>
+              <L>{WORLD.establishedIn}</L> when the record can have it. See <See anchor="established-in" />.
             </li>
             <li>
               <L>{WORLD.recentChanges}</L>: the latest five saved versions, with their status and where they came from.
@@ -1506,6 +1521,31 @@ export function HelpContent() {
             Each section says so when it has nothing to show. Changing one document never changes linked or related
             documents. Update them yourself if needed.
           </p>
+        </Sub>
+
+        <Sub id="reference-outlines">
+          <p>
+            On a World reference, <L>{WORLD.outlineHeading}</L> offers eight optional outlines: Place, Religion, Culture,
+            Organization, Species, Magic system, Object, and Language. They are not new document types. A place is still{" "}
+            {RECORD_TYPE_LABELS.worldbuilding} unless you chose another World type yourself.
+          </p>
+          <ul>
+            <li>
+              Choosing an outline on <L>{RECORD.newRecordHeading}</L> fills an empty text box with headings. Text you
+              have already typed is left as it is.
+            </li>
+            <li>
+              On a document that already has text, choose an outline to review the mapping. Headings that already match
+              stay. Other headings and any text outside them stay word for word. Structured fields are listed and are
+              not changed. <L>{WORLD.outlineApply}</L> only appends empty headings that are missing.
+            </li>
+            <li>
+              Nothing is written until you apply. Applying again when the headings are already there does not create
+              another revision. On a protected document, tick <L>{RECORD.unlockProtected}</L> first. If the document was
+              saved elsewhere, apply is refused and your saved text is unchanged.
+            </li>
+          </ul>
+          <p>Finish editing before applying an outline, so unsaved text is not replaced.</p>
         </Sub>
 
         <Sub id="images">
@@ -3143,8 +3183,10 @@ export function HelpContent() {
           </li>
           <li>
             <L>{SHELL.world}</L> categories are the document types. There are no separate categories for places, magic
-            or other subjects, and no Overview, Relationships or Open questions tabs; a document&apos;s own headings are
-            listed under <L>{WORLD.contents}</L> instead.
+            or other subjects. Optional outlines add headings inside the document you already have; they do not change
+            its type. The reference inspector has Overview, Sections, Images, Relationships, and Established in when
+            the record supports it. There is no Open questions tab; open questions are a heading you can add with an
+            outline. Map drawing, beyond placing and moving pins, is not available.
           </li>
           <li>The browser&apos;s Back button does not warn about unsaved changes.</li>
           <li>Find and replace works on one record&apos;s text at a time, with literal text only.</li>

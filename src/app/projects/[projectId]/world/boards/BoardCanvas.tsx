@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   useCallback,
@@ -13,14 +12,16 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent as ReactPointerEvent,
 } from "react";
-import { StatusBadge } from "@/components/Badges";
 import { IssueList } from "@/components/IssueList";
+import { Button } from "@/components/ui/Button";
+import { ReferenceInspector } from "@/components/world/ReferenceInspector";
 import { ContextRail, ContextRailToggle, useContextRail } from "@/components/shell/ContextRail";
 import { CloseIcon } from "@/components/shell/icons";
 import type { Issue } from "@/domain/issues";
 import type { BoardCardView, BoardView } from "@/server/services/boardService";
+import type { LoadedInspector } from "@/server/services/referenceInspectorService";
 import { SHELL, WORLD, WRITE } from "@/ui/labels";
-import { previewReferenceAction, type ReferencePreview } from "../../write/actions";
+import { inspectReferenceAction } from "../inspectorActions";
 import { AskAboutBoard } from "./AskAboutBoard";
 import {
   addImageCardAction,
@@ -52,11 +53,13 @@ export function BoardCanvas({
   board: initial,
   records,
   images,
+  initialCardId = null,
 }: {
   projectId: string;
   board: BoardView;
   records: PlaceableRecord[];
   images: PlaceableImage[];
+  initialCardId?: string | null;
 }) {
   const router = useRouter();
   const idPrefix = useId();
@@ -65,8 +68,11 @@ export function BoardCanvas({
   const rail = useContextRail();
   const [board, setBoard] = useState(initial);
   const [cards, setCards] = useState(initial.cards);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [preview, setPreview] = useState<ReferencePreview | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(initialCardId);
+  const [inspection, setInspection] = useState<LoadedInspector | null>(null);
+  const didDeepLink = useRef(false);
+  const railRef = useRef(rail);
+  railRef.current = rail;
   const [issues, setIssues] = useState<Issue[]>([]);
   const [pending, startTransition] = useTransition();
   const [title, setTitle] = useState(initial.title);
@@ -108,21 +114,36 @@ export function BoardCanvas({
   }, [cards, kindFilter]);
   const visibleIds = useMemo(() => new Set(visibleCards.map((c) => c.id)), [visibleCards]);
 
+  const inspectRecordId = selected && selected.kind !== "note" ? selected.recordId : null;
+
   useEffect(() => {
-    if (!selected || selected.kind === "note" || !selected.recordId) {
-      setPreview(null);
-      setNoteEdit(selected?.kind === "note" ? { title: selected.noteTitle, body: selected.noteBody } : null);
+    if (!didDeepLink.current && initialCardId && initial.cards.some((card) => card.id === initialCardId)) {
+      didDeepLink.current = true;
+      setSelectedId(initialCardId);
+      if (!railRef.current.visible) railRef.current.toggle();
+    }
+  }, [initialCardId, initial.cards]);
+
+  useEffect(() => {
+    if (selected?.kind === "note") {
+      setNoteEdit({ title: selected.noteTitle, body: selected.noteBody });
+      setInspection(null);
       return;
     }
     setNoteEdit(null);
+    if (!inspectRecordId) {
+      setInspection(null);
+      return;
+    }
     let cancelled = false;
-    void previewReferenceAction(projectId, selected.recordId).then((result) => {
-      if (!cancelled) setPreview(result);
+    setInspection(null);
+    void inspectReferenceAction(projectId, inspectRecordId).then((result) => {
+      if (!cancelled) setInspection(result);
     });
     return () => {
       cancelled = true;
     };
-  }, [projectId, selected]);
+  }, [projectId, inspectRecordId, selected?.kind, selected?.noteTitle, selected?.noteBody]);
 
   const selectCard = useCallback(
     (card: BoardCardView) => {
@@ -239,9 +260,9 @@ export function BoardCanvas({
                 ))}
               </select>
             </label>
-            <button
+            <Button
               type="button"
-              className="small-button"
+             
               disabled={pending}
               onClick={() => {
                 const { x, y } = dropPoint();
@@ -261,9 +282,9 @@ export function BoardCanvas({
                   router.refresh();
                 });
               }}
-            >
+             size="sm">
               {WORLD.addNoteCard}
-            </button>
+            </Button>
           </div>
 
           <div className="board-toolbar-group">
@@ -280,22 +301,22 @@ export function BoardCanvas({
                 <option value="note">{WORLD.filterNotes}</option>
               </select>
             </label>
-            <button
+            <Button
               type="button"
-              className="secondary small-button"
+             
               disabled={!selected}
               onClick={() => selected && fitRect([selected])}
-            >
+             variant="secondary" size="sm">
               {WORLD.fitSelection}
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
-              className="secondary small-button"
+             
               disabled={!visibleCards.length}
               onClick={() => fitRect(visibleCards)}
-            >
+             variant="secondary" size="sm">
               {WORLD.fitAll}
-            </button>
+            </Button>
           </div>
 
           <details className="board-overflow">
@@ -320,9 +341,9 @@ export function BoardCanvas({
                   <span className="sr-only">{WORLD.renameBoard}</span>
                   <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} required />
                 </label>
-                <button type="submit" className="secondary small-button" disabled={pending}>
+                <Button type="submit" disabled={pending} variant="secondary" size="sm">
                   {WORLD.renameBoard}
-                </button>
+                </Button>
               </form>
               <label>
                 <span className="sr-only">{WORLD.addImageCard}</span>
@@ -356,13 +377,13 @@ export function BoardCanvas({
               </label>
               <AskAboutBoard projectId={projectId} boardId={board.id} />
               {!confirmDelete ? (
-                <button type="button" className="secondary small-button" onClick={() => setConfirmDelete(true)}>
+                <Button type="button" onClick={() => setConfirmDelete(true)} variant="secondary" size="sm">
                   {WORLD.deleteBoard}
-                </button>
+                </Button>
               ) : (
-                <button
+                <Button
                   type="button"
-                  className="small-button"
+                 
                   disabled={pending}
                   onClick={() =>
                     startTransition(async () => {
@@ -375,9 +396,9 @@ export function BoardCanvas({
                       router.refresh();
                     })
                   }
-                >
+                 size="sm">
                   {WORLD.confirmDeleteBoard(board.title)}
-                </button>
+                </Button>
               )}
             </div>
           </details>
@@ -558,9 +579,9 @@ export function BoardCanvas({
                       }}
                     />
                   </label>
-                  <button
+                  <Button
                     type="button"
-                    className="small-button"
+                   
                     disabled={pending}
                     onClick={() =>
                       startTransition(async () => {
@@ -577,17 +598,17 @@ export function BoardCanvas({
                         router.refresh();
                       })
                     }
-                  >
+                   size="sm">
                     {WORLD.saveNote}
-                  </button>
+                  </Button>
                 </section>
                 <section className="rail-section">
                   <p className="small muted" style={{ margin: 0 }}>
                     {WORLD.removeCardNote}
                   </p>
-                  <button
+                  <Button
                     type="button"
-                    className="secondary small-button"
+                   
                     disabled={pending}
                     onClick={() =>
                       startTransition(async () => {
@@ -601,51 +622,35 @@ export function BoardCanvas({
                         router.refresh();
                       })
                     }
-                  >
+                   variant="secondary" size="sm">
                     {WORLD.removeCard}
-                  </button>
+                  </Button>
                 </section>
               </div>
             ) : (
               <div className="stack">
                 <section className="rail-section">
-                  {preview?.ok ? (
-                    <>
-                      <h3>{preview.title}</h3>
-                      <p className="row small muted">
-                        {preview.typeLabel} <StatusBadge status={preview.authorityStatus} /> revision {preview.revision}
-                      </p>
-                      {selected.kind === "image" && selected.imageId ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={`/projects/${encodeURIComponent(projectId)}/images/${encodeURIComponent(selected.imageId)}`}
-                          alt={selected.imageAlt || selected.imageName || ""}
-                          style={{ maxWidth: "100%", borderRadius: "var(--radius-sm)" }}
-                        />
-                      ) : null}
-                      <div className="reference-text document" style={{ maxHeight: "40vh", overflow: "auto" }}>
-                        {preview.body || <span className="muted">(empty)</span>}
-                      </div>
-                      <Link
-                        href={`/projects/${encodeURIComponent(projectId)}/records/${encodeURIComponent(preview.id)}`}
-                        className="small"
-                      >
-                        {WRITE.openFull}
-                      </Link>
-                    </>
-                  ) : preview && !preview.ok ? (
-                    <p className="error-text">{preview.message}</p>
+                  {inspection?.ok ? (
+                    <ReferenceInspector
+                      projectId={projectId}
+                      model={inspection.model}
+                      established={inspection.established}
+                      linkMode="remote"
+                      sourceNote={selected.kind === "image" ? WORLD.openedFromImage : null}
+                    />
+                  ) : inspection && !inspection.ok ? (
+                    <p className="error-text">{inspection.message}</p>
                   ) : (
-                    <p className="small muted">…</p>
+                    <p className="small muted">{WORLD.inspectorLoading}</p>
                   )}
                 </section>
                 <section className="rail-section">
                   <p className="small muted" style={{ margin: 0 }}>
                     {WORLD.removeCardNote}
                   </p>
-                  <button
+                  <Button
                     type="button"
-                    className="secondary small-button"
+                   
                     disabled={pending}
                     onClick={() =>
                       startTransition(async () => {
@@ -659,9 +664,9 @@ export function BoardCanvas({
                         router.refresh();
                       })
                     }
-                  >
+                   variant="secondary" size="sm">
                     {WORLD.removeCard}
-                  </button>
+                  </Button>
                 </section>
               </div>
             )}

@@ -1,4 +1,5 @@
 "use client";
+import { Button } from "@/components/ui/Button";
 
 import {
   useEffect,
@@ -506,9 +507,9 @@ export function WeavePlotGrid({
               placeholder={WEAVE.threadTitle}
               aria-label={WEAVE.threadTitle}
             />
-            <button type="submit" className="small-button" disabled={pending}>
+            <Button type="submit" disabled={pending} size="sm">
               {WEAVE.addThread}
-            </button>
+            </Button>
           </form>
         </div>
       ) : (
@@ -552,9 +553,9 @@ export function WeavePlotGrid({
                           aria-label={WEAVE.renameThread}
                           required
                         />
-                        <button type="submit" className="secondary small-button" disabled={pending}>
+                        <Button type="submit" disabled={pending} variant="secondary" size="sm">
                           {WEAVE.renameThread}
-                        </button>
+                        </Button>
                       </form>
                     ) : (
                       <div className="plot-grid-thread-head-row">
@@ -566,36 +567,36 @@ export function WeavePlotGrid({
                           <details className="plot-grid-thread-menu">
                             <summary aria-label={WEAVE.overflowMenu}>···</summary>
                             <div className="plot-grid-thread-menu-body">
-                              <button
+                              <Button
                                 type="button"
-                                className="secondary small-button"
+                               
                                 disabled={pending || col === 0}
                                 onClick={() => moveThread(thread.id, -1)}
-                              >
+                               variant="secondary" size="sm">
                                 {WEAVE.moveThreadLeft}
-                              </button>
-                              <button
+                              </Button>
+                              <Button
                                 type="button"
-                                className="secondary small-button"
+                               
                                 disabled={pending || col === threads.length - 1}
                                 onClick={() => moveThread(thread.id, 1)}
-                              >
+                               variant="secondary" size="sm">
                                 {WEAVE.moveThreadRight}
-                              </button>
-                              <button
+                              </Button>
+                              <Button
                                 type="button"
-                                className="secondary small-button"
+                               
                                 onClick={() => {
                                   setRenameId(thread.id);
                                   setRenameTitle(thread.title);
                                 }}
-                              >
+                               variant="secondary" size="sm">
                                 {WEAVE.renameThread}
-                              </button>
+                              </Button>
                               {confirmDeleteId === thread.id ? (
-                                <button
+                                <Button
                                   type="button"
-                                  className="small-button"
+                                 
                                   disabled={pending}
                                   onClick={() =>
                                     startTransition(async () => {
@@ -610,17 +611,17 @@ export function WeavePlotGrid({
                                       router.refresh();
                                     })
                                   }
-                                >
+                                 size="sm">
                                   {WEAVE.confirmDeleteThread(thread.title)}
-                                </button>
+                                </Button>
                               ) : (
-                                <button
+                                <Button
                                   type="button"
-                                  className="secondary small-button"
+                                 
                                   onClick={() => setConfirmDeleteId(thread.id)}
-                                >
+                                 variant="secondary" size="sm">
                                   {WEAVE.deleteThread}
-                                </button>
+                                </Button>
                               )}
                             </div>
                           </details>
@@ -647,9 +648,9 @@ export function WeavePlotGrid({
                         });
                       }}
                     >
-                      <button type="submit" className="secondary small-button" disabled={pending}>
+                      <Button type="submit" disabled={pending} variant="secondary" size="sm">
                         {WEAVE.addThreadShort}
-                      </button>
+                      </Button>
                     </form>
                   </th>
                 ) : null}

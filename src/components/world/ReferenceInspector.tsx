@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { ButtonLink } from "@/components/ui/Button";
 import { useId, useState, type KeyboardEvent, type ReactNode } from "react";
 import { CanonBadge, ProtectionStateBadge, SavedVersionBadge } from "@/components/Badges";
-import { ButtonLink } from "@/components/ui/ButtonLink";
 import {
   EstablishedInRail,
   type DraftChoice,

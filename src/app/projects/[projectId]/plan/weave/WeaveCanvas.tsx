@@ -1,4 +1,5 @@
 "use client";
+import { Button, ButtonLink } from "@/components/ui/Button";
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -642,35 +643,35 @@ export function WeaveCanvas({
             ) : null}
             {!isPlotGrid ? (
               <>
-                <button
+                <Button
                   type="button"
-                  className="secondary small-button"
+                 
                   disabled={!selected}
                   onClick={() => selected && fitRect([selected])}
-                >
+                 variant="secondary" size="sm">
                   {WEAVE.fitSelection}
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
-                  className="secondary small-button"
+                 
                   disabled={!visibleBeats.length}
                   onClick={() => fitRect(visibleBeats)}
-                >
+                 variant="secondary" size="sm">
                   {WEAVE.fitAll}
-                </button>
+                </Button>
               </>
             ) : null}
           </div>
 
           <div className="board-toolbar-group board-toolbar-actions">
-            <button
+            <Button
               type="button"
-              className={isPlotGrid ? "small-button" : "secondary small-button"}
+             
               disabled={pending}
               onClick={addBeat}
-            >
+             variant={isPlotGrid ? "primary" : "secondary"} size="sm">
               {isPlotGrid ? WEAVE.addBeatPrimary : WEAVE.addBeat}
-            </button>
+            </Button>
           </div>
 
           <details className="board-overflow">
@@ -695,9 +696,9 @@ export function WeaveCanvas({
                   <span className="sr-only">{WEAVE.renameGrid}</span>
                   <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} required />
                 </label>
-                <button type="submit" className="secondary small-button" disabled={pending}>
+                <Button type="submit" disabled={pending} variant="secondary" size="sm">
                   {WEAVE.renameGrid}
-                </button>
+                </Button>
               </form>
               <form
                 className="row"
@@ -721,9 +722,9 @@ export function WeaveCanvas({
                   placeholder={WEAVE.templateTitle}
                   aria-label={WEAVE.saveGridAsTemplate}
                 />
-                <button type="submit" className="secondary small-button" disabled={pending || !templateTitle.trim()}>
+                <Button type="submit" disabled={pending || !templateTitle.trim()} variant="secondary" size="sm">
                   {WEAVE.saveGridAsTemplate}
-                </button>
+                </Button>
               </form>
               {isPlotGrid ? (
                 <form
@@ -771,22 +772,22 @@ export function WeaveCanvas({
                       ))}
                     </select>
                   </label>
-                  <button type="submit" className="small-button" disabled={pending || !setupFrom || !setupTo}>
+                  <Button type="submit" disabled={pending || !setupFrom || !setupTo} size="sm">
                     {WEAVE.addSetupPayoff}
-                  </button>
+                  </Button>
                 </form>
               ) : null}
               <p className="small muted" style={{ margin: 0 }}>
                 {WEAVE.bookOrderNote}
               </p>
               {!confirmDelete ? (
-                <button type="button" className="secondary small-button" onClick={() => setConfirmDelete(true)}>
+                <Button type="button" onClick={() => setConfirmDelete(true)} variant="secondary" size="sm">
                   {WEAVE.deleteGrid}
-                </button>
+                </Button>
               ) : (
-                <button
+                <Button
                   type="button"
-                  className="small-button"
+                 
                   disabled={pending}
                   onClick={() =>
                     startTransition(async () => {
@@ -798,9 +799,9 @@ export function WeaveCanvas({
                       router.push(`/projects/${encodeURIComponent(projectId)}/plan/weave`);
                     })
                   }
-                >
+                 size="sm">
                   {WEAVE.confirmDeleteGrid(grid.title)}
-                </button>
+                </Button>
               )}
             </div>
           </details>
@@ -939,9 +940,9 @@ export function WeaveCanvas({
                       {link.toProjectId !== projectId ? ` (${link.toProjectTitle})` : ""}
                       {link.note ? ` — ${link.note}` : ""}
                     </span>
-                    <button
+                    <Button
                       type="button"
-                      className="secondary small-button"
+                     
                       disabled={pending}
                       onClick={() =>
                         startTransition(async () => {
@@ -950,9 +951,9 @@ export function WeaveCanvas({
                           else router.refresh();
                         })
                       }
-                    >
+                     variant="secondary" size="sm">
                       {WEAVE.removeSetupPayoff}
-                    </button>
+                    </Button>
                   </li>
                 ))}
               </ul>
@@ -999,9 +1000,9 @@ export function WeaveCanvas({
                   ))}
                 </select>
               </label>
-              <button type="submit" className="small-button" disabled={pending || !setupFrom || !setupTo}>
+              <Button type="submit" disabled={pending || !setupFrom || !setupTo} size="sm">
                 {WEAVE.addSetupPayoff}
-              </button>
+              </Button>
             </form>
           </section>
         ) : null}
@@ -1249,12 +1250,12 @@ export function WeaveCanvas({
                 </select>
               </label>
               {selected.manuscriptRecordId && !selected.manuscriptUnavailable ? (
-                <Link
-                  className="button-link"
+                <ButtonLink
+                 
                   href={`/projects/${encodeURIComponent(projectId)}/records/${encodeURIComponent(selected.manuscriptRecordId)}`}
                 >
                   {WEAVE.openSceneInWrite}
-                </Link>
+                </ButtonLink>
               ) : (
                 <p className="rail-empty">{WEAVE.noSceneLinked}</p>
               )}
@@ -1276,9 +1277,9 @@ export function WeaveCanvas({
                       )}{" "}
                       <span className="muted">({ref.typeLabel})</span>
                     </span>
-                    <button
+                    <Button
                       type="button"
-                      className="secondary small-button"
+                     
                       disabled={pending}
                       onClick={() =>
                         startTransition(async () => {
@@ -1297,9 +1298,9 @@ export function WeaveCanvas({
                           }
                         })
                       }
-                    >
+                     variant="secondary" size="sm">
                       {WEAVE.removeWorldRef}
-                    </button>
+                    </Button>
                   </li>
                 ))}
               </ul>
@@ -1367,12 +1368,12 @@ export function WeaveCanvas({
             {isPlotGrid ? (
               <div className="rail-section plot-rail-actions">
                 {selected.manuscriptRecordId && !selected.manuscriptUnavailable ? (
-                  <Link
-                    className="button-link"
+                  <ButtonLink
+                   
                     href={`/projects/${encodeURIComponent(projectId)}/records/${encodeURIComponent(selected.manuscriptRecordId)}`}
                   >
                     {WEAVE.openSceneInWrite}
-                  </Link>
+                  </ButtonLink>
                 ) : (
                   <p className="rail-empty">{WEAVE.noSceneLinked}</p>
                 )}
@@ -1404,9 +1405,9 @@ export function WeaveCanvas({
                         {rewriteSources[0]!.title} · {DRAFT.sourceRevision(rewriteSources[0]!.toRevisionNumber)}
                       </p>
                     )}
-                    <button
+                    <Button
                       type="button"
-                      className="secondary small-button"
+                     
                       disabled={pending || !compareSourceId}
                       onClick={() => {
                         const source = rewriteSources.find((s) => s.toRecordId === compareSourceId);
@@ -1428,9 +1429,9 @@ export function WeaveCanvas({
                           });
                         });
                       }}
-                    >
+                     variant="secondary" size="sm">
                       {WEAVE.compareZeroDraft}
-                    </button>
+                    </Button>
                     {comparePreview ? (
                       <div className="plot-rail-compare-preview" aria-label={comparePreview.title}>
                         <div className="row" style={{ justifyContent: "space-between", gap: "0.35rem" }}>
@@ -1438,13 +1439,13 @@ export function WeaveCanvas({
                             {comparePreview.title}{" "}
                             <span className="muted">{DRAFT.sourceRevision(comparePreview.revisionNumber)}</span>
                           </strong>
-                          <button
+                          <Button
                             type="button"
-                            className="secondary small-button"
+                           
                             onClick={() => setComparePreview(null)}
-                          >
+                           variant="secondary" size="sm">
                             {WEAVE.closeZeroDraftCompare}
-                          </button>
+                          </Button>
                         </div>
                         <pre className="plot-rail-compare-body small">{comparePreview.body || "—"}</pre>
                       </div>
@@ -1457,9 +1458,9 @@ export function WeaveCanvas({
                   <span className="small muted" aria-live="polite">
                     {pending ? WEAVE.savingStatus : WEAVE.savedStatus}
                   </span>
-                  <button
+                  <Button
                     type="button"
-                    className="secondary small-button"
+                   
                     disabled={pending}
                     onClick={() =>
                       startTransition(async () => {
@@ -1475,17 +1476,17 @@ export function WeaveCanvas({
                         router.refresh();
                       })
                     }
-                  >
+                   variant="secondary" size="sm">
                     {WEAVE.removeBeat}
-                  </button>
+                  </Button>
                 </div>
               </div>
             ) : (
               <div className="rail-section">
                 <p className="small muted">{WEAVE.removeBeatNote}</p>
-                <button
+                <Button
                   type="button"
-                  className="secondary small-button"
+                 
                   disabled={pending}
                   onClick={() =>
                     startTransition(async () => {
@@ -1500,9 +1501,9 @@ export function WeaveCanvas({
                       router.refresh();
                     })
                   }
-                >
+                 variant="secondary" size="sm">
                   {WEAVE.removeBeat}
-                </button>
+                </Button>
               </div>
             )}
           </div>

@@ -35,6 +35,8 @@ import {
 import { resolveReviewItem } from "@/server/services/reviewService";
 import { trashProject } from "@/server/services/trashService";
 import { groupOfType } from "@/ui/navigation";
+import { isWorldType } from "@/ui/world";
+import { isReferenceTemplateKey, referenceTemplate, scaffoldBody } from "@/world/referenceTemplates";
 
 export interface FormResult {
   ok: boolean;
@@ -59,12 +61,17 @@ export async function createRecordAction(projectId: string, _prev: FormResult, f
   const type = str(formData, "type");
   const status = str(formData, "authorityStatus");
   if (!isRecordType(type) || !isAuthorityStatus(status)) return { ok: false, message: "Invalid type or status" };
+  let body = str(formData, "body");
+  const outline = str(formData, "outline");
+  if (isWorldType(type) && isReferenceTemplateKey(outline) && body.trim() === "") {
+    body = scaffoldBody(referenceTemplate(outline));
+  }
   let recordId: string;
   try {
     const batch = await createRecord(getDb(), projectId, {
       type,
       title: str(formData, "title"),
-      body: str(formData, "body"),
+      body,
       fields: parseFields(str(formData, "fields")),
       authorityStatus: status,
     });

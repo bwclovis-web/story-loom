@@ -1,0 +1,23 @@
+---
+description: Colocate UI components with their CVA variants under src/components/ui
+globs: src/components/ui/**/*
+alwaysApply: true
+---
+
+# UI component folders
+
+- Put each shared UI primitive in its own folder under `src/components/ui/`:
+  `ComponentName/ComponentName.tsx`, `ComponentName/componentVariants.ts` (or
+  `*Variants.ts`), optional siblings (`ButtonLink.tsx`), and `index.ts` that
+  re-exports the public API.
+- Import from the folder barrel (`@/components/ui/Button`,
+  `@/components/ui/Banner`), not from deep file paths or leftover flat files.
+- Keep CVA / variant helpers in the same folder as the component. Do not leave
+  `buttonVariants.ts` (or similar) as a sibling of many unrelated components.
+- Variant modules must stay free of `"use client"` so Server Components can
+  call them (e.g. `ButtonLink`). Mark only interactive entry files with
+  `"use client"` when they need hooks or browser APIs.
+- Style with explicit design tokens (`var(--color-text)`,
+  `var(--color-accent)`, …). Avoid short Tailwind theme aliases that alias
+  back into the same `--color-*` name (circular). Buttons use the `sl-btn`
+  class so legacy global `button { … }` rules do not override contrast.

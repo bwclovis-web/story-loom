@@ -1,3 +1,4 @@
+import { ButtonAnchor, ButtonLink } from "@/components/ui/Button";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { findFieldTextDisagreements } from "@/assistant/fieldText";
@@ -6,7 +7,6 @@ import { ContextSection } from "@/components/ContextSection";
 import { CrossRefsPanel, xrefHref } from "@/components/CrossRefsPanel";
 import { MarkdownView, type AttachedImages } from "@/components/MarkdownView";
 import { TextAppearanceMenu } from "@/components/TextAppearanceMenu";
-import { ButtonAnchor, ButtonLink } from "@/components/ui/ButtonLink";
 import type { ProofreadConfig } from "@/components/writing/Proofreader";
 import type { JsonValue } from "@/domain/json";
 import type { RecordView } from "@/domain/records";
@@ -388,6 +388,18 @@ export function ReferenceView(props: ReferenceViewProps) {
             </>
           )}
 
+          {isWorldType(record.type) ? (
+            <OutlineReview
+              projectId={projectId}
+              recordId={record.id}
+              revision={record.currentRevision}
+              body={record.body}
+              fieldKeys={Object.keys(record.fields)}
+              isProtected={record.protected}
+              editing={editing}
+            />
+          ) : null}
+
           <ImageGallery
             projectId={projectId}
             recordId={record.id}
@@ -409,65 +421,45 @@ export function ReferenceView(props: ReferenceViewProps) {
         </div>
 
         <WorldContextAside>
-          <WorldPins
-            projectId={projectId}
-            recordId={record.id}
-            draftScopeId={props.draftScopeId}
-            initialPins={props.initialPins}
-            canPinCurrent={linkable}
-          />
-
-          {linkable && props.establishedFacts ? (
-            <EstablishedInRail
+          {inspector ? (
+            <ReferenceInspector
               projectId={projectId}
-              subjectRecordId={record.id}
-              recordType={record.type}
-              initialFacts={props.establishedFacts}
-              evidenceSources={props.evidenceSources}
-              drafts={props.manuscriptDrafts}
-              scenes={props.manuscriptScenes}
-            />
-          ) : null}
-
-          {!editing && doc.headings.length ? (
-            <ContextSection title={WORLD.contents} className="contents-section">
-              <ContentsList doc={doc} label={WORLD.contents} />
-            </ContextSection>
-          ) : null}
-
-          <ContextSection title={XREF.heading} count={xrefCount} className="xref-section">
-            <CrossRefsPanel projectId={projectId} recordId={record.id} refs={refs} />
-          </ContextSection>
-
-          {props.parent && !linkable ? (
-            <ContextSection title={WORLD.noteOn}>
-              <p className="small">
-                <Link href={`${base}/records/${encodeURIComponent(props.parent.id)}`}>{props.parent.title}</Link>
-              </p>
-              <p className="small muted">{WORLD.notLinkable}</p>
-            </ContextSection>
-          ) : linkable ? (
-            <ContextSection title={WORLD.linkedManuscript} count={props.linking.length}>
-              {props.linking.length ? (
-                <ul className="context-links">
-                  {props.linking.map((l) => (
-                    <li key={l.recordId}>
-                      <Link href={`${base}/records/${encodeURIComponent(l.recordId)}`}>{l.title}</Link>
-                      <span className="small muted">
-                        {" "}
-                        {RECORD_TYPE_LABELS[l.type]}
-                        {l.chapterTitle ? `, in ${l.chapterTitle}` : ""}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="small muted">{WORLD.noLinkedManuscript}</p>
-              )}
-            </ContextSection>
-          ) : null}
-
-          <ContextSection title={WORLD.recentChanges} count={revisions.length}>
+              model={inspector}
+              linkMode="page"
+              editing={editing}
+              established={
+                linkable && props.establishedFacts
+                  ? {
+                      facts: props.establishedFacts,
+                      evidenceSources: props.evidenceSources,
+                      drafts: props.manuscriptDrafts,
+                      scenes: props.manuscriptScenes,
+                    }
+                  : null
+              }
+              relationshipsExtra={
+                <ContextSection title={XREF.heading} count={refs.defined.length + refs.files.length + refs.ids.length + refs.mentionedBy.length}>
+                  <CrossRefsPanel projectId={projectId} recordId={record.id} refs={refs} />
+                </ContextSection>
+              }
+              overviewExtra={
+                <>
+                  <WorldPins
+                    projectId={projectId}
+                    recordId={record.id}
+                    draftScopeId={props.draftScopeId}
+                    initialPins={props.initialPins}
+                    canPinCurrent={linkable}
+                  />
+                  {props.parent && !linkable ? (
+                    <ContextSection title={WORLD.noteOn}>
+                      <p className="small">
+                        <Link href={`${base}/records/${encodeURIComponent(props.parent.id)}`}>{props.parent.title}</Link>
+                      </p>
+                      <p className="small muted">{WORLD.notLinkable}</p>
+                    </ContextSection>
+                  ) : null}
+                  <ContextSection title={WORLD.recentChanges} count={revisions.length}>
             <ol className="context-links recent-changes">
               {revisions.slice(0, RECENT).map((r) => (
                 <li key={r.id}>
@@ -556,6 +548,10 @@ export function ReferenceView(props: ReferenceViewProps) {
               <p className="small muted">{WORLD.noImportedFiles}</p>
             )}
           </ContextSection>
+                </>
+              }
+            />
+          ) : null}
         </WorldContextAside>
       </div>
       </WorldContextProvider>

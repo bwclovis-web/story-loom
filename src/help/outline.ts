@@ -85,6 +85,7 @@ export const HELP_SECTIONS = [
       { id: "world-nav", title: "Finding references" },
       { id: "reference-page", title: "Reading a reference" },
       { id: "reference-context", title: "Context beside a reference" },
+      { id: "reference-outlines", title: "Original outlines" },
       { id: "images", title: "Images in references" },
     ],
   },

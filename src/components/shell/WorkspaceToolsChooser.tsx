@@ -1,5 +1,5 @@
-import { ButtonLink } from "@/components/ui/ButtonLink";
 import { WORKSPACE_TOOLS } from "@/ui/labels";
+import { ButtonLink } from "@/components/ui/Button";
 
 /** Concise chooser so authors can tell map / board / plot grid apart without Help. */
 export function WorkspaceToolsChooser({

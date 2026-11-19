@@ -11,6 +11,7 @@ import { listLinkedReferences, listLinkingRecords } from "@/server/services/link
 import { listRecordImages } from "@/server/services/imageService";
 import { listEstablishedFactsForSubject } from "@/server/services/establishedFactService";
 import { listPlaceRelationsForRecord } from "@/server/services/placeRelationService";
+import { listRecordPlacements } from "@/server/services/referencePlacementService";
 import { listReadingPins, resolvePinScope } from "@/server/services/readingPinService";
 import { listImportedFilesForRecord } from "@/server/services/markdownImportService";
 import { PROOFREAD_SCHEMA_CHARS } from "@/server/services/proofreadService";
@@ -173,7 +174,7 @@ export default async function RecordPage({
     projectId,
     drafts.find((d) => d.kind === "author_manuscript")?.id ?? drafts[0]?.id ?? null,
   );
-  const [linking, reviewItems, proposals, importedFiles, images, supersededBy, worldPins, placeRelations, referenceChoices, establishedFacts] =
+  const [linking, reviewItems, proposals, importedFiles, images, supersededBy, worldPins, placeRelations, referenceChoices, establishedFacts, placements] =
     await Promise.all([
       listLinkingRecords(db, projectId, record.id),
       listOpenReviewItemsForRecord(db, projectId, record.id),
@@ -187,6 +188,7 @@ export default async function RecordPage({
       listPlaceRelationsForRecord(db, projectId, record.id).catch(() => ({ outgoing: [], incoming: [] })),
       listReferenceChoices(db, projectId),
       listEstablishedFactsForSubject(db, projectId, record.id).catch(() => [] as Awaited<ReturnType<typeof listEstablishedFactsForSubject>>),
+      listRecordPlacements(db, projectId, record.id).catch(() => []),
     ]);
   const chapterIds = [...new Set(linking.flatMap((l) => (l.parentRecordId ? [l.parentRecordId] : [])))];
   const chapters = chapterIds.length
@@ -262,6 +264,7 @@ export default async function RecordPage({
       establishedFacts={establishedFacts}
       evidenceSources={evidenceSources}
       manuscriptDrafts={drafts.map((d) => ({ id: d.id, label: d.label, kind: d.kind }))}
+      placements={placements}
       manuscriptScenes={manuscriptScenes.flatMap((s) => {
         if (!isRecordType(s.type) || !isManuscriptType(s.type)) return [];
         return [
