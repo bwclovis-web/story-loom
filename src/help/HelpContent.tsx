@@ -1244,6 +1244,16 @@ export function HelpContent() {
               <kbd>End</kbd> for the narrowest and widest.
             </li>
             <li>
+              <L>{WRITE.splitView}</L> turns on a second chapter or scene beside the one you are editing. Pick which
+              document in the split pane. The split pane is{" "}
+              <L>{WRITE.splitReadOnly}</L>; choose <L>{WRITE.splitEditHere}</L> to open that document in the editor. If
+              you have unsaved changes, the usual leave warning appears first.
+            </li>
+            <li>
+              In <L>{WRITE.modeFocus}</L>, <L>{WRITE.typewriterScroll}</L> keeps the insertion point partway down the
+              screen while you type. That choice is remembered in the same layout cookie.
+            </li>
+            <li>
               This browser remembers the widths, the layout, and the open tab, in a small cookie. No text is stored in
               it.
             </li>

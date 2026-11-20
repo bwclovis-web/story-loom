@@ -21,6 +21,7 @@ import {
   listNotes,
   listRecordsInside,
   listReferenceChoices,
+  listManuscriptNav,
   listRevisions,
   type RevisionWithSource,
 } from "@/server/services/recordService";
@@ -38,7 +39,7 @@ import { getSpellChecker, getSpellingLanguage } from "@/server/spelling";
 import { loadCrossRefIndex } from "@/server/services/crossRefService";
 import { listWeaveBeatsForManuscript } from "@/server/services/weaveService";
 import { RECORD, XREF } from "@/ui/labels";
-import { manuscriptIdsInBookOrder } from "@/ui/manuscriptTree";
+import { buildManuscriptTree, manuscriptIdsInBookOrder } from "@/ui/manuscriptTree";
 import { crossRefsFor, type RecordCrossRefs } from "@/writing/crossRefs";
 import { CrossRefsPanel } from "@/components/CrossRefsPanel";
 import { CompareSection, HistorySection, ProtectionSection, StatusSection, TrashSection, type InsideRecord } from "./RecordSections";
@@ -94,6 +95,20 @@ export default async function RecordPage({
 
   if (manuscript) {
     const pinScopeId = await resolvePinScope(db, projectId, recordDraftId);
+    const manuscriptNav = await listManuscriptNav(db, projectId, {
+      hasDrafts: drafts.length > 0,
+      draftId: pinScopeId === "" ? null : pinScopeId,
+    });
+    const manuscriptSplitOptions = (() => {
+      const tree = buildManuscriptTree(manuscriptNav);
+      const out: { id: string; title: string; kind: "chapter" | "scene" }[] = [];
+      for (const chapter of tree.chapters) {
+        out.push({ id: chapter.id, title: chapter.title, kind: "chapter" });
+        for (const scene of chapter.scenes) out.push({ id: scene.id, title: scene.title, kind: "scene" });
+      }
+      for (const scene of tree.unplaced) out.push({ id: scene.id, title: scene.title, kind: "scene" });
+      return out;
+    })();
     const [notes, linked, sceneLocations, choices, sources, attachableSources, pins, plotBeats] = await Promise.all([
       listNotes(db, projectId, record.id),
       listLinkedReferences(db, projectId, record.id),
@@ -162,6 +177,7 @@ export default async function RecordPage({
           gridId: b.gridId,
           gridTitle: b.gridTitle,
         }))}
+        manuscriptSplitOptions={manuscriptSplitOptions}
         details={
           <RecordDetails
             projectId={projectId}

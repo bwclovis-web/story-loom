@@ -13,6 +13,7 @@ export type StoredComposerState = {
   includeIds: string[];
   retrievalScope: "chapter" | "book" | "series";
   enableTools: boolean;
+  pendingAction?: "chat" | "proposal";
 };
 
 export function composerStateKey(projectId: string, conversationId: string): string {

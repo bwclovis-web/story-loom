@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { SectionTagBadge, StatusBadge } from "@/components/Badges";
 import type { DraftOption } from "@/components/drafts/DraftControls";
 import { ContextRail, ContextRailToggle, useContextRail } from "@/components/shell/ContextRail";
@@ -12,6 +12,12 @@ import { ASSISTANT_INSTRUCTIONS } from "@/assistant/prompt";
 import type { RetrievalScope } from "@/assistant/tools";
 import { takeWriteHandoff } from "@/assistant/writeHandoff";
 import { AssistantAnswer } from "@/components/assistant/AssistantAnswer";
+import {
+  clearComposerState,
+  loadComposerState,
+  saveComposerState,
+  type StoredComposerState,
+} from "@/components/assistant/assistantComposerState";
 import { loadAssistantDraft, saveAssistantDraft } from "@/components/assistant/assistantDraft";
 import { extraRetrievalSources, SourcePills } from "@/components/assistant/SourcePills";
 import { budgetRecentMessageIds } from "@/assistant/recentBudget";
@@ -26,7 +32,8 @@ import type {
   SelectableSection,
 } from "@/server/services/assistantService";
 import { ASSISTANT, DRAFT } from "@/ui/labels";
-import { loadManuscriptAction } from "./actions";
+import { loadManuscriptAction, newConversationForRailAction } from "./actions";
+import { useRegisterAssistantComposer } from "./AssistantComposerBridge";
 import { ConversationSummaryEditor, DeleteConversation } from "./ConversationControls";
 import { FindRelevantContext } from "./FindRelevantContext";
 import { ProposalCard } from "./ProposalCard";
@@ -87,7 +94,7 @@ export function AssistantPanel(props: {
   projectId: string;
   configured: boolean;
   maxInputChars: number;
-  conversation: ConversationView;
+  conversation: ConversationView | null;
   records: SelectableRecord[];
   proposals: Record<string, ProposalView>;
   /** Extra fixed characters a proposal request sends (its instructions and output format). */
@@ -108,13 +115,19 @@ export function AssistantPanel(props: {
     selectedRefs: string[];
     sectionPicks: Record<string, string[]>;
   } | null;
+  layout?: "home" | "workbench";
+  onOpenSettings?: () => void;
 }) {
-  const { projectId, conversation, records } = props;
+  const { projectId, records } = props;
+  const conversation = props.conversation;
+  const isHome = props.layout === "home" || !conversation;
+  const isWorkbench = props.layout === "workbench" && !!conversation;
   const router = useRouter();
   const references = records.filter((r) => r.contentClass === "reference");
   const chapters = records.filter((r) => r.contentClass === "manuscript");
   const byId = useMemo(() => new Map(records.map((r) => [r.id, r])), [records]);
-  const messageById = useMemo(() => new Map(conversation.messages.map((m) => [m.id, m])), [conversation.messages]);
+  const messages = conversation?.messages ?? [];
+  const messageById = useMemo(() => new Map(messages.map((m) => [m.id, m])), [messages]);
 
   const [selectedRefs, setSelectedRefs] = useState<string[]>([]);
   const [excludedIds, setExcludedIds] = useState<string[]>([]);
@@ -137,6 +150,8 @@ export function AssistantPanel(props: {
   const abortRef = useRef<AbortController | null>(null);
   const chapterBoxRef = useRef<HTMLTextAreaElement>(null);
   const transcriptRef = useRef<HTMLOListElement>(null);
+  const questionRef = useRef<HTMLTextAreaElement>(null);
+  const manuscriptFieldRef = useRef<HTMLFieldSetElement>(null);
   const contextId = useId();
   const contextTitleId = `${contextId}-heading`;
   const rail = useContextRail();
@@ -145,7 +160,7 @@ export function AssistantPanel(props: {
   const handoffConsumed = useRef(false);
 
   // Keep the newest message in view unless the author has scrolled up to read.
-  const messageCount = conversation.messages.length;
+  const messageCount = messages.length;
   const liveLength = live?.text.length ?? -1;
   const pinnedRef = useRef(true);
   useEffect(() => {
@@ -163,7 +178,7 @@ export function AssistantPanel(props: {
   }, []);
 
   const busy = live !== null;
-  const streamingStored = conversation.messages.some((m) => m.status === "streaming");
+  const streamingStored = messages.some((m) => m.status === "streaming");
 
   const [sectionPicks, setSectionPicks] = useState<Record<string, string[]>>({});
 
@@ -240,12 +255,13 @@ export function AssistantPanel(props: {
   }, [projectId]);
 
   useEffect(() => {
+    if (!conversation) return;
     saveAssistantDraft(projectId, {
       conversationId: conversation.id,
       question,
       scope: retrievalScope,
     });
-  }, [projectId, conversation.id, question, retrievalScope]);
+  }, [projectId, conversation, question, retrievalScope]);
 
   useEffect(() => {
     if (!props.boardSeed) return;
@@ -258,6 +274,7 @@ export function AssistantPanel(props: {
   }, [props.boardSeed?.boardId]);
 
   useEffect(() => {
+    if (!conversation) return;
     if (!props.settings.autoIncludeRecent) {
       setBudgetedIds([]);
       budgetAppliedRef.current = null;
@@ -269,7 +286,72 @@ export function AssistantPanel(props: {
     if (budgetAppliedRef.current === key) return;
     budgetAppliedRef.current = key;
     setIncludeIds((prev) => [...new Set([...prev, ...next])]);
-  }, [conversation.id, conversation.messages, props.settings.autoIncludeRecent, props.settings.recentContextBudgetChars]);
+  }, [conversation, props.settings.autoIncludeRecent, props.settings.recentContextBudgetChars]);
+
+  const snapshotComposerState = useCallback(
+    (pendingAction?: StoredComposerState["pendingAction"]): StoredComposerState => ({
+      question,
+      selectedRefs,
+      sectionPicks,
+      excludedIds,
+      chapterRecordId: chapter?.recordId ?? null,
+      passage,
+      mode,
+      includeIds,
+      retrievalScope,
+      enableTools,
+      pendingAction,
+    }),
+    [question, selectedRefs, sectionPicks, excludedIds, chapter, passage, mode, includeIds, retrievalScope, enableTools],
+  );
+
+  const applyComposerState = useCallback(
+    (stored: StoredComposerState) => {
+      if (stored.question) setQuestion((q) => q || stored.question);
+      setSelectedRefs(stored.selectedRefs);
+      setSectionPicks(stored.sectionPicks);
+      setExcludedIds(stored.excludedIds);
+      setPassage(stored.passage);
+      setMode(stored.mode);
+      setIncludeIds(stored.includeIds);
+      setRetrievalScope(stored.retrievalScope);
+      setEnableTools(stored.enableTools);
+      if (stored.chapterRecordId) void chooseChapter(stored.chapterRecordId);
+    },
+    // chooseChapter is stable enough for restore
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [projectId],
+  );
+
+  const pendingHomeSendRef = useRef<StoredComposerState | null>(null);
+
+  useEffect(() => {
+    if (!conversation) return;
+    const stored = loadComposerState(projectId, conversation.id);
+    if (!stored) return;
+    applyComposerState(stored);
+    clearComposerState(projectId, conversation.id);
+    if (stored.pendingAction && stored.question.trim()) pendingHomeSendRef.current = stored;
+    // Run once when the workbench conversation loads after home redirect.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversation?.id]);
+
+  const composerActions = useMemo(
+    () => ({
+      focusQuestion: () => questionRef.current?.focus(),
+      openContextForPassage: () => {
+        if (!rail.visible) rail.toggle();
+        manuscriptFieldRef.current?.scrollIntoView({ block: "nearest" });
+        manuscriptFieldRef.current?.focus({ preventScroll: true });
+      },
+      openContextForProposal: () => {
+        if (!rail.visible) rail.toggle();
+        questionRef.current?.focus();
+      },
+    }),
+    [rail],
+  );
+  useRegisterAssistantComposer(isHome ? composerActions : null);
 
   const takePassage = () => {
     const box = chapterBoxRef.current;
@@ -299,7 +381,7 @@ export function AssistantPanel(props: {
     }
     const earlier = includeIds.map((id) => messageById.get(id)).filter((m): m is MessageView => !!m);
     const earlierChars = earlier.reduce((n, m) => n + m.content.length, 0);
-    const summaryChars = conversation.summary.trim().length;
+    const summaryChars = (conversation?.summary ?? "").trim().length;
     if (summaryChars) items.push({ label: ASSISTANT.conversationSummary, chars: summaryChars });
     const total =
       ASSISTANT_INSTRUCTIONS.length +
@@ -308,7 +390,7 @@ export function AssistantPanel(props: {
       question.length +
       100;
     return { items, earlierCount: earlier.length, earlierChars, total };
-  }, [selectedRefs, sectionPicks, byId, chapter, mode, passage, includeIds, messageById, question, conversation.summary]);
+  }, [selectedRefs, sectionPicks, byId, chapter, mode, passage, includeIds, messageById, question, conversation?.summary]);
 
   const passageMissing = chapter !== null && mode === "passage" && !passage;
   const overLimit = summary.total > props.maxInputChars;
@@ -373,6 +455,117 @@ export function AssistantPanel(props: {
     router.refresh();
   }
 
+  const buildAskPayload = (turnMode: Live["mode"], conversationId: string) => {
+    const manuscript = chapter
+      ? {
+          recordId: chapter.recordId,
+          revision: chapter.revision,
+          ...(mode === "passage" && passage ? { passage } : {}),
+        }
+      : null;
+    return {
+      kind: "ask" as const,
+      mode: turnMode,
+      conversationId,
+      question,
+      retrievalScope,
+      enableTools: turnMode === "chat" ? enableTools : false,
+      write: writeHandoff
+        ? {
+            recordId: writeHandoff.recordId,
+            draftId: writeHandoff.draftId,
+            passage: mode === "passage" && passage ? passage : undefined,
+            includeUnsavedProse: writeHandoff.includeUnsavedProse,
+            unsavedBody: writeHandoff.unsavedBody,
+          }
+        : chapter
+          ? {
+              recordId: chapter.recordId,
+              draftId: props.draftScopeId ?? null,
+              passage: mode === "passage" && passage ? passage : undefined,
+              includeUnsavedProse: false,
+              unsavedBody: null,
+            }
+          : null,
+      selection: {
+        references: [
+          ...selectedRefs.flatMap((id) => {
+            const r = byId.get(id);
+            return r ? [{ recordId: id, revision: r.currentRevision }] : [];
+          }),
+          ...sectionRefs.map(({ record, chosen }) => ({
+            recordId: record.id,
+            revision: record.currentRevision,
+            sections: chosen.map((s) => s.id),
+          })),
+        ],
+        manuscript,
+        includeMessageIds: includeIds,
+        excludeRecordIds: excludedIds,
+      },
+    };
+  };
+
+  const buildAskPayloadFromStored = (stored: StoredComposerState, turnMode: Live["mode"], conversationId: string) => {
+    const sectionRefsFromStored = references.flatMap((r) => {
+      const picked = stored.sectionPicks[r.id] ?? [];
+      if (!picked.length) return [];
+      const parent = new Map(r.sections.map((s) => [s.id, s.parentId]));
+      const insidePicked = (id: string) => {
+        for (let p = parent.get(id); p; p = parent.get(p)) if (picked.includes(p)) return true;
+        return false;
+      };
+      const chosen = r.sections.filter((s) => picked.includes(s.id) && !insidePicked(s.id));
+      return chosen.length ? [{ record: r, chosen }] : [];
+    });
+    const refs = [
+      ...stored.selectedRefs.flatMap((id) => {
+        const r = byId.get(id);
+        return r ? [{ recordId: id, revision: r.currentRevision }] : [];
+      }),
+      ...sectionRefsFromStored.map(({ record, chosen }) => ({
+        recordId: record.id,
+        revision: record.currentRevision,
+        sections: chosen.map((s) => s.id),
+      })),
+    ];
+    const manuscript =
+      stored.chapterRecordId && chapter?.recordId === stored.chapterRecordId
+        ? {
+            recordId: chapter.recordId,
+            revision: chapter.revision,
+            ...(stored.mode === "passage" && stored.passage ? { passage: stored.passage } : {}),
+          }
+        : !stored.chapterRecordId
+          ? null
+          : null;
+    return {
+      kind: "ask" as const,
+      mode: turnMode,
+      conversationId,
+      question: stored.question,
+      retrievalScope: stored.retrievalScope,
+      enableTools: turnMode === "chat" ? stored.enableTools : false,
+      write: null,
+      selection: {
+        references: refs,
+        manuscript,
+        includeMessageIds: stored.includeIds,
+        excludeRecordIds: stored.excludedIds,
+      },
+    };
+  };
+
+  useEffect(() => {
+    const stored = pendingHomeSendRef.current;
+    if (!conversation || !stored?.pendingAction) return;
+    if (stored.chapterRecordId && (!chapter || chapter.recordId !== stored.chapterRecordId)) return;
+    const turnMode = stored.pendingAction;
+    pendingHomeSendRef.current = null;
+    void submit(buildAskPayloadFromStored(stored, turnMode, conversation.id), stored.question, turnMode);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversation, chapter, byId]);
+
   const send = (turnMode: Live["mode"]) => {
     if (!question.trim()) {
       setError({
@@ -381,61 +574,24 @@ export function AssistantPanel(props: {
       });
       return;
     }
-    const manuscript = chapter
-      ? {
-          recordId: chapter.recordId,
-          revision: chapter.revision,
-          ...(mode === "passage" && passage ? { passage } : {}),
+    if (isHome) {
+      void (async () => {
+        const created = await newConversationForRailAction(projectId);
+        if (!created.ok) {
+          setError({ code: "BUSY", message: created.message });
+          return;
         }
-      : null;
-    void submit(
-      {
-        kind: "ask",
-        mode: turnMode,
-        conversationId: conversation.id,
-        question,
-        retrievalScope,
-        enableTools: turnMode === "chat" ? enableTools : false,
-        write: writeHandoff
-          ? {
-              recordId: writeHandoff.recordId,
-              draftId: writeHandoff.draftId,
-              passage: mode === "passage" && passage ? passage : undefined,
-              includeUnsavedProse: writeHandoff.includeUnsavedProse,
-              unsavedBody: writeHandoff.unsavedBody,
-            }
-          : chapter
-            ? {
-                recordId: chapter.recordId,
-                draftId: props.draftScopeId ?? null,
-                passage: mode === "passage" && passage ? passage : undefined,
-                includeUnsavedProse: false,
-                unsavedBody: null,
-              }
-            : null,
-        selection: {
-          references: [
-            ...selectedRefs.flatMap((id) => {
-              const r = byId.get(id);
-              return r ? [{ recordId: id, revision: r.currentRevision }] : [];
-            }),
-            ...sectionRefs.map(({ record, chosen }) => ({
-              recordId: record.id,
-              revision: record.currentRevision,
-              sections: chosen.map((s) => s.id),
-            })),
-          ],
-          manuscript,
-          includeMessageIds: includeIds,
-          excludeRecordIds: excludedIds,
-        },
-      },
-      question,
-      turnMode,
-    );
+        saveComposerState(projectId, created.id, snapshotComposerState(turnMode));
+        router.push(`/projects/${projectId}/assistant?c=${encodeURIComponent(created.id)}`);
+      })();
+      return;
+    }
+    if (!conversation) return;
+    void submit(buildAskPayload(turnMode, conversation.id), question, turnMode);
   };
 
   const retry = (m: MessageView) => {
+    if (!conversation) return;
     const asked = m.replyToId ? messageById.get(m.replyToId)?.content ?? "" : "";
     void submit({ kind: "retry", conversationId: conversation.id, messageId: m.id }, asked, m.mode);
   };
@@ -462,7 +618,7 @@ export function AssistantPanel(props: {
     router.refresh();
   };
 
-  const includableIds = conversation.messages.filter(includable).map((m) => m.id);
+  const includableIds = messages.filter(includable).map((m) => m.id);
   const chosenCount = summary.items.length + summary.earlierCount;
   const draftLabel =
     props.drafts?.find((d) => d.id === props.draftScopeId)?.label ??
@@ -479,33 +635,33 @@ export function AssistantPanel(props: {
   }, [chapters]);
   const budgetUsed = budgetedIds.reduce((n, id) => n + (messageById.get(id)?.content.length ?? 0), 0);
 
-  return (
-    <div className={`assistant-main${rail.visible ? "" : " context-hidden"}`}>
-    <section className="panel assistant-chat" aria-label={conversation.title}>
-      <div className="row assistant-chat-head">
-        <h2 style={{ margin: 0 }}>{conversation.title}</h2>
-        <ContextRailToggle
-          rail={rail}
-          controls={contextId}
-          showLabel={ASSISTANT.showContext}
-          hideLabel={ASSISTANT.hideContext}
-        />
-        <DeleteConversation projectId={projectId} conversationId={conversation.id} />
-      </div>
-      <p className="small muted">
-        {ASSISTANT.draftScope}: {draftLabel}
-      </p>
-      <ConversationSummaryEditor
-        projectId={projectId}
-        conversationId={conversation.id}
-        initialSummary={conversation.summary}
-        disabled={busy}
-      />
-      <p className="small muted">{ASSISTANT.proposalsNote}</p>
+  const contextHeading = isWorkbench ? ASSISTANT.thisQuestionHeading : ASSISTANT.contextHeading;
 
-      <ol className="transcript" aria-label="Conversation" ref={transcriptRef}>
-        {conversation.messages.length === 0 && !live ? <li className="small muted">{ASSISTANT.emptyConversation}</li> : null}
-        {conversation.messages.map((m) => (
+  return (
+    <div
+      className={`assistant-main${isWorkbench ? " assistant-main-workbench" : " assistant-main-home"}${rail.visible ? "" : " context-hidden"}`}
+    >
+      <section
+        className="panel assistant-chat"
+        aria-label={conversation?.title ?? ASSISTANT.heading}
+      >
+        {isWorkbench && conversation ? (
+          <div className="row assistant-chat-head">
+            <ContextRailToggle
+              rail={rail}
+              controls={contextId}
+              showLabel={ASSISTANT.attachContext}
+              hideLabel={ASSISTANT.hideContext}
+            />
+            <DeleteConversation projectId={projectId} conversationId={conversation.id} />
+          </div>
+        ) : null}
+        {!isHome && <p className="small muted">{ASSISTANT.proposalsNote}</p>}
+
+        {!isHome ? (
+          <ol className="transcript" aria-label="Conversation" ref={transcriptRef}>
+            {messages.length === 0 && !live ? <li className="small muted">{ASSISTANT.emptyConversation}</li> : null}
+            {messages.map((m) => (
           <li key={m.id} className={`message ${m.role}`}>
             <div className="row small">
               <strong>{m.role === "user" ? "You" : "Assistant"}</strong>
@@ -585,7 +741,8 @@ export function AssistantPanel(props: {
             </li>
           </>
         ) : null}
-      </ol>
+          </ol>
+        ) : null}
 
       {error ? (
         <Banner tone="error" role="alert">
@@ -608,10 +765,13 @@ export function AssistantPanel(props: {
             <span>
               {chosenCount ? ASSISTANT.composerIncluded(chosenCount) : ASSISTANT.composerNothing} {ASSISTANT.composerSize(fmt(summary.total), fmt(props.maxInputChars))}
             </span>
+            <Button type="button" variant="secondary" onClick={() => rail.toggle()}>
+              {ASSISTANT.attachContext}
+            </Button>
             <ContextRailToggle
               rail={rail}
               controls={contextId}
-              showLabel={ASSISTANT.showContext}
+              showLabel={ASSISTANT.attachContext}
               hideLabel={ASSISTANT.hideContext}
             />
           </div>
@@ -622,10 +782,11 @@ export function AssistantPanel(props: {
           <label>
             <span className="sr-only">{ASSISTANT.question}</span>
             <textarea
+              ref={questionRef}
               value={question}
               onChange={(e) => setQuestion(e.target.value)}
               disabled={busy}
-              placeholder={ASSISTANT.questionPlaceholder}
+              placeholder={ASSISTANT.composerPlaceholder}
               style={{ minHeight: "5.5rem" }}
               spellCheck
             />
@@ -655,9 +816,12 @@ export function AssistantPanel(props: {
           <div className="stack">
             <div className="row assistant-context-head">
               <h3 id={contextTitleId} style={{ margin: 0 }}>
-                {ASSISTANT.contextHeading}
+                {contextHeading}
               </h3>
             </div>
+            <p className="small muted" style={{ margin: 0 }}>
+              {ASSISTANT.draftScope}: {draftLabel}
+            </p>
             <FindRelevantContext
               projectId={projectId}
               question={question}
@@ -703,7 +867,7 @@ export function AssistantPanel(props: {
               </ul>
             </fieldset>
 
-            <fieldset disabled={busy}>
+            <fieldset disabled={busy} ref={manuscriptFieldRef}>
               <legend>{ASSISTANT.manuscript}</legend>
               <label>
                 Chapter
@@ -793,6 +957,24 @@ export function AssistantPanel(props: {
                 </Button>
               </div>
             </fieldset>
+
+            {isWorkbench && conversation ? (
+              <details className="assistant-summary-details">
+                <summary>{ASSISTANT.conversationSummary}</summary>
+                <ConversationSummaryEditor
+                  projectId={projectId}
+                  conversationId={conversation.id}
+                  initialSummary={conversation.summary}
+                  disabled={busy}
+                />
+              </details>
+            ) : null}
+
+            {props.onOpenSettings ? (
+              <button type="button" className="linkish assistant-settings-link" onClick={props.onOpenSettings}>
+                {ASSISTANT.modelUsageSettings}
+              </button>
+            ) : null}
 
             <div className="writing-tools small" aria-live="polite">
               <strong>{ASSISTANT.summaryHeading}</strong>

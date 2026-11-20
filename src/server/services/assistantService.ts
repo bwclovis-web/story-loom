@@ -273,6 +273,8 @@ export async function listConversations(db: Db, projectId: string) {
   return rows.map((r) => ({ id: r.id, title: r.title, updatedAt: r.updatedAt.toISOString(), messageCount: r._count.messages }));
 }
 
+export type ConversationListItem = Awaited<ReturnType<typeof listConversations>>[number];
+
 export async function deleteConversation(db: Db, projectId: string, conversationId: string): Promise<void> {
   await loadConversation(db, projectId, conversationId);
   const running = await db.assistantMessage.count({ where: { conversationId, status: "streaming" } });

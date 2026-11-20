@@ -136,6 +136,10 @@ export function AppShell({
         data-write={writeScreen ? "on" : undefined}
         data-write-mode={writeScreen ? writeMode : undefined}
         data-focus={writeScreen && writeMode === "focus" ? "on" : undefined}
+        data-write-split={
+          writeScreen && layout.writeSplitRecordId && writeMode !== "companion" ? "on" : undefined
+        }
+        data-typewriter={writeScreen && writeMode === "focus" && layout.typewriterScroll ? "on" : undefined}
         data-secondary={layout.secondaryHidden ? "hidden" : undefined}
         style={style}
       >

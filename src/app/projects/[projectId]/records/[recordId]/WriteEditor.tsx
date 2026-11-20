@@ -23,6 +23,7 @@ import { type DraftOption } from "@/components/drafts/DraftControls";
 import { StoryLoomMark } from "@/components/library/StoryLoomMark";
 import { ContextRail, useContextRail } from "@/components/shell/ContextRail";
 import { Banner } from "@/components/ui/Banner";
+import { LabeledSwitch } from "@/components/ui/LabeledSwitch";
 import { IconAnchor, IconButton } from "@/components/ui/IconButton";
 import { HistoryIcon, MoreIcon } from "@/components/shell/icons";
 import { useLayout } from "@/components/shell/LayoutContext";
@@ -42,6 +43,8 @@ import { normalizeNewlines } from "@/proofread/anchors";
 import type { DictionaryWord } from "@/spelling/dictionary";
 import { WriteModeSwitch } from "@/components/writing/WriteModeSwitch";
 import { WriteProtectionRow } from "@/components/writing/WriteProtectionRow";
+import { WriteSplitPane, type ManuscriptSplitOption } from "@/components/writing/WriteSplitPane";
+import { useTypewriterScroll } from "@/components/writing/useTypewriterScroll";
 import { WriteStatusBar } from "@/components/writing/WriteStatusBar";
 import { ASSISTANT, NAV, RECORD, SHELL, tidySummary, WRITE, WRITING } from "@/ui/labels";
 import type { WriteMode } from "@/writing/writeMode";
@@ -92,6 +95,7 @@ export function WriteEditor(props: {
   drafts?: DraftOption[];
   initialPins: import("@/server/services/readingPinService").ReadingPinView[];
   plotBeats: PlotBeatItem[];
+  manuscriptSplitOptions: ManuscriptSplitOption[];
   /** Status, protection, history and compare, rendered by the server below the text. */
   details: ReactNode;
 }) {
@@ -100,7 +104,7 @@ export function WriteEditor(props: {
   const contextId = `${idPrefix}-context`;
   const findId = `${idPrefix}-find`;
   const spellId = `${idPrefix}-spell`;
-  const { writeMode, setWriteMode, setWriteScreen, openMainMenu } = useLayout();
+  const { layout, updateLayout, writeMode, setWriteMode, setWriteScreen, openMainMenu } = useLayout();
   const chromeRef = useRef<HTMLElement>(null);
   const topbarRef = useRef<HTMLDivElement>(null);
   const insetRef = useRef<HTMLDivElement>(null);
@@ -152,6 +156,31 @@ export function WriteEditor(props: {
   const statusTone = pending ? "busy" : !state.ok ? "error" : dirty ? "dirty" : "saved";
 
   const unsavedKey = `editor-${props.recordId}`;
+  const splitPeers = props.manuscriptSplitOptions.filter((o) => o.id !== props.recordId);
+  const splitRecordId = layout.writeSplitRecordId;
+  const splitOpen =
+    writeMode !== "companion" &&
+    splitRecordId !== null &&
+    splitRecordId !== props.recordId &&
+    splitPeers.some((o) => o.id === splitRecordId);
+  const setSplitOpen = (on: boolean) => {
+    if (!on) {
+      updateLayout({ writeSplitRecordId: null });
+      return;
+    }
+    const remembered =
+      splitRecordId && splitRecordId !== props.recordId && splitPeers.some((o) => o.id === splitRecordId)
+        ? splitRecordId
+        : null;
+    const next = remembered ?? splitPeers[0]?.id ?? null;
+    if (next) updateLayout({ writeSplitRecordId: next });
+  };
+  useEffect(() => {
+    if (!splitRecordId) return;
+    const valid = props.manuscriptSplitOptions.some((o) => o.id === splitRecordId && o.id !== props.recordId);
+    if (!valid) updateLayout({ writeSplitRecordId: null });
+  }, [splitRecordId, props.recordId, props.manuscriptSplitOptions, updateLayout]);
+  useTypewriterScroll(bodyRef, writeMode === "focus" && layout.typewriterScroll);
   useEffect(() => {
     setUnsaved(unsavedKey, dirty);
     return () => setUnsaved(unsavedKey, false);
@@ -490,7 +519,12 @@ export function WriteEditor(props: {
                   />
                 </h1>
               </div>
-              <WriteModeSwitch mode={writeMode} onChange={selectMode} />
+              <div className="write-title-tools">
+                {splitPeers.length > 0 ? (
+                  <LabeledSwitch label={WRITE.splitView} checked={splitOpen} onCheckedChange={setSplitOpen} />
+                ) : null}
+                <WriteModeSwitch mode={writeMode} onChange={selectMode} />
+              </div>
             </div>
             <WriteProtectionRow
               drafts={props.drafts ?? []}
@@ -556,6 +590,7 @@ export function WriteEditor(props: {
             </div>
           </header>
 
+          <div className={`write-panes${splitOpen ? " is-split" : ""}`}>
           <div className={`write-column${writeMode === "desk" ? " has-tools" : ""}`}>
             {writeMode === "desk" ? (
               <div className="write-tools-launch">
@@ -609,6 +644,16 @@ export function WriteEditor(props: {
               />
             </details>
           </div>
+          {splitOpen && splitRecordId ? (
+            <WriteSplitPane
+              projectId={props.projectId}
+              recordId={props.recordId}
+              splitRecordId={splitRecordId}
+              options={props.manuscriptSplitOptions}
+              onSelectSplit={(id) => updateLayout({ writeSplitRecordId: id })}
+            />
+          ) : null}
+          </div>
 
           {writeMode === "focus" ? (
             <div className="exit-focus-bar">
@@ -622,6 +667,12 @@ export function WriteEditor(props: {
               >
                 {WRITE.exitFocus}
               </Button>
+              <LabeledSwitch
+                label={WRITE.typewriterScroll}
+                hint={WRITE.typewriterScrollHint}
+                checked={layout.typewriterScroll}
+                onCheckedChange={(on) => updateLayout({ typewriterScroll: on })}
+              />
             </div>
           ) : null}
           <WriteStatusBar

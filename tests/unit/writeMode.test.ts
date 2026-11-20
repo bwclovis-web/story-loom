@@ -19,6 +19,16 @@ describe("parseLayoutPreference writeMode", () => {
     expect(parseLayoutPreference(JSON.stringify({ secondaryHidden: true })).writeMode).toBe(DEFAULT_LAYOUT.writeMode);
     expect(parseLayoutPreference(undefined).writeMode).toBe("desk");
   });
+
+  it("reads split and typewriter fields", () => {
+    const parsed = parseLayoutPreference(
+      JSON.stringify({ writeSplitRecordId: "rec-1", typewriterScroll: true }),
+    );
+    expect(parsed.writeSplitRecordId).toBe("rec-1");
+    expect(parsed.typewriterScroll).toBe(true);
+    expect(parseLayoutPreference(JSON.stringify({ writeSplitRecordId: "  " })).writeSplitRecordId).toBeNull();
+    expect(parseLayoutPreference(undefined).typewriterScroll).toBe(false);
+  });
 });
 
 describe("spellingFooterKind", () => {

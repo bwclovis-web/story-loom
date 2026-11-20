@@ -95,6 +95,10 @@ export interface LayoutPreference {
   contextTab: ContextTab;
   /** Manuscript page layout. Other pages ignore it. */
   writeMode: WriteMode;
+  /** Second chapter or scene beside the open one on Write (id only; no text in the cookie). */
+  writeSplitRecordId: string | null;
+  /** Keeps the cursor partway down the screen in focus layout. */
+  typewriterScroll: boolean;
 }
 
 export const DEFAULT_LAYOUT: LayoutPreference = {
@@ -104,6 +108,8 @@ export const DEFAULT_LAYOUT: LayoutPreference = {
   contextHidden: false,
   contextTab: "references",
   writeMode: "desk",
+  writeSplitRecordId: null,
+  typewriterScroll: false,
 };
 
 export function clampWidth(value: number, limits: { min: number; max: number }): number {
@@ -121,6 +127,8 @@ export function parseLayoutPreference(value: string | undefined): LayoutPreferen
   if (!raw || typeof raw !== "object") return DEFAULT_LAYOUT;
   const width = (v: unknown, limits: typeof SECONDARY_WIDTH | typeof CONTEXT_WIDTH) =>
     typeof v === "number" && Number.isFinite(v) ? clampWidth(v, limits) : limits.initial;
+  const splitId =
+    typeof raw.writeSplitRecordId === "string" && raw.writeSplitRecordId.trim() ? raw.writeSplitRecordId.trim() : null;
   return {
     secondaryWidth: width(raw.secondaryWidth, SECONDARY_WIDTH),
     contextWidth: width(raw.contextWidth, CONTEXT_WIDTH),
@@ -128,5 +136,7 @@ export function parseLayoutPreference(value: string | undefined): LayoutPreferen
     contextHidden: raw.contextHidden === true,
     contextTab: (CONTEXT_TABS as readonly unknown[]).includes(raw.contextTab) ? (raw.contextTab as ContextTab) : "references",
     writeMode: parseWriteMode(raw.writeMode),
+    writeSplitRecordId: splitId,
+    typewriterScroll: raw.typewriterScroll === true,
   };
 }
