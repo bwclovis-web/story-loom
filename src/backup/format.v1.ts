@@ -14,7 +14,7 @@ const fields = z.record(z.string(), z.json());
 /*
  * A complete, self-describing copy of one workspace: every project, record,
  * revision, provenance source, applied change package, audit entry, review
- * item, imported file, dictionary entry, reference link and image. JSON payload columns are kept as
+ * item, imported file, dictionary entry, reference link, image and project cover. JSON payload columns are kept as
  * the exact strings stored in the database.
  */
 export const workspaceBackupV1Schema = z
@@ -747,6 +747,57 @@ export const workspaceBackupV1Schema = z
           .strict(),
       )
       .optional(),
+    /** One cover picture per project. Omitted when no project has a stored cover. */
+    projectCovers: z
+      .array(
+        z
+          .object({
+            id,
+            projectId: id,
+            originalFilename: z.string().max(255),
+            mimeType: z.enum(IMAGE_MIME_TYPES),
+            byteSize: z.number().int().min(1).max(MAX_IMAGE_BYTES),
+            width: z.number().int().min(1),
+            height: z.number().int().min(1),
+            contentHash: z.string().regex(/^[0-9a-f]{64}$/),
+            /** The image file, base64-encoded. */
+            dataBase64: z.base64(),
+            createdAt: timestamp,
+            updatedAt: timestamp,
+          })
+          .strict(),
+      )
+      .optional(),
+    /** One Zero-draft chapter analysis. Omitted when the project has none. Proposal JSON is remapped on restore. */
+    chapterAnalyses: z
+      .array(
+        z
+          .object({
+            id,
+            projectId: id,
+            chapterRecordId: id,
+            draftId: id,
+            pinnedRevision: z.number().int().min(1),
+            status: z.enum(["preparing", "proposed", "applying", "applied", "failed", "cancelled"]),
+            errorCode: z.string().max(80).nullable().optional(),
+            errorMessage: z.string().max(4000).nullable().optional(),
+            sourceHash: z.string().max(64),
+            contentHash: z.string().max(64),
+            sentMaterialJson: z.string().max(600_000).optional(),
+            proposalJson: z.string().max(500_000),
+            decisionsJson: z.string().max(200_000),
+            appliedKeysJson: z.string().max(50_000),
+            requestChars: z.number().int().min(0),
+            model: z.string().max(120).nullable().optional(),
+            inputTokens: z.number().int().nullable().optional(),
+            outputTokens: z.number().int().nullable().optional(),
+            totalTokens: z.number().int().nullable().optional(),
+            usageEstimated: z.boolean().optional(),
+            createdAt: timestamp,
+          })
+          .strict(),
+      )
+      .optional(),
     counts: z
       .object({
         projects: z.number().int(),
@@ -760,6 +811,7 @@ export const workspaceBackupV1Schema = z
         dictionaryEntries: z.number().int().optional(),
         recordLinks: z.number().int().optional(),
         recordImages: z.number().int().optional(),
+        projectCovers: z.number().int().optional(),
         manuscriptGroups: z.number().int().optional(),
         manuscriptDrafts: z.number().int().optional(),
         rewriteSourceLinks: z.number().int().optional(),
@@ -775,6 +827,7 @@ export const workspaceBackupV1Schema = z
         storyEventScenes: z.number().int().optional(),
         storyEventOrders: z.number().int().optional(),
         storyEventEvidence: z.number().int().optional(),
+        chapterAnalyses: z.number().int().optional(),
         weaveGrids: z.number().int().optional(),
         weaveThreads: z.number().int().optional(),
         weaveBeats: z.number().int().optional(),

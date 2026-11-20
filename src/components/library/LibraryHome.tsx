@@ -3,7 +3,7 @@ import { BookCover } from "@/components/library/BookCover";
 import { NewManuscriptButton, NewWorkspaceButton } from "@/components/library/LibraryDialogs";
 import { ManuscriptActions, WorkspaceActions } from "@/components/library/LibraryMenus";
 import { helpHref } from "@/help/outline";
-import { trashWorkspaceAction } from "@/app/(site)/actions";
+import { clearCoverAction, setCoverAction, trashWorkspaceAction } from "@/app/(site)/actions";
 import { trashProjectAction } from "@/app/projects/[projectId]/actions";
 import { HOME, SHELL, TRASH } from "@/ui/labels";
 import { isExampleWorkspace, manuscriptEyebrow, pickFeaturedProject } from "@/ui/library";
@@ -16,6 +16,8 @@ export interface LibraryProject {
   /** Null when the count could not be read. Zero is a real count. */
   chapterCount: number | null;
   manuscriptWords: number | null;
+  /** sha256 of a stored cover. Null uses the drawn cover. */
+  coverHash: string | null;
 }
 
 export interface LibraryWorkspace {
@@ -79,10 +81,10 @@ export function LibraryHome({
           <hr className="library-rule" />
           <details className="library-examples" open>
             <summary>
-              <h2>{HOME.examples}</h2>
+              <span className="library-examples-title">{HOME.examples}</span>
             </summary>
             {examples.map((workspace) => (
-              <WorkspaceBlock key={workspace.id} workspace={workspace} />
+              <WorkspaceBlock key={workspace.id} workspace={workspace} example />
             ))}
           </details>
         </>
@@ -120,7 +122,7 @@ function FeaturedManuscript({
 }) {
   return (
     <section className="library-feature" aria-labelledby="featured-manuscript">
-      <BookCover projectId={project.id} title={project.title} eyebrow={eyebrow} size="featured" />
+      <BookCover projectId={project.id} title={project.title} eyebrow={eyebrow} size="featured" coverSrc={coverSrc(project)} />
       <div className="library-feature-copy">
         {eyebrow ? <p className="library-kicker">{eyebrow}</p> : null}
         <h2 id="featured-manuscript">{project.title}</h2>
@@ -134,7 +136,7 @@ function FeaturedManuscript({
   );
 }
 
-function WorkspaceBlock({ workspace }: { workspace: LibraryWorkspace }) {
+function WorkspaceBlock({ workspace, example = false }: { workspace: LibraryWorkspace; example?: boolean }) {
   return (
     <section className="library-workspace" aria-labelledby={`workspace-${workspace.id}`}>
       <div className="library-workspace-head">
@@ -149,7 +151,7 @@ function WorkspaceBlock({ workspace }: { workspace: LibraryWorkspace }) {
       <ul className="manuscript-list">
         {workspace.projects.map((project) => (
           <li key={project.id}>
-            <ManuscriptEntry project={project} workspaceName={workspace.name} />
+            <ManuscriptEntry project={project} workspaceName={workspace.name} example={example} />
           </li>
         ))}
       </ul>
@@ -158,20 +160,38 @@ function WorkspaceBlock({ workspace }: { workspace: LibraryWorkspace }) {
   );
 }
 
-function ManuscriptEntry({ project, workspaceName }: { project: LibraryProject; workspaceName: string }) {
+function ManuscriptEntry({
+  project,
+  workspaceName,
+  example = false,
+}: {
+  project: LibraryProject;
+  workspaceName: string;
+  example?: boolean;
+}) {
   const eyebrow = manuscriptEyebrow(project.seriesName, workspaceName);
   return (
     <div className="manuscript-row">
-      <BookCover projectId={project.id} title={project.title} eyebrow={eyebrow} size="mini" />
+      <BookCover projectId={project.id} title={project.title} eyebrow={eyebrow} size="mini" coverSrc={coverSrc(project)} />
       <div className="manuscript-copy">
         <p className="manuscript-title">{project.title}</p>
-        <ManuscriptMeta chapterCount={project.chapterCount} manuscriptWords={project.manuscriptWords} />
+        {example ? (
+          <p className="manuscript-meta">{HOME.exampleManuscript}</p>
+        ) : (
+          <ManuscriptMeta chapterCount={project.chapterCount} manuscriptWords={project.manuscriptWords} />
+        )}
       </div>
       <Link className="library-open" href={manuscriptHref(project.id)}>
         {HOME.open}
         <span className="sr-only"> {project.title}</span>
       </Link>
-      <ManuscriptActions title={project.title} action={trashProjectAction.bind(null, project.id)} />
+      <ManuscriptActions
+        title={project.title}
+        action={trashProjectAction.bind(null, project.id)}
+        hasCover={project.coverHash !== null}
+        setCover={setCoverAction.bind(null, project.id)}
+        clearCover={clearCoverAction.bind(null, project.id)}
+      />
     </div>
   );
 }
@@ -192,4 +212,9 @@ function ManuscriptMeta({
 
 function manuscriptHref(projectId: string): string {
   return `/projects/${encodeURIComponent(projectId)}/write`;
+}
+
+function coverSrc(project: LibraryProject): string | null {
+  if (!project.coverHash) return null;
+  return `/projects/${encodeURIComponent(project.id)}/cover?v=${project.coverHash}`;
 }

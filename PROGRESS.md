@@ -1,5 +1,25 @@
 # Progress
 
+## Write landing outline (Nov 20, 2026)
+
+The Write page (`/projects/:id/write`) is one manuscript outline. The second manuscript column and the large guided-task banner stay off that route only; chapter and scene pages keep the manuscript panel, and other project pages keep the project panel and the banner.
+
+The outline uses the same cover as the library, the series or workspace name, and the manuscript title. Chapters and Scenes are tabs. Typing filters titles; Enter searches saved text for the selected draft, with match case. Chapter and scene titles open the editor. A separate chevron shows or hides a chapter’s scenes and does not navigate. Book order, rewrite actions, and the project tools that used to live in the side column are under More actions. Getting started sits under the outline and still uses the existing guided-task cookie.
+
+## Analyze chapter (Nov 19, 2026)
+
+Plan → Analyze chapter counts live chapters and scenes by Zero draft, Author manuscript, and legacy (no draft). The author picks one Zero-draft chapter and pins a revision. That revision must be current before the request is sent. Author-manuscript and legacy chapters are refused.
+
+The model proposes character presence, locations, events, reader revelations, character learning, plot beats, reference evidence, and chronology. Every suggestion quotes the pinned revision; the server locates that quote and will not apply a suggestion whose quote is missing. Uncertain readings stay marked. Chronology is kept only when the model says the order is explicit and the quote itself uses before, after, earlier, or later. Order uses the existing earlier/later constraints. A cycle rolls the whole apply back.
+
+Review is one screen, grouped by passage, with reuse, edit, create, or skip. Ambiguous names require a chosen record. An accepted fact with no pinned passage can gain an evidence link; its statement is not rewritten. New facts stay pending. New characters and places stay draft. Presence is not knowledge. A revealing scene is not the event occurring and does not mean every character knows it. Apply rechecks the pin, writes the selection in one transaction, and a repeat apply does not create a second copy. The chapter text, its current revision, and book order are unchanged. Cancelled and reloaded runs stay reviewable. Runs are in workspace backups; proposal and decision ids are remapped on a copy restore.
+
+The request uses the existing assistant provider (`store: false`, no automatic retry) and the same hourly and monthly limits as discussion and proofreading. Nothing is sent when the chapter exceeds the size limit or the usage cap.
+
+Checks: `tsc --noEmit` passed. Vitest `chapter-analysis`, `backup-restore`, and `help`: 3 files, 16 tests passed (invalid quotes, stale pins, partial selection, duplicate retry, ambiguous names, draft scope, chronology, backup preserve and remap). Browser check on an isolated invented project at `127.0.0.1:2118` (stopped afterward): counts showed 1/0, 1/0, and 0/0; the review grouped two suggestions under one passage; applying reuse plus create and skipping the event wrote one pending appearance fact and one draft place, left the chapter at revision 1, and a second apply reported that nothing new was written. No live model call was made. The working database was not analyzed or applied to. `pnpm db:deploy` found the migration already recorded and took `backups/2026-11-19T20-58-35-330Z-pre-migrate` first. Rollback of the schema is that backup; it does not contain this feature's table.
+
+One-chapter live trial, only if the author asks: open Plan → Analyze chapter on a private copy, choose one Zero-draft chapter, pin its current revision, and read the request before sending. The user message is the project title, draft label, chapter id, title, and revision; catalogs of character titles, place titles, accepted fact statements with pinned-passage counts, event titles with time text, and beats already linked to that chapter; then the full pinned chapter text. Other chapters' prose is not included. The review page shows that message and the character count. Defaults, unless the environment overrides them: 600,000 characters, 2,000 output tokens, 30 requests an hour, and 3,000,000 tokens in a UTC month, shared with discussion and proofreading. Do not apply into the working manuscript until the suggestions have been read.
+
 ## Milestone 1 (baseline commit `daea4e2`)
 
 Revisioned record store, change-package importer (validate, preview, atomic
@@ -2681,3 +2701,14 @@ Working database backed up to `backups/2026-11-19T20-16-19-286Z-pre-author-trial
 
 ### Rollback
 Revert the plot-grid placement, fact-tool flag, and knowledge-check list. The private database and its backups are outside the working database. Do not reset `prisma/dev.db`.
+
+## Manuscript cover images (Nov 19, 2026)
+
+A manuscript can store one cover picture (PNG, JPEG, GIF, or WebP, up to 10 MB). On the home page, the manuscript actions menu has Change cover. Use the drawn cover removes that picture. The drawing is still chosen from the project id when no picture is stored. Setting or clearing a cover is audited and does not change manuscript text or revisions. The picture travels in a workspace backup as `projectCovers` when one exists; older backups omit it and restore with the drawn cover. Permanent delete of a project removes its cover. Moving it to the Trash keeps the picture and hides it with the project.
+
+### Rollback
+Revert the cover service, home-page dialog, `ProjectCover` migration, and the backup field. Do not reset `prisma/dev.db`. A database that already has the table can keep it; the app ignores a cover it does not know how to show only after the code is reverted and the column is left in place. Restoring a backup from before a cover was set brings back the drawn cover.
+
+## Home page match (Nov 19, 2026)
+
+On Your writing, Write is marked in the left column. Example manuscripts show “Example manuscript” under the title. The Examples disclosure no longer puts a heading inside the summary, which was the hydration mismatch. Own manuscripts still show chapter and word counts.

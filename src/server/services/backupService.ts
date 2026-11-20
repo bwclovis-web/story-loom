@@ -58,6 +58,10 @@ function recordImagesOf(b: WorkspaceBackupV1) {
   return b.recordImages ?? [];
 }
 
+function projectCoversOf(b: WorkspaceBackupV1) {
+  return b.projectCovers ?? [];
+}
+
 function manuscriptGroupsOf(b: WorkspaceBackupV1) {
   return b.manuscriptGroups ?? [];
 }
@@ -141,6 +145,9 @@ function storyEventOrdersOf(b: WorkspaceBackupV1) {
 function storyEventEvidenceOf(b: WorkspaceBackupV1) {
   return b.storyEventEvidence ?? [];
 }
+function chapterAnalysesOf(b: WorkspaceBackupV1) {
+  return b.chapterAnalyses ?? [];
+}
 
 function establishedFactsOf(b: WorkspaceBackupV1) {
   return b.establishedFacts ?? [];
@@ -200,6 +207,15 @@ async function recordLinkRows(db: DbOrTx, projectIds: string[]) {
 async function recordImageRows(db: DbOrTx, projectIds: string[]) {
   try {
     return await db.recordImage.findMany({ where: { projectId: { in: projectIds } }, orderBy: { id: "asc" } });
+  } catch (error) {
+    if (isMissingSchemaError(error, "P2021")) return [];
+    throw error;
+  }
+}
+
+async function projectCoverRows(db: DbOrTx, projectIds: string[]) {
+  try {
+    return await db.projectCover.findMany({ where: { projectId: { in: projectIds } }, orderBy: { id: "asc" } });
   } catch (error) {
     if (isMissingSchemaError(error, "P2021")) return [];
     throw error;
@@ -560,6 +576,11 @@ async function storyEventEvidenceRows(db: DbOrTx, projectIds: string[]) {
     db.storyEventEvidence.findMany({ where: { projectId: { in: projectIds } }, orderBy: [{ projectId: "asc" }, { id: "asc" }] }),
   );
 }
+async function chapterAnalysisRows(db: DbOrTx, projectIds: string[]) {
+  return storyRows(db, "chapterAnalysisRun", () =>
+    db.chapterAnalysisRun.findMany({ where: { projectId: { in: projectIds } }, orderBy: [{ projectId: "asc" }, { id: "asc" }] }),
+  );
+}
 
 async function establishedFactRows(db: DbOrTx, projectIds: string[]) {
   if (!("establishedFact" in db) || !(db as { establishedFact?: { findMany: unknown } }).establishedFact) return [];
@@ -766,6 +787,7 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
     dictionaryEntries,
     recordLinks,
     recordImages,
+    projectCovers,
     manuscriptGroups,
     manuscriptDrafts,
     rewriteSourceLinks,
@@ -792,6 +814,7 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
     assistantConversations,
     assistantProposals,
     projectAssistantSettings,
+    chapterAnalyses,
   ] = await Promise.all([
     recordRows(db, projectIds),
     db.source.findMany({ where: inProjects, orderBy: { id: "asc" } }),
@@ -802,6 +825,7 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
     dictionaryRows(db, workspaceId),
     recordLinkRows(db, projectIds),
     recordImageRows(db, projectIds),
+    projectCoverRows(db, projectIds),
     manuscriptGroupRows(db, projectIds),
     manuscriptDraftRows(db, projectIds),
     rewriteSourceLinkRows(db, projectIds),
@@ -828,6 +852,7 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
     assistantConversationRows(db, projectIds),
     assistantProposalRows(db, projectIds),
     projectAssistantSettingsRows(db, projectIds),
+    chapterAnalysisRows(db, projectIds),
   ]);
   const weaveTemplateBeats = await weaveTemplateBeatRows(
     db,
@@ -1183,6 +1208,33 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
           })),
         }
       : {}),
+    ...(chapterAnalyses.length
+      ? {
+          chapterAnalyses: chapterAnalyses.map((row) => ({
+            id: row.id,
+            projectId: row.projectId,
+            chapterRecordId: row.chapterRecordId,
+            draftId: row.draftId,
+            pinnedRevision: row.pinnedRevision,
+            status: row.status as "preparing" | "proposed" | "applying" | "applied" | "failed" | "cancelled",
+            ...(row.errorCode ? { errorCode: row.errorCode } : {}),
+            ...(row.errorMessage ? { errorMessage: row.errorMessage } : {}),
+            sourceHash: row.sourceHash,
+            contentHash: row.contentHash,
+            ...(row.sentMaterialJson ? { sentMaterialJson: row.sentMaterialJson } : {}),
+            proposalJson: row.proposalJson,
+            decisionsJson: row.decisionsJson,
+            appliedKeysJson: row.appliedKeysJson,
+            requestChars: row.requestChars,
+            ...(row.model ? { model: row.model } : {}),
+            ...(row.inputTokens != null ? { inputTokens: row.inputTokens } : {}),
+            ...(row.outputTokens != null ? { outputTokens: row.outputTokens } : {}),
+            ...(row.totalTokens != null ? { totalTokens: row.totalTokens } : {}),
+            ...(row.usageEstimated ? { usageEstimated: true as const } : {}),
+            createdAt: iso(row.createdAt),
+          })),
+        }
+      : {}),
     ...(weaveGrids.length
       ? {
           weaveGrids: weaveGrids.map((g) => ({
@@ -1417,6 +1469,23 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
       createdAt: iso(img.createdAt),
       updatedAt: iso(img.updatedAt),
     })),
+    ...(projectCovers.length
+      ? {
+          projectCovers: projectCovers.map((cover) => ({
+            id: cover.id,
+            projectId: cover.projectId,
+            originalFilename: cover.originalFilename,
+            mimeType: cover.mimeType as NonNullable<WorkspaceBackupV1["projectCovers"]>[number]["mimeType"],
+            byteSize: cover.byteSize,
+            width: cover.width,
+            height: cover.height,
+            contentHash: cover.contentHash,
+            dataBase64: Buffer.from(cover.data).toString("base64"),
+            createdAt: iso(cover.createdAt),
+            updatedAt: iso(cover.updatedAt),
+          })),
+        }
+      : {}),
     counts: {
       projects: projects.length,
       records: records.length,
@@ -1429,6 +1498,7 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
       dictionaryEntries: dictionaryEntries.length,
       recordLinks: recordLinks.length,
       recordImages: recordImages.length,
+      ...(projectCovers.length ? { projectCovers: projectCovers.length } : {}),
       ...(manuscriptGroups.length ? { manuscriptGroups: manuscriptGroups.length } : {}),
       ...(manuscriptDrafts.length ? { manuscriptDrafts: manuscriptDrafts.length } : {}),
       ...(rewriteSourceLinks.length ? { rewriteSourceLinks: rewriteSourceLinks.length } : {}),
@@ -1444,6 +1514,7 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
       ...(storyEventScenes.length ? { storyEventScenes: storyEventScenes.length } : {}),
       ...(storyEventOrders.length ? { storyEventOrders: storyEventOrders.length } : {}),
       ...(storyEventEvidence.length ? { storyEventEvidence: storyEventEvidence.length } : {}),
+      ...(chapterAnalyses.length ? { chapterAnalyses: chapterAnalyses.length } : {}),
       ...(weaveGrids.length ? { weaveGrids: weaveGrids.length } : {}),
       ...(weaveThreads.length ? { weaveThreads: weaveThreads.length } : {}),
       ...(weaveBeats.length ? { weaveBeats: weaveBeats.length } : {}),
@@ -1509,6 +1580,7 @@ function checkInternalConsistency(b: WorkspaceBackupV1): Issue[] {
     dictionaryEntries: dictionaryEntriesOf(b).length,
     recordLinks: recordLinksOf(b).length,
     recordImages: recordImagesOf(b).length,
+    projectCovers: projectCoversOf(b).length,
     manuscriptGroups: manuscriptGroupsOf(b).length,
     manuscriptDrafts: manuscriptDraftsOf(b).length,
     rewriteSourceLinks: rewriteSourceLinksOf(b).length,
@@ -1524,6 +1596,7 @@ function checkInternalConsistency(b: WorkspaceBackupV1): Issue[] {
     storyEventScenes: storyEventScenesOf(b).length,
     storyEventOrders: storyEventOrdersOf(b).length,
     storyEventEvidence: storyEventEvidenceOf(b).length,
+    chapterAnalyses: chapterAnalysesOf(b).length,
     weaveGrids: weaveGridsOf(b).length,
     weaveThreads: weaveThreadsOf(b).length,
     weaveBeats: weaveBeatsOf(b).length,
@@ -1563,6 +1636,8 @@ function checkInternalConsistency(b: WorkspaceBackupV1): Issue[] {
   checkUnique(recordLinksOf(b).map((l) => `${l.fromRecordId}/${l.toRecordId}`), "reference link pair", issues);
   checkUnique(recordImagesOf(b).map((img) => img.id), "image", issues);
   checkUnique(recordImagesOf(b).map((img) => `${img.recordId}/${img.name}`), "image name", issues);
+  checkUnique(projectCoversOf(b).map((cover) => cover.id), "cover", issues);
+  checkUnique(projectCoversOf(b).map((cover) => cover.projectId), "cover project", issues);
   checkUnique(manuscriptGroupsOf(b).map((g) => g.id), "manuscript group", issues);
   checkUnique(manuscriptDraftsOf(b).map((d) => d.id), "manuscript draft", issues);
   checkUnique(
@@ -1618,6 +1693,7 @@ function checkInternalConsistency(b: WorkspaceBackupV1): Issue[] {
     issues,
   );
   checkUnique(storyEventEvidenceOf(b).map((row) => row.id), "story event evidence", issues);
+  checkUnique(chapterAnalysesOf(b).map((row) => row.id), "chapter analysis", issues);
   checkUnique(weaveGridsOf(b).map((x) => x.id), "weave grid", issues);
   checkUnique(weaveThreadsOf(b).map((x) => x.id), "weave thread", issues);
   checkUnique(weaveBeatsOf(b).map((x) => x.id), "weave beat", issues);
@@ -1939,6 +2015,21 @@ function checkInternalConsistency(b: WorkspaceBackupV1): Issue[] {
       issues.push(integrity(`Story event evidence ${row.id} has a passage that ends before it starts.`));
     }
   });
+  chapterAnalysesOf(b).forEach((row) => {
+    needProject(row.projectId, `Chapter analysis ${row.id}`);
+    if (!recordIds.has(row.chapterRecordId) || recordProject.get(row.chapterRecordId) !== row.projectId) {
+      issues.push(integrity(`Chapter analysis ${row.id} references missing chapter ${row.chapterRecordId}.`));
+    }
+    if (recordType.get(row.chapterRecordId) && recordType.get(row.chapterRecordId) !== "manuscript_chapter") {
+      issues.push(integrity(`Chapter analysis ${row.id} must cite a chapter.`));
+    }
+    if (!draftIds.has(row.draftId) || draftProject.get(row.draftId) !== row.projectId) {
+      issues.push(integrity(`Chapter analysis ${row.id} references missing draft ${row.draftId}.`));
+    }
+    if (!revisionKeys.has(`${row.chapterRecordId}/${row.pinnedRevision}`)) {
+      issues.push(integrity(`Chapter analysis ${row.id} pins a missing revision.`));
+    }
+  });
   const weaveGridIds = new Set(weaveGridsOf(b).map((x) => x.id));
   const weaveGridProject = new Map(weaveGridsOf(b).map((x) => [x.id, x.projectId]));
   weaveGridsOf(b).forEach((g) => needProject(g.projectId, `Weave grid ${g.id}`));
@@ -2086,6 +2177,16 @@ function checkInternalConsistency(b: WorkspaceBackupV1): Issue[] {
       issues.push(integrity(`Image ${img.id} is not the ${img.mimeType} image it claims to be.`));
     }
   });
+  projectCoversOf(b).forEach((cover) => {
+    needProject(cover.projectId, `Cover ${cover.id}`);
+    const bytes = Buffer.from(cover.dataBase64, "base64");
+    const info = sniffImage(bytes);
+    if (bytes.byteLength !== cover.byteSize || sha256Bytes(bytes) !== cover.contentHash) {
+      issues.push(integrity(`Cover ${cover.id} data does not match its size and hash.`));
+    } else if (!info || info.mimeType !== cover.mimeType) {
+      issues.push(integrity(`Cover ${cover.id} is not the ${cover.mimeType} image it claims to be.`));
+    }
+  });
   b.sources.forEach((s) => needProject(s.projectId, `Source ${s.id}`));
   b.changePackages.forEach((p) => needProject(p.projectId, `Change package ${p.packageId}`));
   b.auditEntries.forEach((a) => {
@@ -2189,6 +2290,9 @@ async function findCollisions(db: DbOrTx, b: WorkspaceBackupV1): Promise<Issue[]
   if (recordImagesOf(b).length) {
     await check("image", db.recordImage.count({ where: { id: { in: recordImagesOf(b).map((img) => img.id) } } }));
   }
+  if (projectCoversOf(b).length) {
+    await check("cover", db.projectCover.count({ where: { id: { in: projectCoversOf(b).map((cover) => cover.id) } } }));
+  }
   if (manuscriptGroupsOf(b).length) {
     await check("manuscript group", db.manuscriptGroup.count({ where: { id: { in: manuscriptGroupsOf(b).map((g) => g.id) } } }));
   }
@@ -2241,6 +2345,12 @@ async function findCollisions(db: DbOrTx, b: WorkspaceBackupV1): Promise<Issue[]
     await check(
       "story event evidence",
       db.storyEventEvidence.count({ where: { id: { in: storyEventEvidenceOf(b).map((row) => row.id) } } }),
+    );
+  }
+  if (chapterAnalysesOf(b).length) {
+    await check(
+      "chapter analysis",
+      db.chapterAnalysisRun.count({ where: { id: { in: chapterAnalysesOf(b).map((row) => row.id) } } }),
     );
   }
   if (weaveGridsOf(b).length) {
@@ -2417,6 +2527,16 @@ export async function restoreWorkspaceBackup(db: Db, input: string | unknown, op
     return map.get(oldId)!;
   };
   const m = (oldId: string) => map.get(oldId) ?? oldId;
+  const remapOpaque = (text: string) => {
+    if (!remap || !text) return text;
+    const ids = [...map.keys()].sort((a, b) => b.length - a.length);
+    let out = text;
+    for (const oldId of ids) {
+      const next = map.get(oldId);
+      if (next && next !== oldId) out = out.split(oldId).join(next);
+    }
+    return out;
+  };
   const mn = (oldId: string | null) => (oldId === null ? null : m(oldId));
 
   const workspaceId = assign(b.workspace.id, "wsp");
@@ -2430,6 +2550,7 @@ export async function restoreWorkspaceBackup(db: Db, input: string | unknown, op
   dictionaryEntriesOf(b).forEach((d) => assign(d.id, "dic"));
   recordLinksOf(b).forEach((l) => assign(l.id, "lnk"));
   recordImagesOf(b).forEach((img) => assign(img.id, "img"));
+  projectCoversOf(b).forEach((cover) => assign(cover.id, "cvr"));
   manuscriptGroupsOf(b).forEach((g) => assign(g.id, "grp"));
   manuscriptDraftsOf(b).forEach((d) => assign(d.id, "drf"));
   rewriteSourceLinksOf(b).forEach((l) => assign(l.id, "rsl"));
@@ -2445,6 +2566,7 @@ export async function restoreWorkspaceBackup(db: Db, input: string | unknown, op
   storyEventScenesOf(b).forEach((row) => assign(row.id, "evs"));
   storyEventOrdersOf(b).forEach((row) => assign(row.id, "evo"));
   storyEventEvidenceOf(b).forEach((row) => assign(row.id, "eve"));
+  chapterAnalysesOf(b).forEach((row) => assign(row.id, "car"));
   weaveGridsOf(b).forEach((x) => assign(x.id, "wvg"));
   weaveThreadsOf(b).forEach((x) => assign(x.id, "wth"));
   weaveBeatsOf(b).forEach((x) => assign(x.id, "wvb"));
@@ -2496,6 +2618,23 @@ export async function restoreWorkspaceBackup(db: Db, input: string | unknown, op
             defaultExportDraftId: null,
           })),
         });
+        for (const cover of projectCoversOf(b)) {
+          await tx.projectCover.create({
+            data: {
+              id: m(cover.id),
+              projectId: m(cover.projectId),
+              originalFilename: cover.originalFilename,
+              mimeType: cover.mimeType,
+              byteSize: cover.byteSize,
+              width: cover.width,
+              height: cover.height,
+              contentHash: cover.contentHash,
+              data: Buffer.from(cover.dataBase64, "base64"),
+              createdAt: new Date(cover.createdAt),
+              updatedAt: new Date(cover.updatedAt),
+            },
+          });
+        }
         await tx.source.createMany({
           data: b.sources.map((s) => ({
             id: m(s.id),
@@ -2871,6 +3010,41 @@ export async function restoreWorkspaceBackup(db: Db, input: string | unknown, op
               contentHash: row.contentHash,
               evidenceKind: row.evidenceKind,
               needsRecheck: row.needsRecheck ?? false,
+              createdAt: new Date(row.createdAt),
+            })),
+          });
+        }
+        const analyses = chapterAnalysesOf(b);
+        if (analyses.length) {
+          await tx.chapterAnalysisRun.createMany({
+            data: analyses.map((row) => ({
+              id: m(row.id),
+              workspaceId,
+              projectId: m(row.projectId),
+              chapterRecordId: m(row.chapterRecordId),
+              draftId: m(row.draftId),
+              pinnedRevision: row.pinnedRevision,
+              status: row.status,
+              errorCode: row.errorCode ?? null,
+              errorMessage: row.errorMessage ?? null,
+              sourceHash: (() => {
+                if (!remap) return row.sourceHash;
+                const pinned = b.revisions.find(
+                  (revision) => revision.recordId === row.chapterRecordId && revision.revisionNumber === row.pinnedRevision,
+                );
+                return pinned ? sha256(`${m(row.chapterRecordId)}\n${row.pinnedRevision}\n${pinned.body}`) : row.sourceHash;
+              })(),
+              contentHash: row.contentHash,
+              sentMaterialJson: remapOpaque(row.sentMaterialJson ?? ""),
+              proposalJson: remapOpaque(row.proposalJson),
+              decisionsJson: remapOpaque(row.decisionsJson),
+              appliedKeysJson: row.appliedKeysJson,
+              requestChars: row.requestChars,
+              model: row.model ?? null,
+              inputTokens: row.inputTokens ?? null,
+              outputTokens: row.outputTokens ?? null,
+              totalTokens: row.totalTokens ?? null,
+              usageEstimated: row.usageEstimated ?? false,
               createdAt: new Date(row.createdAt),
             })),
           });

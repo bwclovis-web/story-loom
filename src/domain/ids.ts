@@ -19,6 +19,7 @@ export type IdPrefix =
   | "dic" // dictionary entry
   | "lnk" // record link
   | "img" // record image
+  | "cvr" // project cover image
   | "trb" // records moved to the Trash together
   | "grp" // manuscript group
   | "drf" // manuscript draft (zero draft / author manuscript)
@@ -45,7 +46,8 @@ export type IdPrefix =
   | "evs" // story event scene reveal
   | "evo" // story event order constraint
   | "eve" // story event evidence
-  | "pas"; // project assistant settings
+  | "pas" // project assistant settings
+  | "car"; // chapter analysis run
 
 export function newId(prefix: IdPrefix): string {
   return `${prefix}_${ulid()}`;

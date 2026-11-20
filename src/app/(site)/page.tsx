@@ -2,6 +2,7 @@ import { cookies } from "next/headers";
 import { LibraryHome, type LibraryWorkspace } from "@/components/library/LibraryHome";
 import { PROJECT_COOKIE } from "@/components/shell/preferences";
 import { getDb } from "@/server/db";
+import { listProjectCoverHashes } from "@/server/services/coverService";
 import { listProjectSummaries, listWorkspacesWithProjects } from "@/server/services/projectService";
 import { countTrashedWorkspaces } from "@/server/services/trashService";
 
@@ -17,6 +18,10 @@ export default async function HomePage() {
     countTrashedWorkspaces(db),
   ]);
   const counts = new Map(summaries.map((summary) => [summary.id, summary]));
+  const coverHashes = await listProjectCoverHashes(
+    db,
+    workspaces.flatMap((workspace) => workspace.projects.map((project) => project.id)),
+  );
   const library: LibraryWorkspace[] = workspaces.map((workspace) => ({
     id: workspace.id,
     name: workspace.name,
@@ -28,6 +33,7 @@ export default async function HomePage() {
         seriesName: project.seriesName,
         chapterCount: summary ? summary.chapterCount : null,
         manuscriptWords: summary ? summary.manuscriptWords : null,
+        coverHash: coverHashes.get(project.id) ?? null,
       };
     }),
   }));

@@ -1,11 +1,15 @@
 "use client";
 
-import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode, type RefObject } from "react";
 import { ConfirmAction, type ConfirmResult } from "@/components/ConfirmAction";
 import { MoreIcon } from "@/components/shell/icons";
+import { Button } from "@/components/ui/Button";
 import { HOME, SHELL, TRASH } from "@/ui/labels";
 
 type TrashAction = (prev: ConfirmResult, formData: FormData) => Promise<ConfirmResult>;
+type CoverResult = { ok: true } | { ok: false; message: string };
+type SetCoverAction = (formData: FormData) => Promise<CoverResult>;
+type ClearCoverAction = () => Promise<CoverResult>;
 
 export function WorkspaceActions({
   name,
@@ -40,22 +44,119 @@ export function WorkspaceActions({
   );
 }
 
-export function ManuscriptActions({ title, action }: { title: string; action: TrashAction }) {
+export function ManuscriptActions({
+  title,
+  action,
+  hasCover,
+  setCover,
+  clearCover,
+}: {
+  title: string;
+  action: TrashAction;
+  hasCover: boolean;
+  setCover: SetCoverAction;
+  clearCover: ClearCoverAction;
+}) {
+  const dialogRef = useRef<HTMLDialogElement>(null);
   return (
-    <ActionsMenu label={HOME.manuscriptActions(title)}>
-      <ConfirmAction
-        action={action}
-        label={TRASH.moveProject}
-        confirmLabel={TRASH.confirmMove(title)}
-        pendingLabel={TRASH.moving}
-        details={
-          <p className="small">
-            Everything in it moves too. You can restore it from the {TRASH.heading} page.
+    <>
+      <ActionsMenu label={HOME.manuscriptActions(title)}>
+        <Button type="button" variant="secondary" size="sm" className="library-menu-action" onClick={() => dialogRef.current?.showModal()}>
+          {HOME.changeCover}
+        </Button>
+        <ConfirmAction
+          action={action}
+          label={TRASH.moveProject}
+          confirmLabel={TRASH.confirmMove(title)}
+          pendingLabel={TRASH.moving}
+          details={
+            <p className="small">
+              Everything in it moves too. You can restore it from the {TRASH.heading} page.
+            </p>
+          }
+          small
+        />
+      </ActionsMenu>
+      <CoverDialog title={title} hasCover={hasCover} setCover={setCover} clearCover={clearCover} dialogRef={dialogRef} />
+    </>
+  );
+}
+
+function CoverDialog({
+  title,
+  hasCover,
+  setCover,
+  clearCover,
+  dialogRef,
+}: {
+  title: string;
+  hasCover: boolean;
+  setCover: SetCoverAction;
+  clearCover: ClearCoverAction;
+  dialogRef: RefObject<HTMLDialogElement | null>;
+}) {
+  const titleId = useId();
+  const [message, setMessage] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
+
+  function close() {
+    dialogRef.current?.close();
+  }
+
+  async function save(formData: FormData) {
+    setPending(true);
+    setMessage(null);
+    const result = await setCover(formData);
+    setPending(false);
+    if (!result.ok) {
+      setMessage(result.message);
+      return;
+    }
+    close();
+  }
+
+  async function clear() {
+    setPending(true);
+    setMessage(null);
+    const result = await clearCover();
+    setPending(false);
+    if (!result.ok) {
+      setMessage(result.message);
+      return;
+    }
+    close();
+  }
+
+  return (
+    <dialog ref={dialogRef} className="library-dialog" aria-labelledby={titleId} onClose={() => setMessage(null)}>
+      <form action={save}>
+        <h2 id={titleId}>{HOME.coverHeading}</h2>
+        <p className="small">{title}</p>
+        <label>
+          {HOME.coverFile}
+          <input name="cover" type="file" accept="image/png,image/jpeg,image/gif,image/webp" required disabled={pending} />
+        </label>
+        <p className="small">{HOME.coverHint}</p>
+        {message ? (
+          <p className="small" role="alert">
+            {message}
           </p>
-        }
-        small
-      />
-    </ActionsMenu>
+        ) : null}
+        <div className="row">
+          <Button type="submit" disabled={pending}>
+            {HOME.saveCover}
+          </Button>
+          {hasCover ? (
+            <Button type="button" variant="secondary" disabled={pending} onClick={clear}>
+              {HOME.useDrawnCover}
+            </Button>
+          ) : null}
+          <Button type="button" variant="secondary" onClick={close} disabled={pending}>
+            {HOME.cancel}
+          </Button>
+        </div>
+      </form>
+    </dialog>
   );
 }
 

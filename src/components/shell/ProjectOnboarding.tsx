@@ -1,10 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { Button, ButtonLink } from "@/components/ui/Button";
 import { useEffect, useState } from "react";
 import { helpHref, type HelpAnchor } from "@/help/outline";
 import { ONBOARDING } from "@/ui/labels";
+import { parseProjectPath } from "@/ui/navigation";
 import {
   ONBOARDING_COOKIE,
   parseWalkthroughCookie,
@@ -86,21 +88,37 @@ function stepOf(state: WalkthroughState): number {
  * Skip for now pauses at the current task; Resume restores it. Don't show again
  * is a distinct permanent dismissal.
  */
-export function ProjectOnboarding({ projectId }: { projectId: string }) {
+export function ProjectOnboarding({
+  projectId,
+  quiet = false,
+  empty = false,
+}: {
+  projectId: string;
+  quiet?: boolean;
+  /** A new manuscript: open the quiet tasks instead of hiding them. */
+  empty?: boolean;
+}) {
+  const pathname = usePathname();
+  const parsed = parseProjectPath(pathname);
+  const writeHome = parsed?.rest.length === 1 && parsed.rest[0] === "write";
   const [state, setState] = useState<WalkthroughState>({ kind: "dismissed" });
   const [ready, setReady] = useState(false);
+  const [tasksOpen, setTasksOpen] = useState(false);
   const base = `/projects/${encodeURIComponent(projectId)}`;
 
   useEffect(() => {
-    setState(readState());
+    const next = readState();
+    setState(next);
+    setTasksOpen(empty && next.kind === "open");
     setReady(true);
-  }, []);
+  }, [empty]);
 
   const setWalk = (next: WalkthroughState) => {
     persist(next);
     setState(next);
   };
 
+  if (!quiet && writeHome) return null;
   if (!ready) return null;
 
   const stepIndex = stepOf(state);
@@ -111,6 +129,58 @@ export function ProjectOnboarding({ projectId }: { projectId: string }) {
     if (isLast) setWalk({ kind: "dismissed" });
     else setWalk({ kind: "open", step: stepIndex + 1 });
   };
+
+  if (quiet) {
+    return (
+      <details
+        className="outline-getting-started"
+        open={tasksOpen}
+        onToggle={(event) => setTasksOpen(event.currentTarget.open)}
+      >
+        <summary>{ONBOARDING.gettingStarted}</summary>
+        {state.kind === "dismissed" ? (
+          <p className="small">
+            <button type="button" className="linkish" onClick={() => setWalk({ kind: "open", step: 0 })}>
+              {ONBOARDING.showAgain}
+            </button>
+          </p>
+        ) : null}
+        {state.kind === "paused" ? (
+          <div className="row" role="status">
+            <Button type="button" size="sm" onClick={() => setWalk({ kind: "open", step: stepIndex })}>
+              {ONBOARDING.resume}
+            </Button>
+            <span className="small muted">{ONBOARDING.progress(stepIndex + 1, STEPS.length)}</span>
+            <button type="button" className="linkish small" onClick={() => setWalk({ kind: "dismissed" })}>
+              {ONBOARDING.dismiss}
+            </button>
+          </div>
+        ) : null}
+        {state.kind === "open" ? (
+          <article className="walkthrough-task" aria-labelledby="walkthrough-task-title">
+            <p className="small muted">{ONBOARDING.progress(stepIndex + 1, STEPS.length)}</p>
+            <h3 id="walkthrough-task-title">{step.title}</h3>
+            <p>{step.hint}</p>
+            <div className="row walkthrough-actions">
+              <ButtonLink href={step.href(base)}>{ONBOARDING.openTask}</ButtonLink>
+              <Button type="button" size="sm" onClick={advance}>
+                {isLast ? ONBOARDING.finish : ONBOARDING.next}
+              </Button>
+              <Button type="button" variant="secondary" size="sm" onClick={() => setWalk({ kind: "paused", step: stepIndex })}>
+                {ONBOARDING.skip}
+              </Button>
+              <Button type="button" variant="secondary" size="sm" onClick={() => setWalk({ kind: "dismissed" })}>
+                {ONBOARDING.dismiss}
+              </Button>
+              <Link className="small" href={helpHref(step.help)}>
+                {ONBOARDING.howTo}
+              </Link>
+            </div>
+          </article>
+        ) : null}
+      </details>
+    );
+  }
 
   if (state.kind === "dismissed") {
     return (

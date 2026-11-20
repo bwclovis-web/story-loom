@@ -91,7 +91,7 @@ export function ManuscriptTree({
 
       <div id={`${idPrefix}-create`}>
         {creating ? (
-          <CreateForm
+          <ManuscriptCreateForm
             key={creating}
             kind={creating}
             projectId={projectId}
@@ -183,7 +183,7 @@ export function ManuscriptTree({
   );
 }
 
-function CreateForm({
+export function ManuscriptCreateForm({
   kind,
   projectId,
   chapters,

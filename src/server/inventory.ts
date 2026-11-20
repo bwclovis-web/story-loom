@@ -80,6 +80,15 @@ export interface ProjectInventory {
   bookOrder: { chapters: string[]; scenes: Record<string, string[]> };
   records: RecordInventory[];
   links: Array<{ id: string; fromRecordId: string; toRecordId: string }>;
+  /** Present only when a cover picture is stored. */
+  cover?: {
+    mimeType: string;
+    byteSize: number;
+    width: number;
+    height: number;
+    contentHash: string;
+    dataSha256: string;
+  };
   images: Array<{
     id: string;
     recordId: string;
@@ -324,6 +333,20 @@ function projectInventory(reader: Reader, project: Row): ProjectInventory {
       altTextSha256: sha256(String(i.altText ?? "")),
     }));
 
+  const coverRow = reader
+    .rows("ProjectCover", ["mimeType", "byteSize", "width", "height", "contentHash", "data"], "WHERE projectId = ?", [projectId])
+    .at(0);
+  const cover = coverRow
+    ? {
+        mimeType: String(coverRow.mimeType),
+        byteSize: Number(coverRow.byteSize),
+        width: Number(coverRow.width),
+        height: Number(coverRow.height),
+        contentHash: String(coverRow.contentHash),
+        dataSha256: sha256Bytes(coverRow.data as Uint8Array),
+      }
+    : null;
+
   const changePackages = reader
     .rows("ChangePackage", ["packageId", "formatVersion", "contentHash", "status", "rawJson", "appliedAt"], "WHERE projectId = ? ORDER BY packageId", [projectId])
     .map((p) => ({
@@ -384,6 +407,7 @@ function projectInventory(reader: Reader, project: Row): ProjectInventory {
       proofreadRuns: reader.rows("ProofreadRun", ["id"], "WHERE projectId = ?", [projectId]).length,
     },
     bookOrder: bookOrderOf(records),
+    ...(cover ? { cover } : {}),
     records,
     links,
     images,

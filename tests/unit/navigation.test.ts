@@ -38,7 +38,7 @@ describe("parseProjectPath", () => {
 
 describe("activeGlobalItem", () => {
   it("maps routes to the global navigation", () => {
-    expect(activeGlobalItem("/", typeOf)).toBeNull();
+    expect(activeGlobalItem("/", typeOf)).toBe("write");
     expect(activeGlobalItem("/backup", typeOf)).toBe("backups");
     expect(activeGlobalItem("/connections", typeOf)).toBe("connections");
     expect(activeGlobalItem("/trash", typeOf)).toBe("trash");

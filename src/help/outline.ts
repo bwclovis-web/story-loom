@@ -70,6 +70,7 @@ export const HELP_SECTIONS = [
     children: [
       { id: "plan-weave", title: "Weave" },
       { id: "weave-build-from-draft", title: "Build grid from draft" },
+      { id: "analyze-chapter", title: "Analyze chapter" },
       { id: "weave-setup-payoff", title: "Setup and payoff" },
       { id: "weave-templates", title: "Beat templates" },
     ],
@@ -194,6 +195,8 @@ export const HELP_ROUTES = [
   "/projects/[projectId]/plan/weave/[gridId]",
   "/projects/[projectId]/plan/weave/build",
   "/projects/[projectId]/plan/weave/build/[runId]",
+  "/projects/[projectId]/analyze",
+  "/projects/[projectId]/analyze/[runId]",
   "/projects/[projectId]/plan/weave/templates",
   "/projects/[projectId]/world",
   "/projects/[projectId]/world/boards",

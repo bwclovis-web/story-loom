@@ -1,22 +1,33 @@
 import { coverMotifForProject, type CoverMotif } from "@/ui/library";
 
 /**
- * Manuscript cover. The app does not store a project cover image, so this
- * draws a deterministic decorative fallback from the project id. Titles are
- * HTML so long names wrap. Treat the whole cover as decorative when the
- * manuscript name is already in adjacent text.
+ * Manuscript cover. A stored picture fills the frame. Otherwise this draws a
+ * decorative cover from the project id, with the title in HTML so long names
+ * wrap. Treat the whole cover as decorative when the manuscript name is
+ * already in adjacent text.
  */
 export function BookCover({
   projectId,
   title,
   eyebrow,
   size = "mini",
+  coverSrc = null,
 }: {
   projectId: string;
   title: string;
   eyebrow?: string | null;
-  size?: "featured" | "mini";
+  size?: "featured" | "mini" | "compact";
+  /** Address of a stored cover. Null uses the drawn cover. */
+  coverSrc?: string | null;
 }) {
+  if (coverSrc) {
+    return (
+      <div className={`book-cover book-cover-photo book-cover-${size}`} aria-hidden="true">
+        {/* The manuscript title is in adjacent text. */}
+        <img src={coverSrc} alt="" />
+      </div>
+    );
+  }
   const motif = coverMotifForProject(projectId);
   const kicker = eyebrow?.trim();
   return (

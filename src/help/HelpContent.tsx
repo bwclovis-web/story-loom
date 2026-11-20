@@ -4,6 +4,7 @@ import { contentClassOf, RECORD_TYPE_LABELS, RECORD_TYPES } from "@/domain/recor
 import { AUTHORITY_STATUSES } from "@/domain/statuses";
 import { formatBytes, MAX_IMAGE_BYTES, MAX_IMAGES_PER_RECORD } from "@/images/imageFormat";
 import {
+  ANALYZE,
   ASSISTANT,
   BACKUP,
   BOOK_ORDER,
@@ -360,6 +361,29 @@ export function HelpContent() {
           manuscript chapters and scenes. <L>{HOME.openManuscript}</L> opens <L>{SHELL.write}</L>. It does not resume a
           saved place in the book.
         </p>
+        <h3>Cover image</h3>
+        <p>
+          Each manuscript starts with a drawn cover. The drawing is chosen from the manuscript itself, so renaming it
+          does not change the picture. The words on a drawn cover follow the series name, or the workspace name when no
+          series is set, and the manuscript title.
+        </p>
+        <ol>
+          <li>
+            On the home page, choose the actions button (three dots) on that manuscript, then <L>{HOME.changeCover}</L>.
+          </li>
+          <li>
+            Choose a PNG, JPEG, GIF or WebP file, up to 10 MB, then <L>{HOME.saveCover}</L>. The same picture is used
+            for the large cover and the small one. The title stays beside the picture.
+          </li>
+          <li>
+            Choose <L>{HOME.useDrawnCover}</L> in that same dialog to remove the picture and return to the drawing.
+          </li>
+        </ol>
+        <p>
+          Moving the manuscript to the Trash hides its cover with it. Restoring the manuscript brings the picture back.
+          Deleting the manuscript permanently removes the picture. A cover is not part of the manuscript text, and
+          changing it does not create a revision.
+        </p>
         <h3>Create a workspace</h3>
         <ol>
           <li>
@@ -388,9 +412,11 @@ export function HelpContent() {
           project&apos;s pages are listed in the second column. See <See anchor="navigation" />.
         </p>
         <p>
-          The invented demo workspace, when it is present, is grouped under <L>{HOME.examples}</L>. Your own workspaces
-          stay under <L>{HOME.yourWorkspaces}</L>. A title that contains words such as &ldquo;Demo&rdquo; or
-          &ldquo;Archive&rdquo; does not move a workspace into <L>{HOME.examples}</L>.
+          The invented demo workspace, when it is present, is grouped under <L>{HOME.examples}</L>. Each of those
+          manuscripts shows <L>{HOME.exampleManuscript}</L> under the title. Your own workspaces stay under{" "}
+          <L>{HOME.yourWorkspaces}</L> and show their chapter and word counts. A title that contains words such as
+          &ldquo;Demo&rdquo; or &ldquo;Archive&rdquo; does not move a workspace into <L>{HOME.examples}</L>. On this
+          page, <L>{SHELL.write}</L> is marked in the left column.
         </p>
         <h3>Try things in a separate trial workspace</h3>
         <p>
@@ -815,9 +841,10 @@ export function HelpContent() {
 
         <Sub id="book-order">
           <p>
-            <L>{BOOK_ORDER.heading}</L> on <L>{SHELL.write}</L> lists every chapter with its scenes underneath, with each
-            one&apos;s status, protection and saved word count, and the whole book&apos;s word count at the top. The same
-            order is used by the manuscript panel, <L>{NAV.readBook}</L> and the PDF export.
+            <L>{BOOK_ORDER.heading}</L> is under <L>{WRITE.more}</L> on <L>{SHELL.write}</L>. It lists every chapter with
+            its scenes underneath, with each one&apos;s status, protection and saved word count, and the whole book&apos;s
+            word count at the top. The same order is used by the manuscript outline, the manuscript panel on a chapter or
+            scene, <L>{NAV.readBook}</L> and the PDF export.
           </p>
           <ul>
             <li>
@@ -839,9 +866,11 @@ export function HelpContent() {
 
         <Sub id="manuscript-search">
           <p>
-            The search box at the top of <L>{SHELL.write}</L> (<L>{MANUSCRIPT_SEARCH.label}</L>) finds text in the saved
-            titles and text of every chapter, scene and scene note. Pressing Enter in the manuscript panel&apos;s search
-            box does the same search.
+            The search box on <L>{SHELL.write}</L> filters the outline by title as you type. Press Enter to search the
+            saved titles and text of every chapter, scene and scene note in the selected draft (<L>{MANUSCRIPT_SEARCH.label}</L>).
+            Tick <L>{MANUSCRIPT_SEARCH.matchCase}</L> before pressing Enter when capitals matter. Title filtering stays
+            case-insensitive. The <L>{WRITE.chaptersTab}</L> and <L>{WRITE.scenesTab}</L> tabs change which records the
+            title filter shows; a text search lists matches for the whole draft.
           </p>
           <ol>
             <li>
@@ -1236,6 +1265,45 @@ export function HelpContent() {
             only, in one transaction, with stale-source checks. Retrying an apply reuses stable suggestion identities so
             duplicates are not created. Applied grids remain in workspace backups like any other Weave content; build
             runs themselves are local review state.
+          </p>
+        </Sub>
+
+        <Sub id="analyze-chapter">
+          <p>
+            <L>{ANALYZE.heading}</L> (Plan) starts with manuscript counts for the Zero draft, the Author manuscript, and
+            any legacy chapters that have no draft. Choose one Zero-draft chapter and pin one of its revisions. The pin
+            has to be the chapter&apos;s current revision before anything is sent. Author-manuscript pages and legacy
+            chapters are counted and are not analyzed.
+          </p>
+          <p>
+            The request contains the analysis instructions, the project and draft names, the chapter id, title, and
+            revision, catalogs of character titles, place titles, accepted fact statements with how many passages are
+            pinned, story-event titles with their time text, and plot beats already linked to this chapter, then the
+            full pinned chapter text. Other chapters&apos; prose is not included. The review screen keeps that exact
+            message, including after you leave and come back.
+          </p>
+          <p>
+            Suggestions cover who is present, where the passage is set, events, what the reader learns, what one
+            character learns, planning beats, evidence for a reference fact, and chronology. Every suggestion quotes a
+            passage. The server checks that quote against the pinned revision and refuses the suggestion when the quote
+            is not there. A reading the model is not sure about is marked uncertain. Being present is not the same as
+            knowing. A scene that reveals an event is not the event happening, and it does not mean every character
+            knows it. Chronology is offered only when the excerpt itself says one event is before or after another, and
+            it uses the same earlier/later constraints as the story timeline. An order that would contradict those
+            constraints is refused, and that apply writes nothing.
+          </p>
+          <p>
+            Each suggestion is matched to an existing character, place, accepted fact, event, or beat. Choose reuse,
+            edit, create, or skip. When more than one record matches, name which one to reuse. An accepted fact that
+            has no pinned passage can receive an evidence link; its statement stays as it is. A new fact stays pending.
+            A new character or place stays a draft reference. Applying checks the pin again, writes the selection in one
+            step, and a repeat apply does not create a second copy. The chapter text, its current revision, and book
+            order stay as they were. Cancelled runs remain in the list.
+          </p>
+          <p>
+            Chapter analysis uses the same assistant connection and the same hourly and monthly limits as discussion
+            and proofreading. A request over the size limit or the usage cap is not sent, and the app does not retry
+            the model on its own.
           </p>
         </Sub>
 

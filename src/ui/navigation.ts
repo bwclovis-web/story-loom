@@ -73,6 +73,7 @@ export function activeGlobalItem(pathname: string, recordType: (id: string) => R
   if (pathname === "/connections" || pathname.startsWith("/connections/")) return "connections";
   if (pathname === "/trash" || pathname.startsWith("/trash/")) return "trash";
   if (pathname === "/help" || pathname.startsWith("/help/")) return "help";
+  if (pathname === "/") return "write";
   const project = parseProjectPath(pathname);
   if (!project) return null;
   if (project.rest[0] === "assistant") return "assistant";

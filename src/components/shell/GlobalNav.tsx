@@ -105,6 +105,7 @@ export function GlobalNav({
                 <span
                   className={`global-link disabled ${tip}`}
                   aria-disabled="true"
+                  aria-current={isActive ? "true" : undefined}
                   data-tooltip={`${item.label} (${SHELL.needsProject})`}
                 >
                   {item.icon}

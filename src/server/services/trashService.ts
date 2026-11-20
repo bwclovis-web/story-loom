@@ -274,6 +274,7 @@ async function deleteProjectRowsInTx(tx: Tx, projectId: string) {
   await tx.storyEventScene.deleteMany({ where: { projectId } });
   await tx.storyEventOrder.deleteMany({ where: { projectId } });
   await tx.storyEvent.deleteMany({ where: { projectId } });
+  await tx.projectCover.deleteMany({ where: { projectId } });
   await tx.project.update({
     where: { id: projectId },
     data: { defaultReadingDraftId: null, defaultExportDraftId: null },

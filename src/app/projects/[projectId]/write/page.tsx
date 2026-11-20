@@ -1,21 +1,24 @@
 import Link from "next/link";
-import { StartAuthorRewriteButton } from "@/components/drafts/DraftControls";
-import { ContinueWriting, type ContinueWritingItem } from "@/components/shell/ContinueWriting";
-import { OverflowDisclosure } from "@/components/shell/OverflowDisclosure";
-import { ButtonLink } from "@/components/ui/Button";
-import { SearchPanel } from "@/components/ui/SearchPanel";
+import { notFound } from "next/navigation";
+import { MarkRewriteCompleteButton, StartAuthorRewriteButton, WriteDraftSwitcher } from "@/components/drafts/DraftControls";
+import { ProjectOnboarding } from "@/components/shell/ProjectOnboarding";
+import { ManuscriptOutline, type OutlineChapter, type OutlineNote, type OutlineScene } from "@/components/write/ManuscriptOutline";
 import { RECORD_TYPE_LABELS } from "@/domain/recordTypes";
 import { getDb } from "@/server/db";
 import { readWriteDraftCookie, resolveWriteDraftId } from "@/server/draftSelection";
+import { listProjectCoverHashes } from "@/server/services/coverService";
 import { listManuscriptDrafts } from "@/server/services/draftService";
+import { findProject } from "@/server/services/projectService";
 import { listRecordNav, listRecords } from "@/server/services/recordService";
+import { countOpenReviewItems } from "@/server/services/reviewService";
 import { searchManuscript, type ManuscriptHit } from "@/server/services/searchService";
-import { DRAFT, GROUP_PAGES, MANUSCRIPT_SEARCH, NAV, SHELL } from "@/ui/labels";
-import { buildManuscriptTree, type TreeScene } from "@/ui/manuscriptTree";
-import { RECORD_GROUPS } from "@/ui/navigation";
+import { MANUSCRIPT_SEARCH, NAV, SHELL } from "@/ui/labels";
+import { manuscriptEyebrow } from "@/ui/library";
+import { buildManuscriptTree } from "@/ui/manuscriptTree";
+import type { RecordNavEntry } from "@/ui/navigation";
 import { countWords } from "@/writing/wordCount";
-import { RecordListPage } from "../RecordListPage";
 import { BookOrder, type OrderItem } from "./BookOrder";
+
 export const dynamic = "force-dynamic";
 
 export default async function WritePage({
@@ -31,91 +34,178 @@ export default async function WritePage({
   const matchCase = query.case === "1";
   const base = `/projects/${encodeURIComponent(projectId)}`;
   const db = getDb();
+  const project = await findProject(db, projectId);
+  if (!project) notFound();
   const drafts = await listManuscriptDrafts(db, projectId);
   const activeDraftId = resolveWriteDraftId(drafts, await readWriteDraftCookie());
   const hasDrafts = drafts.length > 0;
-  const [nav, records, search] = await Promise.all([
+  const [nav, records, search, coverHashes, openReviewItems] = await Promise.all([
     listRecordNav(db, projectId, { hasDrafts, draftId: activeDraftId }),
     listRecords(db, projectId),
     q ? searchManuscript(db, { projectId, query: q, matchCase, hasDrafts, draftId: activeDraftId }) : null,
+    listProjectCoverHashes(db, [projectId]),
+    countOpenReviewItems(db, projectId),
   ]);
 
-  const byId = new Map(records.map((r) => [r.id, r]));
-  const item = (s: TreeScene): OrderItem => {
-    const r = byId.get(s.id)!;
-    return { id: r.id, title: r.title, words: countWords(r.body), authorityStatus: r.authorityStatus, isProtected: r.protected };
+  const byId = new Map(records.map((record) => [record.id, record]));
+  const item = (id: string, title: string): OrderItem | null => {
+    const record = byId.get(id);
+    if (!record) return null;
+    return {
+      id,
+      title,
+      words: countWords(record.body),
+      authorityStatus: record.authorityStatus,
+      isProtected: record.protected,
+    };
   };
-  const tree = buildManuscriptTree(nav.filter((n) => byId.has(n.id)));
-  const chapters = tree.chapters.map((c) => ({ ...item(c), scenes: c.scenes.map(item) }));
-  const unplaced = tree.unplaced.map(item);
-  const bookWords = [...chapters.flatMap((c) => [c, ...c.scenes]), ...unplaced].reduce((sum, r) => sum + r.words, 0);
-  const activeDraft = drafts.find((d) => d.id === activeDraftId) ?? null;
-  const continueItems: ContinueWritingItem[] = [];
-  for (const c of chapters) {
-    continueItems.push({ id: c.id, title: c.title, kind: "chapter" });
-    for (const s of c.scenes) {
-      continueItems.push({ id: s.id, title: s.title, kind: "scene", parentTitle: c.title });
-    }
-  }
-  for (const s of unplaced) {
-    continueItems.push({ id: s.id, title: s.title, kind: "scene" });
-  }
+  const outline = buildOutline(nav);
+  const chapters = outline.chapters.flatMap((chapter) => {
+    const row = item(chapter.id, chapter.title);
+    if (!row) return [];
+    return [{ ...row, scenes: chapter.scenes.flatMap((scene) => {
+      const placed = item(scene.id, scene.title);
+      return placed ? [placed] : [];
+    }) }];
+  });
+  const unplaced = outline.unplaced.flatMap((scene) => {
+    const placed = item(scene.id, scene.title);
+    return placed ? [placed] : [];
+  });
+  const bookWords = [...chapters.flatMap((chapter) => [chapter, ...chapter.scenes]), ...unplaced].reduce(
+    (sum, record) => sum + record.words,
+    0,
+  );
+  const activeDraft = drafts.find((draft) => draft.id === activeDraftId) ?? null;
+  const authorDraft = activeDraft?.kind === "author_manuscript" ? activeDraft : null;
+  const showStart = !drafts.some((draft) => draft.kind === "author_manuscript");
+  const coverHash = coverHashes.get(projectId) ?? null;
+  const empty = outline.chapters.length === 0 && outline.unplaced.length === 0 && outline.looseNotes.length === 0;
 
   return (
-    <RecordListPage
+    <ManuscriptOutline
       projectId={projectId}
-      heading={SHELL.write}
-      lead={GROUP_PAGES.write}
-      types={RECORD_GROUPS.write}
-      defaultType="manuscript_chapter"
-      hideTypes={["manuscript_chapter", "manuscript_scene"]}
-      createInOverflow
-      actions={
-        <OverflowDisclosure summary={SHELL.createAndImport}>
-          <p className="row" style={{ flexWrap: "wrap", gap: "0.5rem" }}>
-            <ButtonLink variant="secondary" href={`${base}/read`}>
-              {NAV.readBook}
-            </ButtonLink>
-            <ButtonLink variant="secondary" href={`${base}/import-chapters`}>
-              {NAV.importChapters}
-            </ButtonLink>
-          </p>
-        </OverflowDisclosure>
+      title={project.title}
+      eyebrow={manuscriptEyebrow(project.seriesName, project.workspace.name)}
+      coverSrc={coverHash ? `${base}/cover?v=${coverHash}` : null}
+      chapters={outline.chapters}
+      unplaced={outline.unplaced}
+      looseNotes={outline.looseNotes}
+      draftId={activeDraftId}
+      initialQuery={q}
+      matchCase={matchCase}
+      headerActions={
+        hasDrafts ? (
+          <WriteDraftSwitcher
+            projectId={projectId}
+            drafts={drafts.map((draft) => ({
+              id: draft.id,
+              kind: draft.kind,
+              label: draft.label,
+              completedAt: draft.completedAt?.toISOString() ?? null,
+            }))}
+            activeDraftId={activeDraftId}
+          />
+        ) : null
       }
-    >
-      <ContinueWriting projectId={projectId} items={continueItems.slice(0, 8)} />
-      {hasDrafts && activeDraft ? (
-        <p className="small muted">
-          {DRAFT.writeDraft}: {activeDraft.label}
-          {activeDraft.completedAt ? ` · ${DRAFT.completed}` : ""}
-        </p>
-      ) : null}
-      {!hasDrafts ? (
-        <section className="panel">
-          <h2 style={{ marginTop: 0 }}>{DRAFT.startRewrite}</h2>
-          <StartAuthorRewriteButton projectId={projectId} />
+      overflow={
+        <>
+          {showStart ? <StartAuthorRewriteButton projectId={projectId} /> : null}
+          {authorDraft ? (
+            <MarkRewriteCompleteButton
+              projectId={projectId}
+              draftId={authorDraft.id}
+              completed={!!authorDraft.completedAt}
+            />
+          ) : null}
+          <section className="outline-tool" aria-label={SHELL.bookOrder}>
+            <h2>{SHELL.bookOrder}</h2>
+            <BookOrder projectId={projectId} chapters={chapters} unplaced={unplaced} bookWords={bookWords} />
+          </section>
+          <ProjectTools base={base} openReviewItems={openReviewItems} />
+        </>
+      }
+      results={
+        search ? (
+          <SearchResults base={base} query={q} matchCase={matchCase} hits={search.hits} totalMatches={search.totalMatches} />
+        ) : null
+      }
+      gettingStarted={<ProjectOnboarding projectId={projectId} quiet empty={empty} />}
+    />
+  );
+}
+
+function buildOutline(nav: readonly RecordNavEntry[]): {
+  chapters: OutlineChapter[];
+  unplaced: OutlineScene[];
+  looseNotes: OutlineNote[];
+} {
+  const notes = nav.filter((record) => record.type === "scene_note");
+  const tree = buildManuscriptTree(nav.filter((record) => record.type === "manuscript_chapter" || record.type === "manuscript_scene"));
+  const notesFor = (parentId: string): OutlineNote[] =>
+    notes.filter((note) => note.parentRecordId === parentId).map((note) => ({ id: note.id, title: note.title }));
+  const chapters = tree.chapters.map((chapter, index) => ({
+    id: chapter.id,
+    title: chapter.title,
+    number: String(index + 1).padStart(2, "0"),
+    scenes: chapter.scenes.map((scene) => ({ id: scene.id, title: scene.title, notes: notesFor(scene.id) })),
+    notes: notesFor(chapter.id),
+  }));
+  const unplaced = tree.unplaced.map((scene) => ({ id: scene.id, title: scene.title, notes: notesFor(scene.id) }));
+  const placed = new Set<string>([
+    ...chapters.flatMap((chapter) => [chapter.id, ...chapter.scenes.map((scene) => scene.id)]),
+    ...unplaced.map((scene) => scene.id),
+  ]);
+  const looseNotes = notes
+    .filter((note) => !note.parentRecordId || !placed.has(note.parentRecordId))
+    .map((note) => ({ id: note.id, title: note.title }));
+  return { chapters, unplaced, looseNotes };
+}
+
+function ProjectTools({ base, openReviewItems }: { base: string; openReviewItems: number }) {
+  const groups = [
+    {
+      heading: SHELL.toolsBringIn,
+      items: [
+        { href: `${base}/import`, label: NAV.importPackage },
+        { href: `${base}/import-markdown`, label: NAV.importMarkdown },
+      ],
+    },
+    {
+      heading: SHELL.toolsReadExport,
+      items: [
+        { href: `${base}/export`, label: NAV.exportContext },
+        { href: `${base}/export-pdf`, label: NAV.exportPdf },
+      ],
+    },
+    {
+      heading: SHELL.toolsMaintain,
+      items: [
+        { href: `${base}/history`, label: NAV.history, count: openReviewItems },
+        { href: `${base}/dictionary`, label: NAV.dictionary },
+        { href: `${base}/cross-references`, label: NAV.crossRefCheck },
+        { href: `${base}/upgrade`, label: NAV.upgradeProject },
+      ],
+    },
+  ];
+  return (
+    <nav className="outline-tools" aria-label={SHELL.projectTools}>
+      {groups.map((group) => (
+        <section key={group.heading}>
+          <h2>{group.heading}</h2>
+          <ul>
+            {group.items.map((item) => (
+              <li key={item.href}>
+                <Link href={item.href}>
+                  {item.label}
+                  {"count" in item && item.count ? <span className="outline-tool-count">{item.count}</span> : null}
+                </Link>
+              </li>
+            ))}
+          </ul>
         </section>
-      ) : null}
-      <SearchPanel
-        action={`${base}/write`}
-        label={MANUSCRIPT_SEARCH.label}
-        inputId="manuscript-search-q"
-        defaultValue={q}
-        submitLabel={MANUSCRIPT_SEARCH.submit}
-        className="manuscript-search"
-      >
-        <label className="inline">
-          <input type="checkbox" name="case" value="1" defaultChecked={matchCase} />
-          {MANUSCRIPT_SEARCH.matchCase}
-        </label>
-      </SearchPanel>
-      {search ? (
-        <SearchResults base={base} query={q} matchCase={matchCase} hits={search.hits} totalMatches={search.totalMatches} />
-      ) : null}
-      <OverflowDisclosure summary={SHELL.bookOrder}>
-        <BookOrder projectId={projectId} chapters={chapters} unplaced={unplaced} bookWords={bookWords} />
-      </OverflowDisclosure>
-    </RecordListPage>
+      ))}
+    </nav>
   );
 }
 
@@ -135,7 +225,7 @@ function SearchResults({
   const findHref = (id: string) =>
     `${base}/records/${encodeURIComponent(id)}?${new URLSearchParams({ find: query, ...(matchCase ? { case: "1" } : {}) })}`;
   return (
-    <section className="panel" aria-labelledby="manuscript-search-heading">
+    <section className="outline-results" aria-labelledby="manuscript-search-heading">
       <h2 id="manuscript-search-heading">{MANUSCRIPT_SEARCH.heading(query)}</h2>
       <p className="small">
         {hits.length ? MANUSCRIPT_SEARCH.summary(totalMatches, hits.length) : MANUSCRIPT_SEARCH.none}{" "}
@@ -144,36 +234,36 @@ function SearchResults({
       <p className="small muted">{MANUSCRIPT_SEARCH.note}</p>
       {hits.length ? (
         <ul className="search-hits">
-          {hits.map((h) => (
-            <li key={h.id}>
+          {hits.map((hit) => (
+            <li key={hit.id}>
               <div className="row">
-                <Link href={`${base}/records/${encodeURIComponent(h.id)}`} className="hit-title">
-                  {h.title}
+                <Link href={`${base}/records/${encodeURIComponent(hit.id)}`} className="hit-title">
+                  {hit.title}
                 </Link>
                 <span className="small muted">
-                  {RECORD_TYPE_LABELS[h.type]}
-                  {h.parentTitle ? ` ${MANUSCRIPT_SEARCH.inParent(h.parentTitle)}` : ""}
+                  {RECORD_TYPE_LABELS[hit.type]}
+                  {hit.parentTitle ? ` ${MANUSCRIPT_SEARCH.inParent(hit.parentTitle)}` : ""}
                 </span>
-                <span className="small">{h.count ? MANUSCRIPT_SEARCH.matchesHere(h.count) : MANUSCRIPT_SEARCH.titleOnly}</span>
-                {h.count && h.type !== "scene_note" ? (
-                  <Link className="small" href={findHref(h.id)} aria-label={MANUSCRIPT_SEARCH.openWithFindLabel(h.title)}>
+                <span className="small">{hit.count ? MANUSCRIPT_SEARCH.matchesHere(hit.count) : MANUSCRIPT_SEARCH.titleOnly}</span>
+                {hit.count && hit.type !== "scene_note" ? (
+                  <Link className="small" href={findHref(hit.id)} aria-label={MANUSCRIPT_SEARCH.openWithFindLabel(hit.title)}>
                     {MANUSCRIPT_SEARCH.openWithFind}
                   </Link>
                 ) : null}
               </div>
-              {h.excerpts.length ? (
+              {hit.excerpts.length ? (
                 <ul className="hit-excerpts small">
-                  {h.excerpts.map((e, i) => (
-                    <li key={i}>
-                      {e.cutBefore ? <span className="muted">&hellip; </span> : null}
-                      {e.before}
-                      <mark>{e.match}</mark>
-                      {e.after}
-                      {e.cutAfter ? <span className="muted"> &hellip;</span> : null}
+                  {hit.excerpts.map((excerpt, index) => (
+                    <li key={index}>
+                      {excerpt.cutBefore ? <span className="muted">&hellip; </span> : null}
+                      {excerpt.before}
+                      <mark>{excerpt.match}</mark>
+                      {excerpt.after}
+                      {excerpt.cutAfter ? <span className="muted"> &hellip;</span> : null}
                     </li>
                   ))}
-                  {h.count > h.excerpts.length ? (
-                    <li className="muted">{MANUSCRIPT_SEARCH.more(h.count - h.excerpts.length)}</li>
+                  {hit.count > hit.excerpts.length ? (
+                    <li className="muted">{MANUSCRIPT_SEARCH.more(hit.count - hit.excerpts.length)}</li>
                   ) : null}
                 </ul>
               ) : null}

@@ -10,7 +10,7 @@ import {
   type DraftOption,
 } from "@/components/drafts/DraftControls";
 import { RECORD_TYPE_LABELS } from "@/domain/recordTypes";
-import { DRAFT, NAV, SHELL, WEAVE, WRITE } from "@/ui/labels";
+import { ANALYZE, DRAFT, NAV, SHELL, WEAVE, WRITE } from "@/ui/labels";
 import { groupForProjectPath, parseProjectPath, RECORD_GROUPS, type RecordNavEntry } from "@/ui/navigation";
 import { IconButton } from "@/components/ui/IconButton";
 import { CollapsibleNavSection } from "./CollapsibleNavSection";
@@ -62,6 +62,7 @@ export function ProjectNav({
     return (id: string) => types.get(id);
   }, [records]);
   const parsed = parseProjectPath(pathname);
+  const writeHome = parsed?.rest.length === 1 && parsed.rest[0] === "write";
   const writing = parsed ? groupForProjectPath(parsed.rest, typeOf) === "write" : false;
   const showLabel = writing ? WRITE.showNavigation : WRITE.showProjectPanel;
   const hideLabel = writing ? WRITE.hideNavigation : WRITE.hideProjectPanel;
@@ -79,6 +80,7 @@ export function ProjectNav({
   };
 
   const secondaryOpen = !layout.secondaryHidden;
+  if (writeHome) return null;
 
   return (
     <>
@@ -303,6 +305,14 @@ function ProjectNavContent({
                   aria-current={pathname.includes("/plan/weave/templates") ? "page" : undefined}
                 >
                   {WEAVE.templates}
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href={`${base}/analyze`}
+                  aria-current={pathname.includes("/analyze") ? "page" : undefined}
+                >
+                  {ANALYZE.heading}
                 </Link>
               </li>
             </ul>

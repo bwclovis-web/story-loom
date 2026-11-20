@@ -58,6 +58,7 @@ model Project {
   dictionaryEntries      DictionaryEntry[]
   recordLinks            RecordLink[]
   recordImages           RecordImage[]
+  cover                  ProjectCover?
   rewriteSourceLinks     RewriteSourceLink[]
   readingPins            ReadingPin[]
   boards                 Board[]
@@ -71,6 +72,7 @@ model Project {
   weaveThreads           WeaveThread[]
   weaveTemplates         WeaveTemplate[]
   weaveBuildRuns         WeaveBuildRun[]
+  chapterAnalysisRuns    ChapterAnalysisRun[]
   establishedFacts       EstablishedFact[]
   factEvidence           FactEvidence[]
   sceneLocations         SceneLocation[]
@@ -353,6 +355,24 @@ model RecordImage {
 
   @@unique([recordId, name])
   @@index([projectId])
+}
+
+/// One cover picture for a project. Not revisioned content: changing it does
+/// not rewrite manuscript text. Absent means the home page draws a cover.
+model ProjectCover {
+  id               String   @id
+  projectId        String   @unique
+  project          Project  @relation(fields: [projectId], references: [id])
+  originalFilename String
+  mimeType         String
+  byteSize         Int
+  width            Int
+  height           Int
+  /// sha256 of `data`.
+  contentHash      String
+  data             Bytes
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 }
 
 /// A World map: an existing reference image used as a backdrop with markers.
@@ -746,6 +766,43 @@ model WeaveBuildRun {
   @@index([projectId, createdAt])
   @@index([projectId, status])
   @@index([gridId])
+}
+
+/// One Zero-draft chapter analysis. The proposal is suggestions only.
+/// Apply writes events, locations, facts, evidence, and Weave beats; it never
+/// rewrites the chapter. Review stays available after reload or cancellation.
+model ChapterAnalysisRun {
+  id                String    @id
+  workspaceId       String
+  projectId         String
+  project           Project   @relation(fields: [projectId], references: [id])
+  chapterRecordId   String
+  draftId           String
+  pinnedRevision    Int
+  /// preparing | proposed | applying | applied | failed | cancelled
+  status            String
+  errorCode         String?
+  errorMessage      String?
+  sourceHash        String    @default("")
+  contentHash       String    @default("")
+  /// Exact user message sent to the model, so a reload can show it.
+  sentMaterialJson  String    @default("")
+  proposalJson      String    @default("")
+  appliedKeysJson   String    @default("[]")
+  decisionsJson     String    @default("{}")
+  model             String?
+  providerResponseId String?
+  inputTokens       Int?
+  outputTokens      Int?
+  totalTokens       Int?
+  usageEstimated    Boolean   @default(false)
+  requestChars      Int       @default(0)
+  createdAt         DateTime  @default(now())
+  completedAt       DateTime?
+
+  @@index([projectId, createdAt])
+  @@index([projectId, status])
+  @@index([chapterRecordId])
 }
 
 /// A fact about a reference record ("Established in"). Not revisioned content:

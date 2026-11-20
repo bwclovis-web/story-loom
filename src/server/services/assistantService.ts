@@ -593,11 +593,11 @@ async function loadPriorMessages(db: Db, conversationId: string, ids: string[], 
 
 /* ---------- limits ---------- */
 
-/** Assistant answers and proofreading runs share the same hourly limit and monthly cap. */
+/** Assistant answers, proofreading, and chapter analysis share the hourly limit and monthly cap. */
 export async function usageSummary(db: Db, limits: AssistantLimits, now = new Date()): Promise<UsageSummary> {
   const monthStart = monthStartUtc(now);
   const hourAgo = new Date(now.getTime() - 3_600_000);
-  const [all, estimated, requests, proofAll, proofEstimated, proofRequests] = await Promise.all([
+  const [all, estimated, requests, proofAll, proofEstimated, proofRequests, analysisAll, analysisEstimated, analysisRequests] = await Promise.all([
     db.assistantMessage.aggregate({ _sum: { totalTokens: true }, where: { role: "assistant", createdAt: { gte: monthStart } } }),
     db.assistantMessage.aggregate({
       _sum: { totalTokens: true },
@@ -607,13 +607,20 @@ export async function usageSummary(db: Db, limits: AssistantLimits, now = new Da
     db.proofreadRun.aggregate({ _sum: { totalTokens: true }, where: { createdAt: { gte: monthStart } } }),
     db.proofreadRun.aggregate({ _sum: { totalTokens: true }, where: { usageEstimated: true, createdAt: { gte: monthStart } } }),
     db.proofreadRun.count({ where: { createdAt: { gte: hourAgo } } }),
+    db.chapterAnalysisRun.aggregate({ _sum: { totalTokens: true }, where: { createdAt: { gte: monthStart } } }),
+    db.chapterAnalysisRun.aggregate({
+      _sum: { totalTokens: true },
+      where: { usageEstimated: true, createdAt: { gte: monthStart } },
+    }),
+    db.chapterAnalysisRun.count({ where: { createdAt: { gte: hourAgo } } }),
   ]);
   return {
     monthStart: monthStart.toISOString(),
-    monthTokens: (all._sum.totalTokens ?? 0) + (proofAll._sum.totalTokens ?? 0),
-    monthEstimatedTokens: (estimated._sum.totalTokens ?? 0) + (proofEstimated._sum.totalTokens ?? 0),
+    monthTokens: (all._sum.totalTokens ?? 0) + (proofAll._sum.totalTokens ?? 0) + (analysisAll._sum.totalTokens ?? 0),
+    monthEstimatedTokens:
+      (estimated._sum.totalTokens ?? 0) + (proofEstimated._sum.totalTokens ?? 0) + (analysisEstimated._sum.totalTokens ?? 0),
     monthlyTokenCap: limits.monthlyTokenCap,
-    requestsLastHour: requests + proofRequests,
+    requestsLastHour: requests + proofRequests + analysisRequests,
     maxRequestsPerHour: limits.maxRequestsPerHour,
   };
 }
