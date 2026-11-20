@@ -155,9 +155,21 @@ export function GlobalNav({
           tip={tip}
           projects={projects}
           current={current}
-          collapsed={collapsed}
-          onToggleCollapsed={onToggleCollapsed}
         />
+        {variant === "rail" && onToggleCollapsed ? (
+          <button
+            type="button"
+            className={`collapse-toggle ${tip}`}
+            aria-expanded={!collapsed}
+            aria-controls="global-rail"
+            aria-label={collapsed ? SHELL.expand : SHELL.collapse}
+            data-tooltip={collapsed ? SHELL.expand : SHELL.collapse}
+            onClick={onToggleCollapsed}
+          >
+            <CollapseIcon />
+            <span className="label">{collapsed ? SHELL.expand : SHELL.collapse}</span>
+          </button>
+        ) : null}
       </div>
     </nav>
   );
@@ -171,8 +183,6 @@ function SettingsMenu({
   tip,
   projects,
   current,
-  collapsed,
-  onToggleCollapsed,
 }: {
   items: NavItem[];
   pathname: string;
@@ -181,8 +191,6 @@ function SettingsMenu({
   tip: string;
   projects: ProjectSummary[];
   current: ProjectSummary | null;
-  collapsed?: boolean;
-  onToggleCollapsed?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const wrapper = useRef<HTMLDivElement>(null);
@@ -257,19 +265,6 @@ function SettingsMenu({
             );
           })}
         </ul>
-        {variant === "rail" && onToggleCollapsed ? (
-          <button
-            type="button"
-            className="collapse-toggle"
-            aria-expanded={!collapsed}
-            aria-controls="global-rail"
-            aria-label={collapsed ? SHELL.expand : SHELL.collapse}
-            onClick={onToggleCollapsed}
-          >
-            <CollapseIcon />
-            <span>{collapsed ? SHELL.expand : SHELL.collapse}</span>
-          </button>
-        ) : null}
         <p className="settings-local">{SHELL.localOnly}</p>
       </div>
     </div>

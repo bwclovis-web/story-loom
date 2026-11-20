@@ -7,6 +7,7 @@ import { HelpHint } from "@/components/HelpHint";
 import { IssueList } from "@/components/IssueList";
 import { Banner } from "@/components/ui/Banner";
 import { Button } from "@/components/ui/Button";
+import { FileInput } from "@/components/ui/FileInput";
 import { RECORD_TYPE_LABELS, type RecordType } from "@/domain/recordTypes";
 import { AUTHORITY_STATUSES } from "@/domain/statuses";
 import { MARKDOWN_IMPORT } from "@/ui/labels";
@@ -155,12 +156,12 @@ export function MarkdownImportClient({ projectId }: { projectId: string }) {
   return (
     <div className="stack">
       <div className="panel row">
-        <input
-          type="file"
+        <FileInput
           multiple
           accept=".md,.markdown,text/markdown"
           onChange={(e) => onFiles(e.target.files)}
           aria-label="Markdown files to import"
+          disabled={pending}
         />
         {pending ? <span className="small muted">Working...</span> : null}
       </div>

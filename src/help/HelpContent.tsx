@@ -13,6 +13,7 @@ import {
   DICTIONARY,
   DRAFT,
   EXPORT,
+  FILE,
   HISTORY,
   HOME,
   IMAGES,
@@ -253,8 +254,9 @@ export function HelpContent() {
       <Section id="navigation">
         <p>
           The dark column on the left is the main navigation. <L>{SHELL.write}</L>, <L>{SHELL.plan}</L>,{" "}
-          <L>{SHELL.world}</L> and <L>{SHELL.assistant}</L> stay in the rail.           <L>{SHELL.help}</L> and the theme button are at the bottom. <L>{SHELL.settings}</L> holds the project
-          switcher, <L>{SHELL.collapse}</L>, <L>{SHELL.backups}</L>, <L>{SHELL.connections}</L> and <L>{SHELL.trash}</L>.
+          <L>{SHELL.world}</L> and <L>{SHELL.assistant}</L> stay in the rail.           <L>{SHELL.help}</L>, the theme button, <L>{SHELL.settings}</L>, and <L>{SHELL.collapse}</L> are at the bottom.{" "}
+          <L>{SHELL.settings}</L> holds the project switcher, <L>{SHELL.backups}</L>, <L>{SHELL.connections}</L> and{" "}
+          <L>{SHELL.trash}</L>.
           URLs are unchanged.
         </p>
         <ul>
@@ -329,9 +331,9 @@ export function HelpContent() {
         </ul>
         <h3>Smaller windows</h3>
         <p>
-          Open <L>{SHELL.settings}</L> at the bottom of the left column and choose <L>{SHELL.collapse}</L> to show icons
-          only. Point at an icon, or move to it with <kbd>Tab</kbd>, to see its name. Choose <L>{SHELL.expand}</L> to
-          bring the names back. On medium-width windows the column shows icons only until you expand it.
+          Choose <L>{SHELL.collapse}</L> at the bottom of the left column to show icons only. Point at an icon, or move
+          to it with <kbd>Tab</kbd>, to see its name. Choose <L>{SHELL.expand}</L> to bring the names back. On
+          medium-width windows the column shows icons only until you expand it.
         </p>
         <h3>Light and dark theme</h3>
         <p>
@@ -372,8 +374,9 @@ export function HelpContent() {
             On the home page, choose the actions button (three dots) on that manuscript, then <L>{HOME.changeCover}</L>.
           </li>
           <li>
-            Choose a PNG, JPEG, GIF or WebP file, up to 10 MB, then <L>{HOME.saveCover}</L>. The same picture is used
-            for the large cover and the small one. The title stays beside the picture.
+            Use <L>{FILE.chooseFile}</L> to pick a PNG, JPEG, GIF or WebP file, up to 10 MB. The best size is 440 ×
+            620 pixels (220:310). A different shape is cropped from the center. Then <L>{HOME.saveCover}</L>. The same
+            picture is used for the large cover and the small one. The title stays beside the picture.
           </li>
           <li>
             Choose <L>{HOME.useDrawnCover}</L> in that same dialog to remove the picture and return to the drawing.
@@ -990,8 +993,9 @@ export function HelpContent() {
 
         <Sub id="text-appearance">
           <p>
-            The <strong>Aa</strong> button (<L>{TEXT_APPEARANCE.button}</L>) on the writing page, on{" "}
-            <L>{NAV.readBook}</L> and on reference documents changes how text is shown: <L>{TEXT_APPEARANCE.font}</L>{" "}
+            <L>{TEXT_APPEARANCE.toolbar}</L> on the writing toolbar, and the <strong>Aa</strong> button on{" "}
+            <L>{NAV.readBook}</L> and on reference documents, opens <L>{TEXT_APPEARANCE.button}</L>. It changes how text
+            is shown: <L>{TEXT_APPEARANCE.font}</L>{" "}
             (fonts that come with Windows; Garamond only if installed), <L>{TEXT_APPEARANCE.size}</L>,{" "}
             <L>{TEXT_APPEARANCE.spacing}</L> and <L>{TEXT_APPEARANCE.width}</L>. Changes apply at once to chapter, scene
             and reference text on every page. Menus, buttons and headings are not changed.
@@ -1020,10 +1024,8 @@ export function HelpContent() {
               <L>{WRITE.versionHistory}</L>, which jumps to <L>{RECORD.historyHeading}</L> lower on the page.
             </li>
             <li>
-              <L>{WRITE.showContext}</L> or <L>{WRITE.hideContext}</L>. See <See anchor="scene-context" />.
-            </li>
-            <li>
-              <L>{TEXT_APPEARANCE.button}</L> (the <strong>Aa</strong> button). See <See anchor="text-appearance" />.
+              <L>{WRITE.layoutGroup}</L>: <L>{WRITE.modeDesk}</L>, <L>{WRITE.modeFocus}</L>, and{" "}
+              <L>{WRITE.modeCompanion}</L>. See <See anchor="panels-focus" />.
             </li>
             <li>
               <L>{WRITE.more}</L>: jumps to <L>{RECORD.statusHeading}</L>, <L>{RECORD.protectionHeading}</L>,{" "}
@@ -1034,9 +1036,11 @@ export function HelpContent() {
             </li>
           </ul>
           <p>
-            Chapters and scenes are protected, so a red bar asks you to tick <L>{RECORD.unlockProtected}</L> before
-            saving. Until you tick it, the formatting buttons are unavailable and a save is refused with your typing
-            kept on screen. The tick clears after each save. See <See anchor="protection" />.
+            Chapters and scenes are protected. The row under the title shows the draft and{" "}
+            <L>{WRITE.protectedReadOnly}</L>. Choose <L>{WRITE.enableEditing}</L> before saving or formatting. That is
+            the confirmation that you are intentionally changing protected text, and it clears after each save. Until
+            you choose it, the formatting buttons are unavailable and a save is refused with your typing kept on
+            screen. See <See anchor="protection" />.
           </p>
           <h4>Formatting toolbar</h4>
           <p>
@@ -1068,11 +1072,15 @@ export function HelpContent() {
               <kbd>Ctrl</kbd>+<kbd>Y</kbd>. Each button press is one step.
             </li>
             <li>
-              <L>{WRITE.find}</L> (<kbd>Ctrl</kbd>+<kbd>F</kbd>) and <L>{WRITE.spellcheck}</L> open those tools below
-              the toolbar. See <See anchor="find-replace" /> and <See anchor="spelling" />.
+              <L>{WRITE.find}</L> (<kbd>Ctrl</kbd>+<kbd>F</kbd>), <L>{WRITE.spellcheck}</L>, and{" "}
+              <L>{TEXT_APPEARANCE.toolbar}</L> stay labeled on the toolbar in every desktop layout. They are not folded
+              into <L>{WRITE.moreFormatting}</L>. On a narrow window the toolbar wraps onto a second row instead of
+              cutting a control off. See <See anchor="find-replace" />, <See anchor="spelling" />, and{" "}
+              <See anchor="text-appearance" />.
             </li>
             <li>
-              <L>{WRITE.focus}</L> (<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>F</kbd>). See <See anchor="panels-focus" />.
+              <L>{WRITE.focus}</L> is the <L>{WRITE.modeFocus}</L> layout (<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+
+              <kbd>F</kbd>). See <See anchor="panels-focus" />.
             </li>
             <li>
               <L>{WRITE.moreFormatting}</L>: <L>{WRITE.quote}</L> and <L>{WRITE.sceneBreak}</L> (a line with{" "}
@@ -1086,8 +1094,13 @@ export function HelpContent() {
           </p>
           <p>
             Below the text, the footer shows the word counts (<L>{WRITING.chapterCount}</L> or{" "}
-            <L>{WRITING.sceneCount}</L>, <L>{WRITING.selectionCount}</L> and <L>{WRITING.bookCount}</L>) and the{" "}
-            <L>{WRITING.spellingLanguage}</L>. See <See anchor="word-counts" />.
+            <L>{WRITING.sceneCount}</L>, <L>{WRITING.selectionCount}</L> and <L>{WRITING.bookCount}</L>), the{" "}
+            <L>{WRITING.spellingLanguage}</L>, and the spelling result. <L>{SPELLING.footerClear}</L> appears only after
+            the Story Loom checker has finished a check with nothing to report. While it is working the footer says{" "}
+            <L>{SPELLING.footerChecking}</L>. <L>{SPELLING.footerDisabled}</L>, <L>{SPELLING.footerUnavailable}</L>, and{" "}
+            <L>{SPELLING.footerFailed}</L> are separate. <L>{WRITE.spellcheck}</L> is this checker.{" "}
+            <L>{WRITE.proofread}</L> in the side panel is the separate assistant proofreading tool. See{" "}
+            <See anchor="word-counts" /> and <See anchor="spelling" />.
           </p>
           <h4>Leaving with unsaved changes</h4>
           <p>
@@ -1099,9 +1112,12 @@ export function HelpContent() {
 
         <Sub id="scene-context">
           <p>
-            The panel to the right of the text, <L>{WRITE.contextPanel}</L>, has five tabs. Choose a tab, or move
-            between them with the arrow keys. Opening a source or reference in the panel does not leave the writing page,
-            so unsaved text, the cursor and undo stay as they are.
+            <L>{WRITE.modeCompanion}</L> opens the panel to the right of the text, titled{" "}
+            <L>{WRITE.besideManuscript}</L>. Its tabs include <L>{WRITE.references}</L>, <L>{DRAFT.sourceTab}</L>,{" "}
+            <L>{WRITE.notes}</L>, <L>{WRITE.plot}</L>, <L>{ASSISTANT.tabAssistant}</L>, and <L>{WRITE.proofread}</L>.
+            Choose a tab, or move between them with the arrow keys. Opening a source or reference in the panel does not
+            leave the writing page, so unsaved text, the cursor and undo stay as they are. <L>{WRITE.proofread}</L> is
+            not <L>{WRITE.spellcheck}</L>.
           </p>
           <h4>{DRAFT.sourceTab}</h4>
           <ul>
@@ -1178,10 +1194,26 @@ export function HelpContent() {
         </Sub>
 
         <Sub id="panels-focus">
+          <p>
+            <L>{WRITE.layoutGroup}</L> is <L>{WRITE.modeDesk}</L>, <L>{WRITE.modeFocus}</L>, and{" "}
+            <L>{WRITE.modeCompanion}</L>. The header, protection row, toolbar, and footer stay the same control, in the
+            same order, when you switch. What changes is whether the chapter list is open, whether{" "}
+            <L>{WRITE.besideManuscript}</L> is open, and how wide the text column is.
+          </p>
           <ul>
             <li>
-              Choose <L>{WRITE.hideNavigation}</L> (top of the manuscript column) or <L>{WRITE.hideContext}</L> to give
-              the text more room. A thin strip with <L>{WRITE.showNavigation}</L> brings the manuscript column back.
+              <L>{WRITE.modeDesk}</L> shows the chapter list and hides the side panel. <L>{WRITE.hideNavigation}</L> and{" "}
+              <L>{WRITE.showNavigation}</L> still fold that list, and the main menu still collapses and opens, on this
+              page and the others.
+            </li>
+            <li>
+              <L>{WRITE.modeCompanion}</L> hides the chapter list and shows <L>{WRITE.besideManuscript}</L>.{" "}
+              <L>{WRITE.close}</L> returns to <L>{WRITE.modeDesk}</L>.
+            </li>
+            <li>
+              <L>{WRITE.modeFocus}</L> hides the chapter list, the icon rail, and the side panel, and keeps the text in
+              a centered column. Press <kbd>Esc</kbd>, choose <L>{WRITE.exitFocus}</L>, or press <kbd>Ctrl</kbd>+
+              <kbd>Shift</kbd>+<kbd>F</kbd>. Your text, selection, and undo history stay as they were.
             </li>
             <li>
               To change a panel&apos;s width, drag the line at its edge. Or move to that line with <kbd>Tab</kbd> and
@@ -1189,19 +1221,14 @@ export function HelpContent() {
               <kbd>End</kbd> for the narrowest and widest.
             </li>
             <li>
-              This browser remembers the widths, which panels are hidden, and the open tab, in a small cookie. No text is
-              stored in it.
-            </li>
-            <li>
-              <L>{WRITE.focus}</L> hides the navigation and both panels and leaves only the text. Press{" "}
-              <kbd>Esc</kbd> or choose <L>{WRITE.exitFocus}</L> to return. Your text, selection and undo history stay as
-              they were.
+              This browser remembers the widths, the layout, and the open tab, in a small cookie. No text is stored in
+              it.
             </li>
           </ul>
           <p>
-            On a medium-width window, the context panel opens over the text instead of beside it. Choose{" "}
-            <L>{WRITE.showContext}</L> to open it, and <L>{WRITE.closeContext}</L> or <kbd>Esc</kbd> to close it. On a
-            narrow window, such as a phone-sized one, the manuscript column is in <L>{SHELL.openProjectMenu}</L>.
+            On a medium-width window, <L>{WRITE.modeCompanion}</L> opens the panel over the text. <L>{WRITE.close}</L>{" "}
+            or <kbd>Esc</kbd> closes it; choose <L>{WRITE.modeCompanion}</L> again to bring it back. On a narrow window,
+            the chapter list is in <L>{SHELL.openProjectMenu}</L>, and the toolbar wraps onto a second row.
           </p>
         </Sub>
       </Section>
@@ -1308,10 +1335,24 @@ export function HelpContent() {
           <p>
             Review is grouped by passage. Open a suggestion to see a little of the surrounding text. Each one shows
             what the passage says, what the analysis proposes, the existing record or New record, the uncertainty, and
-            what accepting it will change. Choose Use existing, Edit suggestion, Create new, or Skip. Nothing is
-            preselected. When more than one record matches, choose which one. If a selected item depends on one you
-            skipped, the page says what to resolve, and Apply will not create that dependency for you. Before Apply,
-            read the short list of records, links, evidence, events, and beats that this selection will write.
+            what accepting it will change. <L>{ANALYZE.reviewIntro}</L> <L>{ANALYZE.saveExplain}</L> and{" "}
+            <L>{ANALYZE.rateExplain}</L> open beside those labels. <L>{ANALYZE.save}</L> is Use existing, Edit
+            suggestion, Create new, or Skip, and nothing is preselected. Use existing links a record already in the
+            project. Edit suggestion changes the proposed details before saving and does not edit the manuscript.
+            Create new adds the proposed item: a new reference record starts as a draft, and a new fact starts pending.
+            A story event, a reader reveal, a planning beat, or an earlier/later order is that kind of record, not a
+            new reference document. Skip leaves the suggestion out of the changes you apply.{" "}
+            <L>{ANALYZE.assessment}</L> is separate. Correct, Needs editing, Unsupported, and Duplicate describe the
+            original suggestion. A rating does not select a change, and editing a suggestion does not turn its rating
+            into Correct. Using an existing record is not automatically a duplicate: new passage evidence on an
+            existing fact can still be useful.
+          </p>
+          <p>
+            When more than one record matches, choose which one. If a selected item depends on one you skipped, the
+            page says what to resolve, and Apply will not create that dependency for you. Before Apply,{" "}
+            <L>{ANALYZE.writes}</L> lists the records, links, evidence, events, and beats that this selection will
+            write. <L>{ANALYZE.ratingsHeading}</L> are counted beside that list and are not part of it. A rating alone
+            does not make Apply write story information.
           </p>
           <p>
             A response that stops early, is refused, or does not match the format has no suggestions and cannot be
@@ -1739,7 +1780,8 @@ export function HelpContent() {
           <h4>Adding images</h4>
           <ol>
             <li>
-              Under <L>{IMAGES.heading}</L>, choose files in <L>{IMAGES.chooseFiles}</L>. You can pick several at once.
+              Under <L>{IMAGES.heading}</L>, use <L>{FILE.chooseFiles}</L> in <L>{IMAGES.chooseFiles}</L>. You can pick
+              several at once.
             </li>
             <li>
               On a protected document, tick <L>{RECORD.unlockProtected}</L>
@@ -2091,9 +2133,8 @@ export function HelpContent() {
               Hyphenated words are checked part by part.
             </li>
             <li>
-              On a protected record, suggestions cannot be used until you tick <L>{RECORD.unlockProtected}</L> The tick
-              box appears in the spelling box itself, as well as in the red bar under a chapter&apos;s title (below the
-              text on a reference document); ticking either ticks both. Ignoring and adding words still work.
+              On a protected record, suggestions cannot be used until you choose <L>{WRITE.enableEditing}</L>. The same
+              control is in the spelling box. Ignoring and adding words still work.
             </li>
             <li>
               If the Story Loom checker cannot start, the box says so and the browser&apos;s checker is used instead.
@@ -2295,8 +2336,8 @@ export function HelpContent() {
           </ul>
           <p className="warning">
             On a protected record, <L>{WRITING.replace}</L> and <L>{WRITING.replaceAll}</L> stay unavailable until you
-            tick <L>{RECORD.unlockProtected}</L> The tick box appears in the find box too; ticking it there is the same
-            as ticking it in the editor. Saving still needs that tick. See <See anchor="protection" />.
+            choose <L>{WRITE.enableEditing}</L>. The same control is in the find box. Saving still needs it. See{" "}
+            <See anchor="protection" />.
           </p>
         </Sub>
 

@@ -1,5 +1,6 @@
 "use client";
 import { Button } from "@/components/ui/Button";
+import { FileInput } from "@/components/ui/FileInput";
 
 import Link from "next/link";
 import { useMemo, useState, type FormEvent } from "react";
@@ -350,10 +351,11 @@ function ImportSection({ projectId, existing }: { projectId: string; existing: D
       <p className="small muted" style={{ margin: 0 }}>
         {DICTIONARY.importNote}
       </p>
-      <label>
-        {DICTIONARY.importFile}
-        <input type="file" accept=".json,.txt,.dic,application/json,text/plain" onChange={(e) => onFile(e.target.files?.[0])} />
-      </label>
+      <FileInput
+        label={DICTIONARY.importFile}
+        accept=".json,.txt,.dic,application/json,text/plain"
+        onChange={(e) => onFile(e.target.files?.[0])}
+      />
       {error ? <div className="small error-text">{error}</div> : null}
       {parsed ? (
         <>

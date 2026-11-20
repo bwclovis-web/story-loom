@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
 import { ButtonLink } from "@/components/ui/Button";
+import { FileInput } from "@/components/ui/FileInput";
 import { IssueList } from "@/components/IssueList";
 import type { Issue } from "@/domain/issues";
 import { WORLD } from "@/ui/labels";
@@ -111,10 +112,7 @@ export function CreateMapForm({
         </label>
       ) : (
         <>
-          <label>
-            {WORLD.mapSourceUpload}
-            <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/gif,image/webp" required />
-          </label>
+          <FileInput ref={fileRef} label={WORLD.mapSourceUpload} accept="image/png,image/jpeg,image/gif,image/webp" required />
           <label>
             {WORLD.mapHostRecord}
             <select

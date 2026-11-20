@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import type {
   AnalysisAction,
   AnalysisAssessment,
@@ -10,10 +10,12 @@ import type {
   AnalysisSuggestion,
 } from "@/analyze/chapterAnalysisOutput";
 import { ANALYSIS_ASSESSMENTS } from "@/analyze/chapterAnalysisOutput";
-import { CATEGORY_BOUNDARY, describeWrites, effectOf, passageContext, summarizeRun } from "@/analyze/chapterAnalysisReview";
+import { actionExplanation, CATEGORY_BOUNDARY, describeWrites, effectOf, passageContext, summarizeRun } from "@/analyze/chapterAnalysisReview";
 import { Button } from "@/components/ui/Button";
+import { HelpPopover } from "@/components/ui/HelpPopover";
 import { ANALYZE } from "@/ui/labels";
 import { applyChapterAnalysisAction, saveChapterAnalysisAssessmentsAction, saveChapterAnalysisDecisionsAction } from "./actions";
+import { ReviewDisclosure } from "./ReviewDisclosure";
 
 const ACTIONS: AnalysisAction[] = ["pending", "reuse", "edit", "create", "skip"];
 
@@ -74,6 +76,10 @@ export function AnalyzeReview({
   const [busy, setBusy] = useState(false);
   const summary = summarizeRun(proposal.suggestions, decisions, assessments, appliedKeys, usage);
   const writes = describeWrites(proposal.suggestions, decisions);
+  const selected = proposal.suggestions.filter((item) => {
+    const action = decisions[item.key]?.action ?? "pending";
+    return action === "reuse" || action === "edit" || action === "create";
+  }).length;
   const byKey = new Map(proposal.suggestions.map((item) => [item.key, item]));
 
   const update = (key: string, patch: Partial<AnalysisDecisions[string]>) => {
@@ -102,6 +108,15 @@ export function AnalyzeReview({
   return (
     <div>
       <h2>{ANALYZE.summary}</h2>
+      <p>{ANALYZE.reviewIntro}</p>
+      <ReviewDisclosure summary={ANALYZE.howReview}>
+        <ul>
+          <li>{ANALYZE.examplePlace}</li>
+          <li>{ANALYZE.exampleKnowledge}</li>
+          <li>{ANALYZE.exampleDetail}</li>
+          <li>{ANALYZE.notDuplicate}</li>
+        </ul>
+      </ReviewDisclosure>
       <ul>
         {summary.byCategory
           .filter((row) => row.count > 0)
@@ -111,11 +126,7 @@ export function AnalyzeReview({
             </li>
           ))}
         <li>
-          Applied {summary.applied}. Skipped {summary.skipped}. Not chosen {summary.pending}.
-        </li>
-        <li>
-          Assessments: correct {summary.assessments.correct}, needs editing {summary.assessments.needs_editing}, unsupported{" "}
-          {summary.assessments.unsupported}, duplicate {summary.assessments.duplicate}, not assessed {summary.assessments.unassessed}.
+          Selected to save {selected}. Applied {summary.applied}. Skipped {summary.skipped}. Not chosen {summary.pending}.
         </li>
         <li>
           {ANALYZE.requestChars}: {requestChars.toLocaleString("en-US")}. {ANALYZE.outputAllowance}: {outputTokenAllowance.toLocaleString("en-US")} tokens.
@@ -204,20 +215,7 @@ export function AnalyzeReview({
                   <p>
                     {ANALYZE.willChange}: {effectOf(item, decision.action)}
                   </p>
-                  <label>
-                    Choice
-                    <select
-                      aria-label={`Choice for ${item.title}`}
-                      value={decision.action}
-                      onChange={(event) => update(item.key, { action: event.target.value as AnalysisAction })}
-                    >
-                      {ACTIONS.filter((action) => item.quoteValid || action === "pending" || action === "skip").map((action) => (
-                        <option key={action} value={action}>
-                          {actionLabel(action)}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+                  <SaveField item={item} action={decision.action} onChange={(action) => update(item.key, { action })} />
                   {decision.action === "edit" ? (
                     <p>
                       <label>
@@ -255,22 +253,7 @@ export function AnalyzeReview({
                       </select>
                     </label>
                   ) : null}
-                  <label>
-                    {ANALYZE.assessment}
-                    <select
-                      aria-label={`Assessment for ${item.title}`}
-                      value={assessments[item.key] ?? ""}
-                      onChange={(event) => assess(item.key, event.target.value)}
-                    >
-                      <option value="">Not assessed</option>
-                      {ANALYSIS_ASSESSMENTS.map((mark) => (
-                        <option key={mark} value={mark}>
-                          {ANALYZE.assessments[mark]}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <p>{ANALYZE.assessmentNote}</p>
+                  <RateField item={item} value={assessments[item.key] ?? ""} onChange={(value) => assess(item.key, value)} />
                   <details>
                     <summary>{ANALYZE.details}</summary>
                     <p>
@@ -288,6 +271,8 @@ export function AnalyzeReview({
       {canApply ? (
         <section>
           <h2>{ANALYZE.writes}</h2>
+          <p className="hint">{ANALYZE.writesNote}</p>
+          {selected === 0 ? <p>{ANALYZE.nothingSelected}</p> : null}
           {(
             [
               ["records", writes.records],
@@ -311,12 +296,124 @@ export function AnalyzeReview({
               )}
             </div>
           ))}
+          <h2>{ANALYZE.ratingsHeading}</h2>
+          <p className="hint">{ANALYZE.ratingsNote}</p>
+          <ul>
+            <li>
+              {ANALYZE.assessments.correct}: {summary.assessments.correct}
+            </li>
+            <li>
+              {ANALYZE.assessments.needs_editing}: {summary.assessments.needs_editing}
+            </li>
+            <li>
+              {ANALYZE.assessments.unsupported}: {summary.assessments.unsupported}
+            </li>
+            <li>
+              {ANALYZE.assessments.duplicate}: {summary.assessments.duplicate}
+            </li>
+            <li>
+              {ANALYZE.notAssessed}: {summary.assessments.unassessed}
+            </li>
+          </ul>
           <Button type="button" disabled={busy} onClick={() => void apply()}>
             {busy ? ANALYZE.applying : ANALYZE.apply}
           </Button>
         </section>
       ) : null}
       {message ? <p role="status">{message}</p> : null}
+    </div>
+  );
+}
+
+function SaveField({
+  item,
+  action,
+  onChange,
+}: {
+  item: AnalysisSuggestion;
+  action: AnalysisAction;
+  onChange: (action: AnalysisAction) => void;
+}) {
+  const selectId = useId();
+  const chosenId = useId();
+  const options = ACTIONS.filter((option) => item.quoteValid || option === "pending" || option === "skip");
+  return (
+    <div className="review-field">
+      <div className="review-label-row">
+        <label htmlFor={selectId}>{ANALYZE.save}</label>
+        <HelpPopover label={ANALYZE.saveExplain}>{ANALYZE.saveHelp}</HelpPopover>
+      </div>
+      <select
+        id={selectId}
+        aria-describedby={action === "pending" ? undefined : chosenId}
+        aria-label={`${ANALYZE.save} for ${item.title}`}
+        value={action}
+        onChange={(event) => onChange(event.target.value as AnalysisAction)}
+      >
+        {options.map((option) => (
+          <option key={option} value={option}>
+            {actionLabel(option)}
+          </option>
+        ))}
+      </select>
+      {action !== "pending" ? (
+        <p id={chosenId} className="hint">
+          {actionExplanation(item.kind, action)}
+        </p>
+      ) : null}
+      <ReviewDisclosure summary={ANALYZE.choiceHelp}>
+        <ul>
+          {options
+            .filter((option) => option !== "pending")
+            .map((option) => (
+              <li key={option}>
+                <strong>{actionLabel(option)}.</strong> {actionExplanation(item.kind, option)}
+              </li>
+            ))}
+        </ul>
+      </ReviewDisclosure>
+    </div>
+  );
+}
+
+function RateField({ item, value, onChange }: { item: AnalysisSuggestion; value: string; onChange: (value: string) => void }) {
+  const selectId = useId();
+  const chosenId = useId();
+  const mark = ANALYSIS_ASSESSMENTS.find((option) => option === value);
+  return (
+    <div className="review-field">
+      <div className="review-label-row">
+        <label htmlFor={selectId}>{ANALYZE.assessment}</label>
+        <HelpPopover label={ANALYZE.rateExplain}>{ANALYZE.assessmentNote}</HelpPopover>
+      </div>
+      <select
+        id={selectId}
+        aria-describedby={mark ? chosenId : undefined}
+        aria-label={`${ANALYZE.assessment} for ${item.title}`}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+      >
+        <option value="">{ANALYZE.notAssessed}</option>
+        {ANALYSIS_ASSESSMENTS.map((option) => (
+          <option key={option} value={option}>
+            {ANALYZE.assessments[option]}
+          </option>
+        ))}
+      </select>
+      {mark ? (
+        <p id={chosenId} className="hint">
+          {ANALYZE.assessmentHelp[mark]}
+        </p>
+      ) : null}
+      <ReviewDisclosure summary={ANALYZE.ratingHelp}>
+        <ul>
+          {ANALYSIS_ASSESSMENTS.map((option) => (
+            <li key={option}>
+              <strong>{ANALYZE.assessments[option]}.</strong> {ANALYZE.assessmentHelp[option]}
+            </li>
+          ))}
+        </ul>
+      </ReviewDisclosure>
     </div>
   );
 }

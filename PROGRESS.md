@@ -1,5 +1,21 @@
 # Progress
 
+## Main menu (Nov 20, 2026)
+
+The writing screen uses one brand bar across the top. Editorial Desk, MODE 02 — FOCUS MANUSCRIPT, and MODE 03 — Reference Companion name the three layouts. Desk keeps the chapter list and a Tools button that opens the beside-the-manuscript panel. That panel’s tabs are References, Source, Notes, Plot, Assistant, and Proofread. Collapse navigation and Expand navigation sit on the rail itself, under Settings. The chapter list or project panel can still be hidden and shown. On a manuscript page, Desk keeps that hide and show control; Focus and Companion keep the chapter list closed.
+
+## Writing layouts (Nov 20, 2026)
+
+Desk, Focus, and Companion share one header, protection row, toolbar, and footer. Switching them shows or hides the chapter list and the Reference Companion panel, and changes the width left for the text. The text box stays the Markdown editor.
+
+Find / Replace, Spellcheck, and Appearance stay labeled on the toolbar. Find / Replace and Spellcheck open the existing tools. Ctrl/Cmd+F still opens Find / Replace. Spellcheck is the dictionary checker. Proofread stays the assistant tool in the side panel. On a narrow window the toolbar wraps to a second row.
+
+The footer says “No spelling issues” only after the Story Loom checker finishes with nothing to report. Checking, Spelling off, Spelling unavailable (the browser checker, which does not report a count), and Spelling check failed stay separate. Enable editing is the protection confirmation sent with Save.
+
+## Cover file picker (Nov 20, 2026)
+
+The Change cover dialog names the useful size: 440 × 620 pixels, ratio 220:310, with a center crop when the picture is a different shape. Every upload field uses the shared Choose file / Choose files button. The editor’s Load text from file menu still opens its own hidden picker.
+
 ## Analyze chapter review (Nov 20, 2026)
 
 Plan → Analyze chapter now shows the exact request before anything is sent. The author picks categories, inspects the catalogs, instructions, user message, character count, estimated input tokens, output-token allowance, and remaining hourly and monthly allowance, then sends as a separate action. The pinned revision is checked again at send time. Category choices are remembered in the browser and do not rewrite saved runs.
@@ -8,9 +24,11 @@ Chapter analysis uses `ASSISTANT_ANALYSIS_OUTPUT_TOKENS` (default 8,000). Discus
 
 Quotations are resolved on the server. A repeated quotation has to name which occurrence. Passage verified means the quotation is in the pinned revision; it does not mean the interpretation is right. Mention, intention, and speculation stay uncertain. Chronology has to name both events in the quotation and state the direction. An order word alone is not an order. Cycles and a constraint added after the proposal roll the apply back. A target record, event, fact, or beat that changed after the proposal is refused inside the same transaction.
 
-Review stays grouped by passage. Choices are Use existing, Edit suggestion, Create new, and Skip, and nothing is preselected. A skipped dependency is named and is not created. Apply shows the writes first. Quality marks (Correct, Needs editing, Unsupported, Duplicate) are stored separately and are not sent to the model. Older runs and older backups still load. New columns are optional in backups.
+Review stays grouped by passage. Explain beside What to save and Rate this suggestion opens those explanations. What to save is Use existing, Edit suggestion, Create new, or Skip, and nothing is preselected. A skipped dependency is named and is not created. Apply lists those selected changes apart from optional quality ratings. A rating does not select a change. Correct, Needs editing, Unsupported, and Duplicate stay stored separately and are not sent to the model. Older runs and older backups still load. New columns are optional in backups.
 
-Checks: `tsc --noEmit` passed. Vitest `chapter-analysis-review`, `chapter-analysis`, `help`, and `backup-restore`: 4 files, 27 tests passed. `next build` compiled and typechecked, then failed while prerendering the framework `/_global-error` page (`useContext` of null). That page is not part of this feature. Browser check on an isolated invented project at `127.0.0.1:2119` (stopped afterward): the form listed the eight categories and did not send on its own; the review opened with nothing chosen, showed passage verified separately from the interpretation, and after a partial apply reloaded with Use existing and Skip still selected, one applied and one skipped, and the chapter still at revision 1. No live model call. The working database was not analyzed or applied to. `pnpm db:deploy` added the columns after `backups/2026-11-20T13-38-35-642Z-pre-migrate`. Afterward: 195 records, 4 projects, 0 chapter-analysis runs.
+Checks: `tsc --noEmit` passed. Vitest `chapter-analysis-review`, `chapter-analysis`, `help`, and `backup-restore`: 4 files, 27 tests passed. `pnpm build` completed, including the static `/_global-error` page, with `WORDLY_DIST_DIR` set to an isolated directory. Browser check on an isolated invented project at `127.0.0.1:2119` (stopped afterward): the form listed the eight categories and did not send on its own; the review opened with nothing chosen, showed passage verified separately from the interpretation, and after a partial apply reloaded with Use existing and Skip still selected, one applied and one skipped, and the chapter still at revision 1. No live model call. The working database was not analyzed or applied to. `pnpm db:deploy` added the columns after `backups/2026-11-20T13-38-35-642Z-pre-migrate`. Afterward: 195 records, 4 projects, 0 chapter-analysis runs.
+
+The production build had been failing while prerendering `/_global-error`. Next renders that page with the app's `react-dom`, while the App Router server graph calls hooks on a second React bundled in the Turbopack app-page runtime. The renderer sets the hook dispatcher on the first copy, so `useContext` on the second throws because the dispatcher is null. `pnpm build` and `pnpm start` load `scripts/align-next-ssr-react.cjs` first and point `react-dom/server` and `react-dom/static` at that bundled copy. Development is unchanged. A blank live-trial notes form is in `docs/assistant.md`. Quality marks stay separate from apply choices, and acceptance is not an accuracy score.
 
 One-chapter live trial, on a private restored copy only: back up; open Plan → Analyze chapter; read the preflight (model, categories, catalogs, instructions, user message, character count versus the token estimate versus the output allowance versus remaining requests and tokens; no price); send one request; mark suggestions without applying; apply a small reviewed selection; check the evidence links; reload; back up and restore. Do not treat that trial as already done.
 

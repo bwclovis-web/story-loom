@@ -105,6 +105,80 @@ export function interpretationCaution(kind: AnalysisKind, excerpt: string): stri
   return null;
 }
 
+const USE_EXISTING = "Link to a record already in your project.";
+const EDIT_SUGGESTION = "Change the proposed details before saving. Your manuscript text is not edited.";
+const CREATE_REFERENCE = "Create the proposed item when you apply it. New reference records start as draft; new facts start as pending.";
+const SKIP_SUGGESTION = "Leave this suggestion out of the changes you apply.";
+
+/** What the selected action writes for this kind. Ratings are not part of this text. */
+export function actionExplanation(kind: AnalysisKind, action: Exclude<AnalysisAction, "pending">): string {
+  if (action === "skip") return SKIP_SUGGESTION;
+  if (action === "edit") return `${EDIT_SUGGESTION} ${editWrite(kind)}`;
+  if (action === "reuse") return `${USE_EXISTING} ${reuseWrite(kind)}`;
+  return createWrite(kind);
+}
+
+function reuseWrite(kind: AnalysisKind): string {
+  switch (kind) {
+    case "character_presence":
+      return "This adds a pending fact that the character appears in the chapter, with this passage as evidence. The dossier text stays as it is.";
+    case "location":
+      return "This links that place to the chapter. It does not create another place.";
+    case "character_learning":
+      return "This adds a pending fact about what this character learns, with this passage as evidence. It does not record that anyone else knows it.";
+    case "reference_evidence":
+      return "This pins the passage to that fact. An accepted fact keeps its statement. Adding evidence is not automatically a duplicate.";
+    case "event":
+      return "This pins the passage to that story event.";
+    case "reader_revelation":
+      return "This records that the chapter reveals the event to the reader. It does not make the event happen here, and it does not give a character that knowledge.";
+    case "plot_beat":
+      return "This keeps that planning beat linked to the chapter. It does not change the chapter.";
+    case "chronology":
+      return "This records which of the two events is earlier, if that does not contradict an order already stored.";
+  }
+}
+
+function editWrite(kind: AnalysisKind): string {
+  switch (kind) {
+    case "character_presence":
+    case "location":
+      return "A draft dossier or place can be retitled. An approved record is not retitled.";
+    case "character_learning":
+    case "reference_evidence":
+      return "A pending fact’s statement can change. An accepted fact keeps its statement.";
+    case "event":
+      return "The story event’s title and summary can change, and the passage is pinned.";
+    case "plot_beat":
+      return "The planning beat’s title and note can change.";
+    case "reader_revelation":
+      return "The reveal is recorded on the event. It does not give a character that knowledge.";
+    case "chronology":
+      return "The order between the two events is what gets saved.";
+  }
+}
+
+function createWrite(kind: AnalysisKind): string {
+  switch (kind) {
+    case "character_presence":
+      return `${CREATE_REFERENCE} This one creates a draft character dossier and a pending fact that they appear in the chapter, with this passage as evidence.`;
+    case "location":
+      return `${CREATE_REFERENCE} This one creates a draft place and links it to the chapter.`;
+    case "character_learning":
+      return "Create a pending fact about what this character learns, with this passage as evidence. It does not record that anyone else knows it, and it does not create a reference record or edit the chapter.";
+    case "reference_evidence":
+      return "Create a pending fact and pin this passage. It is not accepted. This does not create a reference record or edit the chapter.";
+    case "event":
+      return "Create a story event in this Zero draft and pin this passage. The time stays unknown. This does not create a reference record or edit the chapter.";
+    case "reader_revelation":
+      return "Record that this chapter reveals the event to the reader. It does not make the event happen here, it does not give a character that knowledge, and it does not create a reference record.";
+    case "plot_beat":
+      return "Add a planning beat on the Zero-draft grid. It does not change the chapter or create a reference record.";
+    case "chronology":
+      return "Record that one named event is before the other, if that does not contradict an order already stored. This does not create a reference record or edit the chapter.";
+  }
+}
+
 export function effectOf(item: AnalysisSuggestion, action: AnalysisAction): string {
   if (action === "pending") return "No choice yet. Nothing will be written for this suggestion.";
   if (action === "skip") return "Skip. Nothing will be written for this suggestion.";

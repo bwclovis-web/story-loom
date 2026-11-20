@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
+import { ALargeSmall } from "lucide-react";
 import { writePreference } from "@/components/shell/preferences";
 import { Button } from "@/components/ui/Button";
 import { IconButton } from "@/components/ui/IconButton";
@@ -23,8 +24,14 @@ function readCookie(): TextAppearance {
   return parseTextAppearance(m ? decodeURIComponent(m[1]) : undefined);
 }
 
-/** "Aa" button with font, size, spacing and width choices; changes apply at once to every page in this browser. */
-export function TextAppearanceMenu({ align = "right" }: { align?: "left" | "right" }) {
+/** Font, size, spacing and width. `toolbar` is the labeled manuscript control; `icon` is the Aa button elsewhere. */
+export function TextAppearanceMenu({
+  align = "right",
+  presentation = "icon",
+}: {
+  align?: "left" | "right";
+  presentation?: "icon" | "toolbar";
+}) {
   const id = useId();
   const [open, setOpen] = useState(false);
   const [pref, setPref] = useState<TextAppearance>(DEFAULT_TEXT_APPEARANCE);
@@ -41,7 +48,7 @@ export function TextAppearanceMenu({ align = "right" }: { align?: "left" | "righ
       if (e.key !== "Escape") return;
       e.preventDefault();
       setOpen(false);
-      buttonRef.current?.focus();
+      (buttonRef.current ?? wrapRef.current?.querySelector("button"))?.focus();
     };
     document.addEventListener("pointerdown", onDown);
     document.addEventListener("keydown", onKey);
@@ -73,18 +80,36 @@ export function TextAppearanceMenu({ align = "right" }: { align?: "left" | "righ
 
   return (
     <div className="menu-wrap" ref={wrapRef}>
-      <IconButton
-        ref={buttonRef}
-        tip="end"
-        aria-label={TEXT_APPEARANCE.button}
-        aria-expanded={open}
-        aria-controls={id}
-        onClick={() => setOpen((o) => !o)}
-      >
-        <span aria-hidden="true" className="aa-icon">
-          Aa
-        </span>
-      </IconButton>
+      {presentation === "toolbar" ? (
+        <Button
+          type="button"
+          variant="toolbar"
+          size="toolbar"
+          className="tool-labeled"
+          aria-label={TEXT_APPEARANCE.toolbar}
+          aria-expanded={open}
+          aria-controls={id}
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => setOpen((o) => !o)}
+          icon={<ALargeSmall strokeWidth={1.75} />}
+        >
+          {TEXT_APPEARANCE.toolbar}
+        </Button>
+      ) : (
+        <IconButton
+          ref={buttonRef}
+          tip="end"
+          aria-label={TEXT_APPEARANCE.button}
+          aria-expanded={open}
+          aria-controls={id}
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => setOpen((o) => !o)}
+        >
+          <span aria-hidden="true" className="aa-icon">
+            Aa
+          </span>
+        </IconButton>
+      )}
       <div id={id} className={`tool-menu text-appearance ${align}`} role="group" aria-label={TEXT_APPEARANCE.heading} hidden={!open}>
         <strong>{TEXT_APPEARANCE.heading}</strong>
         {choice("font", TEXT_APPEARANCE.font, TEXT_FONTS)}

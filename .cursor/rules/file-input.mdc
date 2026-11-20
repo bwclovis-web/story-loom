@@ -1,0 +1,26 @@
+---
+description: Use the shared FileInput for every file upload
+globs: src/**/*.tsx
+alwaysApply: false
+---
+
+# File uploads
+
+Use `FileInput` from `@/components/ui/FileInput` for every file picker. The
+button reads `FILE.chooseFile` or `FILE.chooseFiles` from `src/ui/labels.ts`.
+Do not render a visible `<input type="file">`, and do not restyle the browser's
+own Choose file control.
+
+```tsx
+import { FileInput } from "@/components/ui/FileInput";
+
+<FileInput name="cover" accept="image/png,image/jpeg,image/gif,image/webp" required />
+```
+
+- Pass `multiple` when several files are allowed. The button label follows.
+- Keep `name`, `accept`, `required`, and `onChange` on `FileInput` so the form
+  and the existing handler still receive the real input.
+- Pass `ref` when the submit handler reads `input.files` itself.
+- A named menu action that already opens a file dialog, such as Load text from
+  file in the editor, may keep a visually hidden input. Do not add a second
+  Choose file button beside that action.

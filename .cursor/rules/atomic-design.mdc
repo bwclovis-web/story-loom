@@ -1,0 +1,25 @@
+---
+description: Atomic design for Story Loom interface components
+globs: src/components/ui/**/*.{ts,tsx},src/app/**/*.tsx
+alwaysApply: false
+---
+
+# Atomic design
+
+Build the interface from the pieces already in `src/components/ui`. Do not add a tooltip or popover library.
+
+- **Atoms** are one control: `Button`, `IconButton`, `HelpPopover`, `Banner`. Each atom has its own folder, barrel, and variant module. Import the barrel (`@/components/ui/HelpPopover`).
+- **Molecules** combine atoms and copy, and do not write manuscript data. A label plus `HelpPopover` is a molecule. Share it under `src/components/ui` when a second screen needs it.
+- **Organisms** are a feature section, such as a suggestion review. They import atoms and molecules. They do not restyle buttons or invent a second popover.
+- **Pages** assemble organisms. They keep routes, saved values, and apply behavior as they are.
+
+Explanations that must work by keyboard and touch use `HelpPopover`, not `data-tooltip`. `data-tooltip` stays a hover tip on icon buttons. The popover trigger keeps a visible name, Escape closes it and returns focus, and the panel has no nested controls.
+
+```tsx
+import { HelpPopover } from "@/components/ui/HelpPopover";
+
+<label htmlFor={fieldId}>What to save</label>
+<HelpPopover label="Explain what to save">
+  Choose what this suggestion should add or link.
+</HelpPopover>
+```

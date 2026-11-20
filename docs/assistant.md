@@ -432,3 +432,36 @@ This makes one small paid request. Run it yourself; automated tests never do.
    "She recieved teh letter." into a record, save it, and choose Proofread
    document. Confirm two suggestions appear, accept one, dismiss the other,
    and save.
+
+## Chapter analysis live-trial notes
+
+Fill this in after one chapter on a private restored copy. Do not paste the chapter. Rate this suggestion records how accurate the original suggestion was. What to save is a separate decision about what to write. Do not turn accepts into an accuracy score.
+
+- Chapter (title and id):
+- Pinned revision:
+- Selected categories:
+- Model:
+- Provider-reported input tokens:
+- Provider-reported output tokens:
+- Review time:
+- Did the suggestions save work:
+
+Quality, counted by reading each suggestion:
+
+- Correct:
+- Needs editing:
+- Unsupported:
+- Duplicate:
+
+Author's own findings, not derived from what was applied:
+
+- Important omissions:
+- Incorrect identity matches:
+- Confusion between presence, knowledge, revelation, and chronology:
+
+Apply, recorded separately from the quality marks above:
+
+- Use existing:
+- Edit suggestion:
+- Create new:
+- Skip:

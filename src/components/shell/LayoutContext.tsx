@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext } from "react";
+import type { WriteMode } from "@/writing/writeMode";
 import type { LayoutPreference } from "./preferences";
 
 export interface LayoutControls {
@@ -9,8 +10,14 @@ export interface LayoutControls {
   updateLayout: (patch: Partial<LayoutPreference>) => void;
   /** Shows a width while a panel is being dragged, without saving it. */
   previewWidth: (key: "secondaryWidth" | "contextWidth", px: number) => void;
-  focusMode: boolean;
-  setFocusMode: (on: boolean) => void;
+  /** Manuscript layout. Other pages keep their own panel choices. */
+  writeMode: WriteMode;
+  setWriteMode: (mode: WriteMode) => void;
+  /** True while a chapter or scene editor is mounted. */
+  writeScreen: boolean;
+  setWriteScreen: (on: boolean) => void;
+  /** Opens the narrow-screen navigation drawer. */
+  openMainMenu: () => void;
 }
 
 export const LayoutContext = createContext<LayoutControls | null>(null);

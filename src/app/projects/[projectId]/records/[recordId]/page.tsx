@@ -24,6 +24,7 @@ import {
   listRevisions,
   type RevisionWithSource,
 } from "@/server/services/recordService";
+import { findProject } from "@/server/services/projectService";
 import { listOpenReviewItemsForRecord } from "@/server/services/reviewService";
 import {
   listAttachableRewriteSources,
@@ -68,7 +69,7 @@ export default async function RecordPage({
     select: { draftId: true },
   }))?.draftId ?? null;
   const wordScope = resolveDraftScope(drafts.length > 0, recordDraftId);
-  const [revisions, bookWords, spellingLanguage, spellChecker, dictionaryWords, parent, inside, crossRefs] = await Promise.all([
+  const [revisions, bookWords, spellingLanguage, spellChecker, dictionaryWords, parent, inside, crossRefs, project] = await Promise.all([
     listRevisions(db, record.id),
     manuscript ? manuscriptWordCounts(db, projectId, wordScope) : null,
     getSpellingLanguage(),
@@ -79,6 +80,7 @@ export default async function RecordPage({
       : null,
     listRecordsInside(db, projectId, record.id),
     loadCrossRefIndex(db, projectId),
+    findProject(db, projectId),
   ]);
   const { status: assistant } = getAssistantConfig();
   /** Instructions, output format, source markers and labels; the client adds the text length. */
@@ -106,6 +108,7 @@ export default async function RecordPage({
       <WriteEditor
         key={record.id}
         projectId={projectId}
+        projectTitle={project?.title ?? ""}
         recordId={record.id}
         kind={record.type === "manuscript_scene" ? "scene" : "chapter"}
         revision={record.currentRevision}

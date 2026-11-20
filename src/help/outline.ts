@@ -61,7 +61,7 @@ export const HELP_SECTIONS = [
       { id: "text-appearance", title: "Fonts and text size" },
       { id: "write-page", title: "The writing page" },
       { id: "scene-context", title: "References, notes, source and proofreading" },
-      { id: "panels-focus", title: "Panels and focus mode" },
+      { id: "panels-focus", title: "Desk, focus, and companion" },
     ],
   },
   {

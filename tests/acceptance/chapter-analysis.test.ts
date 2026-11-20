@@ -11,6 +11,7 @@ import {
   previewChapterAnalysis,
   runChapterAnalysis,
   saveChapterAnalysisAssessments,
+  saveChapterAnalysisDecisions,
   type ChapterAnalysisRunView,
 } from "@/server/services/chapterAnalysisService";
 import { usageSummary } from "@/server/services/assistantService";
@@ -767,5 +768,47 @@ describe("analyze chapter", () => {
       await restored.cleanup();
       await copied.cleanup();
     }
+  });
+
+  it("rates a suggestion without writing, then applies an edit that leaves the chapter alone", async () => {
+    await startAuthorRewrite(t.db, IDS.project);
+    await createRecord(t.db, IDS.project, {
+      recordId: "rec_test_lane",
+      type: "worldbuilding",
+      title: "The lane",
+      body: "A narrow lane.",
+      authorityStatus: "draft",
+    });
+    const run = await analyze(t, IDS.chapter, 1, [
+      suggestion({ kind: "location", title: "The lane", excerpt: OPENING }),
+      suggestion({ kind: "event", title: "The ledger dried", excerpt: OPENING }),
+    ]);
+    const lane = run.proposal?.suggestions.find((item) => item.kind === "location");
+    const event = run.proposal?.suggestions.find((item) => item.kind === "event");
+    expect(lane?.match.status).toBe("unique");
+    const chapterBefore = await getRecord(t.db, IDS.project, IDS.chapter);
+    await saveChapterAnalysisAssessments(t.db, IDS.project, run.id, { [event!.key]: "correct" });
+    expect(await t.db.sceneLocation.count()).toBe(0);
+    expect(await t.db.storyEvent.count()).toBe(0);
+    expect((await getRecord(t.db, IDS.project, IDS.chapter)).body).toBe(chapterBefore.body);
+
+    await saveChapterAnalysisDecisions(t.db, IDS.project, run.id, { [lane!.key]: { action: "edit", title: "The north lane" } });
+    const saved = await getChapterAnalysis(t.db, IDS.project, run.id);
+    expect(saved.decisions[lane!.key]?.action).toBe("edit");
+    expect(saved.assessments[event!.key]).toBe("correct");
+    expect(saved.assessments[lane!.key]).toBeUndefined();
+
+    const applied = await applyChapterAnalysis(t.db, IDS.project, run.id, run.contentHash, {
+      [lane!.key]: { action: "edit", title: "The north lane" },
+    });
+    expect(applied.status).toBe("applied");
+    const chapter = await getRecord(t.db, IDS.project, IDS.chapter);
+    expect(chapter.body).toBe(chapterBefore.body);
+    expect(chapter.currentRevision).toBe(chapterBefore.currentRevision);
+    expect((await getRecord(t.db, IDS.project, "rec_test_lane")).title).toBe("The north lane");
+    expect(await t.db.storyEvent.count()).toBe(0);
+    const reloaded = await getChapterAnalysis(t.db, IDS.project, run.id);
+    expect(reloaded.decisions[lane!.key]?.action).toBe("edit");
+    expect(reloaded.assessments[event!.key]).toBe("correct");
   });
 });

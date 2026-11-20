@@ -8,8 +8,8 @@ import { cva, type VariantProps } from "class-variance-authority";
  * backgrounds and text stay contrasted. Marked with `sl-btn` so legacy
  * unlayered `button { color: on-accent }` rules in globals.css do not override.
  *
- * Variants: primary | secondary | danger | outline | ghost | soft
- * Sizes: sm | md | lg | icon | chip
+ * Variants: primary | secondary | danger | outline | ghost | soft | brass | toolbar
+ * Sizes: sm | md | lg | icon | chip | tool | toolbar
  */
 export const buttonVariants = cva(
   [
@@ -52,6 +52,16 @@ export const buttonVariants = cva(
           "bg-[var(--color-accent-soft)] border-[var(--color-accent-soft-border)] text-[var(--color-text)]",
           "hover:enabled:border-[var(--color-accent)]",
         ].join(" "),
+        /** Quiet labeled control for the manuscript toolbar. */
+        toolbar: [
+          "bg-transparent border-transparent text-[var(--color-text)]",
+          "hover:enabled:bg-[var(--color-surface-sunken)]",
+        ].join(" "),
+        /** Gold outline, for Enable editing on a protected manuscript. */
+        brass: [
+          "bg-transparent border-[var(--color-brass)] text-[var(--color-brass)]",
+          "hover:enabled:bg-[color-mix(in_srgb,var(--color-brass)_14%,transparent)]",
+        ].join(" "),
       },
       size: {
         sm: "min-h-7 rounded-[var(--radius-md)] px-2.5 py-1 text-[0.85rem] [&_.icon]:size-3.5",
@@ -59,6 +69,10 @@ export const buttonVariants = cva(
         lg: "min-h-10 rounded-[var(--radius-lg)] px-4 py-2 text-base [&_.icon]:size-[1.125rem]",
         icon: "size-8 min-h-8 rounded-[var(--radius-md)] p-0 [&_.icon]:size-4",
         chip: "min-h-0 rounded-full px-2.5 py-1.5 text-[0.78rem] [&_.icon]:size-3.5",
+        /** Icon-only control that matches the manuscript toolbar row. */
+        tool: "size-[1.9rem] min-h-[1.9rem] min-w-[1.9rem] rounded-[var(--radius-sm)] p-0 [&_.icon]:size-4",
+        /** Icon plus label, same row height as `tool`. */
+        toolbar: "h-[1.9rem] min-h-[1.9rem] rounded-[var(--radius-sm)] px-2 py-0 text-[0.82rem] [&_.icon]:size-3.5",
       },
     },
     defaultVariants: {

@@ -63,7 +63,7 @@ export function ManuscriptTree({
     <section className="manuscript-tree" aria-labelledby={`${idPrefix}-heading`}>
       <div className="tree-head">
         <p className="nav-subheading" id={`${idPrefix}-heading`}>
-          {WRITE.manuscript}
+          {WRITE.chapterList}
         </p>
         <div className="tree-actions">
           <Button

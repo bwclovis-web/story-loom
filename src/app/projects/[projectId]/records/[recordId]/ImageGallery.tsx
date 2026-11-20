@@ -6,6 +6,7 @@ import { HelpHint } from "@/components/HelpHint";
 import { IssueList } from "@/components/IssueList";
 import { Banner } from "@/components/ui/Banner";
 import { Button } from "@/components/ui/Button";
+import { FileInput } from "@/components/ui/FileInput";
 import {
   formatBytes,
   IMAGE_ACCEPT,
@@ -62,10 +63,7 @@ function AddImages({ projectId, recordId, isProtected }: { projectId: string; re
   const formats = Object.values(IMAGE_FORMAT_LABELS).join(", ");
   return (
     <form ref={formRef} action={action} className="stack image-add">
-      <label>
-        {IMAGES.chooseFiles}
-        <input type="file" name="images" accept={IMAGE_ACCEPT} multiple required />
-      </label>
+      <FileInput label={IMAGES.chooseFiles} name="images" accept={IMAGE_ACCEPT} multiple required disabled={pending} />
       <p className="small muted">{IMAGES.formats(formats, formatBytes(MAX_IMAGE_BYTES))}</p>
       <Unlock isProtected={isProtected} />
       <Result state={state} />

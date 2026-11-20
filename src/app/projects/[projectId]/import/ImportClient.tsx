@@ -8,6 +8,7 @@ import { PACKAGE_IMPORT, REVIEW } from "@/ui/labels";
 import type { ApplyResponse } from "@/ui/packageReview";
 import { applyPackageAction, previewPackageAction, reviewPackageAction } from "../actions";
 import { Banner } from "@/components/ui/Banner";
+import { FileInput } from "@/components/ui/FileInput";
 
 interface OpenReview {
   /** The exact text that was validated; checks and Apply always use it. */
@@ -93,8 +94,7 @@ export function ImportClient({ projectId }: { projectId: string }) {
     <div className="stack">
       <div className="panel stack">
         <div className="row">
-          <input
-            type="file"
+          <FileInput
             accept=".json,application/json"
             onChange={(e) => onFile(e.target.files?.[0])}
             aria-label="Change package file"

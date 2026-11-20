@@ -6,9 +6,8 @@ import { useActionState, useEffect, useId, useMemo, useRef, useState, useTransit
 import { WriteAssistantRail } from "@/components/assistant/WriteAssistantRail";
 import { StatusBadge } from "@/components/Badges";
 import { IssueList } from "@/components/IssueList";
-import { CloseIcon } from "@/components/shell/icons";
+import { BookOpen, FileText, Shield, Sparkles, StickyNote, Waypoints, X } from "lucide-react";
 import { Button, ButtonLink } from "@/components/ui/Button";
-import { IconButton } from "@/components/ui/IconButton";
 import { useLayout } from "@/components/shell/LayoutContext";
 import { CONTEXT_TABS, type ContextTab } from "@/components/shell/preferences";
 import { setUnsaved } from "@/components/shell/unsaved";
@@ -89,6 +88,15 @@ const TAB_LABELS: Record<ContextTab, string> = {
   notes: WRITE.notes,
   plot: WRITE.plot,
   proofread: WRITE.proofread,
+};
+
+const TAB_ICONS: Record<ContextTab, ReactNode> = {
+  references: <BookOpen aria-hidden="true" size={16} strokeWidth={1.75} />,
+  source: <FileText aria-hidden="true" size={16} strokeWidth={1.75} />,
+  notes: <StickyNote aria-hidden="true" size={16} strokeWidth={1.75} />,
+  plot: <Waypoints aria-hidden="true" size={16} strokeWidth={1.75} />,
+  assistant: <Sparkles aria-hidden="true" size={16} strokeWidth={1.75} />,
+  proofread: <Shield aria-hidden="true" size={16} strokeWidth={1.75} />,
 };
 
 export interface PlotBeatItem {
@@ -190,13 +198,11 @@ export function WriteContext({
     >
       <div className="context-head">
         <h2 className="context-title" id={`${id}-title`}>
-          {WRITE.contextPanel}
+          {WRITE.besideManuscript}
         </h2>
-        {overlay ? (
-          <IconButton tip="end" aria-label={WRITE.closeContext} onClick={onClose}>
-            <CloseIcon />
-          </IconButton>
-        ) : null}
+        <Button type="button" variant="ghost" size="sm" icon={<X size={16} strokeWidth={1.75} />} aria-label={WRITE.closeContext} onClick={onClose}>
+          {WRITE.close}
+        </Button>
       </div>
       <div role="tablist" aria-label={WRITE.contextPanel} className="context-tabs" onKeyDown={onTabKey}>
         {CONTEXT_TABS.map((t) => (
@@ -214,6 +220,7 @@ export function WriteContext({
             className="context-tab"
             onClick={() => choose(t)}
           >
+            {TAB_ICONS[t]}
             {TAB_LABELS[t]}
             {t === "source" && sources.length ? <span className="nav-count"> {sources.length}</span> : null}
             {t === "notes" && notes.length ? <span className="nav-count"> {notes.length}</span> : null}

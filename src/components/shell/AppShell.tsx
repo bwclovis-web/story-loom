@@ -13,6 +13,7 @@ import { Drawer } from "./Drawer";
 import { GlobalNav } from "./GlobalNav";
 import { MenuIcon } from "./icons";
 import { LayoutContext, WIDTH_VARIABLES, type LayoutControls } from "./LayoutContext";
+import type { WriteMode } from "@/writing/writeMode";
 import {
   LAYOUT_COOKIE,
   NAV_COOKIE,
@@ -50,8 +51,9 @@ export function AppShell({
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [lastProjectId, setLastProjectId] = useState(initialProjectId);
   const [layout, setLayout] = useState(initialLayout);
-  const [focusMode, setFocusMode] = useState(false);
+  const [writeScreen, setWriteScreen] = useState(false);
   const shellRef = useRef<HTMLDivElement>(null);
+  const writeMode: WriteMode = layout.writeMode;
 
   useEffect(() => {
     const query = window.matchMedia(MEDIUM_QUERY);
@@ -106,9 +108,11 @@ export function AppShell({
   const previewWidth = useCallback((key: keyof typeof WIDTH_VARIABLES, px: number) => {
     shellRef.current?.style.setProperty(WIDTH_VARIABLES[key], `${px}px`);
   }, []);
+  const setWriteMode = useCallback((mode: WriteMode) => updateLayout({ writeMode: mode }), [updateLayout]);
+  const openMainMenu = useCallback(() => setDrawerOpen(true), []);
   const controls = useMemo<LayoutControls>(
-    () => ({ layout, updateLayout, previewWidth, focusMode, setFocusMode }),
-    [layout, updateLayout, previewWidth, focusMode],
+    () => ({ layout, updateLayout, previewWidth, writeMode, setWriteMode, writeScreen, setWriteScreen, openMainMenu }),
+    [layout, updateLayout, previewWidth, writeMode, setWriteMode, writeScreen, openMainMenu],
   );
 
   function changeTheme(next: Theme) {
@@ -129,7 +133,9 @@ export function AppShell({
         ref={shellRef}
         className="app-shell"
         data-nav={navPreference}
-        data-focus={focusMode ? "on" : undefined}
+        data-write={writeScreen ? "on" : undefined}
+        data-write-mode={writeScreen ? writeMode : undefined}
+        data-focus={writeScreen && writeMode === "focus" ? "on" : undefined}
         data-secondary={layout.secondaryHidden ? "hidden" : undefined}
         style={style}
       >

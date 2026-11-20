@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Button, ButtonLink } from "@/components/ui/Button";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { helpHref, type HelpAnchor } from "@/help/outline";
 import { ONBOARDING } from "@/ui/labels";
 import { parseProjectPath } from "@/ui/navigation";
@@ -104,6 +104,7 @@ export function ProjectOnboarding({
   const [state, setState] = useState<WalkthroughState>({ kind: "dismissed" });
   const [ready, setReady] = useState(false);
   const [tasksOpen, setTasksOpen] = useState(false);
+  const bannerObserver = useRef<ResizeObserver | null>(null);
   const base = `/projects/${encodeURIComponent(projectId)}`;
 
   useEffect(() => {
@@ -112,6 +113,27 @@ export function ProjectOnboarding({
     setTasksOpen(empty && next.kind === "open");
     setReady(true);
   }, [empty]);
+
+  useEffect(() => () => {
+    bannerObserver.current?.disconnect();
+    document.documentElement.style.removeProperty("--write-banner-h");
+  }, []);
+
+  const setBanner = (node: HTMLElement | null) => {
+    bannerObserver.current?.disconnect();
+    bannerObserver.current = null;
+    if (!node || getComputedStyle(node).display === "none") {
+      document.documentElement.style.removeProperty("--write-banner-h");
+      return;
+    }
+    const apply = () => {
+      document.documentElement.style.setProperty("--write-banner-h", `${Math.ceil(node.getBoundingClientRect().height)}px`);
+    };
+    apply();
+    const observer = new ResizeObserver(apply);
+    observer.observe(node);
+    bannerObserver.current = observer;
+  };
 
   const setWalk = (next: WalkthroughState) => {
     persist(next);
@@ -184,7 +206,7 @@ export function ProjectOnboarding({
 
   if (state.kind === "dismissed") {
     return (
-      <p className="small muted onboarding-restore">
+      <p className="small muted onboarding-restore" ref={setBanner}>
         <button type="button" className="linkish" onClick={() => setWalk({ kind: "open", step: 0 })}>
           {ONBOARDING.showAgain}
         </button>
@@ -194,7 +216,7 @@ export function ProjectOnboarding({
 
   if (state.kind === "paused") {
     return (
-      <div className="onboarding-chip row" role="status">
+      <div className="onboarding-chip row" role="status" ref={setBanner}>
         <Button type="button" size="sm" onClick={() => setWalk({ kind: "open", step: stepIndex })}>
           {ONBOARDING.resume}
         </Button>
@@ -207,7 +229,7 @@ export function ProjectOnboarding({
   }
 
   return (
-    <section className="panel onboarding-panel walkthrough-panel" aria-labelledby="walkthrough-heading">
+    <section className="panel onboarding-panel walkthrough-panel" aria-labelledby="walkthrough-heading" ref={setBanner}>
       <div className="row walkthrough-head">
         <div>
           <h2 id="walkthrough-heading" style={{ margin: 0 }}>

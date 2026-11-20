@@ -5,6 +5,7 @@ import { Image as ImageIcon, Trash2 } from "lucide-react";
 import { ConfirmAction, type ConfirmResult } from "@/components/ConfirmAction";
 import { MoreIcon } from "@/components/shell/icons";
 import { Button } from "@/components/ui/Button";
+import { FileInput } from "@/components/ui/FileInput";
 import { HOME, SHELL, TRASH } from "@/ui/labels";
 
 type TrashAction = (prev: ConfirmResult, formData: FormData) => Promise<ConfirmResult>;
@@ -108,6 +109,7 @@ function CoverDialog({
   dialogRef: RefObject<HTMLDialogElement | null>;
 }) {
   const titleId = useId();
+  const fileId = useId();
   const [message, setMessage] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
@@ -144,10 +146,8 @@ function CoverDialog({
       <form action={save}>
         <h2 id={titleId}>{HOME.coverHeading}</h2>
         <p className="small">{title}</p>
-        <label>
-          {HOME.coverFile}
-          <input name="cover" type="file" accept="image/png,image/jpeg,image/gif,image/webp" required disabled={pending} />
-        </label>
+        <label htmlFor={fileId}>{HOME.coverFile}</label>
+        <FileInput id={fileId} name="cover" accept="image/png,image/jpeg,image/gif,image/webp" required disabled={pending} />
         <p className="small">{HOME.coverHint}</p>
         {message ? (
           <p className="small" role="alert">

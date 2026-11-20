@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { estimateTokens, DEFAULT_ANALYSIS_OUTPUT_TOKENS } from "@/assistant/config";
 import { ANALYSIS_KINDS } from "@/analyze/chapterAnalysisOutput";
-import { chronologyGap, resolveQuotation, summarizeRun } from "@/analyze/chapterAnalysisReview";
+import { actionExplanation, chronologyGap, describeWrites, resolveQuotation, summarizeRun } from "@/analyze/chapterAnalysisReview";
+import type { AnalysisSuggestion } from "@/analyze/chapterAnalysisOutput";
 
 describe("chapter analysis review rules", () => {
   const body = "Alpha rang the bell. Later, she understood. Alpha rang the bell.";
@@ -73,5 +74,36 @@ describe("chapter analysis review rules", () => {
     expect(summary.skipped).toBe(1);
     expect(summary.applied).toBe(0);
     expect(JSON.stringify(summary)).not.toMatch(/percent|accuracy/i);
+  });
+
+  it("explains the write for each action and leaves a rating out of that write", () => {
+    expect(actionExplanation("location", "reuse")).toMatch(/Link to a record already in your project/);
+    expect(actionExplanation("location", "reuse")).toMatch(/does not create another place/);
+    expect(actionExplanation("reference_evidence", "create")).toMatch(/pending fact/);
+    expect(actionExplanation("reference_evidence", "create")).toMatch(/does not create a reference record/);
+    expect(actionExplanation("event", "create")).toMatch(/story event/);
+    expect(actionExplanation("event", "create")).not.toMatch(/New reference records start as draft/);
+    expect(actionExplanation("plot_beat", "edit")).toMatch(/manuscript text is not edited/);
+    expect(actionExplanation("character_learning", "skip")).toMatch(/Leave this suggestion out/);
+
+    const suggestion: AnalysisSuggestion = {
+      key: "s1",
+      kind: "location",
+      title: "The lane",
+      note: "",
+      uncertain: false,
+      uncertainty: "",
+      passage: null,
+      quoteValid: true,
+      explicitOrder: false,
+      earlierTitle: "",
+      laterTitle: "",
+      dependsOnKeys: [],
+      match: { status: "unique", candidates: [] },
+    };
+    const writes = describeWrites([suggestion], {});
+    expect(writes.records).toHaveLength(0);
+    expect(writes.links).toHaveLength(0);
+    expect(describeWrites([suggestion], { s1: { action: "reuse" } }).links).toHaveLength(1);
   });
 });

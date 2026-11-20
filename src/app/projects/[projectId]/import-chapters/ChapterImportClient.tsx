@@ -6,6 +6,7 @@ import { ProtectionBadge } from "@/components/Badges";
 import { IssueList } from "@/components/IssueList";
 import { Banner } from "@/components/ui/Banner";
 import { Button } from "@/components/ui/Button";
+import { FileInput } from "@/components/ui/FileInput";
 import type {
   ChapterDecision,
   ChapterFile,
@@ -143,12 +144,12 @@ export function ChapterImportClient({ projectId }: { projectId: string }) {
     <div className="stack">
       <div className="panel stack">
         <div className="row">
-          <input
-            type="file"
+          <FileInput
             multiple
             accept=".md,.markdown,.txt,text/markdown,text/plain"
             onChange={(e) => onFiles(e.target.files)}
             aria-label={CHAPTER_IMPORT.filesLabel}
+            disabled={pending}
           />
           {pending ? <span className="small muted">Working...</span> : null}
         </div>

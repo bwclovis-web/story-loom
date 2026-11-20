@@ -30,7 +30,7 @@ export function useWideViewport(query = CONTEXT_RAIL_WIDE_QUERY): boolean {
 
 export interface ContextRailApi {
   wide: boolean;
-  /** True when the rail should be shown (respects focusMode / forceHidden). */
+  /** True when the rail should be shown (respects the writing layout / forceHidden). */
   visible: boolean;
   toggle: () => void;
   close: () => void;
@@ -43,12 +43,20 @@ export interface ContextRailApi {
  */
 export function useContextRail(options?: { forceHidden?: boolean }): ContextRailApi {
   const wide = useWideViewport();
-  const { layout, updateLayout, focusMode } = useLayout();
+  const { layout, updateLayout, writeScreen, writeMode, setWriteMode } = useLayout();
   const [overlayOpen, setOverlayOpen] = useState(false);
   const toggleRef = useRef<HTMLButtonElement | null>(null);
-  const forceHidden = Boolean(options?.forceHidden) || focusMode;
+  const writeHides = writeScreen && writeMode !== "companion";
+  const writeShows = writeScreen && writeMode === "companion";
+  const forceHidden = Boolean(options?.forceHidden) || writeHides;
 
-  const visible = !forceHidden && (wide ? !layout.contextHidden : overlayOpen);
+  const visible = writeShows && wide ? true : !forceHidden && (wide ? !layout.contextHidden : overlayOpen);
+
+  useEffect(() => {
+    if (!writeScreen) return;
+    if (writeMode === "companion" && !wide) setOverlayOpen(true);
+    if (writeMode !== "companion") setOverlayOpen(false);
+  }, [writeScreen, writeMode, wide]);
 
   const toggle = () => {
     if (wide) updateLayout({ contextHidden: !layout.contextHidden });
@@ -56,6 +64,10 @@ export function useContextRail(options?: { forceHidden?: boolean }): ContextRail
   };
 
   const close = () => {
+    if (writeScreen && writeMode === "companion" && wide) {
+      setWriteMode("desk");
+      return;
+    }
     if (wide) {
       if (!layout.contextHidden) updateLayout({ contextHidden: true });
     } else {

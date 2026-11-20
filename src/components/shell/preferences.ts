@@ -4,6 +4,8 @@
  * project ID only, never record text.
  */
 
+import { parseWriteMode, type WriteMode } from "@/writing/writeMode";
+
 export const NAV_COOKIE = "wordly-nav";
 export const PROJECT_COOKIE = "wordly-project";
 export const LAYOUT_COOKIE = "wordly-layout";
@@ -75,7 +77,7 @@ export function writePreference(name: string, value: string) {
 export const SECONDARY_WIDTH = { min: 208, max: 360, initial: 240 } as const;
 export const CONTEXT_WIDTH = { min: 288, max: 480, initial: 328 } as const;
 
-export const CONTEXT_TABS = ["assistant", "source", "references", "notes", "plot", "proofread"] as const;
+export const CONTEXT_TABS = ["references", "source", "notes", "plot", "assistant", "proofread"] as const;
 export type ContextTab = (typeof CONTEXT_TABS)[number];
 
 export function parseWriteDraftPreference(value: string | undefined): string | null {
@@ -91,6 +93,8 @@ export interface LayoutPreference {
   secondaryHidden: boolean;
   contextHidden: boolean;
   contextTab: ContextTab;
+  /** Manuscript page layout. Other pages ignore it. */
+  writeMode: WriteMode;
 }
 
 export const DEFAULT_LAYOUT: LayoutPreference = {
@@ -99,6 +103,7 @@ export const DEFAULT_LAYOUT: LayoutPreference = {
   secondaryHidden: false,
   contextHidden: false,
   contextTab: "references",
+  writeMode: "desk",
 };
 
 export function clampWidth(value: number, limits: { min: number; max: number }): number {
@@ -122,5 +127,6 @@ export function parseLayoutPreference(value: string | undefined): LayoutPreferen
     secondaryHidden: raw.secondaryHidden === true,
     contextHidden: raw.contextHidden === true,
     contextTab: (CONTEXT_TABS as readonly unknown[]).includes(raw.contextTab) ? (raw.contextTab as ContextTab) : "references",
+    writeMode: parseWriteMode(raw.writeMode),
   };
 }

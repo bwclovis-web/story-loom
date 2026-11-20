@@ -1,20 +1,9 @@
 "use client";
 
 import { useEffect, useId, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode, type RefObject } from "react";
-import {
-  BoldIcon,
-  BulletListIcon,
-  FocusIcon,
-  ItalicIcon,
-  LinkIcon,
-  MoreIcon,
-  NumberListIcon,
-  RedoIcon,
-  SearchIcon,
-  SpellcheckIcon,
-  UndoIcon,
-} from "@/components/shell/icons";
+import { Bold, Ellipsis, Italic, Link2, List, ListOrdered, Redo2, Search, SpellCheck, Undo2 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { TextAppearanceMenu } from "@/components/TextAppearanceMenu";
 import { WRITE } from "@/ui/labels";
 import {
   blockState,
@@ -98,8 +87,8 @@ function ToolButton({
 function onToolbarKey(e: KeyboardEvent<HTMLDivElement>) {
   if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
   if (!(e.target instanceof HTMLButtonElement)) return;
-  const buttons = [...e.currentTarget.querySelectorAll<HTMLButtonElement>("button.tool-button:not(:disabled)")].filter(
-    (b) => b.offsetParent !== null,
+  const buttons = [...e.currentTarget.querySelectorAll<HTMLButtonElement>("button:not(:disabled)")].filter(
+    (b) => b.offsetParent !== null && !b.closest(".tool-menu, .text-appearance"),
   );
   const i = buttons.indexOf(e.target);
   if (i < 0) return;
@@ -121,8 +110,6 @@ export function EditorToolbar({
   spellId,
   spellOpen,
   onToggleSpell,
-  focusMode,
-  onToggleFocus,
   linkRequest,
 }: {
   editorId: string;
@@ -138,8 +125,6 @@ export function EditorToolbar({
   spellId: string;
   spellOpen: boolean;
   onToggleSpell: () => void;
-  focusMode: boolean;
-  onToggleFocus: () => void;
   /** Set when the link shortcut is pressed in the text box; `id` changes on every press. */
   linkRequest: (LinkSeed & { id: number }) | null;
 }) {
@@ -207,7 +192,7 @@ export function EditorToolbar({
           disabled={disabled}
           onClick={() => onFormat((t, s) => toggleInline(t, s, "bold"))}
         >
-          <BoldIcon />
+          <Bold strokeWidth={1.75} />
         </ToolButton>
         <ToolButton
           label={WRITE.italic}
@@ -217,7 +202,7 @@ export function EditorToolbar({
           disabled={disabled}
           onClick={() => onFormat((t, s) => toggleInline(t, s, "italic"))}
         >
-          <ItalicIcon />
+          <Italic strokeWidth={1.75} />
         </ToolButton>
         <ToolButton
           label={WRITE.bulletList}
@@ -225,7 +210,7 @@ export function EditorToolbar({
           disabled={disabled}
           onClick={() => onFormat((t, s) => toggleList(t, s, "bullet"))}
         >
-          <BulletListIcon />
+          <List strokeWidth={1.75} />
         </ToolButton>
         <ToolButton
           label={WRITE.numberedList}
@@ -233,7 +218,7 @@ export function EditorToolbar({
           disabled={disabled}
           onClick={() => onFormat((t, s) => toggleList(t, s, "number"))}
         >
-          <NumberListIcon />
+          <ListOrdered strokeWidth={1.75} />
         </ToolButton>
         <ToolButton
           label={WRITE.link}
@@ -245,11 +230,11 @@ export function EditorToolbar({
           disabled={disabled}
           onClick={toggleLink}
         >
-          <LinkIcon />
+          <Link2 strokeWidth={1.75} />
         </ToolButton>
         <span className="tool-sep" aria-hidden="true" />
         <ToolButton label={WRITE.undo} shortcut={shortcutHint("Z")} ariaShortcut="Control+Z" onClick={() => undoRedo("undo")}>
-          <UndoIcon />
+          <Undo2 strokeWidth={1.75} />
         </ToolButton>
         <ToolButton
           label={WRITE.redo}
@@ -257,31 +242,40 @@ export function EditorToolbar({
           ariaShortcut="Control+Y"
           onClick={() => undoRedo("redo")}
         >
-          <RedoIcon />
+          <Redo2 strokeWidth={1.75} />
         </ToolButton>
         <span className="tool-sep" aria-hidden="true" />
-        <ToolButton
-          label={WRITE.find}
-          shortcut={shortcutHint("F")}
-          ariaShortcut="Control+F"
-          expanded={findOpen}
-          controls={findId}
+        <Button
+          type="button"
+          variant="toolbar"
+          size="toolbar"
+          className="tool-labeled"
+          aria-label={WRITE.find}
+          title={`${WRITE.find} (${shortcutHint("F")})`}
+          aria-keyshortcuts="Control+F"
+          aria-expanded={findOpen}
+          aria-controls={findId}
+          onMouseDown={keepSelection}
           onClick={onToggleFind}
+          icon={<Search strokeWidth={1.75} />}
         >
-          <SearchIcon />
-        </ToolButton>
-        <ToolButton label={WRITE.spellcheck} expanded={spellOpen} controls={spellId} onClick={onToggleSpell}>
-          <SpellcheckIcon />
-        </ToolButton>
-        <ToolButton
-          label={focusMode ? WRITE.exitFocus : WRITE.focus}
-          shortcut={focusMode ? "Esc" : shortcutHint("F", true)}
-          ariaShortcut={focusMode ? "Escape" : "Control+Shift+F"}
-          pressed={focusMode}
-          onClick={onToggleFocus}
+          {WRITE.find}
+        </Button>
+        <Button
+          type="button"
+          variant="toolbar"
+          size="toolbar"
+          className="tool-labeled"
+          aria-label={WRITE.spellcheck}
+          aria-expanded={spellOpen}
+          aria-controls={spellId}
+          onMouseDown={keepSelection}
+          onClick={onToggleSpell}
+          icon={<SpellCheck strokeWidth={1.75} />}
         >
-          <FocusIcon />
-        </ToolButton>
+          {WRITE.spellcheck}
+        </Button>
+        <TextAppearanceMenu presentation="toolbar" />
         <div className="tool-more">
           <ToolButton
             label={WRITE.moreFormatting}
@@ -289,7 +283,7 @@ export function EditorToolbar({
             controls={`${idPrefix}-more`}
             onClick={() => setMoreOpen((open) => !open)}
           >
-            <MoreIcon />
+            <Ellipsis strokeWidth={1.75} />
           </ToolButton>
           <div
             id={`${idPrefix}-more`}

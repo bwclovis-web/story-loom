@@ -75,9 +75,11 @@ export function useSpellcheck({
   useEffect(() => {
     if (!enabled) {
       setStatus("off");
+      setLastCheckMs(null);
       return;
     }
     setStatus("loading");
+    setLastCheckMs(null);
     setError("");
     const worker = createWorker();
     workerRef.current = worker;

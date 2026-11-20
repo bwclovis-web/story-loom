@@ -56,7 +56,7 @@ export function ProjectNav({
       else next.add(key);
       return next;
     });
-  const { layout, updateLayout } = useLayout();
+  const { layout, updateLayout, writeScreen, writeMode } = useLayout();
   const typeOf = useMemo(() => {
     const types = new Map(records.map((r) => [r.id, r.type]));
     return (id: string) => types.get(id);
@@ -79,7 +79,8 @@ export function ProjectNav({
     onToggleSection: toggleSection,
   };
 
-  const secondaryOpen = !layout.secondaryHidden;
+  const modeHidesNav = writeScreen && writeMode !== "desk";
+  const secondaryOpen = !modeHidesNav && !layout.secondaryHidden;
   if (writeHome) return null;
 
   return (
@@ -114,6 +115,7 @@ export function ProjectNav({
         label={writing ? WRITE.resizeNavigation : SHELL.projectNav}
         hidden={!secondaryOpen}
       />
+      {modeHidesNav ? null : (
       <div className="panel-strip left" data-open={!secondaryOpen ? "" : undefined} aria-hidden={secondaryOpen}>
         <IconButton
           tip="right"
@@ -127,6 +129,7 @@ export function ProjectNav({
           <PanelLeftIcon />
         </IconButton>
       </div>
+      )}
       <div className="project-bar">
         <button
           type="button"

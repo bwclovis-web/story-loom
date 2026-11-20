@@ -7,6 +7,7 @@ import type { RestoreOutcome } from "@/server/services/backupService";
 import { BACKUP } from "@/ui/labels";
 import { checkBackupAction, restoreBackupAction, type BackupCheck } from "./actions";
 import { Banner } from "@/components/ui/Banner";
+import { FileInput } from "@/components/ui/FileInput";
 
 export function RestoreClient() {
   const [raw, setRaw] = useState("");
@@ -38,11 +39,11 @@ export function RestoreClient() {
   return (
     <div className="stack">
       <div className="row">
-        <input
-          type="file"
+        <FileInput
           accept=".json,application/json"
           onChange={(e) => onFile(e.target.files?.[0])}
           aria-label="Backup file to restore"
+          disabled={pending}
         />
         {pending ? <span className="small muted">Working...</span> : null}
       </div>

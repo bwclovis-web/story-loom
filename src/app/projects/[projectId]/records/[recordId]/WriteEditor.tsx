@@ -2,12 +2,14 @@
 import { Button } from "@/components/ui/Button";
 
 import Link from "next/link";
+import { ArrowLeft, Menu, SlidersHorizontal } from "lucide-react";
 import {
   useActionState,
   useCallback,
   useDeferredValue,
   useEffect,
   useId,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -17,8 +19,9 @@ import {
   type ReactNode,
 } from "react";
 import { IssueList } from "@/components/IssueList";
-import { DraftScopeChip, type DraftOption } from "@/components/drafts/DraftControls";
-import { ContextRail, ContextRailToggle, useContextRail } from "@/components/shell/ContextRail";
+import { type DraftOption } from "@/components/drafts/DraftControls";
+import { StoryLoomMark } from "@/components/library/StoryLoomMark";
+import { ContextRail, useContextRail } from "@/components/shell/ContextRail";
 import { Banner } from "@/components/ui/Banner";
 import { IconAnchor, IconButton } from "@/components/ui/IconButton";
 import { HistoryIcon, MoreIcon } from "@/components/shell/icons";
@@ -37,8 +40,11 @@ import { WordCounts } from "@/components/writing/WordCounts";
 import type { AuthorityStatus } from "@/domain/statuses";
 import { normalizeNewlines } from "@/proofread/anchors";
 import type { DictionaryWord } from "@/spelling/dictionary";
-import { TextAppearanceMenu } from "@/components/TextAppearanceMenu";
-import { ASSISTANT, RECORD, tidySummary, WRITE, WRITING } from "@/ui/labels";
+import { WriteModeSwitch } from "@/components/writing/WriteModeSwitch";
+import { WriteProtectionRow } from "@/components/writing/WriteProtectionRow";
+import { WriteStatusBar } from "@/components/writing/WriteStatusBar";
+import { ASSISTANT, NAV, RECORD, SHELL, tidySummary, WRITE, WRITING } from "@/ui/labels";
+import type { WriteMode } from "@/writing/writeMode";
 import { invertEdit } from "@/writing/findReplace";
 import { minimalEdit, toggleInline } from "@/writing/markdownFormat";
 import { tidyText } from "@/writing/tidy";
@@ -59,6 +65,7 @@ const LOAD_MAX_BYTES = 5 * 1024 * 1024;
 
 export function WriteEditor(props: {
   projectId: string;
+  projectTitle: string;
   recordId: string;
   kind: "chapter" | "scene";
   revision: number;
@@ -93,7 +100,11 @@ export function WriteEditor(props: {
   const contextId = `${idPrefix}-context`;
   const findId = `${idPrefix}-find`;
   const spellId = `${idPrefix}-spell`;
-  const { focusMode, setFocusMode } = useLayout();
+  const { writeMode, setWriteMode, setWriteScreen, openMainMenu } = useLayout();
+  const chromeRef = useRef<HTMLElement>(null);
+  const topbarRef = useRef<HTMLDivElement>(null);
+  const insetRef = useRef<HTMLDivElement>(null);
+  const statusRef = useRef<HTMLElement>(null);
   const rail = useContextRail();
 
   const [state, action, pending] = useActionState<FormResult, FormData>(
@@ -231,33 +242,68 @@ export function WriteEditor(props: {
     setLoadNote({ tone: "info", text: WRITE.tidied(tidySummary(result.report)) });
   };
 
-  // Focus mode hides the panels with CSS only, so the text box, its selection and its undo history are untouched.
+  // Layout changes hide panels with CSS only, so the text box, its selection and its undo history stay mounted.
   const savedSelection = useRef<{ start: number; end: number } | null>(null);
-  const toggleFocus = (on: boolean) => {
+  const returnMode = useRef<WriteMode>(writeMode === "focus" ? "desk" : writeMode);
+  const selectMode = (mode: WriteMode) => {
     const ta = bodyRef.current;
     if (ta) savedSelection.current = { start: ta.selectionStart, end: ta.selectionEnd };
-    setFocusMode(on);
+    if (mode === writeMode) {
+      if (mode === "companion" && !rail.visible) rail.toggle();
+      return;
+    }
+    if (mode !== "focus") returnMode.current = mode;
+    setWriteMode(mode);
   };
+  useLayoutEffect(() => {
+    setWriteScreen(true);
+    return () => setWriteScreen(false);
+  }, [setWriteScreen]);
+  useLayoutEffect(() => {
+    const chrome = chromeRef.current;
+    const topbar = topbarRef.current;
+    const inset = insetRef.current;
+    const status = statusRef.current;
+    if (!chrome) return;
+    const apply = () => {
+      const topbarH = topbar?.offsetHeight ?? 0;
+      const insetH = inset?.offsetHeight ?? 0;
+      document.documentElement.style.setProperty("--write-topbar-h", `${topbarH}px`);
+      document.documentElement.style.setProperty("--write-chrome-h", `${topbarH + insetH}px`);
+      if (status) document.documentElement.style.setProperty("--write-status-h", `${status.offsetHeight}px`);
+    };
+    apply();
+    const observer = new ResizeObserver(apply);
+    observer.observe(chrome);
+    if (topbar) observer.observe(topbar);
+    if (inset) observer.observe(inset);
+    if (status) observer.observe(status);
+    return () => {
+      observer.disconnect();
+      document.documentElement.style.removeProperty("--write-chrome-h");
+      document.documentElement.style.removeProperty("--write-topbar-h");
+      document.documentElement.style.removeProperty("--write-status-h");
+    };
+  }, []);
   useEffect(() => {
     const ta = bodyRef.current;
     const sel = savedSelection.current;
     if (!ta || !sel) return;
     savedSelection.current = null;
-    ta.focus({ preventScroll: false });
+    ta.focus({ preventScroll: true });
     ta.setSelectionRange(sel.start, sel.end);
-  }, [focusMode]);
+  }, [writeMode]);
   useEffect(() => {
-    if (!focusMode) return;
+    if (writeMode !== "focus") return;
     const onKey = (e: globalThis.KeyboardEvent) => {
       if (e.key === "Escape" && !e.defaultPrevented) {
         e.preventDefault();
-        toggleFocus(false);
+        selectMode(returnMode.current);
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   });
-  useEffect(() => () => setFocusMode(false), [setFocusMode]);
 
   const focusFind = useRef(false);
   const openFind = () => {
@@ -284,7 +330,7 @@ export function WriteEditor(props: {
       formRef.current?.requestSubmit();
     } else if (key === "f" && e.shiftKey) {
       e.preventDefault();
-      toggleFocus(!focusMode);
+      selectMode(writeMode === "focus" ? returnMode.current : "focus");
     } else if (key === "f") {
       e.preventDefault();
       openFind();
@@ -307,30 +353,26 @@ export function WriteEditor(props: {
           <input type="hidden" name="expectedRevision" value={props.revision} />
           <input type="hidden" name="authorityStatus" value={props.authorityStatus} />
 
-          <header className="write-header">
-            <DraftScopeChip drafts={props.drafts ?? []} activeDraftId={props.draftScopeId} />
-            <div className="write-title-row">
-              <div className="write-title-block">
-                {props.parent ? (
-                  <p className="write-crumb small muted">
-                    {WRITE.inChapter}{" "}
-                    <Link href={`/projects/${encodeURIComponent(props.projectId)}/records/${encodeURIComponent(props.parent.id)}`}>
-                      {props.parent.title}
-                    </Link>
-                  </p>
-                ) : null}
-                <h1 className="write-title">
-                  <input
-                    type="text"
-                    name="title"
-                    aria-label={WRITE.documentTitle}
-                    defaultValue={props.title}
-                    required
-                    spellCheck
-                    lang={language}
-                    onInput={(e) => setTitle(e.currentTarget.value)}
-                  />
-                </h1>
+          <header className="write-header write-chrome" ref={chromeRef}>
+            <div className="write-topbar" ref={topbarRef}>
+              <div className="write-brand">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="write-menu"
+                  aria-label={SHELL.openMenu}
+                  onClick={openMainMenu}
+                  icon={<Menu size={18} strokeWidth={1.75} />}
+                />
+                <Link href="/" className="brand write-brand-link" aria-label={NAV.brand}>
+                  <StoryLoomMark className="brand-mark" />
+                  <span className="brand-text">{NAV.brand}</span>
+                </Link>
+                <span className="write-project-sep" aria-hidden="true">
+                  |
+                </span>
+                <span className="write-project-name">{props.projectTitle}</span>
               </div>
               <div className="write-actions">
                 <p className={`save-status ${statusTone}`} role="status">
@@ -342,8 +384,6 @@ export function WriteEditor(props: {
                 <IconAnchor tip="tip" href="#history" aria-label={WRITE.versionHistory}>
                   <HistoryIcon />
                 </IconAnchor>
-                <ContextRailToggle rail={rail} controls={contextId} />
-                <TextAppearanceMenu />
                 <div className="menu-wrap">
                   <IconButton
                     tip="end"
@@ -426,20 +466,45 @@ export function WriteEditor(props: {
                 </div>
               </div>
             </div>
+            <div className="write-chrome-inset" ref={insetRef}>
+            <div className="write-title-row">
+              <div className="write-title-block">
+                {props.parent ? (
+                  <p className="write-crumb small muted">
+                    {WRITE.inChapter}{" "}
+                    <Link href={`/projects/${encodeURIComponent(props.projectId)}/records/${encodeURIComponent(props.parent.id)}`}>
+                      {props.parent.title}
+                    </Link>
+                  </p>
+                ) : null}
+                <h1 className="write-title">
+                  <input
+                    type="text"
+                    name="title"
+                    aria-label={WRITE.documentTitle}
+                    defaultValue={props.title}
+                    required
+                    spellCheck
+                    lang={language}
+                    onInput={(e) => setTitle(e.currentTarget.value)}
+                  />
+                </h1>
+              </div>
+              <WriteModeSwitch mode={writeMode} onChange={selectMode} />
+            </div>
+            <WriteProtectionRow
+              drafts={props.drafts ?? []}
+              activeDraftId={props.draftScopeId}
+              isProtected={props.isProtected}
+              unlocked={unlocked}
+              onUnlocked={setUnlocked}
+            />
             {!state.ok ? <IssueList issues={state.issues ?? []} /> : null}
             {!state.ok && state.message ? <Banner tone="error">{state.message}</Banner> : null}
             {loadNote && (loadNote.tone !== "info" || dirty) ? (
               <Banner tone={loadNote.tone === "error" ? "error" : "info"} className="load-note">
                 {loadNote.text}
               </Banner>
-            ) : null}
-            {props.isProtected ? (
-              <div className="protect-bar">
-                <label className="inline" key={props.revision}>
-                  <input type="checkbox" name="unlockProtected" checked={unlocked} onChange={(e) => setUnlocked(e.target.checked)} />
-                  {RECORD.unlockProtected}
-                </label>
-              </div>
             ) : null}
             <EditorToolbar
               editorId={editorId}
@@ -455,8 +520,6 @@ export function WriteEditor(props: {
               spellId={spellId}
               spellOpen={spellOpen}
               onToggleSpell={() => setSpellOpen((open) => !open)}
-              focusMode={focusMode}
-              onToggleFocus={() => toggleFocus(!focusMode)}
               linkRequest={linkRequest}
             />
             <div id={findId} hidden={!findOpen} className="tool-panel">
@@ -490,10 +553,29 @@ export function WriteEditor(props: {
                 }
               />
             </div>
+            </div>
           </header>
 
-          <div className="write-column">
-            {focusMode ? <p className="focus-hint small muted">{WRITE.focusHint}</p> : null}
+          <div className={`write-column${writeMode === "desk" ? " has-tools" : ""}`}>
+            {writeMode === "desk" ? (
+              <div className="write-tools-launch">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  icon={<SlidersHorizontal size={16} strokeWidth={1.75} />}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => selectMode("companion")}
+                >
+                  {WRITE.tools}
+                </Button>
+              </div>
+            ) : null}
+            {writeMode === "focus" ? (
+              <p id={`${idPrefix}-focus-hint`} className="sr-only">
+                {WRITE.focusHint}
+              </p>
+            ) : null}
             <span className="spell-field">
               <textarea
                 ref={bodyRef}
@@ -501,6 +583,7 @@ export function WriteEditor(props: {
                 name="body"
                 className="document manuscript-text"
                 aria-label={WRITE.editorLabel}
+                aria-describedby={writeMode === "focus" ? `${idPrefix}-focus-hint` : undefined}
                 defaultValue={props.body}
                 spellCheck={!appUnderlines}
                 lang={language}
@@ -527,16 +610,40 @@ export function WriteEditor(props: {
             </details>
           </div>
 
-          <footer className="write-footer">
-            <WordCounts
-              text={text}
-              selection={selection}
-              isChapter
-              otherChaptersWords={props.otherChaptersWords}
-              documentLabel={documentLabel}
-            />
-            <SpellingLanguageSelect value={language} onChange={setLanguage} />
-          </footer>
+          {writeMode === "focus" ? (
+            <div className="exit-focus-bar">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                icon={<ArrowLeft size={16} strokeWidth={1.75} />}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => selectMode(returnMode.current)}
+              >
+                {WRITE.exitFocus}
+              </Button>
+            </div>
+          ) : null}
+          <WriteStatusBar
+            statusRef={statusRef}
+            counts={
+              <WordCounts
+                text={text}
+                selection={selection}
+                isChapter
+                otherChaptersWords={props.otherChaptersWords}
+                documentLabel={documentLabel}
+              />
+            }
+            language={<SpellingLanguageSelect value={language} onChange={setLanguage} />}
+            checker={checker}
+            status={spell.status}
+            issueCount={flags.length}
+            checkCompleted={spell.lastCheckMs !== null}
+            spellOpen={spellOpen}
+            spellId={spellId}
+            onToggleSpell={() => setSpellOpen((open) => !open)}
+          />
         </form>
         <div className="write-details">{props.details}</div>
       </div>
