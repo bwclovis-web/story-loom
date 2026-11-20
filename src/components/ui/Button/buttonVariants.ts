@@ -23,6 +23,7 @@ export const buttonVariants = cva(
     "focus-visible:outline-[var(--color-focus)]",
     "disabled:cursor-not-allowed disabled:opacity-50",
     "active:enabled:translate-y-px",
+    "[&_.icon]:inline-flex [&_.icon]:shrink-0 [&_.icon_svg]:size-full",
   ].join(" "),
   {
     variants: {

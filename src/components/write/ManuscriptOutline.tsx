@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useId, useState, type KeyboardEvent, type ReactNode } from "react";
+import { BookOpen, Download, Layers, Plus } from "lucide-react";
 import { BookCover } from "@/components/library/BookCover";
 import { ChevronRightIcon, SearchIcon } from "@/components/shell/icons";
 import { ManuscriptCreateForm } from "@/components/shell/ManuscriptTree";
@@ -38,7 +39,6 @@ export function ManuscriptOutline({
   looseNotes,
   draftId,
   initialQuery,
-  matchCase,
   headerActions,
   overflow,
   results,
@@ -53,7 +53,6 @@ export function ManuscriptOutline({
   looseNotes: OutlineNote[];
   draftId: string | null;
   initialQuery: string;
-  matchCase: boolean;
   headerActions: ReactNode;
   overflow: ReactNode;
   results: ReactNode;
@@ -63,12 +62,11 @@ export function ManuscriptOutline({
   const base = `/projects/${encodeURIComponent(projectId)}`;
   const [tab, setTab] = useState<Tab>("chapters");
   const [titleQuery, setTitleQuery] = useState(initialQuery);
-  const [match, setMatch] = useState(matchCase);
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set());
   const [creating, setCreating] = useState<"chapter" | "scene" | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(chapters[0]?.id ?? null);
 
   useEffect(() => setTitleQuery(initialQuery), [initialQuery]);
-  useEffect(() => setMatch(matchCase), [matchCase]);
 
   const query = titleQuery.trim().toLocaleLowerCase();
   const filtering = query.length > 0;
@@ -108,20 +106,17 @@ export function ManuscriptOutline({
     visibleChapters.reduce((sum, chapter) => sum + (chapter.matched ? 1 : 0) + chapter.sceneMatches + chapter.noteMatches, 0) +
     unplacedHits +
     visibleLoose.length;
+  const selected = visibleChapters.find((chapter) => chapter.id === selectedId) ?? visibleChapters[0] ?? null;
+  const startCreate = (kind: "chapter" | "scene") => setCreating((current) => (current === kind ? null : kind));
 
   return (
     <div className="manuscript-outline">
+      <div className="outline-main">
       <header className="outline-header">
         <BookCover projectId={projectId} title={title} eyebrow={eyebrow} size="compact" coverSrc={coverSrc} />
         <div className="outline-heading">
           <p className="outline-eyebrow">{eyebrow}</p>
           <h1>{title}</h1>
-        </div>
-        <div className="outline-header-actions">
-          <Link className="outline-read" href={`${base}/read`}>
-            {NAV.readBook}
-          </Link>
-          {headerActions}
         </div>
       </header>
 
@@ -155,45 +150,48 @@ export function ManuscriptOutline({
       </div>
 
       <div className="outline-toolbar">
-        <form className="outline-search" role="search" method="get" action={`${base}/write`} aria-label={MANUSCRIPT_SEARCH.label}>
-          <label className="outline-search-field">
-            <span className="sr-only">{WRITE.searchManuscript}</span>
-            <SearchIcon />
-            <input
-              type="search"
-              name="q"
-              value={titleQuery}
-              placeholder={WRITE.searchManuscript}
-              aria-describedby={`${uid}-search-hint`}
-              onChange={(event) => setTitleQuery(event.target.value)}
-            />
-          </label>
-          <label className="outline-match">
-            <input type="checkbox" name="case" value="1" checked={match} onChange={(event) => setMatch(event.target.checked)} />
-            {MANUSCRIPT_SEARCH.matchCase}
-          </label>
-          <p className="outline-search-hint" id={`${uid}-search-hint`}>
-            {WRITE.searchHint}
-          </p>
-          <button type="submit" className="sr-only">
-            {MANUSCRIPT_SEARCH.submit}
-          </button>
-        </form>
+        <div className="outline-toolbar-lead">
+          {headerActions}
+          <form className="outline-search" role="search" method="get" action={`${base}/write`} aria-label={MANUSCRIPT_SEARCH.label}>
+            <label className="outline-search-field">
+              <span className="sr-only">{WRITE.searchManuscript}</span>
+              <SearchIcon />
+              <input
+                type="search"
+                name="q"
+                value={titleQuery}
+                placeholder={WRITE.searchManuscript}
+                onChange={(event) => setTitleQuery(event.target.value)}
+              />
+            </label>
+            <button type="submit" className="sr-only">
+              {MANUSCRIPT_SEARCH.submit}
+            </button>
+          </form>
+        </div>
         <div className="outline-actions">
-          <ButtonLink variant="outline" size="sm" href={`${base}/import-chapters`}>
-            {NAV.importChapters}
-          </ButtonLink>
-          <Button type="button" variant="outline" size="sm" onClick={() => setCreating((current) => (current === "scene" ? null : "scene"))}>
-            {WRITE.newScene}
-          </Button>
-          <Button type="button" size="sm" onClick={() => setCreating((current) => (current === "chapter" ? null : "chapter"))}>
+          <Button type="button" variant="secondary" size="sm" icon={<Plus strokeWidth={1.75} />} onClick={() => startCreate("chapter")}>
             {WRITE.newChapter}
           </Button>
+          <Button type="button" variant="secondary" size="sm" icon={<Layers strokeWidth={1.75} />} onClick={() => startCreate("scene")}>
+            {WRITE.newScene}
+          </Button>
+          <span className="outline-action-rule" aria-hidden="true" />
+          <ButtonLink variant="secondary" size="sm" href={`${base}/import-chapters`} icon={<Download strokeWidth={1.75} />}>
+            {NAV.importChapters}
+          </ButtonLink>
+          <span className="outline-action-rule" aria-hidden="true" />
+          <ButtonLink variant="secondary" size="sm" href={`${base}/read`} icon={<BookOpen strokeWidth={1.75} />}>
+            {NAV.readBook}
+          </ButtonLink>
+          <div className="outline-actions-end">
+            {gettingStarted}
+            <details className="outline-more">
+              <summary>{WRITE.more}</summary>
+              <div className="outline-more-panel">{overflow}</div>
+            </details>
+          </div>
         </div>
-        <details className="outline-more">
-          <summary>{WRITE.more}</summary>
-          <div className="outline-more-panel">{overflow}</div>
-        </details>
       </div>
 
       {creating ? (
@@ -208,7 +206,9 @@ export function ManuscriptOutline({
       ) : null}
 
       {results}
+      </div>
 
+      <div className="outline-list">
       <div role="tabpanel" id={`${uid}-panel-chapters`} aria-labelledby={`${uid}-tab-chapters`} hidden={tab !== "chapters"}>
         {filtering && chapterMatchCount > 0 ? (
           <p className="outline-filter-count" role="status">
@@ -225,8 +225,25 @@ export function ManuscriptOutline({
               const scenesDomId = `${uid}-scenes-${chapter.id}`;
               return (
                 <li key={chapter.id} className="outline-chapter">
-                  <div className="outline-chapter-row">
-                    <span className="outline-number">{chapter.number}</span>
+                  <div
+                    className="outline-chapter-row"
+                    data-selected={selected?.id === chapter.id ? "" : undefined}
+                    onClick={(event) => {
+                      if ((event.target as HTMLElement).closest("button.outline-disclose")) return;
+                      setSelectedId(chapter.id);
+                    }}
+                  >
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="outline-select"
+                      aria-pressed={selected?.id === chapter.id}
+                      aria-label={WRITE.selectChapter(chapter.title)}
+                      onClick={() => setSelectedId(chapter.id)}
+                    >
+                      <span className="outline-number">{chapter.number}</span>
+                    </Button>
                     <span className="outline-rule" aria-hidden="true" />
                     <div className="outline-chapter-copy">
                       <span className="outline-kind">{WRITE.chapterKind}</span>
@@ -296,8 +313,32 @@ export function ManuscriptOutline({
           filtering={filtering}
         />
       </div>
-
-      {gettingStarted}
+      </div>
+      {selected ? (
+        <aside className="outline-inspector" aria-label={WRITE.selectedChapter}>
+          <p className="outline-inspector-kicker">{WRITE.selectedChapter}</p>
+          <p className="outline-inspector-number">{selected.number}</p>
+          <h2 className="outline-inspector-title">{selected.title}</h2>
+          <p className="outline-inspector-kind">{WRITE.chapterKind}</p>
+          <ButtonLink className="outline-open" href={recordHref(base, selected.id)}>
+            {WRITE.openChapter}
+          </ButtonLink>
+          <div className="outline-rail-actions">
+            <ButtonLink variant="ghost" size="sm" className="outline-rail-action" href={`${base}/read`} icon={<BookOpen strokeWidth={1.75} />}>
+              {NAV.readBook}
+            </ButtonLink>
+            <Button type="button" variant="ghost" size="sm" className="outline-rail-action" icon={<Plus strokeWidth={1.75} />} onClick={() => startCreate("chapter")}>
+              {WRITE.newChapter}
+            </Button>
+            <Button type="button" variant="ghost" size="sm" className="outline-rail-action" icon={<Layers strokeWidth={1.75} />} onClick={() => startCreate("scene")}>
+              {WRITE.newScene}
+            </Button>
+            <ButtonLink variant="ghost" size="sm" className="outline-rail-action" href={`${base}/import-chapters`} icon={<Download strokeWidth={1.75} />}>
+              {NAV.importChapters}
+            </ButtonLink>
+          </div>
+        </aside>
+      ) : null}
     </div>
   );
 }

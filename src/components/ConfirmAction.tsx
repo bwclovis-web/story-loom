@@ -62,6 +62,8 @@ export function ConfirmAction({
   unlockLabel,
   danger = true,
   small = false,
+  icon,
+  className,
 }: {
   action: (prev: ConfirmResult, formData: FormData) => Promise<ConfirmResult>;
   label: string;
@@ -73,6 +75,9 @@ export function ConfirmAction({
   unlockLabel?: string;
   danger?: boolean;
   small?: boolean;
+  /** Decorative icon before the label. The label stays the accessible name. */
+  icon?: ReactNode;
+  className?: string;
 }) {
   const [state, formAction, pending] = useActionState(action, { ok: true });
   const [confirming, setConfirming] = useState(false);
@@ -98,7 +103,7 @@ export function ConfirmAction({
           </div>
         </div>
       ) : (
-        <Button type="button" variant="secondary" size={size} onClick={() => setConfirming(true)}>
+        <Button type="button" variant="secondary" size={size} className={className} icon={icon} onClick={() => setConfirming(true)}>
           {label}
         </Button>
       )}

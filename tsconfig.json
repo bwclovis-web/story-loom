@@ -35,7 +35,11 @@
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts",
     "node_modules/.cache/wordly-next-trial/types/**/*.ts",
-    "node_modules/.cache/wordly-next-trial/dev/types/**/*.ts"
+    "node_modules/.cache/wordly-next-trial/dev/types/**/*.ts",
+    "node_modules/.cache/wordly-build-global-error/types/**/*.ts",
+    "node_modules/.cache/wordly-build-global-error/types/**/*.ts",
+    "node_modules/.cache/wordly-build-prod/types/**/*.ts",
+    "node_modules/.cache/wordly-build-prod/dev/types/**/*.ts"
   ],
   "exclude": [
     "node_modules"

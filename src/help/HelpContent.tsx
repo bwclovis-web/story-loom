@@ -868,15 +868,16 @@ export function HelpContent() {
           <p>
             The search box on <L>{SHELL.write}</L> filters the outline by title as you type. Press Enter to search the
             saved titles and text of every chapter, scene and scene note in the selected draft (<L>{MANUSCRIPT_SEARCH.label}</L>).
-            Tick <L>{MANUSCRIPT_SEARCH.matchCase}</L> before pressing Enter when capitals matter. Title filtering stays
-            case-insensitive. The <L>{WRITE.chaptersTab}</L> and <L>{WRITE.scenesTab}</L> tabs change which records the
-            title filter shows; a text search lists matches for the whole draft.
+            That search ignores capitals. The <L>{WRITE.chaptersTab}</L> and <L>{WRITE.scenesTab}</L> tabs change which
+            records the title filter shows; a text search lists matches for the whole draft. <L>{WRITE.newChapter}</L>,{" "}
+            <L>{WRITE.newScene}</L>, <L>{NAV.importChapters}</L>, and <L>{NAV.readBook}</L> sit on the row under the draft
+            and search, and again beside the selected chapter. Choosing a chapter marks that row and shows it under{" "}
+            <L>{WRITE.selectedChapter}</L>, with <L>{WRITE.openChapter}</L>.
           </p>
           <ol>
             <li>
-              Type a word or phrase and choose <L>{MANUSCRIPT_SEARCH.submit}</L>. Tick <L>{MANUSCRIPT_SEARCH.matchCase}</L>{" "}
-              first to tell &ldquo;Salt&rdquo; from &ldquo;salt&rdquo;; otherwise case is ignored. The text is matched
-              exactly as typed, the same way as <L>{WRITING.find}</L> in the editor.
+              Type a word or phrase and choose <L>{MANUSCRIPT_SEARCH.submit}</L>. Capitals are ignored. The text is
+              matched exactly as typed, the same way as <L>{WRITING.find}</L> in the editor.
             </li>
             <li>
               Results are in book order, each scene note after the chapter or scene it is on. Each shows how many matches

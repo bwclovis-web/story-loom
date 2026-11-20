@@ -18,7 +18,7 @@ One-chapter live trial, on a private restored copy only: back up; open Plan → 
 
 The Write page (`/projects/:id/write`) is one manuscript outline. The second manuscript column and the large guided-task banner stay off that route only; chapter and scene pages keep the manuscript panel, and other project pages keep the project panel and the banner.
 
-The outline uses the same cover as the library, the series or workspace name, and the manuscript title. Chapters and Scenes are tabs. Typing filters titles; Enter searches saved text for the selected draft, with match case. Chapter and scene titles open the editor. A separate chevron shows or hides a chapter’s scenes and does not navigate. Book order, rewrite actions, and the project tools that used to live in the side column are under More actions. Getting started sits under the outline and still uses the existing guided-task cookie.
+The outline uses the same cover as the library, the series or workspace name, and the manuscript title. Chapters and Scenes are tabs. The draft selector and search share one row. New chapter, New scene, Import chapters, Read the book, and Getting started are the next row, using the shared buttons and icons. Typing filters titles; Enter searches saved text for the selected draft and ignores capitals. Choosing a chapter marks the row and fills the Selected chapter rail, including Open chapter and the same four actions. Chapter and scene titles still open the editor. A separate chevron shows or hides a chapter’s scenes and does not navigate. Book order, rewrite actions, and the project tools that used to live in the side column are under More actions. Getting started still uses the existing guided-task cookie.
 
 ## Analyze chapter (Nov 19, 2026)
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode, type RefObject } from "react";
+import { Image as ImageIcon, Trash2 } from "lucide-react";
 import { ConfirmAction, type ConfirmResult } from "@/components/ConfirmAction";
 import { MoreIcon } from "@/components/shell/icons";
 import { Button } from "@/components/ui/Button";
@@ -33,6 +34,8 @@ export function WorkspaceActions({
         label={TRASH.moveWorkspace}
         confirmLabel={TRASH.confirmMove(name)}
         pendingLabel={TRASH.moving}
+        icon={<Trash2 strokeWidth={1.75} />}
+        className="library-menu-action"
         details={
           <p className="small">
             {details} You can restore it from the {TRASH.heading} page.
@@ -61,7 +64,14 @@ export function ManuscriptActions({
   return (
     <>
       <ActionsMenu label={HOME.manuscriptActions(title)}>
-        <Button type="button" variant="secondary" size="sm" className="library-menu-action" onClick={() => dialogRef.current?.showModal()}>
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          className="library-menu-action"
+          icon={<ImageIcon strokeWidth={1.75} />}
+          onClick={() => dialogRef.current?.showModal()}
+        >
           {HOME.changeCover}
         </Button>
         <ConfirmAction
@@ -69,6 +79,8 @@ export function ManuscriptActions({
           label={TRASH.moveProject}
           confirmLabel={TRASH.confirmMove(title)}
           pendingLabel={TRASH.moving}
+          icon={<Trash2 strokeWidth={1.75} />}
+          className="library-menu-action"
           details={
             <p className="small">
               Everything in it moves too. You can restore it from the {TRASH.heading} page.

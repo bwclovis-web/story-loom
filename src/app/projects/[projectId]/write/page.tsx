@@ -93,7 +93,6 @@ export default async function WritePage({
       looseNotes={outline.looseNotes}
       draftId={activeDraftId}
       initialQuery={q}
-      matchCase={matchCase}
       headerActions={
         hasDrafts ? (
           <WriteDraftSwitcher
