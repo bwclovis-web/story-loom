@@ -21,6 +21,12 @@ export interface AssistantLimits {
   maxToolRounds: number;
   /** Cap on characters returned by a single tool read. */
   maxToolResultChars: number;
+  /**
+   * Output-token cap for one chapter analysis. Optional on hand-built limit
+   * objects; the configured value is always set. Discussion and proofreading
+   * keep maxOutputTokens.
+   */
+  analysisOutputTokens?: number;
 }
 
 interface LimitSpec {
@@ -39,6 +45,14 @@ export const LIMIT_SPECS: Record<keyof AssistantLimits, LimitSpec> = {
   maxToolCalls: { env: "ASSISTANT_MAX_TOOL_CALLS", defaultValue: 12, min: 0, max: 40 },
   maxToolRounds: { env: "ASSISTANT_MAX_TOOL_ROUNDS", defaultValue: 4, min: 0, max: 12 },
   maxToolResultChars: { env: "ASSISTANT_MAX_TOOL_RESULT_CHARS", defaultValue: 80_000, min: 2_000, max: 400_000 },
+  /**
+   * A representative response is 24 suggestions (three of each category) with a
+   * 160-character quotation and a short note. That JSON is a few thousand
+   * tokens under the app's four-characters-per-token estimate, so 2,000 would
+   * cut a normal chapter off. 8,000 leaves room for longer quotations without
+   * raising the chat and proofreading cap. The monthly token cap still applies.
+   */
+  analysisOutputTokens: { env: "ASSISTANT_ANALYSIS_OUTPUT_TOKENS", defaultValue: 8_000, min: 500, max: 100_000 },
 };
 
 /**
@@ -118,7 +132,14 @@ export function readAssistantConfig(env: Env): AssistantConfig {
   };
 }
 
-/** Rough token estimate (about four characters per token in English). Shown only as an estimate. */
+/** Rough token estimate (about four characters per token in English). Shown only as an estimate, never as a price. */
 export function estimateTokens(chars: number): number {
   return Math.ceil(chars / 4);
+}
+
+export const DEFAULT_ANALYSIS_OUTPUT_TOKENS = LIMIT_SPECS.analysisOutputTokens.defaultValue;
+
+/** Chapter-analysis output cap. Falls back when a caller built limits without the field. */
+export function analysisOutputTokens(limits: AssistantLimits): number {
+  return limits.analysisOutputTokens ?? DEFAULT_ANALYSIS_OUTPUT_TOKENS;
 }
