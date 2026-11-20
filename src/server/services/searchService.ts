@@ -106,17 +106,21 @@ export interface ManuscriptSearch {
   totalMatches: number;
 }
 
-/**
- * Every match in the saved text of chapters, scenes and scene notes, in book
- * order with notes after what they are on. Matching is literal, like the
- * editor's Find; case is ignored unless `matchCase` is set.
- */
-export async function searchManuscript(
+export interface ManuscriptRecordInOrder {
+  id: string;
+  type: RecordType;
+  title: string;
+  body: string;
+  parentTitle: string | null;
+  protected: boolean;
+  currentRevision: number;
+}
+
+/** Chapters, scenes and notes on the active draft, in book order (notes after their parent). */
+export async function listManuscriptInBookOrder(
   db: DbOrTx,
-  input: { projectId: string; query: string; matchCase: boolean; draftId?: string | null; hasDrafts?: boolean },
-): Promise<ManuscriptSearch> {
-  const query = input.query.trim();
-  if (!query) return { hits: [], totalMatches: 0 };
+  input: { projectId: string; draftId?: string | null; hasDrafts?: boolean },
+): Promise<ManuscriptRecordInOrder[]> {
   const manuscriptFilter =
     input.hasDrafts === true
       ? input.draftId
@@ -129,7 +133,18 @@ export async function searchManuscript(
       trashedAt: null,
       OR: [manuscriptFilter, { type: "scene_note" }],
     },
-    select: { id: true, type: true, title: true, body: true, parentRecordId: true, position: true, createdAt: true, draftId: true },
+    select: {
+      id: true,
+      type: true,
+      title: true,
+      body: true,
+      parentRecordId: true,
+      position: true,
+      createdAt: true,
+      draftId: true,
+      protected: true,
+      currentRevision: true,
+    },
   });
   const manuscriptIds = new Set(rows.filter((r) => r.type !== "scene_note").map((r) => r.id));
   const scoped = rows.filter((r) => r.type !== "scene_note" || (r.parentRecordId && manuscriptIds.has(r.parentRecordId)));
@@ -151,22 +166,49 @@ export async function searchManuscript(
   }
   tree.unplaced.forEach((s) => add(s.id));
 
+  const out: ManuscriptRecordInOrder[] = [];
+  for (const id of order) {
+    const row = byId.get(id);
+    if (!row || !isRecordType(row.type)) continue;
+    const parent = row.parentRecordId ? byId.get(row.parentRecordId) : undefined;
+    out.push({
+      id: row.id,
+      type: row.type,
+      title: row.title,
+      body: row.body,
+      parentTitle: parent?.title ?? null,
+      protected: row.protected,
+      currentRevision: row.currentRevision,
+    });
+  }
+  return out;
+}
+
+/**
+ * Every match in the saved text of chapters, scenes and scene notes, in book
+ * order with notes after what they are on. Matching is literal, like the
+ * editor's Find; case is ignored unless `matchCase` is set.
+ */
+export async function searchManuscript(
+  db: DbOrTx,
+  input: { projectId: string; query: string; matchCase: boolean; draftId?: string | null; hasDrafts?: boolean },
+): Promise<ManuscriptSearch> {
+  const query = input.query.trim();
+  if (!query) return { hits: [], totalMatches: 0 };
+
   const options = { matchCase: input.matchCase };
   const hits: ManuscriptHit[] = [];
   let totalMatches = 0;
-  for (const id of order) {
-    const row = byId.get(id)!;
-    if (!isRecordType(row.type)) continue;
+  for (const row of await listManuscriptInBookOrder(db, input)) {
     const titleMatches = findMatches(row.title, query, options).length > 0;
     const text = searchText(row.body, query, { ...options, limit: MANUSCRIPT_EXCERPTS_PER_RECORD });
     if (!titleMatches && text.count === 0) continue;
     totalMatches += text.count;
-    const parent = row.parentRecordId ? byId.get(row.parentRecordId) : undefined;
     hits.push({
       id: row.id,
       type: row.type,
       title: row.title,
-      parentTitle: parent?.title ?? null,
+      parentTitle: row.parentTitle,
       titleMatches,
       count: text.count,
       excerpts: text.excerpts,

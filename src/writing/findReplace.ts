@@ -7,6 +7,8 @@
 
 export interface FindOptions {
   matchCase: boolean;
+  /** When set, a match must not sit inside a longer word (letters, numbers, underscore). */
+  wholeWord?: boolean;
 }
 
 export interface Match {
@@ -25,10 +27,42 @@ function escapeRegExp(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+function isWordChar(ch: string): boolean {
+  return /[\p{L}\p{N}_]/u.test(ch);
+}
+
+function isWholeWord(text: string, start: number, end: number): boolean {
+  if (start > 0 && isWordChar(text[start - 1]!)) return false;
+  if (end < text.length && isWordChar(text[end]!)) return false;
+  return true;
+}
+
 export function findMatches(text: string, query: string, options: FindOptions): Match[] {
   if (!query) return [];
   const re = new RegExp(escapeRegExp(query), options.matchCase ? "gu" : "giu");
-  return [...text.matchAll(re)].map((m) => ({ start: m.index, end: m.index + m[0].length }));
+  const raw = [...text.matchAll(re)].map((m) => ({ start: m.index!, end: m.index! + m[0].length }));
+  if (!options.wholeWord) return raw;
+  return raw.filter((m) => isWholeWord(text, m.start, m.end));
+}
+
+/** Stable id for a single literal match within one record field. */
+export function matchId(recordId: string, field: "title" | "body", start: number, end: number): string {
+  return `${recordId}:${field}:${start}:${end}`;
+}
+
+/** Apply the given non-overlapping matches from end to start (replacement is literal). */
+export function applySelectedReplacements(
+  text: string,
+  matches: readonly Match[],
+  replacement: string,
+): string {
+  if (matches.length === 0) return text;
+  const sorted = [...matches].sort((a, b) => b.start - a.start);
+  let out = text;
+  for (const m of sorted) {
+    out = out.slice(0, m.start) + replacement + out.slice(m.end);
+  }
+  return out;
 }
 
 /** Index of the match occupying exactly [start, end), or -1. */

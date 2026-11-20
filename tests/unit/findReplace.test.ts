@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   applyEdit,
+  applySelectedReplacements,
   findMatches,
   invertEdit,
   matchAt,
@@ -31,6 +32,10 @@ describe("findMatches", () => {
       { start: 0, end: 2 },
       { start: 2, end: 4 },
     ]);
+  });
+
+  it("wholeWord skips matches inside longer words", () => {
+    expect(findMatches("salted salt", "salt", { matchCase: false, wholeWord: true })).toEqual([{ start: 7, end: 11 }]);
   });
 });
 
@@ -74,5 +79,10 @@ describe("replacement", () => {
 
   it("returns no edit when nothing matches", () => {
     expect(replaceAllEdit(TEXT, [], "x")).toBeNull();
+  });
+
+  it("applySelectedReplacements changes only the chosen spans", () => {
+    const matches = findMatches("one two one", "one", { matchCase: true });
+    expect(applySelectedReplacements("one two one", [matches[1]!], "x")).toBe("one two x");
   });
 });

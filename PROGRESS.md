@@ -4,6 +4,26 @@
 
 Write, Weave, World, and Assistant landings use one header: the cover, the series when one is set (otherwise the workspace name), the book title, a short description, and Getting started. Getting started stays the quiet guided-task control. Dismissing tasks leaves the link and does not reopen them. The large guided-task banner stays off those four landings. Filtered World lists keep their own heading.
 
+## Manuscript-wide reviewed replace (Nov 20, 2026)
+
+Requested: PR2 — preview every literal match in the saved manuscript, per-match selection, match case and whole-word options, atomic batch apply via `mutationService`, protection unlock.
+
+### Implemented
+
+- `listManuscriptInBookOrder`, `previewManuscriptReplace`, `applyManuscriptReplace`; whole-word option in `findReplace`.
+- UI at `/projects/[projectId]/write/replace`; links from Write search results and project tools. Help, labels, tests.
+
+### Verification
+
+| Check | Result |
+| --- | --- |
+| `pnpm typecheck` | (run with PR) |
+| `pnpm exec vitest run tests/acceptance/manuscript-replace.test.ts tests/unit/findReplace.test.ts tests/unit/help.test.ts tests/acceptance/book-order.test.ts` | 26/26 passed |
+
+### Rollback
+
+Revert code changes; no migration.
+
 ## Restore earlier saved version (Nov 20, 2026)
 
 Requested: PR1 — one-click restore of an earlier revision as a new revision (History and Compare), through `mutationService`, with optional structured fields, protection unlock, and provenance.

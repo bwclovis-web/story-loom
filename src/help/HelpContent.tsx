@@ -17,6 +17,7 @@ import {
   HISTORY,
   HOME,
   IMAGES,
+  MANUSCRIPT_REPLACE,
   MANUSCRIPT_SEARCH,
   MARKDOWN_IMPORT,
   NAV,
@@ -891,9 +892,33 @@ export function HelpContent() {
           </ol>
           <p>
             Searching never changes anything. It reads saved text only, so unsaved changes in an open editor are not
-            searched. There is no replace across the whole manuscript; replace text one chapter or scene at a time with{" "}
-            <L>{WRITING.find}</L>.
+            searched. From the results you can open <L>{MANUSCRIPT_SEARCH.replaceAcross}</L>, or open{" "}
+            <L>{MANUSCRIPT_REPLACE.heading}</L> from project tools on <L>{SHELL.write}</L>.
           </p>
+        </Sub>
+
+        <Sub id="manuscript-replace">
+          <p>
+            <L>{MANUSCRIPT_REPLACE.heading}</L> searches every saved chapter, scene and scene note in the draft you have
+            selected, lists each literal match, and lets you replace the ones you tick in one step. Canon status is not
+            changed. Titles can be included when they match.
+          </p>
+          <ol>
+            <li>
+              Enter <L>{MANUSCRIPT_REPLACE.find}</L> and <L>{MANUSCRIPT_REPLACE.replaceWith}</L>. Optionally tick{" "}
+              <L>{MANUSCRIPT_SEARCH.matchCase}</L> or <L>{MANUSCRIPT_REPLACE.wholeWord}</L>, then choose{" "}
+              <L>{MANUSCRIPT_REPLACE.preview}</L>.
+            </li>
+            <li>
+              Uncheck any match to keep it. <L>{MANUSCRIPT_REPLACE.selectAll}</L> and <L>{MANUSCRIPT_REPLACE.selectNone}</L>{" "}
+              help with long lists. Each line shows the text before and after for that match only.
+            </li>
+            <li>
+              Choose <L>{MANUSCRIPT_REPLACE.apply("N")}</L>. Protected records need <L>{RECORD.unlockProtected}</L>. Every
+              affected record is saved in one transaction; if any record is out of date, nothing is saved.
+            </li>
+          </ol>
+          <p className="small muted">{MANUSCRIPT_SEARCH.note}</p>
         </Sub>
 
         <Sub id="import-chapters">
@@ -3399,8 +3424,7 @@ export function HelpContent() {
             you move it.
           </li>
           <li>
-            Manuscript search finds text but cannot replace it across chapters; replace in one chapter or scene at a time.
-            A scene cannot be turned into a chapter, or a chapter into a scene.
+            Manuscript-wide replace is literal only. It does not use patterns. A scene cannot be turned into a chapter, or a chapter into a scene.
           </li>
           <li>
             Chapters and scenes cannot have images. Images cannot be cropped, resized or renamed in the app. PDFs include
@@ -3425,7 +3449,10 @@ export function HelpContent() {
             when a linked place has a marker.
           </li>
           <li>The browser&apos;s Back button does not warn about unsaved changes.</li>
-          <li>Find and replace works on one record&apos;s text at a time, with literal text only.</li>
+          <li>
+            In one chapter or scene, find and replace works on that record&apos;s text only. Across the manuscript, use{" "}
+            <L>{MANUSCRIPT_REPLACE.heading}</L> (literal text, saved versions only).
+          </li>
           <li>
             <L>{PROOFREAD.heading}</L> checks spelling, grammar and punctuation only, in one record&apos;s saved text at a
             time. There is no style or continuity review. Suggestions are not kept after you leave the page.

@@ -716,6 +716,31 @@ export const MANUSCRIPT_SEARCH = {
   more: (n: Count) => `and ${n} more in this text`,
   openWithFind: "Open with Find",
   openWithFindLabel: (title: string) => `Open ${title} with Find showing these matches`,
+  replaceAcross: "Replace across manuscript…",
+} as const;
+
+export const MANUSCRIPT_REPLACE = {
+  heading: "Replace across manuscript",
+  lead: "Search every saved chapter, scene and scene note in the active draft, review each match, then save your replacements in one step. Unsaved text in an open editor is not included.",
+  backToWrite: "Back to Write",
+  searchHeading: "Find and replace",
+  find: "Find",
+  replaceWith: "Replace with",
+  wholeWord: "Whole words only",
+  preview: "Review matches",
+  reviewHeading: "Review matches",
+  reviewLead: (selected: Count, total: Count) =>
+    `${selected} of ${total} match${total === 1 ? "" : "es"} selected. Uncheck any you want to keep.`,
+  noMatches: "No matches in the saved manuscript for this search.",
+  inParent: (title: string) => `in ${title}`,
+  inTitle: "In title",
+  inBody: "In text",
+  protected: "Protected",
+  selectAll: "Select all",
+  selectNone: "Select none",
+  apply: (n: Count) => `Apply ${n} replacement${n === 1 ? "" : "s"}`,
+  applying: "Applying…",
+  newSearch: "New search",
 } as const;
 
 export const WORLD = {

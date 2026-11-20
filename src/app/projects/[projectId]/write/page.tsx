@@ -12,7 +12,7 @@ import { findProject } from "@/server/services/projectService";
 import { listRecordNav, listRecords } from "@/server/services/recordService";
 import { countOpenReviewItems } from "@/server/services/reviewService";
 import { searchManuscript, type ManuscriptHit } from "@/server/services/searchService";
-import { MANUSCRIPT_SEARCH, NAV, SHELL, WRITE } from "@/ui/labels";
+import { MANUSCRIPT_REPLACE, MANUSCRIPT_SEARCH, NAV, SHELL, WRITE } from "@/ui/labels";
 import { manuscriptEyebrow } from "@/ui/library";
 import { buildManuscriptTree } from "@/ui/manuscriptTree";
 import type { RecordNavEntry } from "@/ui/navigation";
@@ -184,6 +184,7 @@ function ProjectTools({ base, openReviewItems }: { base: string; openReviewItems
         { href: `${base}/history`, label: NAV.history, count: openReviewItems },
         { href: `${base}/dictionary`, label: NAV.dictionary },
         { href: `${base}/cross-references`, label: NAV.crossRefCheck },
+        { href: `${base}/write/replace`, label: MANUSCRIPT_REPLACE.heading },
         { href: `${base}/upgrade`, label: NAV.upgradeProject },
       ],
     },
@@ -232,6 +233,18 @@ function SearchResults({
         <Link href={`${base}/write`}>{MANUSCRIPT_SEARCH.clear}</Link>
       </p>
       <p className="small muted">{MANUSCRIPT_SEARCH.note}</p>
+      {hits.length ? (
+        <p className="small">
+          <Link
+            href={`${base}/write/replace?${new URLSearchParams({
+              find: query,
+              ...(matchCase ? { case: "1" } : {}),
+            })}`}
+          >
+            {MANUSCRIPT_SEARCH.replaceAcross}
+          </Link>
+        </p>
+      ) : null}
       {hits.length ? (
         <ul className="search-hits">
           {hits.map((hit) => (
