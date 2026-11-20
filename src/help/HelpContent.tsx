@@ -27,6 +27,7 @@ import {
   PROOFREAD,
   READ_BOOK,
   RECORD,
+  RECORD_RENAME,
   REVIEW,
   SHELL,
   SPELLING,
@@ -1954,8 +1955,29 @@ export function HelpContent() {
           <p>
             Below a chapter or scene, the <L>{XREF.heading}</L> section lists <L>{XREF.namesHere}</L> with how often
             each appears. On a dossier or worldbuilding record it lists <L>{XREF.namedIn}</L>: the forms looked for and
-            the chapters and scenes that use them. Nothing is changed in either text.
+            the chapters and scenes that use them.             Nothing is changed in either text.
           </p>
+        </Sub>
+
+        <Sub id="record-rename">
+          <p>
+            On a character dossier or worldbuilding record, <L>{RECORD_RENAME.heading}</L> updates the reference and can
+            replace its name forms in every saved chapter, scene and scene note in the draft you have selected.
+          </p>
+          <ol>
+            <li>
+              Enter a new <L>{RECORD_RENAME.titleField}</L>, <L>{RECORD_RENAME.nameField}</L>, and{" "}
+              <L>{RECORD_RENAME.aliasesField}</L>, then choose <L>{RECORD_RENAME.preview}</L>.
+            </li>
+            <li>
+              Each manuscript match shows the old and new wording. <L>{RECORD_RENAME.ambiguous}</L> matches start
+              unticked when more than one record shares that form. Tick only the ones you want.
+            </li>
+            <li>
+              Choose <L>{RECORD_RENAME.apply}</L>. Protected records need <L>{RECORD.unlockProtected}</L>. Every chosen
+              record is saved in one step; if any record is out of date, nothing is saved.
+            </li>
+          </ol>
         </Sub>
 
         <Sub id="cross-reference-check">

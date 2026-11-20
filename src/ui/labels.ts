@@ -719,6 +719,26 @@ export const MANUSCRIPT_SEARCH = {
   replaceAcross: "Replace across manuscript…",
 } as const;
 
+export const RECORD_RENAME = {
+  heading: "Rename everywhere",
+  lead: "Update this reference and review every manuscript use of its name forms. Only ticked matches change. Canon status is unchanged.",
+  titleField: "Title",
+  nameField: "Name (structured field)",
+  aliasesField: "Aliases (one per line)",
+  preview: "Review matches",
+  previewing: "Searching…",
+  reviewHeading: "Review name changes",
+  referenceWillUpdate: "This reference will be saved with the new title or fields.",
+  referenceUnchanged: "The title and structured fields stay as they are; only ticked manuscript matches will change.",
+  reviewLead: (selected: Count, total: Count) =>
+    `${selected} of ${total} manuscript match${total === 1 ? "" : "es"} selected. Ambiguous matches start unticked.`,
+  noManuscriptMatches: "No manuscript chapters or scenes use the old name forms.",
+  formLine: (from: string, to: string) => `${from} → ${to}`,
+  ambiguous: "ambiguous",
+  apply: "Apply rename",
+  applying: "Applying…",
+} as const;
+
 export const MANUSCRIPT_REPLACE = {
   heading: "Replace across manuscript",
   lead: "Search every saved chapter, scene and scene note in the active draft, review each match, then save your replacements in one step. Unsaved text in an open editor is not included.",

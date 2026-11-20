@@ -4,6 +4,25 @@
 
 Write, Weave, World, and Assistant landings use one header: the cover, the series when one is set (otherwise the workspace name), the book title, a short description, and Getting started. Getting started stays the quiet guided-task control. Dismissing tasks leaves the link and does not reopen them. The large guided-task banner stays off those four landings. Filtered World lists keep their own heading.
 
+## Rename everywhere on dossiers (Nov 20, 2026)
+
+Requested: PR3 — reviewed rename of character/worldbuilding title, name, aliases, and manuscript hits; ambiguous matches unticked; atomic batch.
+
+### Implemented
+
+- `recordRenameService` (preview + apply), `RecordRenameSection` on reference pages, help, labels, acceptance test.
+
+### Verification
+
+| Check | Result |
+| --- | --- |
+| `pnpm typecheck` | (run with PR) |
+| `pnpm exec vitest run tests/acceptance/record-rename.test.ts tests/unit/help.test.ts` | 5/5 passed |
+
+### Rollback
+
+Revert code; no migration.
+
 ## Manuscript-wide reviewed replace (Nov 20, 2026)
 
 Requested: PR2 — preview every literal match in the saved manuscript, per-match selection, match case and whole-word options, atomic batch apply via `mutationService`, protection unlock.

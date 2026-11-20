@@ -100,6 +100,7 @@ export const HELP_SECTIONS = [
       { id: "section-status", title: "Status tags in headings" },
       { id: "cross-references", title: "Cross-references and IDs" },
       { id: "names-in-manuscript", title: "Characters and places in chapters" },
+      { id: "record-rename", title: "Rename everywhere" },
       { id: "cross-reference-check", title: "Checking every cross-reference" },
       { id: "new-versions", title: "Importing a new version of a file" },
       { id: "long-documents", title: "Long documents, one section at a time" },

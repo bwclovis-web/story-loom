@@ -26,6 +26,7 @@ import { splitStatusTag, statusTagOf } from "@/writing/sections";
 import type { SpellChecker, SpellingLanguage } from "@/writing/spelling";
 import { RecordEditor } from "./RecordForms";
 import { ImageGallery, type GalleryImage } from "./ImageGallery";
+import { RecordRenameSection } from "./RecordRenameSection";
 import {
   CompareSection,
   HistorySection,
@@ -563,6 +564,9 @@ export function ReferenceView(props: ReferenceViewProps) {
           <StatusSection projectId={projectId} record={record} />
           <ProtectionSection projectId={projectId} record={record} />
         </div>
+        {record.type === "character_dossier" || record.type === "worldbuilding" ? (
+          <RecordRenameSection projectId={projectId} record={record} />
+        ) : null}
         <HistorySection projectId={projectId} record={record} revisions={revisions} />
         <CompareSection projectId={projectId} record={record} revisions={revisions} query={props.query} />
         {props.importedFiles.length ? (

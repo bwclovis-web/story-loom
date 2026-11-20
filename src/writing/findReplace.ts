@@ -57,10 +57,22 @@ export function applySelectedReplacements(
   replacement: string,
 ): string {
   if (matches.length === 0) return text;
+  return applyPerMatchReplacements(
+    text,
+    matches.map((m) => ({ ...m, replacement })),
+  );
+}
+
+/** Each match may use a different replacement string. Overlapping matches are not supported. */
+export function applyPerMatchReplacements(
+  text: string,
+  matches: readonly (Match & { replacement: string })[],
+): string {
+  if (matches.length === 0) return text;
   const sorted = [...matches].sort((a, b) => b.start - a.start);
   let out = text;
   for (const m of sorted) {
-    out = out.slice(0, m.start) + replacement + out.slice(m.end);
+    out = out.slice(0, m.start) + m.replacement + out.slice(m.end);
   }
   return out;
 }
