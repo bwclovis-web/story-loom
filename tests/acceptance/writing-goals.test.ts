@@ -58,7 +58,7 @@ describe("Writing goals and progress", () => {
         actor: "author",
         source: { kind: "ui" },
         scope: "manuscript",
-        protectedOverrides: new Set(),
+        protectedOverrides: new Set([IDS.chapter]),
       },
       [{ kind: "update_record", recordId: IDS.chapter, expectedRevision: 1, changes: { body: longer } }],
       { action: "test", summary: "Expand chapter" },

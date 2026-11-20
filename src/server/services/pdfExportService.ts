@@ -21,12 +21,11 @@ import {
   type PdfImage,
   type RenderContext,
 } from "@/server/pdf/pdfRender";
-import { buildManuscriptTree } from "@/ui/manuscriptTree";
 import { parseMarkdown } from "@/writing/markdownParse";
 import type { DbOrTx } from "../db";
 import { NotFoundError } from "./errors";
 import { imageDataByIds, imagesByRecord } from "./imageService";
-import { listRecordNav } from "./recordService";
+import { buildManuscriptExportModel, exportDateStamp, exportSlug } from "./manuscriptExportModel";
 import { LIVE_PROJECT } from "./trashFilters";
 
 /*
@@ -44,23 +43,6 @@ export interface PdfFile {
 }
 
 const EMPTY_IMAGES: ReadonlyMap<string, PdfImage> = new Map();
-
-function localDate(now: Date): string {
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
-}
-
-function slug(text: string): string {
-  const s = text
-    .normalize("NFKD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 60)
-    .replace(/-+$/, "");
-  return s || "project";
-}
 
 async function projectTitle(db: DbOrTx, projectId: string): Promise<string> {
   const project = await db.project.findFirst({ where: { id: projectId, ...LIVE_PROJECT }, select: { title: true } });
@@ -204,8 +186,8 @@ export async function buildReferencesPdf(db: DbOrTx, projectId: string, recordId
   drawFooters(doc, title);
   const pageCount = doc.bufferedPageRange().count;
   const bytes = await pdfToBuffer(doc);
-  const name = single ? `${slug(project)}-${slug(single.title)}` : `${slug(project)}-references`;
-  return { filename: `${name}-${localDate(now)}.pdf`, bytes, pageCount, documentCount: records.length, imagesEmbedded: ctx.embedded };
+  const name = single ? `${exportSlug(project)}-${exportSlug(single.title)}` : `${exportSlug(project)}-references`;
+  return { filename: `${name}-${exportDateStamp(now)}.pdf`, bytes, pageCount, documentCount: records.length, imagesEmbedded: ctx.embedded };
 }
 
 /**
@@ -219,14 +201,8 @@ export async function buildManuscriptPdf(
   options: { sceneTitles: boolean; draftId?: string | null; hasDrafts?: boolean },
   now = new Date(),
 ): Promise<PdfFile> {
-  const project = await projectTitle(db, projectId);
-  const tree = buildManuscriptTree(
-    await listRecordNav(db, projectId, { draftId: options.draftId, hasDrafts: options.hasDrafts }),
-  );
-  if (!tree.chapters.length && !tree.unplaced.length) throw new NotFoundError("This project has no chapters yet.");
-  const ids = [...tree.chapters.flatMap((c) => [c.id, ...c.scenes.map((s) => s.id)]), ...tree.unplaced.map((s) => s.id)];
-  const rows = await db.record.findMany({ where: { projectId, id: { in: ids }, trashedAt: null } });
-  const byId = new Map(rows.map((r) => [r.id, toRecordView(r)]));
+  const model = await buildManuscriptExportModel(db, projectId, options, now);
+  const project = model.projectTitle;
 
   const doc = createPdf({ title: project, subject: "Manuscript exported from Story Loom" });
   const generated = `Saved versions as of ${now.toLocaleString("en-GB", { dateStyle: "long", timeStyle: "short" })}`;
@@ -239,14 +215,12 @@ export async function buildManuscriptPdf(
     return parsed.blocks.length > 0;
   };
 
-  const drawScenes = (sceneIds: { id: string; title: string }[], afterText: boolean) => {
+  const drawScenes = (scenes: { record: { title: string; body: string } }[], afterText: boolean) => {
     let previousText = afterText;
-    for (const scene of sceneIds) {
-      const record = byId.get(scene.id);
-      if (!record) continue;
-      if (options.sceneTitles) drawHeading(doc, record.title, 3, contentLeft(doc), contentWidth(doc));
-      else if (previousText && record.body.trim()) drawSceneBreak(doc);
-      previousText = drawText(record.body) || previousText;
+    for (const scene of scenes) {
+      if (options.sceneTitles) drawHeading(doc, scene.record.title, 3, contentLeft(doc), contentWidth(doc));
+      else if (previousText && scene.record.body.trim()) drawSceneBreak(doc);
+      previousText = drawText(scene.record.body) || previousText;
     }
   };
 
@@ -259,23 +233,21 @@ export async function buildManuscriptPdf(
   };
 
   let chapters = 0;
-  for (const chapter of tree.chapters) {
-    const record = byId.get(chapter.id);
-    if (!record) continue;
+  for (const chapter of model.chapters) {
     chapters += 1;
-    chapterHeading(record.title);
-    drawScenes(chapter.scenes, drawText(record.body));
+    chapterHeading(chapter.record.title);
+    drawScenes(chapter.scenes, drawText(chapter.record.body));
   }
-  if (tree.unplaced.length) {
+  if (model.unplacedScenes.length) {
     chapterHeading("Scenes not in a chapter");
-    drawScenes(tree.unplaced, false);
+    drawScenes(model.unplacedScenes, false);
   }
 
   drawFooters(doc, project);
   const pageCount = doc.bufferedPageRange().count;
   const bytes = await pdfToBuffer(doc);
   return {
-    filename: `${slug(project)}-manuscript-${localDate(now)}.pdf`,
+    filename: `${exportSlug(project)}-manuscript-${exportDateStamp(now)}.pdf`,
     bytes,
     pageCount,
     documentCount: chapters,

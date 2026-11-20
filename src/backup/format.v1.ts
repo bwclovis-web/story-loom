@@ -283,6 +283,29 @@ export const workspaceBackupV1Schema = z
           .strict(),
       )
       .optional(),
+  /** Synopsis cards and margin comments; omitted in older backups → none. */
+    manuscriptAnnotations: z
+      .array(
+        z
+          .object({
+            id,
+            projectId: id,
+            kind: z.enum(["synopsis", "comment"]),
+            recordId: id,
+            body: z.string().max(25_000),
+            revisionNumber: z.number().int().min(1).nullable().optional(),
+            passageStart: z.number().int().min(0).nullable().optional(),
+            passageEnd: z.number().int().min(0).nullable().optional(),
+            passageExcerpt: z.string().max(10_000).optional(),
+            contentHash: z.string().max(64).optional(),
+            needsRecheck: z.boolean().optional(),
+            resolvedAt: timestamp.nullable().optional(),
+            createdAt: timestamp,
+            updatedAt: timestamp,
+          })
+          .strict(),
+      )
+      .optional(),
     /** World boards; omitted in older backups → no boards. */
     boards: z
       .array(
@@ -838,6 +861,7 @@ export const workspaceBackupV1Schema = z
         rewriteSourceLinks: z.number().int().optional(),
         readingPins: z.number().int().optional(),
         writingGoals: z.number().int().optional(),
+        manuscriptAnnotations: z.number().int().optional(),
         boards: z.number().int().optional(),
         boardCards: z.number().int().optional(),
         worldMaps: z.number().int().optional(),

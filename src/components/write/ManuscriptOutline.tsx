@@ -8,7 +8,7 @@ import { ChevronRightIcon, SearchIcon } from "@/components/shell/icons";
 import { ManuscriptCreateForm } from "@/components/shell/ManuscriptTree";
 import { Button, ButtonLink } from "@/components/ui/Button";
 import { RECORD_TYPE_LABELS } from "@/domain/recordTypes";
-import { MANUSCRIPT_SEARCH, NAV, WRITE } from "@/ui/labels";
+import { MANUSCRIPT_ANNOTATIONS, MANUSCRIPT_SEARCH, NAV, WRITE } from "@/ui/labels";
 
 export type OutlineNote = { id: string; title: string };
 
@@ -23,7 +23,14 @@ export type OutlineChapter = {
   notes: OutlineNote[];
 };
 
-type Tab = "chapters" | "scenes";
+type Tab = "chapters" | "scenes" | "corkboard";
+
+export type CorkboardCard = {
+  recordId: string;
+  title: string;
+  type: string;
+  body: string;
+};
 
 /**
  * Write landing: one ordered outline. Chapter and scene titles open the editor.
@@ -45,6 +52,8 @@ export function ManuscriptOutline({
   overflow,
   results,
   gettingStarted,
+  synopsisById = new Map<string, string>(),
+  corkboardCards = [],
 }: {
   projectId: string;
   title: string;
@@ -61,6 +70,8 @@ export function ManuscriptOutline({
   overflow: ReactNode;
   results: ReactNode;
   gettingStarted: ReactNode;
+  synopsisById?: Map<string, string>;
+  corkboardCards?: CorkboardCard[];
 }) {
   const uid = useId();
   const base = `/projects/${encodeURIComponent(projectId)}`;
@@ -77,7 +88,7 @@ export function ManuscriptOutline({
   const chapterOptions = chapters.map((chapter) => ({ id: chapter.id, title: chapter.title }));
 
   const onTabKey = (event: KeyboardEvent<HTMLButtonElement>) => {
-    const order: Tab[] = ["chapters", "scenes"];
+    const order: Tab[] = ["chapters", "scenes", "corkboard"];
     const index = order.indexOf(tab);
     let next = index;
     if (event.key === "ArrowRight") next = (index + 1) % order.length;
@@ -153,6 +164,19 @@ export function ManuscriptOutline({
           onKeyDown={onTabKey}
         >
           {WRITE.scenesTab}
+        </button>
+        <button
+          type="button"
+          className="outline-tab"
+          id={`${uid}-tab-corkboard`}
+          role="tab"
+          aria-selected={tab === "corkboard"}
+          aria-controls={`${uid}-panel-corkboard`}
+          tabIndex={tab === "corkboard" ? 0 : -1}
+          onClick={() => setTab("corkboard")}
+          onKeyDown={onTabKey}
+        >
+          {MANUSCRIPT_ANNOTATIONS.corkboardTab}
         </button>
       </div>
 
@@ -319,6 +343,30 @@ export function ManuscriptOutline({
           filtering={filtering}
         />
       </div>
+
+      <div role="tabpanel" id={`${uid}-panel-corkboard`} aria-labelledby={`${uid}-tab-corkboard`} hidden={tab !== "corkboard"}>
+        <p className="small muted corkboard-lead">{MANUSCRIPT_ANNOTATIONS.corkboardLead}</p>
+        {corkboardCards.length === 0 ? (
+          <p className="outline-empty">{MANUSCRIPT_ANNOTATIONS.corkboardEmpty}</p>
+        ) : (
+          <ul className="manuscript-corkboard">
+            {corkboardCards.map((card) => (
+              <li key={card.recordId} className="manuscript-corkboard-card panel">
+                <div className="row" style={{ justifyContent: "space-between", gap: "0.5rem" }}>
+                  <div>
+                    <p className="small muted">{RECORD_TYPE_LABELS[card.type as keyof typeof RECORD_TYPE_LABELS] ?? card.type}</p>
+                    <h3 className="manuscript-corkboard-title">{card.title}</h3>
+                  </div>
+                  <Link className="small" href={recordHref(base, card.recordId)}>
+                    {MANUSCRIPT_ANNOTATIONS.openRecord}
+                  </Link>
+                </div>
+                <p className="manuscript-corkboard-body">{card.body}</p>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
       </div>
       {selected ? (
         <aside className="outline-inspector" aria-label={WRITE.selectedChapter}>
@@ -326,6 +374,9 @@ export function ManuscriptOutline({
           <p className="outline-inspector-number">{selected.number}</p>
           <h2 className="outline-inspector-title">{selected.title}</h2>
           <p className="outline-inspector-kind">{WRITE.chapterKind}</p>
+          {synopsisById.get(selected.id)?.trim() ? (
+            <p className="small outline-inspector-synopsis">{synopsisById.get(selected.id)}</p>
+          ) : null}
           <ButtonLink className="outline-open" href={recordHref(base, selected.id)}>
             {WRITE.openChapter}
           </ButtonLink>

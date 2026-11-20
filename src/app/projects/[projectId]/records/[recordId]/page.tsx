@@ -41,6 +41,7 @@ import { getSpellChecker, getSpellingLanguage } from "@/server/spelling";
 import { loadCrossRefIndex } from "@/server/services/crossRefService";
 import { listMentionedBy } from "@/server/services/mentionedByService";
 import { buildWritingProgress } from "@/server/services/writingProgressService";
+import { getSynopsis, listMarginComments } from "@/server/services/manuscriptAnnotationService";
 import { listWeaveBeatsForManuscript } from "@/server/services/weaveService";
 import { RECORD, XREF } from "@/ui/labels";
 import { buildManuscriptTree, manuscriptIdsInBookOrder } from "@/ui/manuscriptTree";
@@ -114,7 +115,8 @@ export default async function RecordPage({
       for (const scene of tree.unplaced) out.push({ id: scene.id, title: scene.title, kind: "scene" });
       return out;
     })();
-    const [notes, linked, sceneLocations, choices, sources, attachableSources, pins, plotBeats] = await Promise.all([
+    const [notes, linked, sceneLocations, choices, sources, attachableSources, pins, plotBeats, synopsis, marginComments] =
+      await Promise.all([
       listNotes(db, projectId, record.id),
       listLinkedReferences(db, projectId, record.id),
       listSceneLocationsForManuscript(db, projectId, record.id),
@@ -123,6 +125,8 @@ export default async function RecordPage({
       listAttachableRewriteSources(db, projectId, record.id),
       listReadingPins(db, projectId, pinScopeId),
       listWeaveBeatsForManuscript(db, projectId, record.id),
+      getSynopsis(db, projectId, record.id),
+      listMarginComments(db, projectId, record.id),
     ]);
     const chapterProgress =
       record.type === "manuscript_chapter"
@@ -206,6 +210,8 @@ export default async function RecordPage({
         }))}
         manuscriptSplitOptions={manuscriptSplitOptions}
         styleCheckNames={styleCheckNameTerms(crossRefs)}
+        synopsisBody={synopsis?.body ?? ""}
+        marginComments={marginComments}
         details={
           <RecordDetails
             projectId={projectId}

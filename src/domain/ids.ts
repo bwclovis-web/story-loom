@@ -26,6 +26,7 @@ export type IdPrefix =
   | "rsl" // rewrite source link
   | "pin" // reading pin (reference beside prose)
   | "wgoal" // writing goal (word target)
+  | "man" // manuscript annotation (synopsis or margin comment)
   | "brd" // world board
   | "bcd" // board card
   | "wmp" // world map

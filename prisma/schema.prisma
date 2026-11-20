@@ -82,6 +82,7 @@ model Project {
   storyEventOrders       StoryEventOrder[]
   storyEventEvidence     StoryEventEvidence[]
   writingGoals           WritingGoal[]
+  manuscriptAnnotations  ManuscriptAnnotation[]
 
   @@index([workspaceId])
 }
@@ -213,6 +214,7 @@ model Record {
   storyEventScenes           StoryEventScene[]    @relation("StoryEventScene")
   storyEventEvidenceSources  StoryEventEvidence[] @relation("StoryEventEvidenceSource")
   writingGoals               WritingGoal[]
+  manuscriptAnnotations      ManuscriptAnnotation[]
 
   @@index([projectId, type])
   @@index([parentRecordId])
@@ -285,6 +287,34 @@ model WritingGoal {
   @@unique([projectId, scope, recordId])
   @@index([projectId])
   @@index([recordId])
+}
+
+/// Synopsis cards and margin comments on manuscript chapters/scenes. Not revisioned
+/// manuscript content; changes are audited. Comments pin a passage at a revision.
+model ManuscriptAnnotation {
+  id               String    @id
+  projectId        String
+  project          Project   @relation(fields: [projectId], references: [id])
+  /// synopsis | comment
+  kind             String
+  recordId         String
+  record           Record    @relation(fields: [recordId], references: [id])
+  /// Synopsis text, or optional note on a margin comment.
+  body             String    @default("")
+  revisionNumber   Int?
+  passageStart     Int?
+  passageEnd       Int?
+  passageExcerpt   String    @default("")
+  contentHash      String    @default("")
+  needsRecheck     Boolean   @default(false)
+  resolvedAt       DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@index([projectId])
+  @@index([recordId, kind])
+  @@index([projectId, kind])
+  @@index([recordId, needsRecheck])
 }
 
 /// Ordered reading pins for references kept open beside prose. Scoped by project

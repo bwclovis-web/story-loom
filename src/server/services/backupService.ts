@@ -82,6 +82,10 @@ function writingGoalsOf(b: WorkspaceBackupV1) {
   return b.writingGoals ?? [];
 }
 
+function manuscriptAnnotationsOf(b: WorkspaceBackupV1) {
+  return b.manuscriptAnnotations ?? [];
+}
+
 function boardsOf(b: WorkspaceBackupV1) {
   return b.boards ?? [];
 }
@@ -346,6 +350,20 @@ async function writingGoalRows(db: DbOrTx, projectIds: string[]) {
     return await db.writingGoal.findMany({
       where: { projectId: { in: projectIds } },
       orderBy: [{ projectId: "asc" }, { scope: "asc" }, { recordId: "asc" }, { id: "asc" }],
+    });
+  } catch (error) {
+    if (isMissingSchemaError(error, "P2021")) return [];
+    throw error;
+  }
+}
+
+async function manuscriptAnnotationRows(db: DbOrTx, projectIds: string[]) {
+  if (!("manuscriptAnnotation" in db) || !(db as { manuscriptAnnotation?: { findMany: unknown } }).manuscriptAnnotation)
+    return [];
+  try {
+    return await db.manuscriptAnnotation.findMany({
+      where: { projectId: { in: projectIds } },
+      orderBy: [{ projectId: "asc" }, { recordId: "asc" }, { kind: "asc" }, { id: "asc" }],
     });
   } catch (error) {
     if (isMissingSchemaError(error, "P2021")) return [];
@@ -855,6 +873,7 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
     rewriteSourceLinks,
     readingPins,
     writingGoals,
+    manuscriptAnnotations,
     boards,
     boardCards,
     worldMaps,
@@ -894,6 +913,7 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
     rewriteSourceLinkRows(db, projectIds),
     readingPinRows(db, projectIds),
     writingGoalRows(db, projectIds),
+    manuscriptAnnotationRows(db, projectIds),
     boardRows(db, projectIds),
     boardCardRows(db, projectIds),
     worldMapRows(db, projectIds),
@@ -1126,6 +1146,26 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
             ...(g.deadlineAt ? { deadlineAt: iso(g.deadlineAt) } : { deadlineAt: null }),
             createdAt: iso(g.createdAt),
             updatedAt: iso(g.updatedAt),
+          })),
+        }
+      : {}),
+    ...(manuscriptAnnotations.length
+      ? {
+          manuscriptAnnotations: manuscriptAnnotations.map((a) => ({
+            id: a.id,
+            projectId: a.projectId,
+            kind: a.kind as "synopsis" | "comment",
+            recordId: a.recordId,
+            body: a.body,
+            ...(a.revisionNumber !== null ? { revisionNumber: a.revisionNumber } : {}),
+            ...(a.passageStart !== null ? { passageStart: a.passageStart } : {}),
+            ...(a.passageEnd !== null ? { passageEnd: a.passageEnd } : {}),
+            ...(a.passageExcerpt ? { passageExcerpt: a.passageExcerpt } : {}),
+            ...(a.contentHash ? { contentHash: a.contentHash } : {}),
+            ...(a.needsRecheck ? { needsRecheck: true as const } : {}),
+            ...(a.resolvedAt ? { resolvedAt: iso(a.resolvedAt) } : { resolvedAt: null }),
+            createdAt: iso(a.createdAt),
+            updatedAt: iso(a.updatedAt),
           })),
         }
       : {}),
@@ -1586,6 +1626,7 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
       ...(rewriteSourceLinks.length ? { rewriteSourceLinks: rewriteSourceLinks.length } : {}),
       ...(readingPins.length ? { readingPins: readingPins.length } : {}),
       ...(writingGoals.length ? { writingGoals: writingGoals.length } : {}),
+      ...(manuscriptAnnotations.length ? { manuscriptAnnotations: manuscriptAnnotations.length } : {}),
       ...(boards.length ? { boards: boards.length } : {}),
       ...(boardCards.length ? { boardCards: boardCards.length } : {}),
       ...(worldMaps.length ? { worldMaps: worldMaps.length } : {}),
@@ -1669,6 +1710,7 @@ function checkInternalConsistency(b: WorkspaceBackupV1): Issue[] {
     rewriteSourceLinks: rewriteSourceLinksOf(b).length,
     readingPins: readingPinsOf(b).length,
     writingGoals: writingGoalsOf(b).length,
+    manuscriptAnnotations: manuscriptAnnotationsOf(b).length,
     boards: boardsOf(b).length,
     boardCards: boardCardsOf(b).length,
     worldMaps: worldMapsOf(b).length,
@@ -1747,6 +1789,7 @@ function checkInternalConsistency(b: WorkspaceBackupV1): Issue[] {
     "writing goal scope",
     issues,
   );
+  checkUnique(manuscriptAnnotationsOf(b).map((a) => a.id), "manuscript annotation", issues);
   checkUnique(boardsOf(b).map((x) => x.id), "board", issues);
   checkUnique(boardCardsOf(b).map((c) => c.id), "board card", issues);
   checkUnique(worldMapsOf(b).map((x) => x.id), "world map", issues);
@@ -1921,6 +1964,29 @@ function checkInternalConsistency(b: WorkspaceBackupV1): Issue[] {
       }
     } else {
       issues.push(integrity(`Writing goal ${g.id} has unknown scope ${g.scope}.`));
+    }
+  });
+  manuscriptAnnotationsOf(b).forEach((a) => {
+    needProject(a.projectId, `Manuscript annotation ${a.id}`);
+    if (!recordIds.has(a.recordId) || recordProject.get(a.recordId) !== a.projectId) {
+      issues.push(integrity(`Manuscript annotation ${a.id} references missing record ${a.recordId}.`));
+    } else {
+      const type = recordType.get(a.recordId);
+      if (type !== "manuscript_chapter" && type !== "manuscript_scene") {
+        issues.push(integrity(`Manuscript annotation ${a.id} must belong to a chapter or scene.`));
+      }
+    }
+    if (a.kind === "synopsis") {
+      if (a.resolvedAt) issues.push(integrity(`Synopsis ${a.id} must not set resolvedAt.`));
+    } else if (a.kind === "comment") {
+      if (a.revisionNumber === null || a.revisionNumber === undefined) {
+        issues.push(integrity(`Comment ${a.id} must pin a revision.`));
+      }
+      if (a.passageEnd !== null && a.passageEnd !== undefined && a.passageStart !== null && a.passageStart !== undefined) {
+        if (a.passageEnd < a.passageStart) issues.push(integrity(`Comment ${a.id} has invalid passage range.`));
+      }
+    } else {
+      issues.push(integrity(`Manuscript annotation ${a.id} has unknown kind ${a.kind}.`));
     }
   });
   const boardIds = new Set(boardsOf(b).map((x) => x.id));
@@ -2417,6 +2483,12 @@ async function findCollisions(db: DbOrTx, b: WorkspaceBackupV1): Promise<Issue[]
   if (writingGoalsOf(b).length) {
     await check("writing goal", db.writingGoal.count({ where: { id: { in: writingGoalsOf(b).map((g) => g.id) } } }));
   }
+  if (manuscriptAnnotationsOf(b).length) {
+    await check(
+      "manuscript annotation",
+      db.manuscriptAnnotation.count({ where: { id: { in: manuscriptAnnotationsOf(b).map((a) => a.id) } } }),
+    );
+  }
   if (boardsOf(b).length) {
     await check("board", db.board.count({ where: { id: { in: boardsOf(b).map((x) => x.id) } } }));
   }
@@ -2665,6 +2737,7 @@ export async function restoreWorkspaceBackup(db: Db, input: string | unknown, op
   rewriteSourceLinksOf(b).forEach((l) => assign(l.id, "rsl"));
   readingPinsOf(b).forEach((p) => assign(p.id, "pin"));
   writingGoalsOf(b).forEach((g) => assign(g.id, "wgoal"));
+  manuscriptAnnotationsOf(b).forEach((a) => assign(a.id, "man"));
   boardsOf(b).forEach((x) => assign(x.id, "brd"));
   boardCardsOf(b).forEach((c) => assign(c.id, "bcd"));
   worldMapsOf(b).forEach((x) => assign(x.id, "wmp"));
@@ -2960,6 +3033,27 @@ export async function restoreWorkspaceBackup(db: Db, input: string | unknown, op
               deadlineAt: g.deadlineAt ? new Date(g.deadlineAt) : null,
               createdAt: new Date(g.createdAt),
               updatedAt: new Date(g.updatedAt),
+            })),
+          });
+        }
+        const annotations = manuscriptAnnotationsOf(b);
+        if (annotations.length) {
+          await tx.manuscriptAnnotation.createMany({
+            data: annotations.map((a) => ({
+              id: m(a.id),
+              projectId: m(a.projectId),
+              kind: a.kind,
+              recordId: m(a.recordId),
+              body: a.body,
+              revisionNumber: a.revisionNumber ?? null,
+              passageStart: a.passageStart ?? null,
+              passageEnd: a.passageEnd ?? null,
+              passageExcerpt: a.passageExcerpt ?? "",
+              contentHash: a.contentHash ?? "",
+              needsRecheck: a.needsRecheck ?? false,
+              resolvedAt: a.resolvedAt ? new Date(a.resolvedAt) : null,
+              createdAt: new Date(a.createdAt),
+              updatedAt: new Date(a.updatedAt),
             })),
           });
         }

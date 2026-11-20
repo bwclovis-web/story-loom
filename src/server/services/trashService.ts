@@ -247,6 +247,7 @@ async function deleteProjectRowsInTx(tx: Tx, projectId: string) {
   await tx.source.deleteMany({ where: { projectId } });
   await tx.rewriteSourceLink.deleteMany({ where: { projectId } });
   await tx.readingPin.deleteMany({ where: { projectId } });
+  await tx.manuscriptAnnotation.deleteMany({ where: { projectId } });
   await tx.boardCard.deleteMany({ where: { projectId } });
   await tx.board.deleteMany({ where: { projectId } });
   await tx.worldMapPin.deleteMany({ where: { projectId } });

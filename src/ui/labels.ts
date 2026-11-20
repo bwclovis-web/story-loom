@@ -734,6 +734,29 @@ export const WRITING_GOALS = {
   noTarget: "No book target set.",
 } as const;
 
+export const MANUSCRIPT_ANNOTATIONS = {
+  synopsis: "Synopsis",
+  synopsisLead: "A planning blurb for this chapter or scene. It is not part of the manuscript and is not exported unless you later choose that in a compile profile.",
+  synopsisPlaceholder: "What happens, what you are aiming for…",
+  saveSynopsis: "Save synopsis",
+  clearSynopsis: "Clear synopsis",
+  marginComments: "Margin comments",
+  marginLead: "Comments pin a saved passage at the revision you saved. After you save again, pins that no longer match are marked for recheck.",
+  pinSelection: "Pin selection as comment",
+  pinRequiresSave: "Save before pinning a comment.",
+  commentNote: "Note (optional)",
+  resolveComment: "Resolve",
+  removeComment: "Remove",
+  showResolved: "Show resolved",
+  needsRecheck: "Passage changed — recheck",
+  confirmRecheck: "Mark as checked",
+  noComments: "No open margin comments.",
+  corkboardTab: "Corkboard",
+  corkboardLead: "Synopsis cards for the active draft, in book order. Edit a card from the chapter or scene, or open it below.",
+  corkboardEmpty: "No synopsis cards yet. Add a synopsis when you edit a chapter or scene.",
+  openRecord: "Open",
+} as const;
+
 /** Full-text search on the Write page. */
 export const MANUSCRIPT_SEARCH = {
   label: "Search the manuscript text",
@@ -1331,6 +1354,11 @@ export const PDF = {
   manuscriptNote: "Every chapter and its scenes, in the order shown on the Write page.",
   sceneTitles: "Show scene titles (otherwise scenes are separated by a centred ***)",
   downloadManuscript: "Download manuscript PDF",
+  downloadManuscriptDocx: "Download manuscript DOCX",
+  downloadManuscriptEpub: "Download manuscript EPUB",
+  manuscriptFormats: "Manuscript export formats",
+  manuscriptFormatsNote:
+    "DOCX and EPUB use the same chapter order, draft, and scene-title option as the PDF. Reference documents stay PDF-only for now.",
   noManuscript: "This project has no chapters yet.",
   referencesHeading: "References",
   referencesNote:

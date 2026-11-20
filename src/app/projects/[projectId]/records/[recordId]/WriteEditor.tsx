@@ -47,6 +47,11 @@ import { WriteProtectionRow } from "@/components/writing/WriteProtectionRow";
 import { WriteSplitPane, type ManuscriptSplitOption } from "@/components/writing/WriteSplitPane";
 import { useTypewriterScroll } from "@/components/writing/useTypewriterScroll";
 import { WriteStatusBar } from "@/components/writing/WriteStatusBar";
+import {
+  ManuscriptSynopsisPanel,
+  MarginCommentsPanel,
+} from "@/components/writing/ManuscriptAnnotationPanels";
+import type { MarginCommentView } from "@/server/services/manuscriptAnnotationService";
 import { ASSISTANT, NAV, RECORD, SHELL, tidySummary, WRITE, WRITING } from "@/ui/labels";
 import type { WriteMode } from "@/writing/writeMode";
 import { invertEdit } from "@/writing/findReplace";
@@ -100,6 +105,8 @@ export function WriteEditor(props: {
   plotBeats: PlotBeatItem[];
   manuscriptSplitOptions: ManuscriptSplitOption[];
   styleCheckNames: readonly string[];
+  synopsisBody: string;
+  marginComments: MarginCommentView[];
   /** Status, protection, history and compare, rendered by the server below the text. */
   details: ReactNode;
 }) {
@@ -723,6 +730,15 @@ export function WriteEditor(props: {
             onToggleSpell={() => setSpellOpen((open) => !open)}
           />
         </form>
+        <ManuscriptSynopsisPanel projectId={props.projectId} recordId={props.recordId} initialBody={props.synopsisBody} />
+        <MarginCommentsPanel
+          projectId={props.projectId}
+          recordId={props.recordId}
+          revision={props.revision}
+          dirty={dirty}
+          textareaRef={bodyRef}
+          initialComments={props.marginComments}
+        />
         <div className="write-details">{props.details}</div>
       </div>
 

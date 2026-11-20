@@ -5,7 +5,13 @@ import { WritingProgressStrip } from "@/components/writing/WritingProgressStrip"
 import { WritingSessionInit } from "@/components/writing/WritingSessionInit";
 import { MarkRewriteCompleteButton, StartAuthorRewriteButton, WriteDraftSwitcher } from "@/components/drafts/DraftControls";
 import { ProjectOnboarding } from "@/components/shell/ProjectOnboarding";
-import { ManuscriptOutline, type OutlineChapter, type OutlineNote, type OutlineScene } from "@/components/write/ManuscriptOutline";
+import {
+  ManuscriptOutline,
+  type CorkboardCard,
+  type OutlineChapter,
+  type OutlineNote,
+  type OutlineScene,
+} from "@/components/write/ManuscriptOutline";
 import { RECORD_TYPE_LABELS } from "@/domain/recordTypes";
 import { getDb } from "@/server/db";
 import { readWriteDraftCookie, resolveWriteDraftId } from "@/server/draftSelection";
@@ -15,6 +21,7 @@ import { findProject } from "@/server/services/projectService";
 import { listRecordNav, listRecords } from "@/server/services/recordService";
 import { countOpenReviewItems } from "@/server/services/reviewService";
 import { buildWritingProgress } from "@/server/services/writingProgressService";
+import { listSynopsesForRecords } from "@/server/services/manuscriptAnnotationService";
 import { searchManuscript, type ManuscriptHit } from "@/server/services/searchService";
 import { MANUSCRIPT_REPLACE, MANUSCRIPT_SEARCH, NAV, SHELL, STYLE_CHECK, WRITE, WRITING_GOALS } from "@/ui/labels";
 import { manuscriptEyebrow } from "@/ui/library";
@@ -81,10 +88,17 @@ export default async function WritePage({
       return placed ? [placed] : [];
     }) }];
   });
-  const unplaced = outline.unplaced.flatMap((scene) => {
+  const unplacedScenes = outline.unplaced;
+  const unplaced = unplacedScenes.flatMap((scene) => {
     const placed = item(scene.id, scene.title);
     return placed ? [placed] : [];
   });
+  const synopsisById = await listSynopsesForRecords(
+    db,
+    projectId,
+    nav.filter((r) => r.type === "manuscript_chapter" || r.type === "manuscript_scene").map((r) => r.id),
+  );
+  const corkboardCards = buildCorkboardCards(outline, synopsisById, unplacedScenes);
   const bookWords = [...chapters.flatMap((chapter) => [chapter, ...chapter.scenes]), ...unplaced].reduce(
     (sum, record) => sum + record.words,
     0,
@@ -108,6 +122,8 @@ export default async function WritePage({
       chapters={outline.chapters}
       unplaced={outline.unplaced}
       looseNotes={outline.looseNotes}
+      synopsisById={synopsisById}
+      corkboardCards={corkboardCards}
       draftId={activeDraftId}
       initialQuery={q}
       headerActions={
@@ -150,6 +166,25 @@ export default async function WritePage({
     />
     </>
   );
+}
+
+function buildCorkboardCards(
+  outline: { chapters: OutlineChapter[]; unplaced: OutlineScene[] },
+  synopsisById: Map<string, string>,
+  unplaced: OutlineScene[],
+): CorkboardCard[] {
+  const cards: CorkboardCard[] = [];
+  const push = (recordId: string, title: string, type: string) => {
+    const body = synopsisById.get(recordId)?.trim();
+    if (!body) return;
+    cards.push({ recordId, title, type, body });
+  };
+  for (const chapter of outline.chapters) {
+    push(chapter.id, chapter.title, "manuscript_chapter");
+    for (const scene of chapter.scenes) push(scene.id, scene.title, "manuscript_scene");
+  }
+  for (const scene of unplaced) push(scene.id, scene.title, "manuscript_scene");
+  return cards;
 }
 
 function buildOutline(nav: readonly RecordNavEntry[]): {

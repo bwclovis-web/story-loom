@@ -44,6 +44,7 @@ import {
   WRITE,
   WRITING,
   WRITING_GOALS,
+  MANUSCRIPT_ANNOTATIONS,
   XREF,
   XREF_CHECK,
 } from "@/ui/labels";
@@ -937,6 +938,21 @@ export function HelpContent() {
           <p className="small muted">
             Session counts need the Write page once per session so the app can start the timer. Unsaved typing is never
             counted until you save a new revision.
+          </p>
+        </Sub>
+
+        <Sub id="manuscript-annotations">
+          <p>
+            Each chapter and scene can have a <L>{MANUSCRIPT_ANNOTATIONS.synopsis}</L> and open{" "}
+            <L>{MANUSCRIPT_ANNOTATIONS.marginComments}</L>. Neither is manuscript body text; saving them does not create a new
+            revision or need the protection tick.
+          </p>
+          <p>
+            Edit the synopsis under the text on a chapter or scene. On <L>{SHELL.write}</L>, the{" "}
+            <L>{MANUSCRIPT_ANNOTATIONS.corkboardTab}</L> tab lists synopsis cards in book order for the active draft. Pin a margin
+            comment to a saved passage by selecting text, saving if needed, then choosing <L>{MANUSCRIPT_ANNOTATIONS.pinSelection}</L>.
+            When you save a new revision, older pins show <L>{MANUSCRIPT_ANNOTATIONS.needsRecheck}</L> until you resolve or remove them.
+            PDF export does not include synopses or comments unless a future compile profile asks for them.
           </p>
         </Sub>
 
@@ -2195,13 +2211,13 @@ export function HelpContent() {
             Under <L>{PDF.manuscriptHeading}</L>, optionally tick <L>{PDF.sceneTitles}</L>.
           </li>
           <li>
-            Choose <L>{PDF.downloadManuscript}</L>.
+            Choose <L>{PDF.downloadManuscript}</L>, <L>{PDF.downloadManuscriptDocx}</L>, or <L>{PDF.downloadManuscriptEpub}</L>.
           </li>
         </ol>
         <p>
           Chapters are in book order, as under <L>{BOOK_ORDER.heading}</L> on <L>{SHELL.write}</L>, each starting on a new page, with its text followed by
           its scenes. Notes and references are not included. Projects without drafts export the whole manuscript as
-          before.
+          before. {PDF.manuscriptFormatsNote}
         </p>
         <h4>What a PDF contains</h4>
         <ul>
@@ -3541,7 +3557,7 @@ export function HelpContent() {
           <li>No autosave. Restoring an earlier version only helps when its title or text (or structured fields, if you tick that box) differs from the current saved version.</li>
           <li>
             Chapter files can be imported as chapters (see <See anchor="import-chapters" />), but scenes cannot, and
-            chapters and scenes are exported only as a PDF. A chapter imported later goes after the existing ones until
+            chapters and scenes are exported as PDF, DOCX, or EPUB from <L>{NAV.exportPdf}</L>; reference bundles remain PDF-only. A chapter imported later goes after the existing ones until
             you move it.
           </li>
           <li>

@@ -3058,6 +3058,93 @@ button.link-button:where(:hover:not(:disabled)) { background: none; color: var(-
   margin: 0 0 1rem;
   max-width: 42rem;
 }
+.manuscript-synopsis-field {
+  width: 100%;
+  min-height: 5rem;
+  margin: 0.5rem 0;
+  resize: vertical;
+}
+.manuscript-comment-list {
+  list-style: none;
+  padding: 0;
+  margin: 0.75rem 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.manuscript-comment {
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+.manuscript-comment--stale {
+  background: var(--color-warn-soft);
+  border-color: var(--color-warn-soft-border);
+}
+.manuscript-comment-stale {
+  margin: 0 0 0.4rem;
+  color: var(--color-warn);
+}
+.manuscript-comment .manuscript-comment-excerpt + p {
+  margin: 0.45rem 0 0;
+  color: var(--color-text);
+}
+button.manuscript-comment-excerpt {
+  display: block;
+  width: 100%;
+  text-align: left;
+  min-height: unset;
+  padding: 0.45rem 0.65rem;
+  margin: 0;
+  border: 1px solid var(--color-accent-soft-border);
+  border-left: 3px solid var(--color-accent);
+  border-radius: var(--radius-sm);
+  background: var(--color-accent-wash);
+  color: var(--color-text-quote);
+  font: inherit;
+  font-size: 0.92rem;
+  line-height: 1.45;
+  cursor: pointer;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+button.manuscript-comment-excerpt:hover:not(:disabled) {
+  background: var(--color-accent-tint);
+  border-color: var(--color-accent-soft-border);
+  border-left-color: var(--color-brass-text);
+  color: var(--color-text);
+}
+button.manuscript-comment-excerpt:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+.manuscript-comment--stale button.manuscript-comment-excerpt {
+  border-left-color: var(--color-warn);
+  background: var(--color-surface);
+}
+.manuscript-corkboard {
+  list-style: none;
+  padding: 0;
+  margin: 0.75rem 0 0;
+  display: grid;
+  gap: 0.85rem;
+  grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+}
+.manuscript-corkboard-title {
+  margin: 0.15rem 0 0;
+  font-size: 1rem;
+}
+.manuscript-corkboard-body {
+  margin: 0.5rem 0 0;
+  white-space: pre-wrap;
+  font-size: 0.92rem;
+}
+.outline-inspector-synopsis {
+  margin: 0.5rem 0 0;
+  white-space: pre-wrap;
+  color: var(--color-text-muted);
+}
 a.library-open-manuscript {
   display: inline-flex; align-items: center; margin-top: 1.45rem;
   padding: 0.62rem 1.05rem; min-height: 2.5rem; border-radius: 2px;

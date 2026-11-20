@@ -1,13 +1,43 @@
 # Progress
 
+## Manuscript DOCX and EPUB export (Nov 20, 2026)
+
+Shared `buildManuscriptExportModel` for PDF, DOCX (`docx`), and EPUB (`jszip`). Download routes at `/projects/:id/docx` and `/projects/:id/epub` beside `/pdf`, same draft and scene-title options on Export PDF. Reference exports remain PDF-only.
+
+| Check | Result |
+| --- | --- |
+| `pnpm typecheck` | pass |
+| `pnpm exec vitest run tests/acceptance/manuscript-export-formats.test.ts tests/acceptance/images-pdf.test.ts tests/unit/help.test.ts` | 14/14 passed |
+
+### Rollback
+
+Revert code and remove `docx` / `jszip` from `package.json` if desired. No migration.
+
+## Synopsis and margin comments (Nov 20, 2026)
+
+`ManuscriptAnnotation` table (`synopsis` | `comment`). Synopsis on chapter/scene editor; margin comments pin saved passages (needs-recheck on revision). Corkboard tab on Write. Audited. Optional `manuscriptAnnotations` in workspace backup.
+
+| Check | Result |
+| --- | --- |
+| `pnpm typecheck` | pass |
+| `pnpm exec vitest run tests/acceptance/manuscript-annotations.test.ts tests/unit/help.test.ts` | 5/5 passed |
+
+### Rollback
+
+After your own DB backup: remove migration `20261120180000_manuscript_annotations` and restore, or revert code and leave the table.
+
+### Manual verify
+
+`pnpm db:deploy`. Open a chapter → synopsis + pin a comment after save. Write → Corkboard tab.
+
 ## Writing goals and progress (Nov 20, 2026)
 
 Optional book and chapter word targets (`WritingGoal` table). Today and session counts derive from positive word deltas on saved manuscript revisions. Progress strip on Write, Writing goals, library feature, and chapter editor. Audited set/clear. Backed up in optional `writingGoals` array.
 
 | Check | Result |
 | --- | --- |
-| `pnpm typecheck` | (run below) |
-| `pnpm exec vitest run tests/acceptance/writing-goals.test.ts tests/unit/help.test.ts` | (run below) |
+| `pnpm typecheck` | pass |
+| `pnpm exec vitest run tests/acceptance/writing-goals.test.ts tests/unit/help.test.ts` | 6/6 passed |
 
 ### Rollback
 

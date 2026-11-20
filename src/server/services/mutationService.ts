@@ -20,6 +20,10 @@ import {
   deleteFactsForRecordsInTx,
   markEvidenceNeedsRecheckForSourceInTx,
 } from "./establishedFactService";
+import {
+  deleteAnnotationsForRecordsInTx,
+  markAnnotationNeedsRecheckForSourceInTx,
+} from "./manuscriptAnnotationService";
 import { markStoryEvidenceNeedsRecheckForSourceInTx } from "./storyEventService";
 import { clearWeaveForDeletedRecordsInTx } from "./weaveService";
 
@@ -512,6 +516,7 @@ export async function applyMutationsInTx(
     if (p.beforeRevision !== null) {
       await markEvidenceNeedsRecheckForSourceInTx(tx, ctx.projectId, p.recordId, newRevision);
       await markStoryEvidenceNeedsRecheckForSourceInTx(tx, ctx.projectId, p.recordId, newRevision);
+      await markAnnotationNeedsRecheckForSourceInTx(tx, ctx.projectId, p.recordId, newRevision);
     }
     outcomes.push({
       index: p.index,
@@ -881,6 +886,7 @@ export async function deleteRecordRowsInTx(tx: Tx, recordIds: readonly string[])
   await tx.storyEventScene.deleteMany({ where: { manuscriptRecordId: ids } });
   await clearWeaveForDeletedRecordsInTx(tx, recordIds);
   await deleteFactsForRecordsInTx(tx, recordIds);
+  await deleteAnnotationsForRecordsInTx(tx, recordIds);
   await tx.recordLink.deleteMany({ where: { OR: [{ fromRecordId: ids }, { toRecordId: ids }] } });
   // Clear board image cards and maps that use these images before deleting the bytes.
   const images = await tx.recordImage.findMany({ where: { recordId: ids }, select: { id: true } });

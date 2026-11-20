@@ -48,6 +48,8 @@ export default async function ExportPdfPage({
   const tree = buildManuscriptTree(nav);
   const sceneCount = tree.chapters.reduce((n, c) => n + c.scenes.length, 0) + tree.unplaced.length;
   const pdfHref = `/projects/${encodeURIComponent(projectId)}/pdf`;
+  const docxHref = `/projects/${encodeURIComponent(projectId)}/docx`;
+  const epubHref = `/projects/${encodeURIComponent(projectId)}/epub`;
   const base = `/projects/${encodeURIComponent(projectId)}`;
 
   // Preselection from a "Export PDF" link; the author can still change every tick.
@@ -120,9 +122,27 @@ export default async function ExportPdfPage({
               <input type="checkbox" name="sceneTitles" value="1" />
               {PDF.sceneTitles}
             </label>
-            <div className="row">
-              <button type="submit">{PDF.downloadManuscript}</button>
-            </div>
+            <fieldset className="stack" style={{ border: "none", padding: 0, margin: 0 }}>
+              <legend className="sr-only">{PDF.manuscriptFormats}</legend>
+              <div className="row" style={{ flexWrap: "wrap", gap: "0.5rem" }}>
+                <button type="submit">{PDF.downloadManuscript}</button>
+                <button
+                  type="submit"
+                  formAction={docxHref}
+                  formMethod="get"
+                >
+                  {PDF.downloadManuscriptDocx}
+                </button>
+                <button
+                  type="submit"
+                  formAction={epubHref}
+                  formMethod="get"
+                >
+                  {PDF.downloadManuscriptEpub}
+                </button>
+              </div>
+              <p className="small muted">{PDF.manuscriptFormatsNote}</p>
+            </fieldset>
           </form>
         ) : hasDrafts && !selectedDraftId ? (
           <p className="muted">{DRAFT.chooseDraftFirst}</p>
