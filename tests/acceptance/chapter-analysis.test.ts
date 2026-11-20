@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { ProviderError, type AssistantProvider } from "@/assistant/provider";
+import { ProviderError, type AssistantProvider, type StructuredResult } from "@/assistant/provider";
+import { sha256 } from "@/domain/json";
 import type { AnalysisDraftSuggestion } from "@/analyze/chapterAnalysisOutput";
 import {
   applyChapterAnalysis,
@@ -7,9 +8,12 @@ import {
   getChapterAnalysis,
   manuscriptCountsByDraft,
   prepareChapterAnalysis,
+  previewChapterAnalysis,
   runChapterAnalysis,
+  saveChapterAnalysisAssessments,
   type ChapterAnalysisRunView,
 } from "@/server/services/chapterAnalysisService";
+import { usageSummary } from "@/server/services/assistantService";
 import { createWorkspaceBackup, restoreWorkspaceBackup } from "@/server/services/backupService";
 import { startAuthorRewrite } from "@/server/services/draftService";
 import { acceptEstablishedFact, proposeExtractedFacts } from "@/server/services/establishedFactService";
@@ -45,6 +49,7 @@ function suggestion(over: Partial<AnalysisDraftSuggestion> & Pick<AnalysisDraftS
     explicitOrder: false,
     earlierTitle: "",
     laterTitle: "",
+    occurrence: 1,
     ...over,
   };
 }
@@ -306,7 +311,10 @@ describe("analyze chapter", () => {
       ],
       { records: [], facts: [], events: [], beats: [] },
     );
-    expect(dropped.suggestions).toHaveLength(0);
+    expect(dropped.suggestions).toHaveLength(1);
+    expect(dropped.suggestions[0]?.title).toBe("Unstated");
+    expect(dropped.suggestions[0]?.quoteValid).toBe(false);
+    expect(dropped.suggestions[0]?.passageVerified).toBe(true);
 
     const run = await analyze(t, IDS.chapter, 2, [
       suggestion({
@@ -380,6 +388,384 @@ describe("analyze chapter", () => {
     } finally {
       await preserved.cleanup();
       await remapped.cleanup();
+    }
+  });
+
+  it("shows the exact request before sending and drops categories that were not asked for", async () => {
+    await startAuthorRewrite(t.db, IDS.project);
+    const before = await t.db.chapterAnalysisRun.count();
+    const preview = await previewChapterAnalysis(t.db, runtime, {
+      projectId: IDS.project,
+      chapterRecordId: IDS.chapter,
+      pinnedRevision: 1,
+      categories: ["event"],
+    });
+    expect(await t.db.chapterAnalysisRun.count()).toBe(before);
+    expect(preview.model).toBe("test-model");
+    expect(preview.categories).toEqual(["event"]);
+    expect(preview.userText).toContain("CATEGORIES TO PROPOSE");
+    expect(preview.userText).toContain(CHAPTER_PROSE);
+    expect(preview.userText).not.toContain("character_presence:");
+    expect(preview.instructions).toContain("Later, she understood");
+    expect(preview.outputTokenAllowance).toBe(8_000);
+    expect(preview.inputChars).toBeGreaterThan(preview.userChars);
+    expect(preview.problem).toBeNull();
+
+    let sentTokens = 0;
+    const prep = await prepareChapterAnalysis(t.db, runtime, {
+      projectId: IDS.project,
+      chapterRecordId: IDS.chapter,
+      pinnedRevision: 1,
+      categories: ["event"],
+      expectedSourceHash: preview.sourceHash,
+    });
+    const run = await runChapterAnalysis(
+      t.db,
+      {
+        async *stream() {},
+        async structured(request) {
+          sentTokens = request.maxOutputTokens;
+          return {
+            status: "complete" as const,
+            text: JSON.stringify({
+              suggestions: [
+                suggestion({ kind: "location", title: "The Dry Vault", excerpt: OPENING }),
+                suggestion({ kind: "event", title: "The ledger dried", excerpt: OPENING }),
+              ],
+            }),
+            usage: { inputTokens: 3, outputTokens: 3, totalTokens: 6 },
+          };
+        },
+      },
+      prep,
+      new AbortController().signal,
+    );
+    expect(sentTokens).toBe(8_000);
+    expect(run.proposal?.suggestions.map((item) => item.kind)).toEqual(["event"]);
+    expect(run.categories).toEqual(["event"]);
+  });
+
+  it("treats truncated, refused, and invalid output as unusable and counts reported usage", async () => {
+    await startAuthorRewrite(t.db, IDS.project);
+    const beforeRecords = await t.db.record.count();
+    const prep = await prepareChapterAnalysis(t.db, runtime, { projectId: IDS.project, chapterRecordId: IDS.chapter, pinnedRevision: 1 });
+    const truncated = await runChapterAnalysis(
+      t.db,
+      {
+        async *stream() {},
+        async structured() {
+          return {
+            status: "incomplete",
+            incompleteReason: "max_output_tokens",
+            responseId: "resp_cut_off",
+            usage: { inputTokens: 11, outputTokens: 29, totalTokens: 40 },
+          };
+        },
+      },
+      prep,
+      new AbortController().signal,
+    );
+    expect(truncated.status).toBe("failed");
+    expect(truncated.proposal).toBeNull();
+    expect(truncated.usage).toMatchObject({ totalTokens: 40, estimated: false });
+    expect(truncated.diagnostics).toContain("resp_cut_off");
+    expect(truncated.diagnostics).not.toContain(OPENING);
+    expect(truncated.diagnostics).not.toContain("sk-");
+    await expect(applyChapterAnalysis(t.db, IDS.project, truncated.id, truncated.contentHash, {})).rejects.toThrow(/no suggestions/);
+    expect(await t.db.record.count()).toBe(beforeRecords);
+
+    const refusedPrep = await prepareChapterAnalysis(t.db, runtime, { projectId: IDS.project, chapterRecordId: IDS.chapter, pinnedRevision: 1 });
+    const refused = await runChapterAnalysis(
+      t.db,
+      {
+        async *stream() {},
+        async structured() {
+          return { status: "refused", refusal: "no", usage: { inputTokens: 2, outputTokens: 1, totalTokens: 3 } } satisfies StructuredResult;
+        },
+      },
+      refusedPrep,
+      new AbortController().signal,
+    );
+    expect(refused.status).toBe("failed");
+    expect(refused.proposal).toBeNull();
+    expect(refused.errorMessage).toMatch(/declined/);
+    expect(refused.usage?.totalTokens).toBe(3);
+
+    const badPrep = await prepareChapterAnalysis(t.db, runtime, { projectId: IDS.project, chapterRecordId: IDS.chapter, pinnedRevision: 1 });
+    const bad = await runChapterAnalysis(
+      t.db,
+      {
+        async *stream() {},
+        async structured() {
+          return { status: "complete", text: "{\"suggestions\":[{\"kind\":\"event\"}]}" };
+        },
+      },
+      badPrep,
+      new AbortController().signal,
+    );
+    expect(bad.status).toBe("failed");
+    expect(bad.proposal).toBeNull();
+    expect(bad.usage).toBeNull();
+    expect(await t.db.record.count()).toBe(beforeRecords);
+    expect(await t.db.storyEvent.count()).toBe(0);
+
+    const usage = await usageSummary(t.db, runtime.limits, new Date());
+    expect(usage.monthTokens).toBeGreaterThanOrEqual(43);
+    const tight = { ...runtime, limits: { ...runtime.limits, monthlyTokenCap: usage.monthTokens } };
+    await expect(
+      prepareChapterAnalysis(t.db, tight, { projectId: IDS.project, chapterRecordId: IDS.chapter, pinnedRevision: 1 }),
+    ).rejects.toThrow(/token/);
+    const hourly = { ...runtime, limits: { ...runtime.limits, maxRequestsPerHour: 1 } };
+    await expect(
+      prepareChapterAnalysis(t.db, hourly, { projectId: IDS.project, chapterRecordId: IDS.chapter, pinnedRevision: 1 }),
+    ).rejects.toThrow(/hour/);
+  });
+
+  it("blocks a repeated quotation that does not say which copy, and does not treat a true quote as a true reading", async () => {
+    await startAuthorRewrite(t.db, IDS.project);
+    const line = "The bell rang once.";
+    const twice = `${CHAPTER_PROSE} ${line} Then quiet. ${line}`;
+    await updateRecord(t.db, IDS.project, { recordId: IDS.chapter, expectedRevision: 1, body: twice, unlockProtected: true });
+    const ambiguous = enrichAnalysisSuggestions(
+      { id: IDS.chapter, title: "Chapter 1", pinnedRevision: 2 },
+      twice,
+      [suggestion({ kind: "event", title: "The bell", excerpt: line, occurrence: 9 })],
+      { records: [], facts: [], events: [], beats: [] },
+    );
+    expect(ambiguous.suggestions[0]?.quoteValid).toBe(false);
+    expect(ambiguous.suggestions[0]?.blockedReason).toMatch(/appears 2 times/);
+    const located = enrichAnalysisSuggestions(
+      { id: IDS.chapter, title: "Chapter 1", pinnedRevision: 2 },
+      twice,
+      [suggestion({ kind: "event", title: "The bell", excerpt: line, occurrence: 2 })],
+      { records: [], facts: [], events: [], beats: [] },
+    );
+    expect(located.suggestions[0]?.passage?.start).toBe(twice.lastIndexOf(line));
+
+    const run = await analyze(t, IDS.chapter, 2, [
+      suggestion({ kind: "event", title: "The bell", excerpt: line, occurrence: 9, note: "This reading is not supported." }),
+    ]);
+    await expect(applyChapterAnalysis(t.db, IDS.project, run.id, run.contentHash, decision(run, "The bell", "create"))).rejects.toThrow(/pinned/);
+    expect(await t.db.storyEvent.count()).toBe(0);
+
+    const wrong = await analyze(t, IDS.chapter, 2, [
+      suggestion({ kind: "event", title: "The bell fell", excerpt: line, note: "The bell fell, which the sentence does not say." }),
+    ]);
+    const item = wrong.proposal?.suggestions[0];
+    expect(item?.passageVerified).toBe(true);
+    expect(item?.boundary).toMatch(/plan|happened|intention/);
+    await saveChapterAnalysisAssessments(t.db, IDS.project, wrong.id, { [item!.key]: "unsupported" });
+    expect(await t.db.storyEvent.count()).toBe(0);
+    expect((await getChapterAnalysis(t.db, IDS.project, wrong.id)).assessments[item!.key]).toBe("unsupported");
+  });
+
+  it("keeps a mention, a revelation, and an intention from being upgraded", async () => {
+    await startAuthorRewrite(t.db, IDS.project);
+    const mentioned = `${CHAPTER_PROSE} They spoke of Mara Venn in the salt letter. She planned to open the vault tomorrow.`;
+    await updateRecord(t.db, IDS.project, { recordId: IDS.chapter, expectedRevision: 1, body: mentioned, unlockProtected: true });
+    const run = await analyze(t, IDS.chapter, 2, [
+      suggestion({ kind: "character_presence", title: "Mara Venn", excerpt: "They spoke of Mara Venn in the salt letter." }),
+      suggestion({ kind: "event", title: "The vault opening", excerpt: "She planned to open the vault tomorrow." }),
+      suggestion({ kind: "reader_revelation", title: "The ledger dried", excerpt: OPENING, note: "The reader is told the ledger dried." }),
+    ]);
+    const mention = run.proposal?.suggestions.find((item) => item.kind === "character_presence");
+    const intention = run.proposal?.suggestions.find((item) => item.kind === "event");
+    expect(mention?.uncertain).toBe(true);
+    expect(mention?.uncertainty).toMatch(/not physical presence/);
+    expect(intention?.uncertain).toBe(true);
+    expect(intention?.uncertainty).toMatch(/not an event that has happened/);
+    expect(run.status).toBe("proposed");
+    expect(await t.db.establishedFact.count()).toBe(0);
+    expect(await t.db.storyEvent.count()).toBe(0);
+
+    await createStoryEvent(t.db, IDS.project, { title: "The ledger dried" });
+    const revealed = await analyze(t, IDS.chapter, 2, [
+      suggestion({ kind: "reader_revelation", title: "The ledger dried", excerpt: OPENING }),
+    ]);
+    await applyChapterAnalysis(t.db, IDS.project, revealed.id, revealed.contentHash, decision(revealed, "The ledger dried", "reuse"));
+    expect(await t.db.storyEventScene.count()).toBe(1);
+    expect(await t.db.establishedFact.count()).toBe(0);
+  });
+
+  it("refuses an order word that does not relate the events, and a cycle added after the proposal", async () => {
+    const rewrite = await startAuthorRewrite(t.db, IDS.project);
+    const drying = await createStoryEvent(t.db, IDS.project, { title: "The drying", draftScope: rewrite.zeroDraft.id });
+    const morning = await createStoryEvent(t.db, IDS.project, { title: "The morning check", draftScope: rewrite.zeroDraft.id });
+    const loose = `${CHAPTER_PROSE} Later, she understood.`;
+    await updateRecord(t.db, IDS.project, { recordId: IDS.chapter, expectedRevision: 1, body: loose, unlockProtected: true });
+    const looseRun = await analyze(t, IDS.chapter, 2, [
+      suggestion({
+        kind: "chronology",
+        title: "Understood later",
+        excerpt: "Later, she understood.",
+        explicitOrder: true,
+        earlierTitle: "The drying",
+        laterTitle: "The morning check",
+      }),
+    ]);
+    expect(looseRun.proposal?.suggestions[0]?.quoteValid).toBe(false);
+    await expect(
+      applyChapterAnalysis(t.db, IDS.project, looseRun.id, looseRun.contentHash, decision(looseRun, "Understood later", "create")),
+    ).rejects.toThrow(/quote|pinned/);
+    expect(await t.db.storyEventOrder.count()).toBe(0);
+
+    const ordered = `${CHAPTER_PROSE} The drying comes before the morning check.`;
+    await updateRecord(t.db, IDS.project, { recordId: IDS.chapter, expectedRevision: 2, body: ordered, unlockProtected: true });
+    const run = await analyze(t, IDS.chapter, 3, [
+      suggestion({
+        kind: "chronology",
+        title: "Drying first",
+        excerpt: "The drying comes before the morning check.",
+        explicitOrder: true,
+        earlierTitle: "The drying",
+        laterTitle: "The morning check",
+      }),
+    ]);
+    expect(run.proposal?.suggestions[0]?.quoteValid).toBe(true);
+    await orderStoryEvents(t.db, IDS.project, {
+      eventId: morning.id,
+      otherEventId: drying.id,
+      direction: "before",
+      expectedRevision: 0,
+    });
+    await expect(
+      applyChapterAnalysis(t.db, IDS.project, run.id, run.contentHash, decision(run, "Drying first", "create")),
+    ).rejects.toThrow(/contradict/);
+    expect(await t.db.storyEventOrder.count()).toBe(1);
+    expect((await getChapterAnalysis(t.db, IDS.project, run.id)).status).toBe("proposed");
+  });
+
+  it("refuses a stale target, leaves a skipped dependency uncreated, and does not duplicate a later apply", async () => {
+    await startAuthorRewrite(t.db, IDS.project);
+    const mara = await getRecord(t.db, IDS.project, IDS.dossier);
+    const run = await analyze(t, IDS.chapter, 1, [
+      suggestion({ kind: "character_presence", title: "Mara Venn", excerpt: KNEW }),
+      suggestion({ kind: "character_learning", title: "Mara Venn", excerpt: KNEW, note: "Mara learns the ledger is dry." }),
+    ]);
+    const learningKey = run.proposal?.suggestions.find((item) => item.kind === "character_learning")?.key;
+    expect(run.proposal?.suggestions.find((item) => item.kind === "character_learning")?.dependsOnKeys.length).toBe(1);
+    await expect(
+      applyChapterAnalysis(t.db, IDS.project, run.id, run.contentHash, {
+        ...decision(run, "Mara Venn", "skip", undefined, "character_presence"),
+        ...decision(run, "Mara Venn", "reuse", undefined, "character_learning"),
+      }),
+    ).rejects.toThrow(/depends on/);
+    expect(await t.db.establishedFact.count()).toBe(0);
+
+    await updateRecord(t.db, IDS.project, {
+      recordId: IDS.dossier,
+      expectedRevision: mara.currentRevision,
+      title: "Mara Venn, revised",
+      unlockProtected: true,
+    });
+    await expect(
+      applyChapterAnalysis(t.db, IDS.project, run.id, run.contentHash, decision(run, "Mara Venn", "reuse", undefined, "character_presence")),
+    ).rejects.toThrow(/changed after this analysis/);
+    expect(await t.db.establishedFact.count()).toBe(0);
+
+    const fresh = await analyze(t, IDS.chapter, 1, [
+      suggestion({ kind: "character_presence", title: "Mara Venn, revised", excerpt: KNEW }),
+      suggestion({ kind: "event", title: "The ledger dried", excerpt: OPENING }),
+    ]);
+    const applied = await applyChapterAnalysis(t.db, IDS.project, fresh.id, fresh.contentHash, {
+      ...decision(fresh, "Mara Venn, revised", "reuse"),
+      ...decision(fresh, "The ledger dried", "skip"),
+    });
+    const stored = await getChapterAnalysis(t.db, IDS.project, fresh.id);
+    const skipped = stored.proposal?.suggestions.find((item) => item.kind === "event")?.key;
+    expect(stored.appliedKeys).not.toContain(skipped);
+    expect(applied.status).toBe("applied");
+    const again = await applyChapterAnalysis(t.db, IDS.project, fresh.id, fresh.contentHash, {
+      ...decision(fresh, "Mara Venn, revised", "reuse"),
+      ...decision(fresh, "The ledger dried", "create"),
+    });
+    expect(again.status).toBe("applied");
+    expect(await t.db.storyEvent.count()).toBe(1);
+    const third = await applyChapterAnalysis(t.db, IDS.project, fresh.id, fresh.contentHash, {
+      ...decision(fresh, "Mara Venn, revised", "reuse"),
+      ...decision(fresh, "The ledger dried", "create"),
+    });
+    expect(third.status).toBe("already_applied");
+    expect(await t.db.storyEvent.count()).toBe(1);
+    expect(learningKey).toBeTruthy();
+  });
+
+  it("still applies an older proposal and restores a backup that omits the new review fields", async () => {
+    const rewrite = await startAuthorRewrite(t.db, IDS.project);
+    const start = CHAPTER_PROSE.indexOf(OPENING);
+    const proposal = {
+      chapterRecordId: IDS.chapter,
+      chapterTitle: "Chapter 1",
+      pinnedRevision: 1,
+      suggestions: [
+        {
+          key: "s1",
+          kind: "event",
+          title: "Legacy event",
+          note: "",
+          uncertain: false,
+          uncertainty: "",
+          passage: { start, end: start + OPENING.length, excerpt: OPENING },
+          quoteValid: true,
+          explicitOrder: false,
+          earlierTitle: "",
+          laterTitle: "",
+          dependsOnKeys: [],
+          match: { status: "none", candidates: [] },
+        },
+      ],
+    };
+    await t.db.chapterAnalysisRun.create({
+      data: {
+        id: "car_test_legacy_shape",
+        workspaceId: IDS.workspace,
+        projectId: IDS.project,
+        chapterRecordId: IDS.chapter,
+        draftId: rewrite.zeroDraft.id,
+        pinnedRevision: 1,
+        status: "proposed",
+        sourceHash: sha256(`${IDS.chapter}\n1\n${CHAPTER_PROSE}`),
+        contentHash: "legacyhash",
+        proposalJson: JSON.stringify(proposal),
+        sentMaterialJson: "older request",
+        requestChars: 12,
+        model: "test-model",
+      },
+    });
+    const loaded = await getChapterAnalysis(t.db, IDS.project, "car_test_legacy_shape");
+    expect(loaded.categories).toEqual([]);
+    expect(loaded.proposal?.suggestions[0]?.passageVerified).toBeUndefined();
+    await applyChapterAnalysis(t.db, IDS.project, loaded.id, "legacyhash", { s1: { action: "create" } });
+    expect(await t.db.storyEvent.count({ where: { title: "Legacy event" } })).toBe(1);
+    const older = await createWorkspaceBackup(t.db, IDS.workspace);
+    const olderRow = older.chapterAnalyses?.find((row) => row.id === "car_test_legacy_shape");
+    expect(olderRow?.categoriesJson).toBeUndefined();
+    expect(olderRow?.assessmentsJson).toBeUndefined();
+
+    const modern = await analyze(t, IDS.chapter, 1, [suggestion({ kind: "event", title: "The ledger dried", excerpt: OPENING })]);
+    await saveChapterAnalysisAssessments(t.db, IDS.project, modern.id, { s1: "correct" });
+    const backup = await createWorkspaceBackup(t.db, IDS.workspace);
+    const analysis = backup.chapterAnalyses?.find((row) => row.id === modern.id);
+    expect(analysis?.categoriesJson).toContain("event");
+    expect(analysis?.assessmentsJson).toContain("correct");
+
+    const restored = await createTestDb();
+    const copied = await createTestDb();
+    try {
+      const result = await restoreWorkspaceBackup(restored.db, JSON.stringify(older), { idStrategy: "preserve" });
+      expect(result.ok).toBe(true);
+      const row = await restored.db.chapterAnalysisRun.findFirstOrThrow({ where: { id: "car_test_legacy_shape" } });
+      expect(row.categoriesJson).toBe("[]");
+      expect(row.assessmentsJson).toBe("{}");
+      expect(row.outputTokenAllowance).toBe(0);
+      const kept = await restoreWorkspaceBackup(copied.db, JSON.stringify(backup), { idStrategy: "preserve" });
+      expect(kept.ok).toBe(true);
+      const modernRow = await copied.db.chapterAnalysisRun.findFirstOrThrow({ where: { id: modern.id } });
+      expect(modernRow.categoriesJson).toContain("event");
+      expect(modernRow.assessmentsJson).toContain("correct");
+    } finally {
+      await restored.cleanup();
+      await copied.cleanup();
     }
   });
 });

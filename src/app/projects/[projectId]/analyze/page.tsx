@@ -10,8 +10,15 @@ import { AnalyzeChapterForm } from "./AnalyzeChapterForm";
 
 export const dynamic = "force-dynamic";
 
-export default async function AnalyzeChapterPage({ params }: { params: Promise<{ projectId: string }> }) {
+export default async function AnalyzeChapterPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ projectId: string }>;
+  searchParams: Promise<{ chapter?: string; revision?: string }>;
+}) {
   const { projectId } = await params;
+  const query = await searchParams;
   const db = getDb();
   const [counts, runs] = await Promise.all([
     manuscriptCountsByDraft(db, projectId),
@@ -78,7 +85,8 @@ export default async function AnalyzeChapterPage({ params }: { params: Promise<{
         <AnalyzeChapterForm
           projectId={projectId}
           assistantConfigured={config.status.configured}
-          limits={config.status.limits}
+          initialChapterId={query.chapter}
+          initialRevision={query.revision ? Number(query.revision) : undefined}
           chapters={chapters.map((chapter) => ({
             id: chapter.id,
             title: chapter.title,

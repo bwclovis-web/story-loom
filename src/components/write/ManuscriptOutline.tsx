@@ -210,7 +210,11 @@ export function ManuscriptOutline({
       {results}
 
       <div role="tabpanel" id={`${uid}-panel-chapters`} aria-labelledby={`${uid}-tab-chapters`} hidden={tab !== "chapters"}>
-        {filtering ? <p className="outline-filter-count" role="status">{filterStatus(chapterMatchCount)}</p> : null}
+        {filtering && chapterMatchCount > 0 ? (
+          <p className="outline-filter-count" role="status">
+            {WRITE.matches(chapterMatchCount)}
+          </p>
+        ) : null}
         {visibleChapters.length === 0 && visibleUnplaced.length === 0 && visibleLoose.length === 0 ? (
           <p className="outline-empty">{filtering ? WRITE.noMatches : WRITE.noChapters}</p>
         ) : (
@@ -342,7 +346,11 @@ function SceneIndex({
 
   return (
     <>
-      {filtering ? <p className="outline-filter-count" role="status">{filterStatus(matches)}</p> : null}
+      {filtering && matches > 0 ? (
+        <p className="outline-filter-count" role="status">
+          {WRITE.matches(matches)}
+        </p>
+      ) : null}
       {rows.length === 0 ? <p className="outline-empty">{filtering ? WRITE.noMatches : WRITE.noScenes}</p> : <ul className="outline-scene-index">{rows}</ul>}
     </>
   );
@@ -465,10 +473,6 @@ function countNoteHits(chapter: OutlineChapter, query: string): number {
     chapter.notes.filter((note) => hit(note.title, query)).length +
     chapter.scenes.reduce((sum, scene) => sum + scene.notes.filter((note) => hit(note.title, query)).length, 0)
   );
-}
-
-function filterStatus(count: number): string {
-  return count === 0 ? WRITE.noMatches : WRITE.matches(count);
 }
 
 function hit(title: string, query: string): boolean {

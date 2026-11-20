@@ -626,7 +626,13 @@ export async function usageSummary(db: Db, limits: AssistantLimits, now = new Da
 }
 
 /** Refuses a request that would pass the hourly request limit or the monthly token cap. */
-export async function checkRequestLimits(db: Db, limits: AssistantLimits, requestChars: number, now = new Date()): Promise<void> {
+export async function checkRequestLimits(
+  db: Db,
+  limits: AssistantLimits,
+  requestChars: number,
+  now = new Date(),
+  outputTokenAllowance = limits.maxOutputTokens,
+): Promise<void> {
   const usage = await usageSummary(db, limits, now);
   if (usage.requestsLastHour >= limits.maxRequestsPerHour) {
     throw new AssistantError(
@@ -634,7 +640,7 @@ export async function checkRequestLimits(db: Db, limits: AssistantLimits, reques
       `This app allows ${limits.maxRequestsPerHour} assistant requests per hour, and that many were started in the last hour. Try again later.`,
     );
   }
-  const projected = estimateTokens(requestChars) + limits.maxOutputTokens;
+  const projected = estimateTokens(requestChars) + outputTokenAllowance;
   if (usage.monthTokens + projected > limits.monthlyTokenCap) {
     throw new AssistantError(
       "USAGE_CAP",

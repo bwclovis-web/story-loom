@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ANALYSIS_KINDS } from "@/analyze/chapterAnalysisOutput";
 import { getDb } from "@/server/db";
 import { getAssistantConfig } from "@/server/assistantConfig";
 import { finishRun, registerRun } from "@/server/assistantRuns";
@@ -12,6 +13,8 @@ export const dynamic = "force-dynamic";
 const body = z.object({
   chapterRecordId: z.string().min(1).max(100),
   pinnedRevision: z.number().int().min(1),
+  categories: z.array(z.enum(ANALYSIS_KINDS)).min(1).max(ANALYSIS_KINDS.length),
+  sourceHash: z.string().regex(/^[0-9a-f]{64}$/),
 });
 
 const HTTP_STATUS: Record<AssistantErrorCode, number> = {
@@ -47,7 +50,7 @@ export async function POST(request: Request, ctx: { params: Promise<{ projectId:
 
   let prep;
   try {
-    prep = await prepareChapterAnalysis(getDb(), runtime, { projectId, ...parsed.data });
+    prep = await prepareChapterAnalysis(getDb(), runtime, { projectId, ...parsed.data, expectedSourceHash: parsed.data.sourceHash });
   } catch (error) {
     const assistant =
       error instanceof AssistantError

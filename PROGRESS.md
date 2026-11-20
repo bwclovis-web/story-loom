@@ -1,5 +1,19 @@
 # Progress
 
+## Analyze chapter review (Nov 20, 2026)
+
+Plan → Analyze chapter now shows the exact request before anything is sent. The author picks categories, inspects the catalogs, instructions, user message, character count, estimated input tokens, output-token allowance, and remaining hourly and monthly allowance, then sends as a separate action. The pinned revision is checked again at send time. Category choices are remembered in the browser and do not rewrite saved runs.
+
+Chapter analysis uses `ASSISTANT_ANALYSIS_OUTPUT_TOKENS` (default 8,000). Discussion and proofreading stay at 2,000 output tokens. A representative 24-suggestion response is more than 2,000 tokens and within 8,000 under the four-characters-per-token estimate, so 2,000 would cut a normal chapter off. The monthly cap still applies. Truncated, refused, malformed, and schema-invalid responses stay failed, with no suggestions and no domain writes. Provider-reported usage is stored when the provider sends it, including on those failures. The app does not retry.
+
+Quotations are resolved on the server. A repeated quotation has to name which occurrence. Passage verified means the quotation is in the pinned revision; it does not mean the interpretation is right. Mention, intention, and speculation stay uncertain. Chronology has to name both events in the quotation and state the direction. An order word alone is not an order. Cycles and a constraint added after the proposal roll the apply back. A target record, event, fact, or beat that changed after the proposal is refused inside the same transaction.
+
+Review stays grouped by passage. Choices are Use existing, Edit suggestion, Create new, and Skip, and nothing is preselected. A skipped dependency is named and is not created. Apply shows the writes first. Quality marks (Correct, Needs editing, Unsupported, Duplicate) are stored separately and are not sent to the model. Older runs and older backups still load. New columns are optional in backups.
+
+Checks: `tsc --noEmit` passed. Vitest `chapter-analysis-review`, `chapter-analysis`, `help`, and `backup-restore`: 4 files, 27 tests passed. `next build` compiled and typechecked, then failed while prerendering the framework `/_global-error` page (`useContext` of null). That page is not part of this feature. Browser check on an isolated invented project at `127.0.0.1:2119` (stopped afterward): the form listed the eight categories and did not send on its own; the review opened with nothing chosen, showed passage verified separately from the interpretation, and after a partial apply reloaded with Use existing and Skip still selected, one applied and one skipped, and the chapter still at revision 1. No live model call. The working database was not analyzed or applied to. `pnpm db:deploy` added the columns after `backups/2026-11-20T13-38-35-642Z-pre-migrate`. Afterward: 195 records, 4 projects, 0 chapter-analysis runs.
+
+One-chapter live trial, on a private restored copy only: back up; open Plan → Analyze chapter; read the preflight (model, categories, catalogs, instructions, user message, character count versus the token estimate versus the output allowance versus remaining requests and tokens; no price); send one request; mark suggestions without applying; apply a small reviewed selection; check the evidence links; reload; back up and restore. Do not treat that trial as already done.
+
 ## Write landing outline (Nov 20, 2026)
 
 The Write page (`/projects/:id/write`) is one manuscript outline. The second manuscript column and the large guided-task banner stay off that route only; chapter and scene pages keep the manuscript panel, and other project pages keep the project panel and the banner.

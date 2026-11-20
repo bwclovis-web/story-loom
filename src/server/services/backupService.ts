@@ -577,9 +577,54 @@ async function storyEventEvidenceRows(db: DbOrTx, projectIds: string[]) {
   );
 }
 async function chapterAnalysisRows(db: DbOrTx, projectIds: string[]) {
-  return storyRows(db, "chapterAnalysisRun", () =>
-    db.chapterAnalysisRun.findMany({ where: { projectId: { in: projectIds } }, orderBy: [{ projectId: "asc" }, { id: "asc" }] }),
-  );
+  return storyRows(db, "chapterAnalysisRun", async () => {
+    try {
+      return await db.chapterAnalysisRun.findMany({
+        where: { projectId: { in: projectIds } },
+        orderBy: [{ projectId: "asc" }, { id: "asc" }],
+      });
+    } catch (error) {
+      // db:deploy backs up before this migration's columns exist.
+      if (!isMissingSchemaError(error, "P2022")) throw error;
+      const rows = await db.chapterAnalysisRun.findMany({
+        where: { projectId: { in: projectIds } },
+        orderBy: [{ projectId: "asc" }, { id: "asc" }],
+        select: {
+          id: true,
+          workspaceId: true,
+          projectId: true,
+          chapterRecordId: true,
+          draftId: true,
+          pinnedRevision: true,
+          status: true,
+          errorCode: true,
+          errorMessage: true,
+          sourceHash: true,
+          contentHash: true,
+          sentMaterialJson: true,
+          proposalJson: true,
+          appliedKeysJson: true,
+          decisionsJson: true,
+          model: true,
+          providerResponseId: true,
+          inputTokens: true,
+          outputTokens: true,
+          totalTokens: true,
+          usageEstimated: true,
+          requestChars: true,
+          createdAt: true,
+          completedAt: true,
+        },
+      });
+      return rows.map((row) => ({
+        ...row,
+        categoriesJson: "[]",
+        assessmentsJson: "{}",
+        diagnosticsJson: "",
+        outputTokenAllowance: 0,
+      }));
+    }
+  });
 }
 
 async function establishedFactRows(db: DbOrTx, projectIds: string[]) {
@@ -1224,6 +1269,10 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
             ...(row.sentMaterialJson ? { sentMaterialJson: row.sentMaterialJson } : {}),
             proposalJson: row.proposalJson,
             decisionsJson: row.decisionsJson,
+            ...(row.categoriesJson && row.categoriesJson !== "[]" ? { categoriesJson: row.categoriesJson } : {}),
+            ...(row.assessmentsJson && row.assessmentsJson !== "{}" ? { assessmentsJson: row.assessmentsJson } : {}),
+            ...(row.diagnosticsJson ? { diagnosticsJson: row.diagnosticsJson } : {}),
+            ...(row.outputTokenAllowance ? { outputTokenAllowance: row.outputTokenAllowance } : {}),
             appliedKeysJson: row.appliedKeysJson,
             requestChars: row.requestChars,
             ...(row.model ? { model: row.model } : {}),
@@ -3038,6 +3087,10 @@ export async function restoreWorkspaceBackup(db: Db, input: string | unknown, op
               sentMaterialJson: remapOpaque(row.sentMaterialJson ?? ""),
               proposalJson: remapOpaque(row.proposalJson),
               decisionsJson: remapOpaque(row.decisionsJson),
+              ...(row.categoriesJson ? { categoriesJson: row.categoriesJson } : {}),
+              ...(row.assessmentsJson ? { assessmentsJson: remapOpaque(row.assessmentsJson) } : {}),
+              ...(row.diagnosticsJson ? { diagnosticsJson: row.diagnosticsJson } : {}),
+              ...(row.outputTokenAllowance ? { outputTokenAllowance: row.outputTokenAllowance } : {}),
               appliedKeysJson: row.appliedKeysJson,
               requestChars: row.requestChars,
               model: row.model ?? null,

@@ -1,16 +1,25 @@
 import { createHash } from "node:crypto";
+import { analysisOutputTokens, estimateTokens } from "@/assistant/config";
 import { ProviderError, type AssistantProvider, type OutputSchema, type ProviderUsage } from "@/assistant/provider";
 import {
   CHAPTER_ANALYSIS_OUTPUT_JSON_SCHEMA,
   CHAPTER_ANALYSIS_SCHEMA_NAME,
   parseChapterAnalysisOutput,
   type AnalysisAction,
+  type AnalysisAssessments,
   type AnalysisCandidate,
   type AnalysisDecisions,
   type AnalysisKind,
   type AnalysisProposal,
   type AnalysisSuggestion,
 } from "@/analyze/chapterAnalysisOutput";
+import { ANALYSIS_KINDS } from "@/analyze/chapterAnalysisOutput";
+import {
+  CATEGORY_BOUNDARY,
+  chronologyGap,
+  interpretationCaution,
+  resolveQuotation,
+} from "@/analyze/chapterAnalysisReview";
 import { buildChapterAnalysisRequest, type AnalysisCatalogItem } from "@/analyze/chapterAnalysisPrompt";
 import { newId } from "@/domain/ids";
 import { sha256 } from "@/domain/json";
@@ -19,7 +28,7 @@ import { isRecordType } from "@/domain/recordTypes";
 import { nameFormsOf } from "@/writing/crossRefs";
 import { orderWouldCycle, type OrderEdge } from "@/world/storyOrder";
 import type { Db, DbOrTx, Tx } from "../db";
-import { AssistantError, checkRequestLimits, estimatedUsage, type AssistantRuntime } from "./assistantService";
+import { AssistantError, checkRequestLimits, estimatedUsage, usageSummary, type AssistantRuntime, type UsageSummary } from "./assistantService";
 import { writeAudit } from "./auditService";
 import { evidenceKindForSource } from "./establishedFactService";
 import { MutationRejectedError, NotFoundError } from "./errors";
@@ -53,6 +62,10 @@ export interface ChapterAnalysisRunView {
   sentMaterial: string;
   proposal: AnalysisProposal | null;
   decisions: AnalysisDecisions;
+  assessments: AnalysisAssessments;
+  categories: AnalysisKind[];
+  diagnostics: string;
+  outputTokenAllowance: number;
   appliedKeys: string[];
   requestChars: number;
   model: string | null;
@@ -67,10 +80,62 @@ export interface PreparedChapterAnalysis {
   request: ReturnType<typeof buildChapterAnalysisRequest>;
   sourceHash: string;
   limits: AssistantRuntime["limits"];
+  outputTokenAllowance: number;
+  categories: AnalysisKind[];
+}
+
+export interface ChapterAnalysisPreview {
+  projectTitle: string;
+  draftLabel: string;
+  draftKind: string;
+  chapterTitle: string;
+  chapterRecordId: string;
+  pinnedRevision: number;
+  model: string | null;
+  categories: AnalysisKind[];
+  catalogs: { heading: string; count: number; text: string }[];
+  instructions: string;
+  userText: string;
+  inputChars: number;
+  userChars: number;
+  estimatedInputTokens: number;
+  outputTokenAllowance: number;
+  requestsLastHour: number;
+  maxRequestsPerHour: number;
+  monthTokens: number;
+  monthlyTokenCap: number;
+  sourceHash: string;
+  configured: boolean;
+  problem: string | null;
+}
+
+function chosenCategories(categories?: readonly AnalysisKind[]): AnalysisKind[] {
+  const allowed = new Set<string>(ANALYSIS_KINDS);
+  const picked = [...new Set((categories ?? ANALYSIS_KINDS).filter((kind) => allowed.has(kind)))];
+  return picked.length ? picked : [...ANALYSIS_KINDS];
+}
+
+function catalogSections(catalog: Awaited<ReturnType<typeof catalogs>>): ChapterAnalysisPreview["catalogs"] {
+  const section = (heading: string, items: { id: string; title: string; detail?: string }[]) => ({
+    heading,
+    count: items.length,
+    text: items.map((item) => `- ${item.id}: ${item.title}${item.detail ? ` (${item.detail})` : ""}`).join("\n"),
+  });
+  return [
+    section("Characters", catalog.characters),
+    section("Places", catalog.places),
+    section("Accepted facts", catalog.facts),
+    section("Story events", catalog.events),
+    section("Plot beats on this chapter", catalog.beats),
+  ];
 }
 
 function rejected(message: string): MutationRejectedError {
   return new MutationRejectedError([errorIssue("INVALID_REFERENCE", message)]);
+}
+
+function beatStamp(beat: { title: string; body: string; manuscriptRecordId: string | null }): number {
+  return createHash("sha256").update(`${beat.title}\0${beat.body}\0${beat.manuscriptRecordId ?? ""}`, "utf8").digest().readUInt32BE(0);
 }
 
 function stableId(prefix: string, runId: string, key: string): string {
@@ -84,14 +149,6 @@ function parseJson<T>(raw: string, fallback: T): T {
   } catch {
     return fallback;
   }
-}
-
-function locateExcerpt(body: string, excerpt: string): { start: number; end: number; excerpt: string } | null {
-  const needle = excerpt.trim();
-  if (!needle) return null;
-  const start = body.indexOf(needle);
-  if (start < 0) return null;
-  return { start, end: start + needle.length, excerpt: body.slice(start, start + needle.length) };
 }
 
 /** Chapters and scenes grouped by Zero draft, Author manuscript, and legacy (no draft). */
@@ -146,7 +203,7 @@ async function loadPinnedChapter(db: DbOrTx, projectId: string, chapterRecordId:
 async function catalogs(db: DbOrTx, projectId: string, chapterId: string) {
   const records = await db.record.findMany({
     where: { projectId, ...LIVE_RECORD, type: { in: ["character_dossier", "worldbuilding"] } },
-    select: { id: true, title: true, type: true, fields: true },
+    select: { id: true, title: true, type: true, fields: true, currentRevision: true },
     orderBy: { title: "asc" },
   });
   const characters: AnalysisCatalogItem[] = [];
@@ -159,17 +216,17 @@ async function catalogs(db: DbOrTx, projectId: string, chapterId: string) {
   }
   const facts = await db.establishedFact.findMany({
     where: { projectId, status: "accepted" },
-    select: { id: true, statement: true, subject: { select: { title: true } }, evidence: { select: { id: true } } },
+    select: { id: true, statement: true, updatedAt: true, subject: { select: { title: true } }, evidence: { select: { id: true } } },
     orderBy: { statement: "asc" },
   });
   const events = await db.storyEvent.findMany({
     where: { projectId },
-    select: { id: true, title: true, timeLabel: true },
+    select: { id: true, title: true, timeLabel: true, revision: true },
     orderBy: { title: "asc" },
   });
   const beats = await db.weaveBeat.findMany({
     where: { projectId, manuscriptRecordId: chapterId },
-    select: { id: true, title: true },
+    select: { id: true, title: true, body: true, manuscriptRecordId: true },
     orderBy: { title: "asc" },
   });
   return {
@@ -182,19 +239,21 @@ async function catalogs(db: DbOrTx, projectId: string, chapterId: string) {
       detail: `${fact.evidence.length} pinned`,
       evidenceCount: fact.evidence.length,
       subjectTitle: fact.subject.title,
+      revision: fact.updatedAt.getTime(),
     })),
     events: events.map((event) => ({
       id: event.id,
       title: event.title,
       detail: event.timeLabel.trim() ? event.timeLabel : "time unknown",
+      revision: event.revision,
     })),
-    beats: beats.map((beat) => ({ id: beat.id, title: beat.title })),
+    beats: beats.map((beat) => ({ id: beat.id, title: beat.title, revision: beatStamp(beat) })),
   };
 }
 
 function nameHits(
   title: string,
-  records: Array<{ id: string; title: string; type: string; fields: string }>,
+  records: Array<{ id: string; title: string; type: string; fields: string; currentRevision: number }>,
   type: "character_dossier" | "worldbuilding",
 ): AnalysisCandidate[] {
   const needle = title.trim().toLowerCase();
@@ -210,18 +269,22 @@ function nameHits(
       fields = {};
     }
     const forms = nameFormsOf({ title: record.title, type: record.type, fields });
-    const candidate = { id: record.id, title: record.title, kind: "record" as const, evidenceCount: 0 };
+    const candidate = { id: record.id, title: record.title, kind: "record" as const, evidenceCount: 0, revision: record.currentRevision };
     if (forms.full.some((form) => form.toLowerCase() === needle) || record.title.trim().toLowerCase() === needle) full.push(candidate);
     else if (forms.parts.some((form) => form.toLowerCase() === needle)) parts.push(candidate);
   }
   return full.length ? full : parts;
 }
 
-function titleHits(title: string, rows: Array<{ id: string; title: string }>, kind: AnalysisCandidate["kind"]): AnalysisCandidate[] {
+function titleHits(
+  title: string,
+  rows: Array<{ id: string; title: string; revision?: number }>,
+  kind: AnalysisCandidate["kind"],
+): AnalysisCandidate[] {
   const needle = title.trim().toLowerCase();
   return rows
     .filter((row) => row.title.trim().toLowerCase() === needle)
-    .map((row) => ({ id: row.id, title: row.title, kind, evidenceCount: 0 }));
+    .map((row) => ({ id: row.id, title: row.title, kind, evidenceCount: 0, revision: row.revision }));
 }
 
 function matchStatus(candidates: AnalysisCandidate[], quoteValid: boolean): AnalysisSuggestion["match"] {
@@ -234,19 +297,28 @@ function matchStatus(candidates: AnalysisCandidate[], quoteValid: boolean): Anal
 export function enrichAnalysisSuggestions(
   chapter: { id: string; title: string; pinnedRevision: number },
   body: string,
-  drafts: Array<{ kind: AnalysisKind; excerpt: string; title: string; note: string; uncertain: boolean; uncertainty: string; explicitOrder: boolean; earlierTitle: string; laterTitle: string }>,
+  drafts: Array<{ kind: AnalysisKind; excerpt: string; title: string; note: string; uncertain: boolean; uncertainty: string; explicitOrder: boolean; earlierTitle: string; laterTitle: string; occurrence: number }>,
   catalog: {
-    records: Array<{ id: string; title: string; type: string; fields: string }>;
-    facts: Array<{ id: string; title: string; evidenceCount: number }>;
-    events: Array<{ id: string; title: string }>;
-    beats: Array<{ id: string; title: string }>;
+    records: Array<{ id: string; title: string; type: string; fields: string; currentRevision: number }>;
+    facts: Array<{ id: string; title: string; evidenceCount: number; revision?: number }>;
+    events: Array<{ id: string; title: string; revision?: number }>;
+    beats: Array<{ id: string; title: string; revision?: number }>;
   },
+  categories: readonly AnalysisKind[] = ANALYSIS_KINDS,
 ): AnalysisProposal {
-  const statesOrder = /\b(before|after|earlier|later)\b/i;
-  const kept = drafts.filter((item) => item.kind !== "chronology" || (item.explicitOrder && statesOrder.test(item.excerpt)));
+  const allowed = new Set(categories);
+  const kept = drafts.filter((item) => {
+    if (!allowed.has(item.kind)) return false;
+    if (item.kind === "chronology" && !item.explicitOrder) return false;
+    return true;
+  });
   const suggestions: AnalysisSuggestion[] = kept.map((item, index) => {
-    const located = locateExcerpt(body, item.excerpt);
-    const quoteValid = Boolean(located);
+    const resolved = resolveQuotation(body, item.excerpt, item.occurrence);
+    const passageVerified = resolved.ok;
+    const orderGap = item.kind === "chronology" ? chronologyGap(item.excerpt, item.earlierTitle, item.laterTitle) : null;
+    const caution = interpretationCaution(item.kind, item.excerpt);
+    const blockedReason = !resolved.ok ? resolved.reason : orderGap ?? "";
+    const quoteValid = resolved.ok && !orderGap;
     let candidates: AnalysisCandidate[] = [];
     if (quoteValid && (item.kind === "character_presence" || item.kind === "character_learning")) {
       candidates = nameHits(item.title, catalog.records, "character_dossier");
@@ -260,21 +332,23 @@ export function enrichAnalysisSuggestions(
       const needle = item.title.trim().toLowerCase();
       candidates = catalog.facts
         .filter((fact) => fact.title.trim().toLowerCase() === needle)
-        .map((fact) => ({ id: fact.id, title: fact.title, kind: "fact" as const, evidenceCount: fact.evidenceCount }));
+        .map((fact) => ({ id: fact.id, title: fact.title, kind: "fact" as const, evidenceCount: fact.evidenceCount, revision: fact.revision }));
     }
+    const uncertainty = [!quoteValid ? blockedReason : "", item.uncertain ? item.uncertainty.trim() : "", caution ?? ""]
+      .filter(Boolean)
+      .join(" ");
     return {
       key: `s${index + 1}`,
       kind: item.kind,
       title: item.title.trim() || "Untitled",
       note: item.note.trim(),
-      uncertain: item.uncertain || !quoteValid,
-      uncertainty: !quoteValid
-        ? "The excerpt is not in the pinned revision, so this suggestion cannot be applied."
-        : item.uncertain
-          ? item.uncertainty.trim() || "The model marked this reading as uncertain."
-          : item.uncertainty.trim(),
-      passage: located,
+      uncertain: item.uncertain || !quoteValid || Boolean(caution),
+      uncertainty,
+      passage: resolved.ok ? { start: resolved.start, end: resolved.end, excerpt: resolved.excerpt } : null,
+      passageVerified,
       quoteValid,
+      blockedReason,
+      boundary: CATEGORY_BOUNDARY[item.kind],
       explicitOrder: item.explicitOrder,
       earlierTitle: item.earlierTitle.trim(),
       laterTitle: item.laterTitle.trim(),
@@ -302,15 +376,12 @@ export function enrichAnalysisSuggestions(
   return { chapterRecordId: chapter.id, chapterTitle: chapter.title, pinnedRevision: chapter.pinnedRevision, suggestions };
 }
 
-export async function prepareChapterAnalysis(
+async function assembleChapterAnalysis(
   db: Db,
   runtime: AssistantRuntime,
-  input: { projectId: string; chapterRecordId: string; pinnedRevision: number },
-  now = new Date(),
-): Promise<PreparedChapterAnalysis> {
-  if (!runtime.configured || !runtime.model) {
-    throw new AssistantError("NOT_CONFIGURED", "Analyze chapter uses the assistant, which is not set up. See How to use, \"Assistant setup\".");
-  }
+  input: { projectId: string; chapterRecordId: string; pinnedRevision: number; categories?: readonly AnalysisKind[] },
+  now: Date,
+) {
   const project = await db.project.findFirst({
     where: { id: input.projectId, trashedAt: null },
     select: { id: true, title: true, workspaceId: true },
@@ -323,6 +394,7 @@ export async function prepareChapterAnalysis(
       `"${pinned.chapter.title}" is at revision ${pinned.chapter.currentRevision}. Pin that revision, or analyze the revision you chose only after it is current.`,
     );
   }
+  const categories = chosenCategories(input.categories);
   const catalog = await catalogs(db, input.projectId, pinned.chapter.id);
   const request = buildChapterAnalysisRequest({
     projectTitle: project.title,
@@ -336,33 +408,119 @@ export async function prepareChapterAnalysis(
     facts: catalog.facts,
     events: catalog.events,
     beats: catalog.beats,
+    categories,
   });
-  const { limits } = runtime;
-  if (request.totalChars > limits.maxInputChars) {
-    throw new AssistantError(
-      "TOO_LARGE",
-      `This chapter analysis is ${request.totalChars.toLocaleString("en-US")} characters; the limit is ${limits.maxInputChars.toLocaleString("en-US")}. Nothing was sent.`,
-    );
-  }
-  await checkRequestLimits(db, limits, request.totalChars, now);
   const sourceHash = sha256(`${pinned.chapter.id}\n${input.pinnedRevision}\n${pinned.body}`);
+  const outputTokenAllowance = analysisOutputTokens(runtime.limits);
+  const usage = runtime.configured ? await usageSummary(db, runtime.limits, now) : null;
+  return { project, pinned, catalog, request, sourceHash, categories, outputTokenAllowance, usage };
+}
+
+function limitProblem(limits: AssistantRuntime["limits"], requestChars: number, usage: UsageSummary | null, outputTokenAllowance: number): string | null {
+  if (requestChars > limits.maxInputChars) {
+    return `This chapter analysis is ${requestChars.toLocaleString("en-US")} characters; the limit is ${limits.maxInputChars.toLocaleString("en-US")}. Nothing will be sent.`;
+  }
+  if (!usage) return null;
+  if (usage.requestsLastHour >= limits.maxRequestsPerHour) {
+    return `This app allows ${limits.maxRequestsPerHour} assistant requests per hour, and that many were started in the last hour. Nothing will be sent.`;
+  }
+  const projected = estimateTokens(requestChars) + outputTokenAllowance;
+  if (usage.monthTokens + projected > limits.monthlyTokenCap) {
+    return `This request could use up to about ${projected.toLocaleString("en-US")} tokens (an estimate of the input plus the output allowance, not a price). The monthly cap is ${limits.monthlyTokenCap.toLocaleString("en-US")}. Nothing will be sent.`;
+  }
+  return null;
+}
+
+/** Builds the exact request and checks the pin. Does not call the model and does not store a run. */
+export async function previewChapterAnalysis(
+  db: Db,
+  runtime: AssistantRuntime,
+  input: { projectId: string; chapterRecordId: string; pinnedRevision: number; categories?: readonly AnalysisKind[] },
+  now = new Date(),
+): Promise<ChapterAnalysisPreview> {
+  const built = await assembleChapterAnalysis(db, runtime, input, now);
+  const problem =
+    !runtime.configured || !runtime.model
+      ? "The assistant is not set up, so nothing can be sent."
+      : limitProblem(runtime.limits, built.request.totalChars, built.usage, built.outputTokenAllowance);
+  return {
+    projectTitle: built.project.title,
+    draftLabel: built.pinned.draft.label,
+    draftKind: built.pinned.draft.kind,
+    chapterTitle: built.pinned.title,
+    chapterRecordId: built.pinned.chapter.id,
+    pinnedRevision: input.pinnedRevision,
+    model: runtime.model,
+    categories: built.categories,
+    catalogs: catalogSections(built.catalog),
+    instructions: built.request.instructions,
+    userText: built.request.userText,
+    inputChars: built.request.totalChars,
+    userChars: built.request.userText.length,
+    estimatedInputTokens: estimateTokens(built.request.totalChars),
+    outputTokenAllowance: built.outputTokenAllowance,
+    requestsLastHour: built.usage?.requestsLastHour ?? 0,
+    maxRequestsPerHour: runtime.limits.maxRequestsPerHour,
+    monthTokens: built.usage?.monthTokens ?? 0,
+    monthlyTokenCap: runtime.limits.monthlyTokenCap,
+    sourceHash: built.sourceHash,
+    configured: Boolean(runtime.configured && runtime.model),
+    problem,
+  };
+}
+
+export async function prepareChapterAnalysis(
+  db: Db,
+  runtime: AssistantRuntime,
+  input: {
+    projectId: string;
+    chapterRecordId: string;
+    pinnedRevision: number;
+    categories?: readonly AnalysisKind[];
+    expectedSourceHash?: string;
+  },
+  now = new Date(),
+): Promise<PreparedChapterAnalysis> {
+  if (!runtime.configured || !runtime.model) {
+    throw new AssistantError("NOT_CONFIGURED", "Analyze chapter uses the assistant, which is not set up. See How to use, \"Assistant setup\".");
+  }
+  const built = await assembleChapterAnalysis(db, runtime, input, now);
+  if (input.expectedSourceHash && input.expectedSourceHash !== built.sourceHash) {
+    throw new AssistantError("STALE_SELECTION", "The chapter changed after you inspected the request. Show what will be sent again.");
+  }
+  const problem = limitProblem(runtime.limits, built.request.totalChars, built.usage, built.outputTokenAllowance);
+  if (problem) {
+    const code = problem.includes("characters") ? "TOO_LARGE" : problem.includes("hour") ? "RATE_LIMITED" : "USAGE_CAP";
+    throw new AssistantError(code, problem);
+  }
+  await checkRequestLimits(db, runtime.limits, built.request.totalChars, now, built.outputTokenAllowance);
   const runId = newId("car");
   await db.chapterAnalysisRun.create({
     data: {
       id: runId,
-      workspaceId: project.workspaceId,
-      projectId: project.id,
-      chapterRecordId: pinned.chapter.id,
-      draftId: pinned.draft.id,
+      workspaceId: built.project.workspaceId,
+      projectId: built.project.id,
+      chapterRecordId: built.pinned.chapter.id,
+      draftId: built.pinned.draft.id,
       pinnedRevision: input.pinnedRevision,
       status: "preparing",
-      sourceHash,
-      sentMaterialJson: request.userText,
-      requestChars: request.totalChars,
+      sourceHash: built.sourceHash,
+      sentMaterialJson: built.request.userText,
+      requestChars: built.request.totalChars,
+      categoriesJson: JSON.stringify(built.categories),
+      outputTokenAllowance: built.outputTokenAllowance,
       model: runtime.model,
     },
   });
-  return { runId, requestChars: request.totalChars, request, sourceHash, limits };
+  return {
+    runId,
+    requestChars: built.request.totalChars,
+    request: built.request,
+    sourceHash: built.sourceHash,
+    limits: runtime.limits,
+    outputTokenAllowance: built.outputTokenAllowance,
+    categories: built.categories,
+  };
 }
 
 export async function runChapterAnalysis(
@@ -380,13 +538,14 @@ export async function runChapterAnalysis(
   let responseId: string | undefined;
   let proposal: AnalysisProposal | null = null;
   let contentHash = "";
+  let diagnostics = "";
   try {
     const result = await provider.structured(
       {
         model: row.model ?? "",
         instructions: prep.request.instructions,
         input: prep.request.input,
-        maxOutputTokens: prep.limits.maxOutputTokens,
+        maxOutputTokens: prep.outputTokenAllowance,
         timeoutMs: prep.limits.requestTimeoutSeconds * 1000,
       },
       {
@@ -397,23 +556,27 @@ export async function runChapterAnalysis(
     );
     if (signal.aborted) throw new ProviderError("cancelled", "The request was cancelled.");
     responseId = result.responseId;
-    const outputChars = result.status === "complete" ? result.text.length : result.status === "refused" ? result.refusal.length : 0;
-    if (result.usage) usage = result.usage;
-    else {
-      usage = estimatedUsage(prep.requestChars, outputChars);
-      usageEstimated = true;
+    if (result.usage) {
+      usage = result.usage;
+      usageEstimated = false;
     }
+    diagnostics = JSON.stringify({
+      providerCode: result.status,
+      incompleteReason: result.status === "incomplete" ? result.incompleteReason ?? null : null,
+      responseId: responseId ?? null,
+    });
     if (result.status === "refused") {
       errorCode = "refused";
-      errorMessage = "The model declined to analyze this chapter.";
+      errorMessage = "The model declined this chapter. Nothing was written. You can send the request again.";
     } else if (result.status === "incomplete") {
       errorCode = result.incompleteReason ?? "incomplete";
-      errorMessage = "The analysis stopped before it finished. Nothing was applied.";
+      errorMessage = "The analysis stopped before it finished, so there are no suggestions to review. You can send it again. Nothing was written.";
     } else {
       const parsed = parseChapterAnalysisOutput(result.text);
       if (!parsed.ok) {
         errorCode = "malformed_output";
-        errorMessage = `The model's response did not match the analysis format. ${parsed.problems.join(" ")}`;
+        errorMessage = "The response was not usable analysis. Nothing was written. You can send it again.";
+        diagnostics = JSON.stringify({ providerCode: "malformed_output", responseId: responseId ?? null, problems: parsed.problems.slice(0, 8) });
       } else {
         const pinned = await loadPinnedChapter(db, row.projectId, row.chapterRecordId, row.pinnedRevision);
         const catalog = await catalogs(db, row.projectId, row.chapterRecordId);
@@ -422,9 +585,15 @@ export async function runChapterAnalysis(
           pinned.body,
           parsed.suggestions,
           catalog,
+          prep.categories,
         );
         contentHash = sha256(JSON.stringify(proposal));
         status = "proposed";
+        diagnostics = "";
+        if (!usage) {
+          usage = estimatedUsage(prep.requestChars, result.text.length);
+          usageEstimated = true;
+        }
       }
     }
   } catch (error) {
@@ -433,10 +602,7 @@ export async function runChapterAnalysis(
     status = cancelled ? "cancelled" : "failed";
     errorCode = cancelled ? "cancelled" : failure.code;
     errorMessage = cancelled ? "Cancelled. No suggestions were applied. This run stays in the list." : failure.message;
-    if (cancelled) {
-      usage = estimatedUsage(prep.requestChars, 0);
-      usageEstimated = true;
-    }
+    diagnostics = JSON.stringify({ providerCode: errorCode, responseId: responseId ?? null });
   }
   await db.chapterAnalysisRun.update({
     where: { id: prep.runId },
@@ -444,6 +610,7 @@ export async function runChapterAnalysis(
       status,
       errorCode,
       errorMessage,
+      diagnosticsJson: diagnostics,
       contentHash,
       proposalJson: proposal ? JSON.stringify(proposal) : "",
       providerResponseId: responseId ?? null,
@@ -476,6 +643,10 @@ export async function getChapterAnalysis(db: DbOrTx, projectId: string, runId: s
     sentMaterial: row.sentMaterialJson,
     proposal: row.proposalJson ? parseJson<AnalysisProposal | null>(row.proposalJson, null) : null,
     decisions: parseJson<AnalysisDecisions>(row.decisionsJson, {}),
+    assessments: parseJson<AnalysisAssessments>(row.assessmentsJson, {}),
+    categories: parseJson<AnalysisKind[]>(row.categoriesJson, []),
+    diagnostics: row.diagnosticsJson,
+    outputTokenAllowance: row.outputTokenAllowance,
     appliedKeys: parseJson<string[]>(row.appliedKeysJson, []),
     requestChars: row.requestChars,
     model: row.model,
@@ -498,6 +669,24 @@ export async function saveChapterAnalysisDecisions(
   if (!row) throw new NotFoundError(`Chapter analysis ${runId} not found`);
   if (row.status !== "proposed" && row.status !== "applied") throw rejected("This analysis has no suggestions to review.");
   await db.chapterAnalysisRun.update({ where: { id: runId }, data: { decisionsJson: JSON.stringify(decisions) } });
+}
+
+const ASSESSMENTS = new Set(["correct", "needs_editing", "unsupported", "duplicate"]);
+
+/** Records the author's quality marks. Does not change records, decisions, or canon. */
+export async function saveChapterAnalysisAssessments(
+  db: Db,
+  projectId: string,
+  runId: string,
+  assessments: AnalysisAssessments,
+): Promise<void> {
+  const row = await db.chapterAnalysisRun.findFirst({ where: { id: runId, projectId }, select: { id: true } });
+  if (!row) throw new NotFoundError(`Chapter analysis ${runId} not found`);
+  const clean: AnalysisAssessments = {};
+  for (const [key, value] of Object.entries(assessments)) {
+    if (ASSESSMENTS.has(value)) clean[key] = value;
+  }
+  await db.chapterAnalysisRun.update({ where: { id: runId }, data: { assessmentsJson: JSON.stringify(clean) } });
 }
 
 export async function listChapterAnalyses(db: DbOrTx, projectId: string) {
@@ -566,7 +755,8 @@ export async function applyChapterAnalysis(
       for (const dep of item.dependsOnKeys) {
         if (already.has(dep)) continue;
         if (!isApply(chosen(decisions, dep))) {
-          throw rejected(`"${item.title}" depends on another suggestion that was not selected.`);
+          const other = byKey.get(dep);
+          throw rejected(`"${item.title}" depends on "${other?.title ?? "another suggestion"}", which is not selected. Choose that one too, or skip this one. Nothing was written.`);
         }
       }
       if (item.match.status === "ambiguous" && action === "reuse" && !decisions[item.key]?.targetId) {
@@ -619,8 +809,12 @@ export async function applyChapterAnalysis(
       } else {
         const target = targetOf(item);
         if (!target) throw rejected(`Choose a record for "${item.title}".`);
-        const live = await tx.record.findFirst({ where: { id: target, projectId, ...LIVE_RECORD }, select: { id: true, type: true, authorityStatus: true } });
+        const live = await tx.record.findFirst({ where: { id: target, projectId, ...LIVE_RECORD }, select: { id: true, type: true, authorityStatus: true, currentRevision: true } });
         if (!live || live.type !== type) throw rejected(`"${item.title}" does not match a ${type === "character_dossier" ? "character" : "place"} in this project.`);
+        const expected = item.match.candidates.find((candidate) => candidate.id === live.id)?.revision;
+        if (typeof expected === "number" && expected !== live.currentRevision) {
+          throw rejected(`"${item.title}" changed after this analysis. Review it again. Nothing was written.`);
+        }
         if (action === "edit") {
           if (live.authorityStatus === "approved") throw rejected(`"${item.title}" is approved. Reuse it, or change its status yourself before editing.`);
           await applyMutationsInTx(
@@ -665,6 +859,10 @@ export async function applyChapterAnalysis(
         const target = targetOf(item);
         const event = target ? await tx.storyEvent.findFirst({ where: { id: target, projectId } }) : null;
         if (!event) throw rejected(`"${item.title}" does not match a story event.`);
+        const expected = item.match.candidates.find((candidate) => candidate.id === event.id)?.revision;
+        if (typeof expected === "number" && expected !== event.revision) {
+          throw rejected(`"${item.title}" changed after this analysis. Review it again. Nothing was written.`);
+        }
         if (action === "edit") {
           await tx.storyEvent.update({
             where: { id: event.id },
@@ -685,8 +883,9 @@ export async function applyChapterAnalysis(
       if (suggestionKey && eventIds.has(suggestionKey)) return eventIds.get(suggestionKey)!;
       const createdKey = [...eventIds.entries()].find(([key]) => byKey.get(key)?.title.toLowerCase() === title.toLowerCase())?.[1];
       if (createdKey) return createdKey;
-      const found = await tx.storyEvent.findFirst({ where: { projectId, title } });
-      return found?.id ?? null;
+      const found = await tx.storyEvent.findMany({ where: { projectId, title }, select: { id: true } });
+      if (found.length > 1) throw rejected(`"${title}" matches more than one event. Choose which one on that event's suggestion. Nothing was written.`);
+      return found[0]?.id ?? null;
     };
 
     for (const item of proposal.suggestions) {
@@ -819,6 +1018,10 @@ async function ensureFactEvidence(
     if (!factTarget) throw rejected(`"${item.title}" has no fact to attach evidence to.`);
     const fact = await tx.establishedFact.findFirst({ where: { id: factTarget, projectId } });
     if (!fact) throw rejected("That fact is not in this project.");
+    const expected = item.match.candidates.find((candidate) => candidate.id === fact.id)?.revision;
+    if (typeof expected === "number" && expected !== fact.updatedAt.getTime()) {
+      throw rejected(`"${item.title}" changed after this analysis. Review it again. Nothing was written.`);
+    }
     if (action === "edit") {
       if (fact.status === "accepted") throw rejected("An accepted fact keeps its statement. Reuse it to add a passage.");
       await tx.establishedFact.update({ where: { id: fact.id }, data: { statement } });
@@ -890,6 +1093,10 @@ async function ensureBeat(
     const target = decisions[item.key]?.targetId || (item.match.status === "unique" ? item.match.candidates[0]?.id : null);
     const beat = target ? await tx.weaveBeat.findFirst({ where: { id: target, projectId } }) : null;
     if (!beat) throw rejected(`"${item.title}" does not match a plot beat.`);
+    const expected = item.match.candidates.find((candidate) => candidate.id === beat.id)?.revision;
+    if (typeof expected === "number" && expected !== beatStamp(beat)) {
+      throw rejected(`"${item.title}" changed after this analysis. Review it again. Nothing was written.`);
+    }
     if (action === "reuse") {
       await tx.weaveBeat.update({ where: { id: beat.id }, data: { manuscriptRecordId: chapterId } });
       return;

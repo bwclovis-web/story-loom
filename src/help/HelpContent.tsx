@@ -1271,39 +1271,54 @@ export function HelpContent() {
         <Sub id="analyze-chapter">
           <p>
             <L>{ANALYZE.heading}</L> (Plan) starts with manuscript counts for the Zero draft, the Author manuscript, and
-            any legacy chapters that have no draft. Choose one Zero-draft chapter and pin one of its revisions. The pin
-            has to be the chapter&apos;s current revision before anything is sent. Author-manuscript pages and legacy
-            chapters are counted and are not analyzed.
+            any legacy chapters that have no draft. Choose one Zero-draft chapter, pin one of its revisions, and choose
+            which categories to ask for. Showing the request does not send it. Sending is a separate button, and the
+            pin is checked again at that moment. Author-manuscript pages and legacy chapters are counted and are not
+            analyzed. Category choices are remembered in this browser and do not change a run you already saved.
           </p>
           <p>
-            The request contains the analysis instructions, the project and draft names, the chapter id, title, and
-            revision, catalogs of character titles, place titles, accepted fact statements with how many passages are
-            pinned, story-event titles with their time text, and plot beats already linked to this chapter, then the
-            full pinned chapter text. Other chapters&apos; prose is not included. The review screen keeps that exact
-            message, including after you leave and come back.
+            What leaves the app is the application instructions, the user message, the catalogs you can expand before
+            sending (character titles, place titles, accepted fact statements with how many passages are pinned,
+            story-event titles with their time text, and plot beats already linked to this chapter), and the full text
+            of this pinned chapter. Other chapters&apos; prose is not included. Your Correct / Needs editing /
+            Unsupported / Duplicate marks stay in the app. They are not sent, and they do not change canon.
           </p>
           <p>
-            Suggestions cover who is present, where the passage is set, events, what the reader learns, what one
-            character learns, planning beats, evidence for a reference fact, and chronology. Every suggestion quotes a
-            passage. The server checks that quote against the pinned revision and refuses the suggestion when the quote
-            is not there. A reading the model is not sure about is marked uncertain. Being present is not the same as
-            knowing. A scene that reveals an event is not the event happening, and it does not mean every character
-            knows it. Chronology is offered only when the excerpt itself says one event is before or after another, and
-            it uses the same earlier/later constraints as the story timeline. An order that would contradict those
-            constraints is refused, and that apply writes nothing.
+            The preflight shows the character count of that request, an estimated input-token figure, the configured
+            output-token allowance, and how much of the hourly and monthly allowance is left. A character count is not
+            a token count, and the estimate is not a price. Chapter analysis uses its own output allowance (8,000
+            tokens unless you set <L>ASSISTANT_ANALYSIS_OUTPUT_TOKENS</L>). Discussion and proofreading stay at their
+            own output limit. All of them share the hourly request limit and the monthly token cap.
           </p>
           <p>
-            Each suggestion is matched to an existing character, place, accepted fact, event, or beat. Choose reuse,
-            edit, create, or skip. When more than one record matches, name which one to reuse. An accepted fact that
-            has no pinned passage can receive an evidence link; its statement stays as it is. A new fact stays pending.
-            A new character or place stays a draft reference. Applying checks the pin again, writes the selection in one
-            step, and a repeat apply does not create a second copy. The chapter text, its current revision, and book
-            order stay as they were. Cancelled runs remain in the list.
+            Passage verified means the quotation is in the pinned revision at the offsets shown. It does not mean the
+            interpretation is right. You still judge whether a mention is physical presence, whether presence is
+            knowledge, whether the reader learning something is a character learning it, whether a revealed event
+            happened in this chapter, and whether a plan or a line of dialogue is an established fact. Uncertain
+            readings stay marked. A new fact stays pending. A new character or place stays a draft. A suggested beat
+            stays planning. Zero-draft evidence does not become Author-manuscript evidence.
           </p>
           <p>
-            Chapter analysis uses the same assistant connection and the same hourly and monthly limits as discussion
-            and proofreading. A request over the size limit or the usage cap is not sent, and the app does not retry
-            the model on its own.
+            If the same quotation appears more than once, the suggestion has to say which occurrence. The first match
+            is not used silently. A chronology suggestion has to name both events in the quotation and say which is
+            earlier. Words such as later, on their own, do not create an order, and chapter order does not either. An
+            order that would contradict constraints already stored is refused, and that apply writes nothing.
+          </p>
+          <p>
+            Review is grouped by passage. Open a suggestion to see a little of the surrounding text. Each one shows
+            what the passage says, what the analysis proposes, the existing record or New record, the uncertainty, and
+            what accepting it will change. Choose Use existing, Edit suggestion, Create new, or Skip. Nothing is
+            preselected. When more than one record matches, choose which one. If a selected item depends on one you
+            skipped, the page says what to resolve, and Apply will not create that dependency for you. Before Apply,
+            read the short list of records, links, evidence, events, and beats that this selection will write.
+          </p>
+          <p>
+            A response that stops early, is refused, or does not match the format has no suggestions and cannot be
+            applied. The page says so in plain language and offers Try this chapter again. That link does not send a
+            new request. Nothing is written to the manuscript. Applying checks the pin and the target records again,
+            writes the selection in one step, and a repeat of the same selection does not create a second copy.
+            Skipped suggestions stay available. The chapter text, its current revision, and book order stay as they
+            were.
           </p>
         </Sub>
 

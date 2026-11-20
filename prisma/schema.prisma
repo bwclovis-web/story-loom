@@ -790,6 +790,14 @@ model ChapterAnalysisRun {
   proposalJson      String    @default("")
   appliedKeysJson   String    @default("[]")
   decisionsJson     String    @default("{}")
+  /// Categories requested for this run. Empty means every category (older runs).
+  categoriesJson    String    @default("[]")
+  /// Author quality marks, separate from apply decisions. Not sent to the model.
+  assessmentsJson   String    @default("{}")
+  /// Provider code, incomplete reason, and response id. Never a credential.
+  diagnosticsJson   String    @default("")
+  /// Output-token cap sent with this request. 0 on older runs.
+  outputTokenAllowance Int    @default(0)
   model             String?
   providerResponseId String?
   inputTokens       Int?

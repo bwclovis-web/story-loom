@@ -35,6 +35,7 @@ export const CHAPTER_ANALYSIS_OUTPUT_JSON_SCHEMA = {
           "explicitOrder",
           "earlierTitle",
           "laterTitle",
+          "occurrence",
         ],
         properties: {
           kind: { type: "string", enum: [...ANALYSIS_KINDS] },
@@ -46,6 +47,7 @@ export const CHAPTER_ANALYSIS_OUTPUT_JSON_SCHEMA = {
           explicitOrder: { type: "boolean" },
           earlierTitle: { type: "string" },
           laterTitle: { type: "string" },
+          occurrence: { type: "integer", minimum: 1 },
         },
       },
     },
@@ -63,6 +65,7 @@ const draftSuggestion = z
     explicitOrder: z.boolean(),
     earlierTitle: z.string(),
     laterTitle: z.string(),
+    occurrence: z.number().int().min(1),
   })
   .strict();
 
@@ -81,6 +84,8 @@ export interface AnalysisCandidate {
   title: string;
   kind: "record" | "fact" | "event" | "beat";
   evidenceCount: number;
+  /** Record currentRevision, event revision, or updated-at milliseconds. Absent on older proposals. */
+  revision?: number;
 }
 
 export interface AnalysisSuggestion {
@@ -91,7 +96,13 @@ export interface AnalysisSuggestion {
   uncertain: boolean;
   uncertainty: string;
   passage: AnalysisPassage | null;
+  /** The quotation was found at these offsets. This is not a judgment that the interpretation is right. Older proposals may omit it. */
+  passageVerified?: boolean;
+  /** False when the suggestion must not be applied. Older proposals may omit passageVerified and use this alone. */
   quoteValid: boolean;
+  blockedReason?: string;
+  /** Server-written limit on what this category means. Not a model confidence score. Older proposals may omit it. */
+  boundary?: string;
   explicitOrder: boolean;
   earlierTitle: string;
   laterTitle: string;
@@ -119,6 +130,10 @@ export interface AnalysisDecision {
 }
 
 export type AnalysisDecisions = Record<string, AnalysisDecision>;
+
+export const ANALYSIS_ASSESSMENTS = ["correct", "needs_editing", "unsupported", "duplicate"] as const;
+export type AnalysisAssessment = (typeof ANALYSIS_ASSESSMENTS)[number];
+export type AnalysisAssessments = Record<string, AnalysisAssessment>;
 
 export function parseChapterAnalysisOutput(
   text: string,

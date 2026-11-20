@@ -41,6 +41,7 @@ All settings are server environment variables in `.env` (git-ignored).
 | `OPENAI_MODEL` | none | required; a model ID your API project can use with the Responses API |
 | `ASSISTANT_MAX_INPUT_CHARS` | 600000 | 1000 to 1000000 |
 | `ASSISTANT_MAX_OUTPUT_TOKENS` | 2000 | 100 to 100000 |
+| `ASSISTANT_ANALYSIS_OUTPUT_TOKENS` | 8000 | 500 to 100000 |
 | `ASSISTANT_MAX_REQUESTS_PER_HOUR` | 30 | 1 to 1000 |
 | `ASSISTANT_MONTHLY_TOKEN_CAP` | 300000 | 1000 to 1000000000 |
 | `ASSISTANT_REQUEST_TIMEOUT_SECONDS` | 120 | 10 to 600 |
@@ -78,7 +79,7 @@ restart after editing `.env`.
 | `store` | `false` | Do not keep the response for later retrieval (the default is `true`, which keeps it for at least 30 days). |
 | `truncation` | `"disabled"` | The provider must fail rather than drop context. |
 | `previous_response_id` | not used | The app sends the selected history itself, so unselected messages are never included. |
-| `max_output_tokens` | `ASSISTANT_MAX_OUTPUT_TOKENS` | Bounds each answer. |
+| `max_output_tokens` | `ASSISTANT_MAX_OUTPUT_TOKENS` | Bounds each discussion or proofreading answer. Chapter analysis uses `ASSISTANT_ANALYSIS_OUTPUT_TOKENS` (default 8,000) so a chapter of quotations is not cut off, and that allowance still counts toward the monthly cap. |
 | SDK `maxRetries` | `0` | Never repeat a paid request without the author; the UI offers Retry. |
 | SDK `logLevel` | `"off"` | The SDK prints nothing about requests. |
 | SDK `timeout` / `signal` | `ASSISTANT_REQUEST_TIMEOUT_SECONDS` / cancel | Cancel and timeouts abort the HTTP request. |
