@@ -37,6 +37,7 @@ import { manuscriptWordCounts, sumWordCounts } from "@/server/services/wordCount
 import { dictionaryWordsForProject } from "@/server/services/dictionaryService";
 import { getSpellChecker, getSpellingLanguage } from "@/server/spelling";
 import { loadCrossRefIndex } from "@/server/services/crossRefService";
+import { listMentionedBy } from "@/server/services/mentionedByService";
 import { listWeaveBeatsForManuscript } from "@/server/services/weaveService";
 import { RECORD, XREF } from "@/ui/labels";
 import { buildManuscriptTree, manuscriptIdsInBookOrder } from "@/ui/manuscriptTree";
@@ -200,7 +201,7 @@ export default async function RecordPage({
     projectId,
     drafts.find((d) => d.kind === "author_manuscript")?.id ?? drafts[0]?.id ?? null,
   );
-  const [linking, reviewItems, proposals, importedFiles, images, supersededBy, worldPins, placeRelations, referenceChoices, establishedFacts, placements] =
+  const [linking, reviewItems, proposals, importedFiles, images, supersededBy, worldPins, placeRelations, referenceChoices, establishedFacts, placements, mentionedBy] =
     await Promise.all([
       listLinkingRecords(db, projectId, record.id),
       listOpenReviewItemsForRecord(db, projectId, record.id),
@@ -215,6 +216,7 @@ export default async function RecordPage({
       listReferenceChoices(db, projectId),
       listEstablishedFactsForSubject(db, projectId, record.id).catch(() => [] as Awaited<ReturnType<typeof listEstablishedFactsForSubject>>),
       listRecordPlacements(db, projectId, record.id).catch(() => []),
+      listMentionedBy(db, projectId, record.id, crossRefs),
     ]);
   const chapterIds = [...new Set(linking.flatMap((l) => (l.parentRecordId ? [l.parentRecordId] : [])))];
   const chapters = chapterIds.length
@@ -335,6 +337,7 @@ export default async function RecordPage({
         ];
       })}
       editor={{ spellingLanguage, spellChecker, dictionaryWords, proofread }}
+      mentionedBy={mentionedBy}
     />
   );
 }

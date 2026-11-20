@@ -20,10 +20,12 @@ import {
   MANUSCRIPT_REPLACE,
   MANUSCRIPT_SEARCH,
   MARKDOWN_IMPORT,
+  MENTIONED_BY,
   NAV,
   ONBOARDING,
   PACKAGE_IMPORT,
   PDF,
+  PROJECT_SEARCH,
   PROOFREAD,
   READ_BOOK,
   RECORD,
@@ -918,6 +920,20 @@ export function HelpContent() {
           </p>
         </Sub>
 
+        <Sub id="project-search">
+          <p>
+            <L>{PROJECT_SEARCH.heading}</L> ({<L>{NAV.projectSearch}</L>} in project tools or settings) searches saved text
+            across the project: World and plan records, the manuscript for the same draft as Write, Weave beats, map titles
+            and pins, story events, and established-fact statements. Each hit names where it matched and shows a short
+            excerpt when the match is in body text.
+          </p>
+          <p>
+            Matching is literal and case-insensitive, like <L>{MANUSCRIPT_SEARCH.submit}</L> on Write. Manuscript results
+            open the chapter or scene with <L>{WRITING.find}</L> filled in. Nothing is changed; unsaved text in an open
+            editor is not searched.
+          </p>
+        </Sub>
+
         <Sub id="manuscript-replace">
           <p>
             <L>{MANUSCRIPT_REPLACE.heading}</L> searches every saved chapter, scene and scene note in the draft you have
@@ -1778,9 +1794,9 @@ export function HelpContent() {
             </li>
             <li>
               <L>{WORLD.inspectorRelationships}</L>: place relationships, <L>{WORLD.linkedManuscript}</L> from a chapter
-              or scene&apos;s <L>{WRITE.references}</L> tab, and <L>{XREF.heading}</L>. A scene note shows{" "}
-              <L>{WORLD.noteOn}</L> instead of linked chapters. See <See anchor="place-relations" /> and{" "}
-              <See anchor="cross-references" />.
+              or scene&apos;s <L>{WRITE.references}</L> tab, <L>{XREF.heading}</L>, and <L>{MENTIONED_BY.heading}</L>. A
+              scene note shows <L>{WORLD.noteOn}</L> instead of linked chapters. See <See anchor="place-relations" />,{" "}
+              <See anchor="cross-references" />, and <See anchor="mentioned-by" />.
             </li>
             <li>
               <L>{WORLD.establishedIn}</L> when the record can have it. See <See anchor="established-in" />.
@@ -1807,6 +1823,19 @@ export function HelpContent() {
           <p>
             Each section says so when it has nothing to show. Changing one document never changes linked or related
             documents. Update them yourself if needed.
+          </p>
+        </Sub>
+
+        <Sub id="mentioned-by">
+          <p>
+            <L>{MENTIONED_BY.heading}</L> on a reference page (and in the reference inspector) lists where that record
+            appears elsewhere in the project: names in manuscript chapters and scenes, cross-references, links from the{" "}
+            <L>{WRITE.references}</L> tab, scene locations, story events, Weave beats, and pins on boards or maps. Each
+            line is a link and a short label for the kind of mention. It is read-only and uses saved data only.
+          </p>
+          <p className="small muted">
+            The same cross-reference may also appear under <L>{XREF.heading}</L>; both stay available until a later change
+            deduplicates them.
           </p>
         </Sub>
 

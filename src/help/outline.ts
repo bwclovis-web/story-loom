@@ -57,6 +57,7 @@ export const HELP_SECTIONS = [
       { id: "manuscript-search", title: "Searching the manuscript" },
       { id: "manuscript-replace", title: "Replace across the manuscript" },
       { id: "manuscript-style-check", title: "Local style check" },
+      { id: "project-search", title: "Search the whole project" },
       { id: "import-chapters", title: "Importing chapters from files" },
       { id: "read-book", title: "Reading the whole book" },
       { id: "tidy-text", title: "Tidying a chapter" },
@@ -90,6 +91,7 @@ export const HELP_SECTIONS = [
       { id: "world-nav", title: "Finding references" },
       { id: "reference-page", title: "Reading a reference" },
       { id: "reference-context", title: "Context beside a reference" },
+      { id: "mentioned-by", title: "Mentioned by" },
       { id: "reference-outlines", title: "Original outlines" },
       { id: "images", title: "Images in references" },
     ],
@@ -217,6 +219,7 @@ export const HELP_ROUTES = [
   "/projects/[projectId]/assistant",
   "/projects/[projectId]/dictionary",
   "/projects/[projectId]/dictionary/export",
+  "/projects/[projectId]/search",
   "/projects/[projectId]/cross-references",
   "/projects/[projectId]/upgrade",
 ] as const;

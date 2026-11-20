@@ -1,5 +1,15 @@
 # Progress
 
+## Unified project search and Mentioned by (Nov 20, 2026)
+
+`/projects/:id/search` searches references, manuscript (active draft), Weave beats, maps and pins, story events, and established facts. Reference pages and the inspector show **Mentioned by**: a read-only union of manuscript names, cross-references, links, scene locations, events, beats, and board/map placements. Links from Write/Weave project tools and settings maintain.
+
+Checks: `pnpm exec vitest run tests/acceptance/project-search.test.ts tests/unit/help.test.ts`. `pnpm typecheck` when the tree is clean.
+
+### Rollback
+
+Revert code; no migration.
+
 ## Shared landing header (Nov 20, 2026)
 
 Write, Weave, World, and Assistant landings use one header: the cover, the series when one is set (otherwise the workspace name), the book title, a short description, and Getting started. Getting started stays the quiet guided-task control. Dismissing tasks leaves the link and does not reopen them. The large guided-task banner stays off those four landings. Filtered World lists keep their own heading.

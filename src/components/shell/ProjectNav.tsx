@@ -220,6 +220,7 @@ function ProjectNavContent({
       items: [
         { href: `${base}/history`, label: NAV.history, count: openReviewItems },
         { href: `${base}/dictionary`, label: NAV.dictionary },
+        { href: `${base}/search`, label: NAV.projectSearch },
         { href: `${base}/cross-references`, label: NAV.crossRefCheck },
         { href: `${base}/upgrade`, label: NAV.upgradeProject },
       ],

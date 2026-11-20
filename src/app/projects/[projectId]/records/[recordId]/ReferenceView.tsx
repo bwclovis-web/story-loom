@@ -5,6 +5,7 @@ import { findFieldTextDisagreements } from "@/assistant/fieldText";
 import { CanonBadge, ProtectionStateBadge, SavedVersionBadge, SectionTagBadge, StatusBadge } from "@/components/Badges";
 import { ContextSection } from "@/components/ContextSection";
 import { CrossRefsPanel, xrefHref } from "@/components/CrossRefsPanel";
+import { MentionedByPanel } from "@/components/MentionedByPanel";
 import { MarkdownView, type AttachedImages } from "@/components/MarkdownView";
 import { TextAppearanceMenu } from "@/components/TextAppearanceMenu";
 import type { ProofreadConfig } from "@/components/writing/Proofreader";
@@ -17,7 +18,8 @@ import type { RecordImageView } from "@/server/services/imageService";
 import type { LinkingRecord } from "@/server/services/linkService";
 import type { RevisionWithSource } from "@/server/services/recordService";
 import type { DictionaryWord } from "@/spelling/dictionary";
-import { RECORD, SHELL, WORLD, XREF } from "@/ui/labels";
+import type { MentionedByItem } from "@/server/services/mentionedByService";
+import { MENTIONED_BY, RECORD, SHELL, WORLD, XREF } from "@/ui/labels";
 import { groupOfType } from "@/ui/navigation";
 import { categoryLabel, isWorldType, worldHref } from "@/ui/world";
 import { crossRefsFor, type CrossRefIndex } from "@/writing/crossRefs";
@@ -101,6 +103,7 @@ export interface ReferenceViewProps {
   manuscriptDrafts: DraftChoice[];
   manuscriptScenes: SceneChoice[];
   placements: RecordPlacement[];
+  mentionedBy: MentionedByItem[];
   editor: {
     spellingLanguage: SpellingLanguage;
     spellChecker: SpellChecker;
@@ -440,9 +443,15 @@ export function ReferenceView(props: ReferenceViewProps) {
                   : null
               }
               relationshipsExtra={
-                <ContextSection title={XREF.heading} count={refs.defined.length + refs.files.length + refs.ids.length + refs.mentionedBy.length}>
-                  <CrossRefsPanel projectId={projectId} recordId={record.id} refs={refs} />
-                </ContextSection>
+                <>
+                  <ContextSection title={XREF.heading} count={refs.defined.length + refs.files.length + refs.ids.length + refs.mentionedBy.length}>
+                    <CrossRefsPanel projectId={projectId} recordId={record.id} refs={refs} />
+                  </ContextSection>
+                  <ContextSection title={MENTIONED_BY.heading} count={props.mentionedBy.length}>
+                    <p className="small muted">{MENTIONED_BY.note}</p>
+                    <MentionedByPanel items={props.mentionedBy} />
+                  </ContextSection>
+                </>
               }
               overviewExtra={
                 <>

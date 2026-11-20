@@ -328,7 +328,7 @@ export async function searchContextReferences(
   return hits;
 }
 
-function excerptAt(text: string, query: string): { excerpt: string; excerptTruncated: boolean } | null {
+export function excerptAt(text: string, query: string): { excerpt: string; excerptTruncated: boolean } | null {
   const haystack = text.normalize("NFC");
   const index = findMatch(haystack, query);
   if (index < 0) return null;

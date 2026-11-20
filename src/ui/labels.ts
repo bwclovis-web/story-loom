@@ -30,6 +30,7 @@ export const NAV = {
   assistant: "Assistant",
   dictionary: "Dictionary",
   crossRefCheck: "Cross-reference check",
+  projectSearch: "Search project",
   upgradeProject: "Upgrade this project",
 } as const;
 
@@ -748,6 +749,39 @@ export const RECORD_RENAME = {
   ambiguous: "ambiguous",
   apply: "Apply rename",
   applying: "Applying…",
+} as const;
+
+export const PROJECT_SEARCH = {
+  heading: "Search project",
+  lead: "Search saved text across this project: World references, manuscript (active draft), Weave beats, maps and pins, story events, and established facts. Read only; nothing changes.",
+  hint: "Matching is literal and case-insensitive. Manuscript hits use the same draft as Write. Map pins match the label, the map title, or the linked record title.",
+  searchLabel: "Search",
+  submit: "Search",
+  resultsHeading: (q: string) => `Results for “${q}”`,
+  none: "No matches in this project for that search.",
+  summary: (n: Count) => `${n} match${n === 1 ? "" : "es"}.`,
+  matchedIn: (where: string) => `Matched in ${where}`,
+  sourceRecord: "References and plan records",
+  sourceManuscript: "Manuscript",
+  sourceBeat: "Weave beats",
+  sourceMapPin: "Map pins",
+  sourceMap: "Maps",
+  sourceEvent: "Story events",
+  sourceFact: "Established facts",
+} as const;
+
+export const MENTIONED_BY = {
+  heading: "Mentioned by",
+  note: "Where this record appears in the project (saved data only).",
+  none: "Nothing else in the project points to this record yet.",
+  kindManuscriptName: "Named in manuscript",
+  kindCrossRef: "Cross-reference",
+  kindLink: "Linked from manuscript",
+  kindSceneLocation: "Scene location",
+  kindStoryEvent: "Story event",
+  kindWeaveBeat: "Weave beat",
+  kindMapPin: "Map pin",
+  kindBoardCard: "Board card",
 } as const;
 
 export const STYLE_CHECK = {
