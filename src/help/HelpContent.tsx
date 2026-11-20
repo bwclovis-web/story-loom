@@ -265,7 +265,8 @@ export function HelpContent() {
             <See anchor="write" />.
           </li>
           <li>
-            <L>{SHELL.plan}</L>: chapter outlines and story architecture.
+            <L>{SHELL.plan}</L>: story grids. Chapter outlines and story architecture are under{" "}
+            <L>{WEAVE.planningReferences}</L> on that page. The address is still <code>/plan</code>.
           </li>
           <li>
             <L>{SHELL.world}</L>: character dossiers, worldbuilding, canon decisions, continuity notes and reference
@@ -313,9 +314,11 @@ export function HelpContent() {
             <L>{NAV.records}</L>, with the number of records.
           </li>
           <li>
-            On <L>{SHELL.plan}</L> and its records, the records of that part by type. Choose a type heading, such as{" "}
-            <L>{RECORD_TYPE_LABELS.chapter_outline}</L>, to show or hide its list, then choose a title to open it.{" "}
-            <L>{WEAVE.heading}</L> and each <L>{SHELL.projectTools}</L> group work the same way. On{" "}
+            On a chapter outline or story architecture record, the records of that part by type. Choose a type heading,
+            such as <L>{RECORD_TYPE_LABELS.chapter_outline}</L>, to show or hide its list, then choose a title to open
+            it. The <L>{SHELL.plan}</L> landing does not show that second column.{" "}
+            <L>{WEAVE.planningReferences}</L> on the page lists the same records, and <L>{SHELL.projectTools}</L> stays
+            on the page. Grid editors, templates, and analysis keep the project column. On{" "}
             <L>{SHELL.world}</L> and its records, search and categories instead (see <See anchor="world-nav" />
             ). On <L>{SHELL.write}</L> and its records, the chapters and scenes (see <See anchor="manuscript-panel" />
             ).
@@ -607,17 +610,19 @@ export function HelpContent() {
           <L>manuscript</L> or <L>protected</L> labels where they apply. Choose a title to open it.
         </p>
         <p>
-          <L>{SHELL.write}</L>, <L>{SHELL.plan}</L> and <L>{SHELL.world}</L> in the left navigation show the same lists
-          for their record types only. When a record is open, the second column lists the other records of its part, so
-          you can move between them.
+          <L>{SHELL.write}</L> and <L>{SHELL.world}</L> in the left navigation show lists for their record types.{" "}
+          <L>{SHELL.plan}</L> opens the grid library. Chapter outlines and story architecture are under{" "}
+          <L>{WEAVE.planningReferences}</L> there, and in the second column when one of those records is open.
         </p>
         <h3>Create a record</h3>
         <ol>
           <li>
-            On the <L>{NAV.records}</L> page, or on <L>{SHELL.write}</L>, <L>{SHELL.plan}</L> or{" "}
-            <L>{SHELL.world}</L>, go to <L>{RECORD.newRecordHeading}</L>. On those three pages the type starts as the
-            first type of that part, for example <L>{RECORD_TYPE_LABELS.manuscript_chapter}</L> on{" "}
-            <L>{SHELL.write}</L>. In a World category, it starts as that category&apos;s type.
+            On the <L>{NAV.records}</L> page, or on <L>{SHELL.write}</L> or <L>{SHELL.world}</L>, go to{" "}
+            <L>{RECORD.newRecordHeading}</L>. On <L>{SHELL.plan}</L>, <L>{RECORD.newRecordHeading}</L> is inside{" "}
+            <L>{WEAVE.planningReferences}</L>. The type starts as the first type of that part, for example{" "}
+            <L>{RECORD_TYPE_LABELS.manuscript_chapter}</L> on <L>{SHELL.write}</L> and{" "}
+            <L>{RECORD_TYPE_LABELS.chapter_outline}</L> on <L>{SHELL.plan}</L>. In a World category, it starts as that
+            category&apos;s type.
           </li>
           <li>
             Choose a <L>Type</L> and a <L>Status</L>. The status starts as <L>draft</L>.
@@ -693,22 +698,14 @@ export function HelpContent() {
               In <L>{RECORD.compareHeading}</L>, pick any two versions and choose <L>{RECORD.compare}</L>. Pick the same
               number twice to read one version in full.
             </li>
+            <li>
+              To bring back an earlier version, choose <L>{RECORD.restoreVersion("N")}</L> on that row in{" "}
+              <L>{RECORD.historyHeading}</L>, or in <L>{RECORD.compareHeading}</L> after you show that version (same number
+              in both boxes, or as the &ldquo;to&rdquo; version when comparing). {RECORD.restoreHelp} Optionally tick{" "}
+              <L>{RECORD.restoreIncludeFields}</L>. Protected records need <L>{RECORD.unlockProtected}</L> on the confirm
+              step. The new version appears in the list as restored; nothing is deleted.
+            </li>
           </ul>
-          <details>
-            <summary>Going back to an earlier version</summary>
-            <p>There is no restore button. To go back:</p>
-            <ol>
-              <li>Show the earlier version in full with the same number in both boxes.</li>
-              <li>Copy the text you want.</li>
-              <li>
-                Paste it into <L>{RECORD.editHeading}</L>.
-              </li>
-              <li>
-                Choose <L>{RECORD.saveAsRevision("N")}</L>.
-              </li>
-            </ol>
-            <p>This adds a new version; nothing is lost.</p>
-          </details>
         </Sub>
 
         <Sub id="protection">
@@ -1235,15 +1232,26 @@ export function HelpContent() {
 
       <Section id="plan">
         <p>
-          <L>{SHELL.plan}</L> keeps the existing <code>/plan</code> route for chapter outlines and story architecture,
-          and extends it with <L>{WEAVE.heading}</L>: story grids that do not rewrite manuscript text. On the page, each
-          type such as <L>{RECORD_TYPE_LABELS.chapter_outline}</L> starts open; choose its heading to fold the table.
+          <L>{SHELL.plan}</L> keeps the existing <code>/plan</code> route. The page is a grid library:{" "}
+          <L>{WEAVE.libraryLead}</L> <L>{WEAVE.searchGrids}</L> filters the list, and <L>{WEAVE.newGridAction}</L> opens the
+          same create form. A scope with no grid offers <L>{WEAVE.createGridAction}</L> and selects that scope; nothing
+          is created until you submit, and <L>{HOME.cancel}</L> closes the form. Saved grids show their scope and beat
+          count, and <L>{WEAVE.openGridAction}</L> opens that grid. <L>{WEAVE.movingBeatsNote}</L>{" "}
+          <L>{WEAVE.templates}</L>, <L>{ANALYZE.heading}</L>, <L>{WEAVE.buildFromDraft}</L>, <L>{WORLD.boards}</L>, and{" "}
+          <L>{WORLD.maps}</L> are links only. Opening this page does not send a model request or change the manuscript.{" "}
+          The header shows the cover, the series when one is set, the book title, and a short description.{" "}
+          <L>{ONBOARDING.gettingStarted}</L> is in that header and uses the same guided tasks. Dismissing them leaves
+          the link in place and does not reopen the tasks. Write, World, and Assistant use the same header. The second project column is hidden here and on{" "}
+          <code>/plan/weave</code>, which is the same library. Chapter outlines and story architecture are under{" "}
+          <L>{WEAVE.planningReferences}</L>.
         </p>
 
         <Sub id="plan-weave">
           <p>
             Create separate <L>{WEAVE.viewOriginal}</L>, <L>{WEAVE.viewZeroDraft}</L>, and{" "}
-            <L>{WEAVE.viewAuthorRewrite}</L> grids. Add beats, link each beat to an existing chapter or scene, and cite
+            <L>{WEAVE.viewAuthorRewrite}</L> grids. <L>{WEAVE.viewOriginal}</L> is the intended story structure.{" "}
+            <L>{WEAVE.viewZeroDraft}</L> maps what the zero draft contains. <L>{WEAVE.viewAuthorRewrite}</L> holds
+            decisions for the author&apos;s rewrite. Add beats, link each beat to an existing chapter or scene, and cite
             World records. Decisions include <L>{WEAVE.decisionKeep}</L>, <L>{WEAVE.decisionCut}</L>,{" "}
             <L>{WEAVE.decisionMove}</L>, <L>{WEAVE.decisionCombine}</L>, and <L>{WEAVE.decisionRebuild}</L>.
           </p>
@@ -1623,9 +1631,9 @@ export function HelpContent() {
 
         <Sub id="reference-page">
           <p>
-            Every record except manuscript chapters and scenes opens on this page: World documents, Plan documents, and
-            scene notes. The links above the title show where it belongs: <L>{SHELL.world}</L> and its category,{" "}
-            <L>{SHELL.plan}</L>, or <L>{SHELL.write}</L> and the chapter or scene a note is on.
+            Every record except manuscript chapters and scenes opens on this page: World documents, chapter outlines,
+            story architecture, and scene notes. The links above the title show where it belongs: <L>{SHELL.world}</L>{" "}
+            and its category, <L>{SHELL.plan}</L>, or <L>{SHELL.write}</L> and the chapter or scene a note is on.
           </p>
           <p>Below the title, four separate labels describe different things:</p>
           <ul>
@@ -3384,7 +3392,7 @@ export function HelpContent() {
             Deleting permanently removes the item&apos;s whole history from the database, including its entries in{" "}
             <L>{NAV.history}</L> when a whole project or workspace goes. Only the backup made just before keeps it.
           </li>
-          <li>No autosave, and no one-click return to an earlier saved version.</li>
+          <li>No autosave. Restoring an earlier version only helps when its title or text (or structured fields, if you tick that box) differs from the current saved version.</li>
           <li>
             Chapter files can be imported as chapters (see <See anchor="import-chapters" />), but scenes cannot, and
             chapters and scenes are exported only as a PDF. A chapter imported later goes after the existing ones until

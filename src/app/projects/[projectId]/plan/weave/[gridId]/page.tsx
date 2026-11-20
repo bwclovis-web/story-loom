@@ -120,9 +120,6 @@ export default async function WeaveGridPage({
             <Link href={`${base}/plan`}>{SHELL.plan}</Link>
           </li>
           <li>
-            <Link href={`${base}/plan/weave`}>{WEAVE.heading}</Link>
-          </li>
-          <li>
             <span aria-current="page">{grid.title}</span>
           </li>
         </ol>

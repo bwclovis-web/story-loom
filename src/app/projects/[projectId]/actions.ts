@@ -29,6 +29,7 @@ import {
   getRecord,
   moveRecordToTrash,
   setAuthorityStatus,
+  restoreRecordFromRevision,
   setProtection,
   updateRecord,
 } from "@/server/services/recordService";
@@ -81,6 +82,31 @@ export async function createRecordAction(projectId: string, _prev: FormResult, f
   }
   revalidatePath(`/projects/${projectId}`);
   redirect(`/projects/${projectId}/records/${recordId}`);
+}
+
+export async function restoreRecordAction(
+  projectId: string,
+  recordId: string,
+  fromRevisionNumber: number,
+  _prev: FormResult,
+  formData: FormData,
+): Promise<FormResult> {
+  try {
+    const batch = await restoreRecordFromRevision(getDb(), projectId, {
+      recordId,
+      expectedRevision: Number(str(formData, "expectedRevision")),
+      fromRevisionNumber,
+      includeFields: formData.get("includeFields") === "on",
+      unlockProtected: formData.get("unlockProtected") === "on",
+    });
+    revalidatePath(`/projects/${projectId}`, "layout");
+    return {
+      ok: true,
+      message: `Restored revision ${fromRevisionNumber} as revision ${batch.outcomes[0]!.newRevision}. Earlier versions are unchanged.`,
+    };
+  } catch (error) {
+    return failure(error);
+  }
 }
 
 export async function saveRecordAction(

@@ -564,7 +564,7 @@ export function ReferenceView(props: ReferenceViewProps) {
           <ProtectionSection projectId={projectId} record={record} />
         </div>
         <HistorySection projectId={projectId} record={record} revisions={revisions} />
-        <CompareSection revisions={revisions} query={props.query} />
+        <CompareSection projectId={projectId} record={record} revisions={revisions} query={props.query} />
         {props.importedFiles.length ? (
           <section className="panel" id="imported-files">
             <h2>{WORLD.importedFiles}</h2>

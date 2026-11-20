@@ -1,10 +1,11 @@
-import type { JsonObject } from "@/domain/json";
+import { errorIssue } from "@/domain/issues";
+import { stableStringify, type JsonObject } from "@/domain/json";
 import { toRecordView, toRevisionView, type RecordView, type RevisionView } from "@/domain/records";
 import { isLinkableReferenceType, isRecordType, RECORD_TYPE_LABELS, type RecordType } from "@/domain/recordTypes";
 import { isAuthorityStatus, type AuthorityStatus } from "@/domain/statuses";
 import type { RecordNavEntry } from "@/ui/navigation";
 import type { Db, DbOrTx } from "../db";
-import { NotFoundError } from "./errors";
+import { MutationRejectedError, NotFoundError } from "./errors";
 import {
   applyMutations,
   moveInBook,
@@ -310,4 +311,93 @@ export async function listRevisions(db: DbOrTx, recordId: string): Promise<Revis
 export async function getRevision(db: DbOrTx, recordId: string, revisionNumber: number): Promise<RevisionView | null> {
   const row = await db.revision.findUnique({ where: { recordId_revisionNumber: { recordId, revisionNumber } } });
   return row ? toRevisionView(row) : null;
+}
+
+function snapshotDiffersFromRevision(
+  current: RecordView,
+  source: RevisionView,
+  includeFields: boolean,
+): boolean {
+  if (current.title !== source.title || current.body !== source.body) return true;
+  if (!includeFields) return false;
+  return stableStringify(current.fields) !== stableStringify(source.fields);
+}
+
+/**
+ * Writes an older revision's title and body (and optionally structured fields) as
+ * a new revision. Canon status, protection, and superseded-by stay as they are now.
+ */
+export async function restoreRecordFromRevision(
+  db: Db,
+  projectId: string,
+  input: {
+    recordId: string;
+    expectedRevision: number;
+    fromRevisionNumber: number;
+    includeFields?: boolean;
+    unlockProtected?: boolean;
+  },
+): Promise<AppliedBatch> {
+  const current = await getRecord(db, projectId, input.recordId);
+  if (input.fromRevisionNumber < 1 || input.fromRevisionNumber > current.currentRevision) {
+    throw new MutationRejectedError([
+      errorIssue("INVALID_CHANGE", `Revision ${input.fromRevisionNumber} is not saved on this record.`, {
+        recordId: input.recordId,
+      }),
+    ]);
+  }
+  if (input.fromRevisionNumber === current.currentRevision) {
+    throw new MutationRejectedError([
+      errorIssue("INVALID_CHANGE", "That is already the current saved version.", { recordId: input.recordId }),
+    ]);
+  }
+  const source = await getRevision(db, input.recordId, input.fromRevisionNumber);
+  if (!source) {
+    throw new NotFoundError(`Revision ${input.fromRevisionNumber} not found on record ${input.recordId}`);
+  }
+  const includeFields = input.includeFields === true;
+  if (!snapshotDiffersFromRevision(current, source, includeFields)) {
+    throw new MutationRejectedError([
+      errorIssue(
+        "INVALID_CHANGE",
+        includeFields
+          ? "The current saved version already matches that revision's title, text, and structured fields."
+          : "The current saved version already matches that revision's title and text. Tick include structured fields if you need those too.",
+        { recordId: input.recordId },
+      ),
+    ]);
+  }
+
+  const changes: {
+    title: string;
+    body: string;
+    fields?: { set: JsonObject; unset: string[] };
+  } = { title: source.title, body: source.body };
+  if (includeFields) {
+    const unset = Object.keys(current.fields).filter((k) => !(k in source.fields));
+    changes.fields = { set: source.fields, unset };
+  }
+
+  return applyMutations(
+    db,
+    {
+      projectId,
+      actor: UI_ACTOR,
+      source: { kind: "restore", conversationLabel: `revision ${input.fromRevisionNumber}` },
+      scope: "manuscript",
+      protectedOverrides: new Set(input.unlockProtected ? [input.recordId] : []),
+    },
+    [
+      {
+        kind: "update_record",
+        recordId: input.recordId,
+        expectedRevision: input.expectedRevision,
+        changes,
+      },
+    ],
+    {
+      action: "record.restore",
+      summary: `Restored "${current.title}" from revision ${input.fromRevisionNumber}`,
+    },
+  );
 }

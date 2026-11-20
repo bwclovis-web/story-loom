@@ -46,6 +46,18 @@ export interface RecordNavEntry {
 
 const PROJECT_PATH = /^\/projects\/([^/]+)(?:\/(.*))?$/;
 
+/** Weave landing: `/plan` and the older `/plan/weave` index. Nested grid, template, and build routes are not the landing. */
+export function isWeaveLibraryPath(rest: readonly string[]): boolean {
+  if (rest.length === 1 && rest[0] === "plan") return true;
+  return rest.length === 2 && rest[0] === "plan" && rest[1] === "weave";
+}
+
+/** Write, Weave, World, and Assistant landings. Nested tools and records are not included. */
+export function isProjectLandingPath(rest: readonly string[]): boolean {
+  if (rest.length === 1 && (rest[0] === "write" || rest[0] === "world" || rest[0] === "assistant")) return true;
+  return isWeaveLibraryPath(rest);
+}
+
 export function parseProjectPath(pathname: string): { projectId: string; rest: string[] } | null {
   const match = PROJECT_PATH.exec(pathname);
   if (!match) return null;

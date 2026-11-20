@@ -1,5 +1,39 @@
 # Progress
 
+## Shared landing header (Nov 20, 2026)
+
+Write, Weave, World, and Assistant landings use one header: the cover, the series when one is set (otherwise the workspace name), the book title, a short description, and Getting started. Getting started stays the quiet guided-task control. Dismissing tasks leaves the link and does not reopen them. The large guided-task banner stays off those four landings. Filtered World lists keep their own heading.
+
+## Restore earlier saved version (Nov 20, 2026)
+
+Requested: PR1 — one-click restore of an earlier revision as a new revision (History and Compare), through `mutationService`, with optional structured fields, protection unlock, and provenance.
+
+### Implemented
+
+- `restoreRecordFromRevision` in `recordService.ts`; source kind `restore` in `SOURCE_KINDS`.
+- `restoreRecordAction` and `RecordRestoreForm` on revision history rows and on Compare when the target version is not current.
+- Help, labels, `sourceSummary` / history display for restores.
+
+### Verification
+
+| Check | Result |
+| --- | --- |
+| `pnpm typecheck` | pass |
+| `pnpm exec vitest run tests/acceptance/restore-revision.test.ts tests/unit/help.test.ts` | 7/7 passed |
+| `pnpm build` | pass |
+
+### Rollback
+
+Revert code changes; no migration. `restore` sources in existing databases are harmless; older code ignores the new enum value only in validation of new backups.
+
+## Weave grid library (Nov 20, 2026)
+
+The Weave landing (`/projects/:id/plan`, and the older `/plan/weave` index) is a grid library. The global navigation label is Weave. The route is still `/plan`. The second project column is hidden on those two routes only. Grid editors, templates, analysis, and chapter-outline or story-architecture records keep the project column.
+
+Saved grids show their title, planning scope, and beat count, with one Open grid link. A supported scope with no grid shows Not created and Create grid, which opens the existing form with that scope selected. New grid does the same without selecting a scope. Nothing is created until the form is submitted. Search matches grid titles and scope labels. Planning references lists chapter outlines and story architecture. Beat templates, Analyze chapter, Build grid from draft, Boards, and Maps are links. Getting started stays under the introduction and still uses the guided-task cookie. Opening the page does not send a model request or change manuscript text or order.
+
+Checks: `tsc --noEmit` passed. Vitest `weave-library`, `help`, and `plan-weave`: 3 files, 14 tests passed. Browser check on an isolated invented project at `127.0.0.1:2128` (server stopped afterward; database `C:/repos/wordly-weave-library-20261120.db`, not `prisma/dev.db`): Market plan (1 beat) and Harbour plan (2 beats) both stayed visible; creating Ledger map removed the zero-draft “Not created” row and left Author rewrite plan uncreated; New grid cancelled without writing; search, clear, and no-results kept New grid; Open grid, Beat templates, Analyze chapter (a GET only, with the existing preflight and no send), Boards, Maps, and the chapter-outline record all opened. Getting started stayed closed while the guided-task cookie was dismissed. The chapter body, position, and parent were unchanged. Desktop, tablet, 360px, light, and dark layouts fit without horizontal scrolling. The working database was not written.
+
 ## Main menu (Nov 20, 2026)
 
 The writing screen uses one brand bar across the top. Editorial Desk, MODE 02 — FOCUS MANUSCRIPT, and MODE 03 — Reference Companion name the three layouts. Desk keeps the chapter list and a Tools button that opens the beside-the-manuscript panel. That panel’s tabs are References, Source, Notes, Plot, Assistant, and Proofread. Collapse navigation and Expand navigation sit on the rail itself, under Settings. The chapter list or project panel can still be hidden and shown. On a manuscript page, Desk keeps that hide and show control; Focus and Companion keep the chapter list closed.

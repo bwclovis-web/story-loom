@@ -6,7 +6,8 @@ import { Button, ButtonLink } from "@/components/ui/Button";
 import { useEffect, useRef, useState } from "react";
 import { helpHref, type HelpAnchor } from "@/help/outline";
 import { ONBOARDING } from "@/ui/labels";
-import { parseProjectPath } from "@/ui/navigation";
+import { BookIcon } from "./icons";
+import { isProjectLandingPath, parseProjectPath } from "@/ui/navigation";
 import {
   ONBOARDING_COOKIE,
   parseWalkthroughCookie,
@@ -92,15 +93,18 @@ export function ProjectOnboarding({
   projectId,
   quiet = false,
   empty = false,
+  marked = false,
 }: {
   projectId: string;
   quiet?: boolean;
   /** A new manuscript: open the quiet tasks instead of hiding them. */
   empty?: boolean;
+  /** Book icon beside Getting started. */
+  marked?: boolean;
 }) {
   const pathname = usePathname();
   const parsed = parseProjectPath(pathname);
-  const writeHome = parsed?.rest.length === 1 && parsed.rest[0] === "write";
+  const landing = parsed ? isProjectLandingPath(parsed.rest) : false;
   const [state, setState] = useState<WalkthroughState>({ kind: "dismissed" });
   const [ready, setReady] = useState(false);
   const [tasksOpen, setTasksOpen] = useState(false);
@@ -140,7 +144,7 @@ export function ProjectOnboarding({
     setState(next);
   };
 
-  if (!quiet && writeHome) return null;
+  if (!quiet && landing) return null;
   if (!ready) return null;
 
   const stepIndex = stepOf(state);
@@ -159,7 +163,10 @@ export function ProjectOnboarding({
         open={tasksOpen}
         onToggle={(event) => setTasksOpen(event.currentTarget.open)}
       >
-        <summary>{ONBOARDING.gettingStarted}</summary>
+        <summary>
+          {marked ? <BookIcon /> : null}
+          {ONBOARDING.gettingStarted}
+        </summary>
         {state.kind === "dismissed" ? (
           <p className="small">
             <button type="button" className="linkish" onClick={() => setWalk({ kind: "open", step: 0 })}>

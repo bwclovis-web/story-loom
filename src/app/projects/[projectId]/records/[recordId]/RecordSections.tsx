@@ -10,6 +10,7 @@ import { RECORD_TYPE_LABELS, type RecordType } from "@/domain/recordTypes";
 import type { RevisionWithSource } from "@/server/services/recordService";
 import { RECORD, TRASH } from "@/ui/labels";
 import { setProtectionAction, trashRecordAction } from "../../actions";
+import { RecordRestoreForm } from "./RecordRestoreForm";
 import { StatusForm } from "./RecordForms";
 
 /* Status, protection, history and compare: shared by the Write details and the reference page. */
@@ -105,6 +106,8 @@ export function sourceSummary(source: RevisionWithSource["source"]): string {
       return `Markdown import of ${source.originalFilename ?? "a file"}`;
     case "ui":
       return "Edited in the app";
+    case "restore":
+      return source.conversationLabel ? `Restored from ${source.conversationLabel}` : "Restored from an earlier version";
     default:
       return `${source.kind} (${source.actor})`;
   }
@@ -123,6 +126,7 @@ export function HistorySection({ projectId, record, revisions }: { projectId: st
               <th>Status</th>
               <th>Source</th>
               <th>When</th>
+              <th></th>
             </tr>
           </thead>
           <tbody>
@@ -152,6 +156,10 @@ export function HistorySection({ projectId, record, revisions }: { projectId: st
                       Markdown import of <code>{r.source.originalFilename}</code>
                       {r.source.conversationLabel ? <div className="muted">{r.source.conversationLabel}</div> : null}
                     </>
+                  ) : r.source.kind === "restore" ? (
+                    <>
+                      Restored from {r.source.conversationLabel ?? "earlier version"}
+                    </>
                   ) : (
                     <>
                       {r.source.kind} ({r.source.actor})
@@ -159,6 +167,15 @@ export function HistorySection({ projectId, record, revisions }: { projectId: st
                   )}
                 </td>
                 <td className="small muted">{r.createdAt.toLocaleString()}</td>
+                <td className="small">
+                  <RecordRestoreForm
+                    projectId={projectId}
+                    recordId={record.id}
+                    currentRevision={record.currentRevision}
+                    fromRevision={r.revisionNumber}
+                    isProtected={record.protected}
+                  />
+                </td>
               </tr>
             ))}
           </tbody>
@@ -168,7 +185,17 @@ export function HistorySection({ projectId, record, revisions }: { projectId: st
   );
 }
 
-export function CompareSection({ revisions, query }: { revisions: RevisionWithSource[]; query: { from?: string; to?: string } }) {
+export function CompareSection({
+  projectId,
+  record,
+  revisions,
+  query,
+}: {
+  projectId: string;
+  record: RecordView;
+  revisions: RevisionWithSource[];
+  query: { from?: string; to?: string };
+}) {
   const latest = revisions.reduce((max, r) => Math.max(max, r.revisionNumber), 1);
   const toNum = Number(query.to ?? latest);
   const fromNum = Number(query.from ?? Math.max(1, toNum - 1));
@@ -205,6 +232,28 @@ export function CompareSection({ revisions, query }: { revisions: RevisionWithSo
           {RECORD.compare}
         </Button>
       </form>
+      {fromRev && toRev && fromNum === toNum ? (
+        <div className="row" style={{ marginTop: "0.75rem" }}>
+          <RecordRestoreForm
+            projectId={projectId}
+            recordId={record.id}
+            currentRevision={record.currentRevision}
+            fromRevision={toNum}
+            isProtected={record.protected}
+          />
+        </div>
+      ) : null}
+      {fromRev && toRev && fromNum !== toNum && toNum < record.currentRevision ? (
+        <div className="row" style={{ marginTop: "0.75rem" }}>
+          <RecordRestoreForm
+            projectId={projectId}
+            recordId={record.id}
+            currentRevision={record.currentRevision}
+            fromRevision={toNum}
+            isProtected={record.protected}
+          />
+        </div>
+      ) : null}
       {fromRev && toRev ? (
         <div className="stack" style={{ marginTop: "0.8rem" }}>
           {fromRev.title !== toRev.title ? (

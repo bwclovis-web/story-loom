@@ -1,6 +1,9 @@
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import { CanonBadge } from "@/components/Badges";
+import { LandingHeader } from "@/components/library/LandingHeader";
 import { OverflowDisclosure } from "@/components/shell/OverflowDisclosure";
+import { ProjectOnboarding } from "@/components/shell/ProjectOnboarding";
 import { Breadcrumbs } from "@/components/ui/Breadcrumbs";
 import { ButtonLink } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -10,10 +13,13 @@ import { SearchPanel } from "@/components/ui/SearchPanel";
 import { WorldSurfaceNav } from "@/components/world/WorldSurfaceNav";
 import { stableStringify } from "@/domain/json";
 import { getDb } from "@/server/db";
+import { listProjectCoverHashes } from "@/server/services/coverService";
+import { findProject } from "@/server/services/projectService";
 import { listRecords } from "@/server/services/recordService";
 import { searchProjectRecords, type SearchHit } from "@/server/services/searchService";
 import { getSpellingLanguage } from "@/server/spelling";
 import { GROUP_PAGES, RECORD, SHELL, WORLD } from "@/ui/labels";
+import { manuscriptEyebrow } from "@/ui/library";
 import { categoryLabel, isWorldType, WORLD_CATEGORY_LABELS, WORLD_TYPES, worldHref } from "@/ui/world";
 import { NewRecordForm } from "../NewRecordForm";
 
@@ -33,11 +39,15 @@ export default async function WorldPage({
   const list = query.list === "1";
   const db = getDb();
   const base = `/projects/${encodeURIComponent(projectId)}`;
-  const [records, hits, spellingLanguage] = await Promise.all([
+  const [project, records, hits, spellingLanguage, coverHashes] = await Promise.all([
+    findProject(db, projectId),
     listRecords(db, projectId),
     q ? searchProjectRecords(db, { projectId, query: q, types: WORLD_TYPES, includeManuscript: false }) : null,
     getSpellingLanguage(),
+    listProjectCoverHashes(db, [projectId]),
   ]);
+  if (!project) notFound();
+  const coverHash = coverHashes.get(projectId) ?? null;
   const worldRecords = records.filter((r) => isWorldType(r.type));
   const listed = type ? worldRecords.filter((r) => r.type === type) : worldRecords;
   const recent = [...worldRecords]
@@ -67,10 +77,21 @@ export default async function WorldPage({
           ]}
         />
       ) : null}
-      <PageHeader
-        title={q ? WORLD.resultsFor(q) : type ? WORLD_CATEGORY_LABELS[type] : list ? WORLD.allReferencesList : SHELL.world}
-        lead={showHub ? WORLD.hubLead : GROUP_PAGES.world}
-      />
+      {showHub ? (
+        <LandingHeader
+          projectId={projectId}
+          title={project.title}
+          eyebrow={manuscriptEyebrow(project.seriesName, project.workspace.name)}
+          coverSrc={coverHash ? `${base}/cover?v=${coverHash}` : null}
+          description={WORLD.hubLead}
+          gettingStarted={<ProjectOnboarding projectId={projectId} quiet marked />}
+        />
+      ) : (
+        <PageHeader
+          title={q ? WORLD.resultsFor(q) : type ? WORLD_CATEGORY_LABELS[type] : WORLD.allReferencesList}
+          lead={GROUP_PAGES.world}
+        />
+      )}
       <WorldSurfaceNav projectId={projectId} current="references" />
 
       {showHub ? (

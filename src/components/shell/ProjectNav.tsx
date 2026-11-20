@@ -11,7 +11,7 @@ import {
 } from "@/components/drafts/DraftControls";
 import { RECORD_TYPE_LABELS } from "@/domain/recordTypes";
 import { ANALYZE, DRAFT, NAV, SHELL, WEAVE, WRITE } from "@/ui/labels";
-import { groupForProjectPath, parseProjectPath, RECORD_GROUPS, type RecordNavEntry } from "@/ui/navigation";
+import { groupForProjectPath, isWeaveLibraryPath, parseProjectPath, RECORD_GROUPS, type RecordNavEntry } from "@/ui/navigation";
 import { IconButton } from "@/components/ui/IconButton";
 import { CollapsibleNavSection } from "./CollapsibleNavSection";
 import { Drawer } from "./Drawer";
@@ -63,6 +63,7 @@ export function ProjectNav({
   }, [records]);
   const parsed = parseProjectPath(pathname);
   const writeHome = parsed?.rest.length === 1 && parsed.rest[0] === "write";
+  const weaveLibrary = parsed ? isWeaveLibraryPath(parsed.rest) : false;
   const writing = parsed ? groupForProjectPath(parsed.rest, typeOf) === "write" : false;
   const showLabel = writing ? WRITE.showNavigation : WRITE.showProjectPanel;
   const hideLabel = writing ? WRITE.hideNavigation : WRITE.hideProjectPanel;
@@ -81,7 +82,7 @@ export function ProjectNav({
 
   const modeHidesNav = writeScreen && writeMode !== "desk";
   const secondaryOpen = !modeHidesNav && !layout.secondaryHidden;
-  if (writeHome) return null;
+  if (writeHome || weaveLibrary) return null;
 
   return (
     <>

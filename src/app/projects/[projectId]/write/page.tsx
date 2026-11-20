@@ -12,7 +12,7 @@ import { findProject } from "@/server/services/projectService";
 import { listRecordNav, listRecords } from "@/server/services/recordService";
 import { countOpenReviewItems } from "@/server/services/reviewService";
 import { searchManuscript, type ManuscriptHit } from "@/server/services/searchService";
-import { MANUSCRIPT_SEARCH, NAV, SHELL } from "@/ui/labels";
+import { MANUSCRIPT_SEARCH, NAV, SHELL, WRITE } from "@/ui/labels";
 import { manuscriptEyebrow } from "@/ui/library";
 import { buildManuscriptTree } from "@/ui/manuscriptTree";
 import type { RecordNavEntry } from "@/ui/navigation";
@@ -88,6 +88,7 @@ export default async function WritePage({
       title={project.title}
       eyebrow={manuscriptEyebrow(project.seriesName, project.workspace.name)}
       coverSrc={coverHash ? `${base}/cover?v=${coverHash}` : null}
+      description={WRITE.landingLead}
       chapters={outline.chapters}
       unplaced={outline.unplaced}
       looseNotes={outline.looseNotes}
@@ -129,7 +130,7 @@ export default async function WritePage({
           <SearchResults base={base} query={q} matchCase={matchCase} hits={search.hits} totalMatches={search.totalMatches} />
         ) : null
       }
-      gettingStarted={<ProjectOnboarding projectId={projectId} quiet empty={empty} />}
+      gettingStarted={<ProjectOnboarding projectId={projectId} quiet marked empty={empty} />}
     />
   );
 }

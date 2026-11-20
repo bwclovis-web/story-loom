@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useId, useState, type KeyboardEvent, type ReactNode } from "react";
 import { BookOpen, Download, Layers, Plus } from "lucide-react";
-import { BookCover } from "@/components/library/BookCover";
+import { LandingHeader } from "@/components/library/LandingHeader";
 import { ChevronRightIcon, SearchIcon } from "@/components/shell/icons";
 import { ManuscriptCreateForm } from "@/components/shell/ManuscriptTree";
 import { Button, ButtonLink } from "@/components/ui/Button";
@@ -34,6 +34,7 @@ export function ManuscriptOutline({
   title,
   eyebrow,
   coverSrc,
+  description,
   chapters,
   unplaced,
   looseNotes,
@@ -48,6 +49,7 @@ export function ManuscriptOutline({
   title: string;
   eyebrow: string;
   coverSrc: string | null;
+  description: string;
   chapters: OutlineChapter[];
   unplaced: OutlineScene[];
   looseNotes: OutlineNote[];
@@ -112,13 +114,14 @@ export function ManuscriptOutline({
   return (
     <div className="manuscript-outline">
       <div className="outline-main">
-      <header className="outline-header">
-        <BookCover projectId={projectId} title={title} eyebrow={eyebrow} size="compact" coverSrc={coverSrc} />
-        <div className="outline-heading">
-          <p className="outline-eyebrow">{eyebrow}</p>
-          <h1>{title}</h1>
-        </div>
-      </header>
+      <LandingHeader
+        projectId={projectId}
+        title={title}
+        eyebrow={eyebrow}
+        coverSrc={coverSrc}
+        description={description}
+        gettingStarted={gettingStarted}
+      />
 
       <div className="outline-tabs" role="tablist" aria-label={WRITE.manuscript}>
         <button
@@ -185,7 +188,6 @@ export function ManuscriptOutline({
             {NAV.readBook}
           </ButtonLink>
           <div className="outline-actions-end">
-            {gettingStarted}
             <details className="outline-more">
               <summary>{WRITE.more}</summary>
               <div className="outline-more-panel">{overflow}</div>

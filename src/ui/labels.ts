@@ -79,7 +79,7 @@ export function connectionStateLabel(
 /** The left-hand navigation and the project selector. */
 export const SHELL = {
   write: "Write",
-  plan: "Plan",
+  plan: "Weave",
   world: "World",
   assistant: "Assistant",
   backups: "Backups",
@@ -206,8 +206,39 @@ export const CONTINUE_WRITING = {
 /** Plan → Weave grids, beats, decisions, setup/payoff and templates. */
 export const WEAVE = {
   heading: "Weave",
+  libraryLead: "Shape your story, one beat at a time.",
   lead:
     "Story grids for the Original plan, Zero-draft story map and Author rewrite plan. Beats can link to chapters or scenes and cite World records. Moving a beat never reorders manuscript scenes.",
+  searchGrids: "Search grids",
+  clearSearch: "Clear search",
+  noGridMatches: "No grids match that search.",
+  searchStatus: (n: Count, query: string) =>
+    n === 0 ? `No grids match “${query}”.` : `${n} grid${n === 1 ? "" : "s"} match “${query}”.`,
+  newGridAction: "New grid",
+  createGridAction: "Create grid",
+  creatingGrid: "Creating…",
+  openGridAction: "Open grid",
+  openGridNamed: (title: string) => `Open grid: ${title}`,
+  createGridNamed: (scope: string) => `Create grid: ${scope}`,
+  notCreated: "Not created",
+  scopeLine: (scope: string, beats: string) => `Scope: ${scope} · ${beats}`,
+  scopeHelpOriginal: "The intended story structure.",
+  scopeHelpZero: "A map of what the zero draft contains.",
+  scopeHelpRewrite: "Decisions for the author's rewrite.",
+  scopeHelpLabel: (scope: string) => `About ${scope}`,
+  movingBeatsNote: "Moving beats does not reorder your manuscript.",
+  movingBeatsHelp: "Explain moving beats",
+  gridsHeading: "Story grids",
+  planningTools: "Planning tools",
+  worldTools: "World tools",
+  toolsAside: "Planning and world tools",
+  templatesHint: "Start from a story structure for your next grid.",
+  analyzeHint: "Review evidence-backed suggestions from a saved chapter.",
+  boardsHint: "Collect and organize ideas, research, and references.",
+  mapsHint: "Explore places and their spatial relationships.",
+  buildFromDraftHint: "Propose threads and beats from a saved draft. Review them before anything is written.",
+  planningReferences: "Planning references",
+  referencesEmpty: "None yet",
   viewOriginal: "Original plan",
   viewZeroDraft: "Zero-draft story map",
   viewAuthorRewrite: "Author rewrite plan",
@@ -215,6 +246,7 @@ export const WEAVE = {
   newGrid: "Create a plot grid",
   gridTitle: "Grid title",
   viewKind: "View",
+  planningScope: "Planning scope",
   createGrid: "Create plot grid",
   openGrid: "Open plot grid",
   emptyBeats: "No beats yet.",
@@ -450,6 +482,12 @@ export const RECORD = {
   compareHeading: "Compare revisions",
   detailsLabel: "Record details",
   compare: "Compare",
+  restoreVersion: (n: Count) => `Restore version ${n}`,
+  confirmRestore: (n: Count) => `Restore version ${n} as a new version`,
+  restoring: "Restoring…",
+  restoreIncludeFields: "Also restore structured fields from that version",
+  restoreHelp:
+    "Writes that version's title and text as a new saved version. Canon status and protection stay as they are now.",
   noteOn: "Note on",
   attachedTypesNote: "Scenes and scene notes belong to a chapter or scene, so they are added from the manuscript panel on the Write page.",
 } as const;
@@ -479,6 +517,7 @@ export const WRITING = {
 /** The Write layout: manuscript tree, editor header and toolbar, context panel. */
 export const WRITE = {
   manuscript: "Manuscript",
+  landingLead: "Open a chapter or scene and keep writing.",
   searchManuscript: "Search chapters and scenes",
   matches: (n: Count) => `${n} match${n === 1 ? "" : "es"}`,
   noChapters: "No chapters yet.",
@@ -1461,6 +1500,7 @@ export const HISTORY = {
 
 export const ASSISTANT = {
   heading: "Assistant",
+  landingLead: "Ask about this book. Nothing changes until you apply a proposal.",
   readOnlyNote:
     "Discussing never changes records. To change reference records, ask for a change proposal, review the exact changes, and apply that proposal yourself.",
   privacyNote:

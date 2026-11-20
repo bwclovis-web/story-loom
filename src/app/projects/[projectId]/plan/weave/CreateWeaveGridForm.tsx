@@ -6,20 +6,27 @@ import { useState, useTransition } from "react";
 import { IssueList } from "@/components/IssueList";
 import type { Issue } from "@/domain/issues";
 import { WEAVE_VIEW_KINDS, WEAVE_VIEW_LABELS, type WeaveViewKind } from "@/server/services/weaveService";
-import { WEAVE } from "@/ui/labels";
+import { HOME, WEAVE } from "@/ui/labels";
 import { createWeaveGridAction } from "./actions";
 
-export function CreateWeaveGridForm({ projectId }: { projectId: string }) {
+export function CreateWeaveGridForm({
+  projectId,
+  initialViewKind = "original",
+  onCancel,
+}: {
+  projectId: string;
+  initialViewKind?: WeaveViewKind;
+  onCancel?: () => void;
+}) {
   const router = useRouter();
   const [title, setTitle] = useState("");
-  const [viewKind, setViewKind] = useState<WeaveViewKind>("original");
+  const [viewKind, setViewKind] = useState<WeaveViewKind>(initialViewKind);
   const [issues, setIssues] = useState<Issue[]>([]);
   const [pending, startTransition] = useTransition();
 
   return (
     <form
-      className="row"
-      style={{ flexWrap: "wrap", gap: "0.5rem", alignItems: "end" }}
+      className="weave-create-form"
       onSubmit={(e) => {
         e.preventDefault();
         setIssues([]);
@@ -35,10 +42,10 @@ export function CreateWeaveGridForm({ projectId }: { projectId: string }) {
     >
       <label>
         {WEAVE.gridTitle}
-        <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder={WEAVE_VIEW_LABELS[viewKind]} maxLength={200} />
+        <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder={WEAVE_VIEW_LABELS[viewKind]} maxLength={200} autoComplete="off" />
       </label>
       <label>
-        {WEAVE.viewKind}
+        {WEAVE.planningScope}
         <select value={viewKind} onChange={(e) => setViewKind(e.target.value as WeaveViewKind)}>
           {WEAVE_VIEW_KINDS.map((k) => (
             <option key={k} value={k}>
@@ -47,9 +54,16 @@ export function CreateWeaveGridForm({ projectId }: { projectId: string }) {
           ))}
         </select>
       </label>
-      <Button type="submit" disabled={pending}>
-        {WEAVE.createGrid}
-      </Button>
+      <div className="row">
+        <Button type="submit" disabled={pending}>
+          {pending ? WEAVE.creatingGrid : WEAVE.createGridAction}
+        </Button>
+        {onCancel ? (
+          <Button type="button" variant="secondary" disabled={pending} onClick={onCancel}>
+            {HOME.cancel}
+          </Button>
+        ) : null}
+      </div>
       <IssueList issues={issues} />
     </form>
   );

@@ -355,7 +355,7 @@ function RecordDetails({
         <CrossRefsPanel projectId={projectId} recordId={record.id} refs={refs} />
       </section>
       <HistorySection projectId={projectId} record={record} revisions={revisions} />
-      <CompareSection revisions={revisions} query={query} />
+      <CompareSection projectId={projectId} record={record} revisions={revisions} query={query} />
       <TrashSection projectId={projectId} record={record} inside={inside} />
     </section>
   );

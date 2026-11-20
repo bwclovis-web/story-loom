@@ -90,6 +90,8 @@
   --color-violet-soft: light-dark(#efe6f8, #2e2340);
   --color-violet-soft-border: light-dark(#d4c0ea, #4f3a6d);
   --color-spell: light-dark(#c42b2b, #ff7b72);
+  --color-plum: light-dark(#f4e8ef, #432e40);
+  --color-plum-border: light-dark(#d9c2ce, #6a4d66);
   --color-add-text: light-dark(#174a28, #a6e0b8);
   --color-remove-text: light-dark(#6e1515, #f5b3ac);
 
@@ -3142,6 +3144,22 @@ dialog.library-dialog .row { justify-content: flex-end; }
   line-height: 1.08;
   overflow-wrap: anywhere;
 }
+.landing-lead {
+  margin: 0.45rem 0 0.75rem;
+  max-width: 40rem;
+  color: var(--color-text-muted);
+  font-size: 1.02rem;
+}
+.landing-header .outline-getting-started > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--color-brass-text);
+  font-size: 0.95rem;
+  text-decoration: underline;
+  text-underline-offset: 0.18em;
+}
+.landing-header .outline-getting-started > summary .icon { color: var(--color-brass-text); }
 .manuscript-outline .draft-switcher { min-width: 0; flex: none; }
 .manuscript-outline .draft-switcher select {
   max-width: 11rem;
@@ -3528,4 +3546,228 @@ a.outline-chapter-title:hover { text-decoration: underline; }
   .outline-chapter-row { grid-template-columns: 2.4rem 1px minmax(0, 1fr) 2.75rem; column-gap: 0.55rem; min-height: 4.4rem; }
   a.outline-chapter-title { font-size: 1.2rem; }
   .outline-scenes { padding-left: 3.7rem; }
+}
+
+/* Weave landing: grid library and tools. The project column is hidden on this route. */
+.workspace:has(.weave-library) { padding: 2.25rem 2.5rem 4rem; }
+.weave-library {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(17.5rem, 20rem);
+  column-gap: 2.25rem;
+  row-gap: 1.35rem;
+  align-items: start;
+}
+.weave-library > .landing-header { grid-column: 1 / -1; margin-bottom: 0; }
+.weave-main { min-width: 0; }
+.weave-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1.15rem;
+}
+.weave-search {
+  display: flex;
+  flex: 1 1 16rem;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+}
+.weave-search-field {
+  position: relative;
+  display: block;
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--color-text-muted);
+}
+.weave-search-field .icon {
+  position: absolute;
+  left: 0.7rem;
+  top: 0.62rem;
+  pointer-events: none;
+}
+.weave-search input[type="search"] {
+  width: 100%;
+  min-width: 0;
+  min-height: 2.5rem;
+  padding: 0.4rem 0.75rem 0.4rem 2.2rem;
+  background: var(--color-surface);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  border-radius: 2px;
+}
+.weave-search-status { margin: 0 0 0.75rem; color: var(--color-text-muted); }
+.weave-grids {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.weave-card {
+  display: grid;
+  grid-template-columns: 2.6rem minmax(0, 1fr) auto;
+  gap: 0.85rem 1rem;
+  align-items: center;
+  min-width: 0;
+  padding: 0.95rem 1rem;
+  border-radius: 2px;
+}
+.weave-card-saved {
+  background: var(--color-plum);
+  border: 1px solid var(--color-plum-border);
+}
+.weave-card-missing {
+  background: transparent;
+  border: 1px solid var(--color-border);
+}
+.weave-motif {
+  display: grid;
+  place-items: center;
+  width: 2.4rem;
+  height: 2.4rem;
+  color: var(--color-brass-text);
+}
+.weave-motif-missing {
+  border: 1px dashed var(--color-border-strong);
+  border-radius: 2px;
+  color: var(--color-text-muted);
+}
+.weave-card h3 {
+  margin: 0;
+  font-family: var(--font-document);
+  font-size: 1.45rem;
+  font-weight: 500;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+.weave-card-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.2rem 0.45rem;
+}
+.weave-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.45rem;
+  margin: 0.2rem 0 0;
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+}
+.weave-card-meta p { margin: 0; }
+.weave-card-action { justify-self: end; }
+.weave-note {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0.9rem 0 0;
+  color: var(--color-text-muted);
+  font-size: 0.88rem;
+}
+.weave-note p { margin: 0; }
+.weave-references { margin-top: 1.75rem; }
+.weave-disclose-heading { margin: 0; font-size: 1rem; font-weight: 500; }
+.weave-references > .weave-disclose-heading { font-family: var(--font-document); font-size: 1.35rem; font-weight: 500; }
+.weave-disclose {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  width: 100%;
+  min-height: 2.5rem;
+  padding: 0.35rem 0;
+  border: 0;
+  border-radius: 2px;
+  background: transparent;
+  color: var(--color-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.weave-disclose .icon { transition: transform var(--motion-fast) var(--motion-ease); }
+.weave-disclose[aria-expanded="true"] .icon { transform: rotate(90deg); }
+.weave-ref-count {
+  margin-left: auto;
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+}
+.weave-disclose-panel { padding: 0.15rem 0 0.35rem 1.35rem; }
+.weave-ref-list, .weave-project-tool-list {
+  list-style: none;
+  margin: 0.15rem 0 0.7rem;
+  padding: 0;
+}
+.weave-ref-list a, .weave-project-tool-list a {
+  display: inline-block;
+  max-width: 100%;
+  padding: 0.3rem 0;
+  overflow-wrap: anywhere;
+}
+.weave-ref-empty { margin: 0.2rem 0 0.7rem; color: var(--color-text-muted); }
+.weave-tools {
+  min-width: 0;
+  padding-left: 2rem;
+  border-left: 1px solid var(--color-border);
+}
+.weave-tools h2 {
+  margin: 0 0 0.35rem;
+  font-family: var(--font-document);
+  font-size: 1.35rem;
+  font-weight: 500;
+}
+.weave-tools section + section { margin-top: 1.75rem; }
+.weave-tool-list { list-style: none; margin: 0; padding: 0; }
+.weave-tool {
+  display: grid;
+  grid-template-columns: 1.6rem minmax(0, 1fr) auto;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.85rem 0;
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-text);
+  text-decoration: none;
+}
+.weave-tool:hover { text-decoration: none; color: var(--color-text); }
+.weave-tool-icon { display: grid; place-items: center; color: var(--color-text-muted); }
+.weave-tool-icon svg { width: 1.15rem; height: 1.15rem; }
+.weave-tool-copy { display: flex; flex-direction: column; gap: 0.15rem; min-width: 0; }
+.weave-tool-title { font-weight: 600; overflow-wrap: anywhere; }
+.weave-tool-desc { color: var(--color-text-muted); font-size: 0.88rem; overflow-wrap: anywhere; }
+.weave-tool .icon { color: var(--color-text-muted); }
+.weave-project-tools { margin-top: 1.75rem; }
+.weave-project-tools h3 {
+  margin: 0.8rem 0 0.15rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+.weave-create-form { display: flex; flex-direction: column; gap: 0.85rem; }
+.weave-create-form label { display: flex; flex-direction: column; gap: 0.3rem; }
+.weave-create-form input, .weave-create-form select { width: 100%; }
+dialog.library-dialog .weave-create-form .row { justify-content: flex-end; flex-wrap: wrap; }
+
+@container workspace (max-width: 52rem) {
+  .weave-library { grid-template-columns: minmax(0, 1fr); row-gap: 2rem; }
+  .weave-tools {
+    padding-left: 0;
+    padding-top: 1.5rem;
+    border-left: 0;
+    border-top: 1px solid var(--color-border);
+  }
+}
+@media (max-width: 720px) {
+  .workspace:has(.weave-library) { padding: 1rem 1rem 3rem; }
+  .weave-library h1 { font-size: 2.1rem; }
+  .weave-toolbar { align-items: stretch; }
+  .weave-search { flex-basis: 100%; }
+  .weave-toolbar > .sl-btn { align-self: flex-start; }
+  .weave-card { grid-template-columns: 2.4rem minmax(0, 1fr); }
+  .weave-card-action { grid-column: 1 / -1; justify-self: stretch; }
+  .weave-card-action .sl-btn { width: 100%; }
+  .weave-card h3 { font-size: 1.25rem; }
 }
