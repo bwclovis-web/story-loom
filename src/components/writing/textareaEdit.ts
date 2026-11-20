@@ -28,3 +28,14 @@ export function selectRange(textarea: HTMLTextAreaElement, start: number, end: n
   textarea.focus();
   textarea.setSelectionRange(start, end);
 }
+
+/** Scroll the textarea so the current selection is near the middle of the viewport. */
+export function scrollTextareaToSelection(textarea: HTMLTextAreaElement, centerRatio = 0.35): void {
+  const start = textarea.selectionStart;
+  const style = getComputedStyle(textarea);
+  const lineHeight = parseFloat(style.lineHeight);
+  if (!Number.isFinite(lineHeight) || lineHeight <= 0) return;
+  const lineIndex = textarea.value.slice(0, start).split("\n").length - 1;
+  const caretY = lineIndex * lineHeight;
+  textarea.scrollTop = Math.max(0, caretY - textarea.clientHeight * centerRatio);
+}

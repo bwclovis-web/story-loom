@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useId, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode, type RefObject } from "react";
-import { Bold, Ellipsis, Italic, Link2, List, ListOrdered, Redo2, Search, SpellCheck, Undo2 } from "lucide-react";
+import { Bold, Ellipsis, Italic, Link2, List, ListChecks, ListOrdered, Redo2, Search, SpellCheck, Undo2 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { TextAppearanceMenu } from "@/components/TextAppearanceMenu";
-import { WRITE } from "@/ui/labels";
+import { STYLE_CHECK, WRITE } from "@/ui/labels";
 import {
   blockState,
   inlineState,
@@ -110,6 +110,9 @@ export function EditorToolbar({
   spellId,
   spellOpen,
   onToggleSpell,
+  styleId,
+  styleOpen,
+  onToggleStyle,
   linkRequest,
 }: {
   editorId: string;
@@ -125,6 +128,9 @@ export function EditorToolbar({
   spellId: string;
   spellOpen: boolean;
   onToggleSpell: () => void;
+  styleId: string;
+  styleOpen: boolean;
+  onToggleStyle: () => void;
   /** Set when the link shortcut is pressed in the text box; `id` changes on every press. */
   linkRequest: (LinkSeed & { id: number }) | null;
 }) {
@@ -274,6 +280,20 @@ export function EditorToolbar({
           icon={<SpellCheck strokeWidth={1.75} />}
         >
           {WRITE.spellcheck}
+        </Button>
+        <Button
+          type="button"
+          variant="toolbar"
+          size="toolbar"
+          className="tool-labeled"
+          aria-label={STYLE_CHECK.toolbar}
+          aria-expanded={styleOpen}
+          aria-controls={styleId}
+          onMouseDown={keepSelection}
+          onClick={onToggleStyle}
+          icon={<ListChecks strokeWidth={1.75} />}
+        >
+          {STYLE_CHECK.toolbar}
         </Button>
         <TextAppearanceMenu presentation="toolbar" />
         <div className="tool-more">

@@ -77,6 +77,12 @@ Checks: `tsc --noEmit` passed. Vitest `weave-library`, `help`, and `plan-weave`:
 
 The writing screen uses one brand bar across the top. Editorial Desk, MODE 02 — FOCUS MANUSCRIPT, and MODE 03 — Reference Companion name the three layouts. Desk keeps the chapter list and a Tools button that opens the beside-the-manuscript panel. That panel’s tabs are References, Source, Notes, Plot, Assistant, and Proofread. Collapse navigation and Expand navigation sit on the rail itself, under Settings. The chapter list or project panel can still be hidden and shown. On a manuscript page, Desk keeps that hide and show control; Focus and Companion keep the chapter list closed.
 
+## Local style check (Nov 20, 2026)
+
+Style check is deterministic and local: echoed words, filter words, `-ly` adverbs, long sentences, and clustered character or place names. Offsets are on Markdown source. The toolbar panel on a chapter or scene reads the open editor (including unsaved text); `/projects/:id/write/style` scans saved chapters and scenes for the active draft. Nothing is stored or auto-applied.
+
+Checks: `pnpm typecheck` when the tree is clean. Vitest `styleCheck` and `style-check`.
+
 ## Split view and typewriter scroll (Nov 20, 2026)
 
 On a chapter or scene page, Split view opens a second manuscript document beside the one you edit. The companion pane loads saved text only and stays read-only. Edit here navigates to that record and asks first when the open editor has unsaved changes. The choice of split record and the typewriter-scroll tick in focus mode live in the `wordly-layout` cookie, not the database.

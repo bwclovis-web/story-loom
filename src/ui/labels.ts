@@ -750,6 +750,28 @@ export const RECORD_RENAME = {
   applying: "Applying…",
 } as const;
 
+export const STYLE_CHECK = {
+  heading: "Style check",
+  lead: "Local, deterministic checks on saved manuscript chapters and scenes. Nothing is changed and nothing is stored. Unsaved text in an open editor is not included here.",
+  panelTitle: "Style check",
+  panelNote: "Checks the text in this editor (including unsaved changes). Suggestions are not stored; choose a row to select it in the text.",
+  manuscriptPass: "Manuscript-wide pass…",
+  none: "No style issues found with the current rules.",
+  backToWrite: "Back to Write",
+  resultsHeading: "Results",
+  resultsLead: (issues: Count, records: Count) =>
+    `${issues} suggestion${issues === 1 ? "" : "s"} in ${records} chapter or scene${records === 1 ? "" : "s"} with saved text.`,
+  noResults: "No style issues in saved chapters and scenes for this draft.",
+  openRecord: "Open",
+  inParent: (title: string) => `in ${title}`,
+  kindEcho: "Echoed words",
+  kindFilter: "Filter words",
+  kindAdverb: "Adverbs",
+  kindLongSentence: "Long sentences",
+  kindName: "Repeated names",
+  toolbar: "Style check",
+} as const;
+
 export const MANUSCRIPT_REPLACE = {
   heading: "Replace across manuscript",
   lead: "Search every saved chapter, scene and scene note in the active draft, review each match, then save your replacements in one step. Unsaved text in an open editor is not included.",

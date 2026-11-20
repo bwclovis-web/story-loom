@@ -31,10 +31,11 @@ import { setUnsaved } from "@/components/shell/unsaved";
 import { submitWithoutReset } from "@/components/submitWithoutReset";
 import { EditorToolbar, linkSeedFrom, shortcutHint, type FormatCommand, type LinkSeed } from "@/components/writing/EditorToolbar";
 import { FindReplace, type DirectUndo } from "@/components/writing/FindReplace";
+import { StyleCheckPanel } from "@/components/writing/StyleCheckPanel";
 import { Proofreader, type ProofreadConfig } from "@/components/writing/Proofreader";
 import { SpellingLanguageSelect } from "@/components/writing/SpellingLanguageSelect";
 import { SpellOverlay } from "@/components/writing/SpellOverlay";
-import { applyTextareaEdit } from "@/components/writing/textareaEdit";
+import { applyTextareaEdit, scrollTextareaToSelection, selectRange } from "@/components/writing/textareaEdit";
 import { flagAt, SpellingPanel } from "@/components/writing/SpellingPanel";
 import { useSpellcheck } from "@/components/writing/useSpellcheck";
 import { WordCounts } from "@/components/writing/WordCounts";
@@ -51,6 +52,7 @@ import type { WriteMode } from "@/writing/writeMode";
 import { invertEdit } from "@/writing/findReplace";
 import { minimalEdit, toggleInline } from "@/writing/markdownFormat";
 import { tidyText } from "@/writing/tidy";
+import { styleRangeHighlightEnd } from "@/writing/styleCheck";
 import type { SpellChecker, SpellingLanguage } from "@/writing/spelling";
 import { saveRecordAction, type FormResult } from "../../actions";
 import {
@@ -80,6 +82,7 @@ export function WriteEditor(props: {
   parent: { id: string; title: string } | null;
   /** Opens Find with this text, from a manuscript search result. */
   initialFind: { query: string; matchCase: boolean } | null;
+  initialStyleRange: { start: number; end: number } | null;
   otherChaptersWords: number | null;
   spellingLanguage: SpellingLanguage;
   spellChecker: SpellChecker;
@@ -96,6 +99,7 @@ export function WriteEditor(props: {
   initialPins: import("@/server/services/readingPinService").ReadingPinView[];
   plotBeats: PlotBeatItem[];
   manuscriptSplitOptions: ManuscriptSplitOption[];
+  styleCheckNames: readonly string[];
   /** Status, protection, history and compare, rendered by the server below the text. */
   details: ReactNode;
 }) {
@@ -104,6 +108,7 @@ export function WriteEditor(props: {
   const contextId = `${idPrefix}-context`;
   const findId = `${idPrefix}-find`;
   const spellId = `${idPrefix}-spell`;
+  const styleId = `${idPrefix}-style`;
   const { layout, updateLayout, writeMode, setWriteMode, setWriteScreen, openMainMenu } = useLayout();
   const chromeRef = useRef<HTMLElement>(null);
   const topbarRef = useRef<HTMLDivElement>(null);
@@ -131,6 +136,7 @@ export function WriteEditor(props: {
   const [words, setWords] = useState(props.dictionaryWords);
   const [findOpen, setFindOpen] = useState(props.initialFind !== null);
   const [spellOpen, setSpellOpen] = useState(false);
+  const [styleOpen, setStyleOpen] = useState(props.initialStyleRange !== null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [linkRequest, setLinkRequest] = useState<(LinkSeed & { id: number }) | null>(null);
   /** "notice" shows even with nothing unsaved and clears on the next keystroke. */
@@ -181,6 +187,16 @@ export function WriteEditor(props: {
     if (!valid) updateLayout({ writeSplitRecordId: null });
   }, [splitRecordId, props.recordId, props.manuscriptSplitOptions, updateLayout]);
   useTypewriterScroll(bodyRef, writeMode === "focus" && layout.typewriterScroll);
+  useLayoutEffect(() => {
+    const range = props.initialStyleRange;
+    if (!range) return;
+    const ta = bodyRef.current;
+    if (!ta) return;
+    const end = Math.min(styleRangeHighlightEnd(range.start, range.end), ta.value.length);
+    const start = Math.min(range.start, end);
+    selectRange(ta, start, end);
+    scrollTextareaToSelection(ta);
+  }, [props.initialStyleRange]);
   useEffect(() => {
     setUnsaved(unsavedKey, dirty);
     return () => setUnsaved(unsavedKey, false);
@@ -554,6 +570,9 @@ export function WriteEditor(props: {
               spellId={spellId}
               spellOpen={spellOpen}
               onToggleSpell={() => setSpellOpen((open) => !open)}
+              styleId={styleId}
+              styleOpen={styleOpen}
+              onToggleStyle={() => setStyleOpen((open) => !open)}
               linkRequest={linkRequest}
             />
             <div id={findId} hidden={!findOpen} className="tool-panel">
@@ -566,6 +585,14 @@ export function WriteEditor(props: {
                 directUndo={directUndo}
                 onDirectUndoChange={setDirectUndo}
                 initial={props.initialFind}
+              />
+            </div>
+            <div id={styleId} hidden={!styleOpen} className="tool-panel">
+              <StyleCheckPanel
+                textareaRef={bodyRef}
+                text={text}
+                characterNames={props.styleCheckNames}
+                projectId={props.projectId}
               />
             </div>
             <div id={spellId} hidden={!spellOpen} className="tool-panel">

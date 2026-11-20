@@ -56,6 +56,7 @@ export const HELP_SECTIONS = [
       { id: "book-order", title: "Changing the book order" },
       { id: "manuscript-search", title: "Searching the manuscript" },
       { id: "manuscript-replace", title: "Replace across the manuscript" },
+      { id: "manuscript-style-check", title: "Local style check" },
       { id: "import-chapters", title: "Importing chapters from files" },
       { id: "read-book", title: "Reading the whole book" },
       { id: "tidy-text", title: "Tidying a chapter" },

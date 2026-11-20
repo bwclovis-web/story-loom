@@ -31,6 +31,7 @@ import {
   REVIEW,
   SHELL,
   SPELLING,
+  STYLE_CHECK,
   TEXT_APPEARANCE,
   THEME,
   TRASH,
@@ -895,6 +896,25 @@ export function HelpContent() {
             Searching never changes anything. It reads saved text only, so unsaved changes in an open editor are not
             searched. From the results you can open <L>{MANUSCRIPT_SEARCH.replaceAcross}</L>, or open{" "}
             <L>{MANUSCRIPT_REPLACE.heading}</L> from project tools on <L>{SHELL.write}</L>.
+          </p>
+        </Sub>
+
+        <Sub id="manuscript-style-check">
+          <p>
+            <L>{STYLE_CHECK.heading}</L> runs deterministic checks on Markdown source text: echoed words in a short
+            window, common filter words, many <code>-ly</code> adverbs, long sentences, and character or place names
+            repeated close together. Nothing is stored and nothing changes in the manuscript.
+          </p>
+          <p>
+            On a chapter or scene, open <L>{STYLE_CHECK.toolbar}</L> beside <L>{WRITE.spellcheck}</L>. The panel reads the
+            text in the editor (including unsaved changes). Choose a row to select that passage. For the whole draft, open{" "}
+            <L>{STYLE_CHECK.heading}</L> from <L>{SHELL.moreActions}</L> on Write or from the link in the panel; that pass
+            uses saved text only. Each hit opens that chapter or scene, selects the passage, and scrolls the editor
+            (offsets match the saved revision; unsaved edits can shift them).
+          </p>
+          <p className="small muted">
+            This complements <L>{WRITE.proofread}</L> and Analyze chapter, which stay spelling, grammar, punctuation and
+            story interpretation.
           </p>
         </Sub>
 

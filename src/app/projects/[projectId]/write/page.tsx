@@ -12,7 +12,7 @@ import { findProject } from "@/server/services/projectService";
 import { listRecordNav, listRecords } from "@/server/services/recordService";
 import { countOpenReviewItems } from "@/server/services/reviewService";
 import { searchManuscript, type ManuscriptHit } from "@/server/services/searchService";
-import { MANUSCRIPT_REPLACE, MANUSCRIPT_SEARCH, NAV, SHELL, WRITE } from "@/ui/labels";
+import { MANUSCRIPT_REPLACE, MANUSCRIPT_SEARCH, NAV, SHELL, STYLE_CHECK, WRITE } from "@/ui/labels";
 import { manuscriptEyebrow } from "@/ui/library";
 import { buildManuscriptTree } from "@/ui/manuscriptTree";
 import type { RecordNavEntry } from "@/ui/navigation";
@@ -185,6 +185,7 @@ function ProjectTools({ base, openReviewItems }: { base: string; openReviewItems
         { href: `${base}/dictionary`, label: NAV.dictionary },
         { href: `${base}/cross-references`, label: NAV.crossRefCheck },
         { href: `${base}/write/replace`, label: MANUSCRIPT_REPLACE.heading },
+        { href: `${base}/write/style`, label: STYLE_CHECK.heading },
         { href: `${base}/upgrade`, label: NAV.upgradeProject },
       ],
     },

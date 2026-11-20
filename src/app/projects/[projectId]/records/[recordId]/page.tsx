@@ -41,6 +41,7 @@ import { listWeaveBeatsForManuscript } from "@/server/services/weaveService";
 import { RECORD, XREF } from "@/ui/labels";
 import { buildManuscriptTree, manuscriptIdsInBookOrder } from "@/ui/manuscriptTree";
 import { crossRefsFor, type RecordCrossRefs } from "@/writing/crossRefs";
+import { parseStyleRangeQuery, styleCheckNameTerms } from "@/writing/styleCheck";
 import { CrossRefsPanel } from "@/components/CrossRefsPanel";
 import { CompareSection, HistorySection, ProtectionSection, StatusSection, TrashSection, type InsideRecord } from "./RecordSections";
 import { ReferenceView } from "./ReferenceView";
@@ -53,7 +54,7 @@ export default async function RecordPage({
   searchParams,
 }: {
   params: Promise<{ projectId: string; recordId: string }>;
-  searchParams: Promise<{ from?: string; to?: string; edit?: string; find?: string; case?: string }>;
+  searchParams: Promise<{ from?: string; to?: string; edit?: string; find?: string; case?: string; styleStart?: string; styleEnd?: string }>;
 }) {
   const { projectId, recordId } = await params;
   const query = await searchParams;
@@ -134,6 +135,7 @@ export default async function RecordPage({
         isProtected={record.protected}
         parent={parent ? { id: parent.id, title: parent.title } : null}
         initialFind={query.find?.trim() ? { query: query.find.trim(), matchCase: query.case === "1" } : null}
+        initialStyleRange={parseStyleRangeQuery(query)}
         otherChaptersWords={bookWords ? sumWordCounts(bookWords, record.id) : null}
         spellingLanguage={spellingLanguage}
         spellChecker={spellChecker}
@@ -178,6 +180,7 @@ export default async function RecordPage({
           gridTitle: b.gridTitle,
         }))}
         manuscriptSplitOptions={manuscriptSplitOptions}
+        styleCheckNames={styleCheckNameTerms(crossRefs)}
         details={
           <RecordDetails
             projectId={projectId}
