@@ -3026,6 +3026,38 @@ button.link-button:where(:hover:not(:disabled)) { background: none; color: var(-
   font-size: 0.95rem;
   color: var(--color-text-muted);
 }
+.writing-progress-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.25rem;
+  list-style: none;
+  padding: 0;
+  margin: 0.65rem 0 0;
+}
+.writing-progress-bar {
+  height: 0.45rem;
+  margin-top: 0.65rem;
+  background: var(--color-border);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.writing-progress-fill {
+  height: 100%;
+  background: var(--color-accent);
+  border-radius: 999px;
+}
+.writing-progress--compact {
+  margin-top: 0.75rem;
+  padding: 0.65rem 0.85rem;
+}
+.writing-progress--compact .writing-progress-stats {
+  margin-top: 0.35rem;
+  font-size: 0.9rem;
+}
+.record-writing-progress {
+  margin: 0 0 1rem;
+  max-width: 42rem;
+}
 a.library-open-manuscript {
   display: inline-flex; align-items: center; margin-top: 1.45rem;
   padding: 0.62rem 1.05rem; min-height: 2.5rem; border-radius: 2px;

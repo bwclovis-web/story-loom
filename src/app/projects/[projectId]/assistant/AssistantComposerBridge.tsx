@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 export type AssistantComposerActions = {
   focusQuestion: () => void;
@@ -12,8 +12,18 @@ const ComposerActionsContext = createContext<AssistantComposerActions | null>(nu
 const ComposerRegisterContext = createContext<((actions: AssistantComposerActions | null) => void) | null>(null);
 
 export function AssistantComposerProvider({ children }: { children: ReactNode }) {
-  const [actions, setActions] = useState<AssistantComposerActions | null>(null);
-  const register = useMemo(() => (next: AssistantComposerActions | null) => setActions(next), []);
+  const actionsRef = useRef<AssistantComposerActions | null>(null);
+  const [ready, setReady] = useState(false);
+  const register = useMemo(
+    () => (next: AssistantComposerActions | null) => {
+      const had = actionsRef.current !== null;
+      actionsRef.current = next;
+      if (next && !had) setReady(true);
+      else if (!next && had) setReady(false);
+    },
+    [],
+  );
+  const actions = ready ? actionsRef.current : null;
   return (
     <ComposerRegisterContext.Provider value={register}>
       <ComposerActionsContext.Provider value={actions}>{children}</ComposerActionsContext.Provider>

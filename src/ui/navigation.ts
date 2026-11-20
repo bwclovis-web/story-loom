@@ -1,4 +1,5 @@
 import type { RecordType } from "@/domain/recordTypes";
+import type { ReferenceTemplateKey } from "@/world/referenceTemplates";
 
 /** Record lists reached from the global navigation. Every record type belongs to exactly one. */
 export const RECORD_GROUPS = {
@@ -42,6 +43,10 @@ export interface RecordNavEntry {
   createdAt: string;
   /** Manuscript draft when drafts exist; null for legacy or non-draft records. */
   draftId?: string | null;
+  /** Worldbuilding only: `fields.kind` when it matches a built-in kind key. */
+  worldKind?: ReferenceTemplateKey | null;
+  /** Worldbuilding only: author-defined `fields.kind` when not a built-in key. */
+  customKind?: string | null;
 }
 
 const PROJECT_PATH = /^\/projects\/([^/]+)(?:\/(.*))?$/;

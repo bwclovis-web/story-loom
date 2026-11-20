@@ -266,6 +266,23 @@ export const workspaceBackupV1Schema = z
           .strict(),
       )
       .optional(),
+    /** Optional word targets per project or chapter; omitted in older backups → none. */
+    writingGoals: z
+      .array(
+        z
+          .object({
+            id,
+            projectId: id,
+            scope: z.enum(["project", "chapter"]),
+            recordId: id.nullable(),
+            targetWords: z.number().int().min(1),
+            deadlineAt: timestamp.nullable().optional(),
+            createdAt: timestamp,
+            updatedAt: timestamp,
+          })
+          .strict(),
+      )
+      .optional(),
     /** World boards; omitted in older backups → no boards. */
     boards: z
       .array(
@@ -820,6 +837,7 @@ export const workspaceBackupV1Schema = z
         manuscriptDrafts: z.number().int().optional(),
         rewriteSourceLinks: z.number().int().optional(),
         readingPins: z.number().int().optional(),
+        writingGoals: z.number().int().optional(),
         boards: z.number().int().optional(),
         boardCards: z.number().int().optional(),
         worldMaps: z.number().int().optional(),

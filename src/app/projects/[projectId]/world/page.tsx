@@ -18,9 +18,25 @@ import { findProject } from "@/server/services/projectService";
 import { listRecords } from "@/server/services/recordService";
 import { searchProjectRecords, type SearchHit } from "@/server/services/searchService";
 import { getSpellingLanguage } from "@/server/spelling";
-import { GROUP_PAGES, RECORD, SHELL, WORLD } from "@/ui/labels";
+import { GROUP_PAGES, RECORD, SHELL, WORLD, WORLD_KIND } from "@/ui/labels";
 import { manuscriptEyebrow } from "@/ui/library";
-import { categoryLabel, isWorldType, WORLD_CATEGORY_LABELS, WORLD_TYPES, worldHref } from "@/ui/world";
+import { isReferenceTemplateKey } from "@/world/referenceTemplates";
+import {
+  WORLDBUILDING_KIND_OTHER,
+  WORLDBUILDING_KIND_UNSET,
+  worldbuildingCustomKind,
+  worldbuildingKindFromFields,
+  worldKindDisplayFromFields,
+  worldKindLabel,
+} from "@/world/worldKinds";
+import {
+  categoryLabel,
+  isWorldType,
+  isWorldbuildingKindFilter,
+  WORLD_CATEGORY_LABELS,
+  WORLD_TYPES,
+  worldHref,
+} from "@/ui/world";
 import { NewRecordForm } from "../NewRecordForm";
 
 export const dynamic = "force-dynamic";
@@ -30,13 +46,15 @@ export default async function WorldPage({
   searchParams,
 }: {
   params: Promise<{ projectId: string }>;
-  searchParams: Promise<{ type?: string; q?: string; list?: string }>;
+  searchParams: Promise<{ type?: string; q?: string; list?: string; kind?: string }>;
 }) {
   const { projectId } = await params;
   const query = await searchParams;
   const type = isWorldType(query.type) ? query.type : null;
   const q = (query.q ?? "").trim();
   const list = query.list === "1";
+  const kindFilter =
+    type === "worldbuilding" && isWorldbuildingKindFilter(query.kind) ? query.kind : null;
   const db = getDb();
   const base = `/projects/${encodeURIComponent(projectId)}`;
   const [project, records, hits, spellingLanguage, coverHashes] = await Promise.all([
@@ -49,7 +67,19 @@ export default async function WorldPage({
   if (!project) notFound();
   const coverHash = coverHashes.get(projectId) ?? null;
   const worldRecords = records.filter((r) => isWorldType(r.type));
-  const listed = type ? worldRecords.filter((r) => r.type === type) : worldRecords;
+  const listed = type
+    ? worldRecords.filter((r) => {
+        if (r.type !== type) return false;
+        if (type === "worldbuilding" && kindFilter) {
+          const kind = worldbuildingKindFromFields(r.fields);
+          const custom = worldbuildingCustomKind(r.fields);
+          if (kindFilter === WORLDBUILDING_KIND_UNSET) return !kind && !custom;
+          if (kindFilter === WORLDBUILDING_KIND_OTHER) return !!custom;
+          return kind === kindFilter;
+        }
+        return true;
+      })
+    : worldRecords;
   const recent = [...worldRecords]
     .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime() || a.title.localeCompare(b.title))
     .slice(0, 8);
@@ -64,7 +94,17 @@ export default async function WorldPage({
   const selection = type ? `type=${type}` : "group=world";
   const exportHref = `${base}/export?${selection}`;
   const pdfHref = `${base}/export-pdf?${selection}`;
-  const crumb = q ? WORLD.search : type ? WORLD_CATEGORY_LABELS[type] : WORLD.allReferencesList;
+  const listTitle =
+    type === "worldbuilding" && kindFilter && isReferenceTemplateKey(kindFilter)
+      ? worldKindLabel(kindFilter)
+      : type === "worldbuilding" && kindFilter === WORLDBUILDING_KIND_OTHER
+        ? WORLD.worldKindOther
+      : type === "worldbuilding" && kindFilter === WORLDBUILDING_KIND_UNSET
+        ? WORLD.worldKindUnset
+        : type
+          ? WORLD_CATEGORY_LABELS[type]
+          : WORLD.allReferencesList;
+  const crumb = q ? WORLD.search : listTitle;
 
   return (
     <>
@@ -88,7 +128,7 @@ export default async function WorldPage({
         />
       ) : (
         <PageHeader
-          title={q ? WORLD.resultsFor(q) : type ? WORLD_CATEGORY_LABELS[type] : WORLD.allReferencesList}
+          title={q ? WORLD.resultsFor(q) : listTitle}
           lead={GROUP_PAGES.world}
         />
       )}
@@ -182,7 +222,7 @@ export default async function WorldPage({
       {!q && (type || list) ? (
         <section className="panel" aria-labelledby="world-list-heading">
           <h2 id="world-list-heading" className="sr-only">
-            {type ? WORLD_CATEGORY_LABELS[type] : WORLD.allReferences}
+            {listTitle}
           </h2>
           {listed.length === 0 ? (
             <EmptyState>{WORLD.noReferences}</EmptyState>
@@ -191,25 +231,33 @@ export default async function WorldPage({
               <thead>
                 <tr>
                   <th scope="col">Title</th>
-                  {type ? null : <th scope="col">{WORLD.documentType}</th>}
+                  {type ? (type === "worldbuilding" ? <th scope="col">{WORLD_KIND.fieldKind}</th> : null) : (
+                    <th scope="col">{WORLD.documentType}</th>
+                  )}
                   <th scope="col">{WORLD.canonStatus}</th>
                   <th scope="col">{WORLD.savedVersion}</th>
                   <th scope="col">{WORLD.protection}</th>
                 </tr>
               </thead>
               <tbody>
-                {listed.map((r) => (
-                  <WorldRecordTableRow
-                    key={r.id}
-                    projectId={projectId}
-                    recordId={r.id}
-                    title={r.title}
-                    typeLabel={type ? undefined : categoryLabel(r.type)}
-                    authorityStatus={r.authorityStatus}
-                    currentRevision={r.currentRevision}
-                    isProtected={r.protected}
-                  />
-                ))}
+                {listed.map((r) => {
+                  const kindLabel =
+                    r.type === "worldbuilding"
+                      ? worldKindDisplayFromFields(r.fields) ?? (type === "worldbuilding" ? "—" : undefined)
+                      : undefined;
+                  return (
+                    <WorldRecordTableRow
+                      key={r.id}
+                      projectId={projectId}
+                      recordId={r.id}
+                      title={r.title}
+                      typeLabel={type ? (type === "worldbuilding" ? kindLabel : undefined) : categoryLabel(r.type)}
+                      authorityStatus={r.authorityStatus}
+                      currentRevision={r.currentRevision}
+                      isProtected={r.protected}
+                    />
+                  );
+                })}
               </tbody>
             </table>
           )}

@@ -38,6 +38,7 @@ import { trashProject } from "@/server/services/trashService";
 import { groupOfType } from "@/ui/navigation";
 import { isWorldType } from "@/ui/world";
 import { isReferenceTemplateKey, referenceTemplate, scaffoldBody } from "@/world/referenceTemplates";
+import { sanitizeWorldbuildingFields } from "@/world/worldKinds";
 
 export interface FormResult {
   ok: boolean;
@@ -49,8 +50,9 @@ function str(formData: FormData, key: string): string {
   return String(formData.get(key) ?? "");
 }
 
-function parseFields(text: string): JsonObject {
-  return text.trim() ? parseJsonObject(text) : {};
+function parseFields(text: string, type?: RecordType): JsonObject {
+  const fields = text.trim() ? parseJsonObject(text) : {};
+  return type === "worldbuilding" ? sanitizeWorldbuildingFields(fields) : fields;
 }
 
 function failure(error: unknown): FormResult {
@@ -73,7 +75,7 @@ export async function createRecordAction(projectId: string, _prev: FormResult, f
       type,
       title: str(formData, "title"),
       body,
-      fields: parseFields(str(formData, "fields")),
+      fields: parseFields(str(formData, "fields"), type),
       authorityStatus: status,
     });
     recordId = batch.outcomes[0].recordId;
@@ -117,12 +119,13 @@ export async function saveRecordAction(
 ): Promise<FormResult> {
   try {
     const status = str(formData, "authorityStatus");
+    const existing = await getRecord(getDb(), projectId, recordId);
     const batch = await updateRecord(getDb(), projectId, {
       recordId,
       expectedRevision: Number(str(formData, "expectedRevision")),
       title: str(formData, "title"),
       body: str(formData, "body"),
-      fields: parseFields(str(formData, "fields")),
+      fields: parseFields(str(formData, "fields"), existing.type),
       authorityStatus: isAuthorityStatus(status) ? status : undefined,
       unlockProtected: formData.get("unlockProtected") === "on",
     });

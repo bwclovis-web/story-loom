@@ -78,6 +78,10 @@ function readingPinsOf(b: WorkspaceBackupV1) {
   return b.readingPins ?? [];
 }
 
+function writingGoalsOf(b: WorkspaceBackupV1) {
+  return b.writingGoals ?? [];
+}
+
 function boardsOf(b: WorkspaceBackupV1) {
   return b.boards ?? [];
 }
@@ -329,6 +333,19 @@ async function readingPinRows(db: DbOrTx, projectIds: string[]) {
     return await db.readingPin.findMany({
       where: { projectId: { in: projectIds } },
       orderBy: [{ projectId: "asc" }, { scopeDraftId: "asc" }, { position: "asc" }, { id: "asc" }],
+    });
+  } catch (error) {
+    if (isMissingSchemaError(error, "P2021")) return [];
+    throw error;
+  }
+}
+
+async function writingGoalRows(db: DbOrTx, projectIds: string[]) {
+  if (!("writingGoal" in db) || !(db as { writingGoal?: { findMany: unknown } }).writingGoal) return [];
+  try {
+    return await db.writingGoal.findMany({
+      where: { projectId: { in: projectIds } },
+      orderBy: [{ projectId: "asc" }, { scope: "asc" }, { recordId: "asc" }, { id: "asc" }],
     });
   } catch (error) {
     if (isMissingSchemaError(error, "P2021")) return [];
@@ -837,6 +854,7 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
     manuscriptDrafts,
     rewriteSourceLinks,
     readingPins,
+    writingGoals,
     boards,
     boardCards,
     worldMaps,
@@ -875,6 +893,7 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
     manuscriptDraftRows(db, projectIds),
     rewriteSourceLinkRows(db, projectIds),
     readingPinRows(db, projectIds),
+    writingGoalRows(db, projectIds),
     boardRows(db, projectIds),
     boardCardRows(db, projectIds),
     worldMapRows(db, projectIds),
@@ -1093,6 +1112,20 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
             recordId: p.recordId,
             position: p.position,
             createdAt: iso(p.createdAt),
+          })),
+        }
+      : {}),
+    ...(writingGoals.length
+      ? {
+          writingGoals: writingGoals.map((g) => ({
+            id: g.id,
+            projectId: g.projectId,
+            scope: g.scope as "project" | "chapter",
+            recordId: g.recordId,
+            targetWords: g.targetWords,
+            ...(g.deadlineAt ? { deadlineAt: iso(g.deadlineAt) } : { deadlineAt: null }),
+            createdAt: iso(g.createdAt),
+            updatedAt: iso(g.updatedAt),
           })),
         }
       : {}),
@@ -1552,6 +1585,7 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
       ...(manuscriptDrafts.length ? { manuscriptDrafts: manuscriptDrafts.length } : {}),
       ...(rewriteSourceLinks.length ? { rewriteSourceLinks: rewriteSourceLinks.length } : {}),
       ...(readingPins.length ? { readingPins: readingPins.length } : {}),
+      ...(writingGoals.length ? { writingGoals: writingGoals.length } : {}),
       ...(boards.length ? { boards: boards.length } : {}),
       ...(boardCards.length ? { boardCards: boardCards.length } : {}),
       ...(worldMaps.length ? { worldMaps: worldMaps.length } : {}),
@@ -1634,6 +1668,7 @@ function checkInternalConsistency(b: WorkspaceBackupV1): Issue[] {
     manuscriptDrafts: manuscriptDraftsOf(b).length,
     rewriteSourceLinks: rewriteSourceLinksOf(b).length,
     readingPins: readingPinsOf(b).length,
+    writingGoals: writingGoalsOf(b).length,
     boards: boardsOf(b).length,
     boardCards: boardCardsOf(b).length,
     worldMaps: worldMapsOf(b).length,
@@ -1704,6 +1739,12 @@ function checkInternalConsistency(b: WorkspaceBackupV1): Issue[] {
   checkUnique(
     readingPinsOf(b).map((p) => `${p.projectId}/${p.scopeDraftId}/${p.recordId}`),
     "reading pin scope",
+    issues,
+  );
+  checkUnique(writingGoalsOf(b).map((g) => g.id), "writing goal", issues);
+  checkUnique(
+    writingGoalsOf(b).map((g) => `${g.projectId}/${g.scope}/${g.recordId ?? ""}`),
+    "writing goal scope",
     issues,
   );
   checkUnique(boardsOf(b).map((x) => x.id), "board", issues);
@@ -1864,6 +1905,22 @@ function checkInternalConsistency(b: WorkspaceBackupV1): Issue[] {
     }
     if (p.scopeDraftId !== "" && (!draftIds.has(p.scopeDraftId) || draftProject.get(p.scopeDraftId) !== p.projectId)) {
       issues.push(integrity(`Reading pin ${p.id} references missing draft ${p.scopeDraftId}.`));
+    }
+  });
+  writingGoalsOf(b).forEach((g) => {
+    needProject(g.projectId, `Writing goal ${g.id}`);
+    if (g.scope === "project") {
+      if (g.recordId !== null && g.recordId !== undefined) {
+        issues.push(integrity(`Writing goal ${g.id} must not set recordId when scope is project.`));
+      }
+    } else if (g.scope === "chapter") {
+      if (!g.recordId || !recordIds.has(g.recordId) || recordProject.get(g.recordId) !== g.projectId) {
+        issues.push(integrity(`Writing goal ${g.id} references missing chapter ${g.recordId ?? ""}.`));
+      } else if (recordType.get(g.recordId) !== "manuscript_chapter") {
+        issues.push(integrity(`Writing goal ${g.id} must target a manuscript chapter.`));
+      }
+    } else {
+      issues.push(integrity(`Writing goal ${g.id} has unknown scope ${g.scope}.`));
     }
   });
   const boardIds = new Set(boardsOf(b).map((x) => x.id));
@@ -2357,6 +2414,9 @@ async function findCollisions(db: DbOrTx, b: WorkspaceBackupV1): Promise<Issue[]
   if (readingPinsOf(b).length) {
     await check("reading pin", db.readingPin.count({ where: { id: { in: readingPinsOf(b).map((p) => p.id) } } }));
   }
+  if (writingGoalsOf(b).length) {
+    await check("writing goal", db.writingGoal.count({ where: { id: { in: writingGoalsOf(b).map((g) => g.id) } } }));
+  }
   if (boardsOf(b).length) {
     await check("board", db.board.count({ where: { id: { in: boardsOf(b).map((x) => x.id) } } }));
   }
@@ -2604,6 +2664,7 @@ export async function restoreWorkspaceBackup(db: Db, input: string | unknown, op
   manuscriptDraftsOf(b).forEach((d) => assign(d.id, "drf"));
   rewriteSourceLinksOf(b).forEach((l) => assign(l.id, "rsl"));
   readingPinsOf(b).forEach((p) => assign(p.id, "pin"));
+  writingGoalsOf(b).forEach((g) => assign(g.id, "wgoal"));
   boardsOf(b).forEach((x) => assign(x.id, "brd"));
   boardCardsOf(b).forEach((c) => assign(c.id, "bcd"));
   worldMapsOf(b).forEach((x) => assign(x.id, "wmp"));
@@ -2884,6 +2945,21 @@ export async function restoreWorkspaceBackup(db: Db, input: string | unknown, op
               recordId: m(p.recordId),
               position: p.position,
               createdAt: new Date(p.createdAt),
+            })),
+          });
+        }
+        const goals = writingGoalsOf(b);
+        if (goals.length) {
+          await tx.writingGoal.createMany({
+            data: goals.map((g) => ({
+              id: m(g.id),
+              projectId: m(g.projectId),
+              scope: g.scope,
+              recordId: g.recordId ? m(g.recordId) : null,
+              targetWords: g.targetWords,
+              deadlineAt: g.deadlineAt ? new Date(g.deadlineAt) : null,
+              createdAt: new Date(g.createdAt),
+              updatedAt: new Date(g.updatedAt),
             })),
           });
         }

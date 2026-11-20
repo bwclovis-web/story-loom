@@ -4,6 +4,7 @@ import { toRecordView, toRevisionView, type RecordView, type RevisionView } from
 import { isLinkableReferenceType, isRecordType, RECORD_TYPE_LABELS, type RecordType } from "@/domain/recordTypes";
 import { isAuthorityStatus, type AuthorityStatus } from "@/domain/statuses";
 import type { RecordNavEntry } from "@/ui/navigation";
+import { worldbuildingCustomKind, worldbuildingKindFromFields } from "@/world/worldKinds";
 import type { Db, DbOrTx } from "../db";
 import { MutationRejectedError, NotFoundError } from "./errors";
 import {
@@ -212,7 +213,16 @@ export async function listRecordNav(
   const rows = await db.record.findMany({
     where,
     orderBy: [{ type: "asc" }, { title: "asc" }],
-    select: { id: true, title: true, type: true, parentRecordId: true, position: true, createdAt: true, draftId: true },
+    select: {
+      id: true,
+      title: true,
+      type: true,
+      parentRecordId: true,
+      position: true,
+      createdAt: true,
+      draftId: true,
+      fields: true,
+    },
   });
   return rows.flatMap((r) =>
     isRecordType(r.type)
@@ -225,6 +235,8 @@ export async function listRecordNav(
             position: r.position,
             createdAt: r.createdAt.toISOString(),
             draftId: r.draftId,
+            worldKind: r.type === "worldbuilding" ? worldbuildingKindFromFields(r.fields) : null,
+            customKind: r.type === "worldbuilding" ? worldbuildingCustomKind(r.fields) : null,
           },
         ]
       : [],

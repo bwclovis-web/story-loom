@@ -25,6 +25,7 @@ export type IdPrefix =
   | "drf" // manuscript draft (zero draft / author manuscript)
   | "rsl" // rewrite source link
   | "pin" // reading pin (reference beside prose)
+  | "wgoal" // writing goal (word target)
   | "brd" // world board
   | "bcd" // board card
   | "wmp" // world map

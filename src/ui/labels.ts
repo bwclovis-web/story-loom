@@ -711,6 +711,29 @@ export const BOOK_ORDER = {
   unplacedNote: "These scenes' chapter is missing. Move each one into a chapter.",
 } as const;
 
+export const WRITING_GOALS = {
+  heading: "Writing goals",
+  lead: "Optional targets for the active manuscript draft. Today and this session count new words on saved revisions only (not unsaved typing).",
+  progressHeading: "Writing progress",
+  editGoals: "Set goals",
+  projectTarget: "Book target (words)",
+  projectDeadline: "Deadline (optional)",
+  chapterTargets: "Chapter targets",
+  chapterTarget: "Target words",
+  noChapterGoals: "No per-chapter targets yet.",
+  saveProject: "Save book target",
+  clearProject: "Clear book target",
+  clearChapter: "Clear",
+  addChapter: "Save chapter target",
+  today: "Today",
+  session: "This session",
+  book: "Book",
+  chapter: "Chapter",
+  ofTarget: (current: Count, target: Count) => `${current} / ${target} words`,
+  deadlineBy: (date: string) => `Deadline ${date}`,
+  noTarget: "No book target set.",
+} as const;
+
 /** Full-text search on the Write page. */
 export const MANUSCRIPT_SEARCH = {
   label: "Search the manuscript text",
@@ -768,6 +791,20 @@ export const PROJECT_SEARCH = {
   sourceMap: "Maps",
   sourceEvent: "Story events",
   sourceFact: "Established facts",
+} as const;
+
+export const WORLD_KIND = {
+  legend: "Worldbuilding kind",
+  kindLabel: "Kind (optional)",
+  kindNone: "None",
+  kindCustomOption: "Custom…",
+  customLabel: "Custom kind name",
+  customPlaceholder: "e.g. River trade pact",
+  note: "Stored in structured fields as kind. Built-in kinds can show extra fields. Custom names are free text. Outlines in the body are separate.",
+  fieldKind: "Kind",
+  readNoneHint: "No structured fields yet. Choose Edit above to set Kind and other fields.",
+  historyNote:
+    "Kind is part of structured fields. Each save creates a revision; use History below or Compare to see when kind changed.",
 } as const;
 
 export const MENTIONED_BY = {
@@ -837,7 +874,11 @@ export const WORLD = {
   search: "Search",
   allReferences: "All references",
   categories: "Categories",
-  categoryNote: "Categories are document types. Places, magic and other setting notes are Worldbuilding; anything else is a Reference note.",
+  categoryNote:
+    "Categories are document types. On Worldbuilding records you can optionally set a kind (place, magic system, and so on) in structured fields; that kind groups the sidebar list. It is never set for you.",
+  worldKindSubheading: "Worldbuilding kinds",
+  worldKindUnset: "No kind set",
+  worldKindOther: "Other kinds",
   hubLead: "Search, reopen a recent reference, or open references, maps, and boards.",
   recentReferences: "Recent references",
   noRecent: "No references yet.",

@@ -101,6 +101,7 @@ export async function loadReferenceInspector(db: DbOrTx, projectId: string, reco
     revision: record.currentRevision,
     protected: record.protected,
     body: record.body,
+    fields: record.fields,
     fieldKeys: Object.keys(record.fields),
     images: (images ?? []).map((image) => ({
       id: image.id,

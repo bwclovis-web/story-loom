@@ -2,13 +2,19 @@ import { describe, expect, it } from "vitest";
 import type { RecordNavEntry } from "@/ui/navigation";
 import { categoryLabel, filterWorldTitles, isWorldType, WORLD_TYPES, worldCounts, worldHref } from "@/ui/world";
 
-const entry = (id: string, title: string, type: RecordNavEntry["type"]): RecordNavEntry => ({
+const entry = (
+  id: string,
+  title: string,
+  type: RecordNavEntry["type"],
+  worldKind: RecordNavEntry["worldKind"] = null,
+): RecordNavEntry => ({
   id,
   title,
   type,
   parentRecordId: null,
   position: null,
   createdAt: "2026-01-01T00:00:00.000Z",
+  worldKind,
 });
 
 const records = [

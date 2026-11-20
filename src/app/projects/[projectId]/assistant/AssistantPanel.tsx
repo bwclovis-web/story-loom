@@ -336,20 +336,22 @@ export function AssistantPanel(props: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversation?.id]);
 
+  const railRef = useRef(rail);
+  railRef.current = rail;
   const composerActions = useMemo(
     () => ({
       focusQuestion: () => questionRef.current?.focus(),
       openContextForPassage: () => {
-        if (!rail.visible) rail.toggle();
+        if (!railRef.current.visible) railRef.current.toggle();
         manuscriptFieldRef.current?.scrollIntoView({ block: "nearest" });
         manuscriptFieldRef.current?.focus({ preventScroll: true });
       },
       openContextForProposal: () => {
-        if (!rail.visible) rail.toggle();
+        if (!railRef.current.visible) railRef.current.toggle();
         questionRef.current?.focus();
       },
     }),
-    [rail],
+    [],
   );
   useRegisterAssistantComposer(isHome ? composerActions : null);
 

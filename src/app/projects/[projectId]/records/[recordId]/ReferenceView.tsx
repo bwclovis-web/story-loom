@@ -19,7 +19,15 @@ import type { LinkingRecord } from "@/server/services/linkService";
 import type { RevisionWithSource } from "@/server/services/recordService";
 import type { DictionaryWord } from "@/spelling/dictionary";
 import type { MentionedByItem } from "@/server/services/mentionedByService";
-import { MENTIONED_BY, RECORD, SHELL, WORLD, XREF } from "@/ui/labels";
+import { isReferenceTemplateKey } from "@/world/referenceTemplates";
+import {
+  WORLDBUILDING_KIND_OTHER,
+  worldbuildingCustomKind,
+  worldbuildingKindFromFields,
+  worldKindDisplayFromFields,
+  worldKindLabel,
+} from "@/world/worldKinds";
+import { MENTIONED_BY, RECORD, SHELL, WORLD, WORLD_KIND, XREF } from "@/ui/labels";
 import { groupOfType } from "@/ui/navigation";
 import { categoryLabel, isWorldType, worldHref } from "@/ui/world";
 import { crossRefsFor, type CrossRefIndex } from "@/writing/crossRefs";
@@ -114,7 +122,15 @@ export interface ReferenceViewProps {
 
 const when = (d: Date) => d.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
 
-function fieldValue(value: JsonValue): ReactNode {
+function fieldLabel(key: string, recordType: RecordView["type"]): string {
+  if (key === "kind" && recordType === "worldbuilding") return WORLD_KIND.fieldKind;
+  return key;
+}
+
+function fieldValue(key: string, recordType: RecordView["type"], value: JsonValue): ReactNode {
+  if (key === "kind" && recordType === "worldbuilding" && typeof value === "string" && isReferenceTemplateKey(value)) {
+    return worldKindLabel(value);
+  }
   if (value === null) return <span className="muted">null</span>;
   if (typeof value === "string") return value === "" ? <span className="muted">(empty)</span> : value;
   if (typeof value === "number" || typeof value === "boolean") return String(value);
@@ -128,7 +144,17 @@ function Breadcrumbs({ projectId, record, parent }: { projectId: string; record:
   const crumbs: { href: string; label: string }[] = [];
   if (group === "world") {
     crumbs.push({ href: worldHref(projectId), label: SHELL.world });
-    if (isWorldType(record.type)) crumbs.push({ href: worldHref(projectId, { type: record.type }), label: categoryLabel(record.type) });
+    if (isWorldType(record.type)) {
+      const kind = worldbuildingKindFromFields(record.fields);
+      const custom = worldbuildingCustomKind(record.fields);
+      crumbs.push({
+        href: worldHref(projectId, {
+          type: record.type,
+          kind: kind ?? (custom ? WORLDBUILDING_KIND_OTHER : undefined),
+        }),
+        label: worldKindDisplayFromFields(record.fields) ?? categoryLabel(record.type),
+      });
+    }
   } else if (group === "plan") {
     crumbs.push({ href: `${base}/plan`, label: SHELL.plan });
   } else {
@@ -187,6 +213,7 @@ export function ReferenceView(props: ReferenceViewProps) {
   const previous = revisions[1] ?? null;
   const disagreements = previous ? findFieldTextDisagreements(previous, record) : [];
   const fieldEntries = Object.entries(record.fields);
+  const worldKindDisplay = record.type === "worldbuilding" ? worldKindDisplayFromFields(record.fields) : null;
   const linkable = isLinkableReferenceType(record.type);
   const gallery: GalleryImage[] = (props.images ?? []).map((img) => ({
     id: img.id,
@@ -210,6 +237,7 @@ export function ReferenceView(props: ReferenceViewProps) {
     revision: record.currentRevision,
     protected: record.protected,
     body: record.body,
+    fields: record.fields,
     fieldKeys: Object.keys(record.fields),
     images: gallery.map((image) => ({
       id: image.id,
@@ -268,6 +296,14 @@ export function ReferenceView(props: ReferenceViewProps) {
             <span className="badge-label">{WORLD.documentType}:</span> {RECORD_TYPE_LABELS[record.type]}
           </span>
         </li>
+        {record.type === "worldbuilding" ? (
+          <li>
+            <span className="badge labelled type">
+              <span className="badge-label">{WORLD_KIND.fieldKind}:</span>{" "}
+              {worldKindDisplay ?? <span className="muted">{WORLD_KIND.kindNone}</span>}
+            </span>
+          </li>
+        ) : null}
         <li>
           <CanonBadge status={record.authorityStatus} />
         </li>
@@ -336,6 +372,7 @@ export function ReferenceView(props: ReferenceViewProps) {
                 key={record.id}
                 projectId={projectId}
                 recordId={record.id}
+                recordType={record.type}
                 revision={record.currentRevision}
                 title={record.title}
                 body={record.body}
@@ -372,22 +409,27 @@ export function ReferenceView(props: ReferenceViewProps) {
                 )}
               </article>
 
-              {fieldEntries.length ? (
+              {fieldEntries.length || record.type === "worldbuilding" ? (
                 <section className="panel reference-fields" aria-labelledby="fields-heading">
                   <h2 id="fields-heading">{WORLD.fieldsHeading}</h2>
                   <p className="small muted">{WORLD.fieldsNote}</p>
-                  <div className="md-table-wrap" tabIndex={0} role="region" aria-label={WORLD.fieldsHeading}>
-                    <table>
-                      <tbody>
-                        {fieldEntries.map(([key, value]) => (
-                          <tr key={key}>
-                            <th scope="row">{key}</th>
-                            <td>{fieldValue(value)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                  {record.type === "worldbuilding" ? <p className="small muted">{WORLD_KIND.historyNote}</p> : null}
+                  {fieldEntries.length ? (
+                    <div className="md-table-wrap" tabIndex={0} role="region" aria-label={WORLD.fieldsHeading}>
+                      <table>
+                        <tbody>
+                          {fieldEntries.map(([key, value]) => (
+                            <tr key={key}>
+                              <th scope="row">{fieldLabel(key, record.type)}</th>
+                              <td>{fieldValue(key, record.type, value)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <p className="small muted">{WORLD_KIND.readNoneHint}</p>
+                  )}
                 </section>
               ) : null}
             </>

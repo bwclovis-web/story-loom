@@ -1,5 +1,8 @@
+import { cookies } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { WritingProgressStrip } from "@/components/writing/WritingProgressStrip";
+import { WritingSessionInit } from "@/components/writing/WritingSessionInit";
 import { MarkRewriteCompleteButton, StartAuthorRewriteButton, WriteDraftSwitcher } from "@/components/drafts/DraftControls";
 import { ProjectOnboarding } from "@/components/shell/ProjectOnboarding";
 import { ManuscriptOutline, type OutlineChapter, type OutlineNote, type OutlineScene } from "@/components/write/ManuscriptOutline";
@@ -11,8 +14,9 @@ import { listManuscriptDrafts } from "@/server/services/draftService";
 import { findProject } from "@/server/services/projectService";
 import { listRecordNav, listRecords } from "@/server/services/recordService";
 import { countOpenReviewItems } from "@/server/services/reviewService";
+import { buildWritingProgress } from "@/server/services/writingProgressService";
 import { searchManuscript, type ManuscriptHit } from "@/server/services/searchService";
-import { MANUSCRIPT_REPLACE, MANUSCRIPT_SEARCH, NAV, SHELL, STYLE_CHECK, WRITE } from "@/ui/labels";
+import { MANUSCRIPT_REPLACE, MANUSCRIPT_SEARCH, NAV, SHELL, STYLE_CHECK, WRITE, WRITING_GOALS } from "@/ui/labels";
 import { manuscriptEyebrow } from "@/ui/library";
 import { buildManuscriptTree } from "@/ui/manuscriptTree";
 import type { RecordNavEntry } from "@/ui/navigation";
@@ -39,12 +43,21 @@ export default async function WritePage({
   const drafts = await listManuscriptDrafts(db, projectId);
   const activeDraftId = resolveWriteDraftId(drafts, await readWriteDraftCookie());
   const hasDrafts = drafts.length > 0;
-  const [nav, records, search, coverHashes, openReviewItems] = await Promise.all([
+  const cookieStore = await cookies();
+  const sessionRaw = cookieStore.get("wordly-writing-session")?.value;
+  const sessionSince = sessionRaw ? new Date(decodeURIComponent(sessionRaw)) : null;
+  const [nav, records, search, coverHashes, openReviewItems, progress] = await Promise.all([
     listRecordNav(db, projectId, { hasDrafts, draftId: activeDraftId }),
     listRecords(db, projectId),
     q ? searchManuscript(db, { projectId, query: q, matchCase, hasDrafts, draftId: activeDraftId }) : null,
     listProjectCoverHashes(db, [projectId]),
     countOpenReviewItems(db, projectId),
+    buildWritingProgress(db, {
+      projectId,
+      hasDrafts,
+      draftId: activeDraftId,
+      sessionSince: sessionSince && !Number.isNaN(sessionSince.getTime()) ? sessionSince : null,
+    }),
   ]);
 
   const byId = new Map(records.map((record) => [record.id, record]));
@@ -83,12 +96,15 @@ export default async function WritePage({
   const empty = outline.chapters.length === 0 && outline.unplaced.length === 0 && outline.looseNotes.length === 0;
 
   return (
+    <>
+      <WritingSessionInit />
     <ManuscriptOutline
       projectId={projectId}
       title={project.title}
       eyebrow={manuscriptEyebrow(project.seriesName, project.workspace.name)}
       coverSrc={coverHash ? `${base}/cover?v=${coverHash}` : null}
       description={WRITE.landingLead}
+      afterLead={<WritingProgressStrip projectId={projectId} progress={progress} />}
       chapters={outline.chapters}
       unplaced={outline.unplaced}
       looseNotes={outline.looseNotes}
@@ -132,6 +148,7 @@ export default async function WritePage({
       }
       gettingStarted={<ProjectOnboarding projectId={projectId} quiet marked empty={empty} />}
     />
+    </>
   );
 }
 
@@ -187,6 +204,7 @@ function ProjectTools({ base, openReviewItems }: { base: string; openReviewItems
         { href: `${base}/cross-references`, label: NAV.crossRefCheck },
         { href: `${base}/write/replace`, label: MANUSCRIPT_REPLACE.heading },
         { href: `${base}/write/style`, label: STYLE_CHECK.heading },
+        { href: `${base}/write/goals`, label: WRITING_GOALS.heading },
         { href: `${base}/upgrade`, label: NAV.upgradeProject },
       ],
     },

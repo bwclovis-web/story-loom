@@ -35,6 +35,7 @@ export function ManuscriptOutline({
   eyebrow,
   coverSrc,
   description,
+  afterLead,
   chapters,
   unplaced,
   looseNotes,
@@ -50,6 +51,7 @@ export function ManuscriptOutline({
   eyebrow: string;
   coverSrc: string | null;
   description: string;
+  afterLead?: ReactNode;
   chapters: OutlineChapter[];
   unplaced: OutlineScene[];
   looseNotes: OutlineNote[];
@@ -122,6 +124,8 @@ export function ManuscriptOutline({
         description={description}
         gettingStarted={gettingStarted}
       />
+
+      {afterLead ? <div className="outline-extra">{afterLead}</div> : null}
 
       <div className="outline-tabs" role="tablist" aria-label={WRITE.manuscript}>
         <button

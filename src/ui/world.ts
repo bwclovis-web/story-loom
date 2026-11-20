@@ -1,10 +1,17 @@
 import { isRecordType, RECORD_TYPE_LABELS, type RecordType } from "@/domain/recordTypes";
+import {
+  isWorldbuildingKindFilter,
+  WORLDBUILDING_KIND_OTHER,
+  WORLDBUILDING_KIND_UNSET,
+  worldKindCounts,
+  type WorldbuildingKindFilter,
+} from "@/world/worldKinds";
 import { RECORD_GROUPS, type RecordNavEntry } from "./navigation";
 
 /*
- * World categories are exactly the World document types. There are no
- * separate place or magic types: those notes are Worldbuilding, and anything
- * that fits no other type is a Reference note.
+ * World categories are the five World document types. Optional `fields.kind` on
+ * Worldbuilding records sub-groups places, magic, and the other outline kinds
+ * in navigation without new record types.
  */
 
 export type WorldType = (typeof RECORD_GROUPS.world)[number];
@@ -33,6 +40,14 @@ export interface WorldCounts {
   byType: Record<WorldType, number>;
 }
 
+export {
+  worldKindCounts,
+  WORLDBUILDING_KIND_OTHER,
+  WORLDBUILDING_KIND_UNSET,
+  type WorldbuildingKindFilter,
+  isWorldbuildingKindFilter,
+};
+
 export function worldCounts(records: readonly { type: string }[]): WorldCounts {
   const byType = Object.fromEntries(WORLD_TYPES.map((t) => [t, 0])) as Record<WorldType, number>;
   let all = 0;
@@ -45,22 +60,36 @@ export function worldCounts(records: readonly { type: string }[]): WorldCounts {
   return { all, byType };
 }
 
-/** World records whose title contains the query (case-insensitive), optionally of one type, in the given order. */
-export function filterWorldTitles(records: readonly RecordNavEntry[], query: string, type: WorldType | null): RecordNavEntry[] {
+/** World records whose title contains the query (case-insensitive), optionally of one type and Worldbuilding kind. */
+export function filterWorldTitles(
+  records: readonly RecordNavEntry[],
+  query: string,
+  type: WorldType | null,
+  worldKind: WorldbuildingKindFilter | null = null,
+): RecordNavEntry[] {
   const needle = query.normalize("NFC").trim().toLocaleLowerCase();
-  return records.filter(
-    (r) => isWorldType(r.type) && (!type || r.type === type) && (!needle || r.title.normalize("NFC").toLocaleLowerCase().includes(needle)),
-  );
+  return records.filter((r) => {
+    if (!isWorldType(r.type)) return false;
+    if (type && r.type !== type) return false;
+    if (needle && !r.title.normalize("NFC").toLocaleLowerCase().includes(needle)) return false;
+    if (worldKind && r.type === "worldbuilding") {
+      if (worldKind === WORLDBUILDING_KIND_UNSET) return !r.worldKind && !r.customKind;
+      if (worldKind === WORLDBUILDING_KIND_OTHER) return !!r.customKind;
+      return r.worldKind === worldKind;
+    }
+    return true;
+  });
 }
 
 export function worldHref(
   projectId: string,
-  params: { type?: WorldType | null; q?: string | null; list?: boolean } = {},
+  params: { type?: WorldType | null; q?: string | null; list?: boolean; kind?: WorldbuildingKindFilter | null } = {},
 ): string {
   const search = new URLSearchParams();
   if (params.type) search.set("type", params.type);
   if (params.q?.trim()) search.set("q", params.q.trim());
   if (params.list) search.set("list", "1");
+  if (params.kind) search.set("kind", params.kind);
   const qs = search.toString();
   return `/projects/${encodeURIComponent(projectId)}/world${qs ? `?${qs}` : ""}`;
 }

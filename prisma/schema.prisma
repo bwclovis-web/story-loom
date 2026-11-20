@@ -81,6 +81,7 @@ model Project {
   storyEventScenes       StoryEventScene[]
   storyEventOrders       StoryEventOrder[]
   storyEventEvidence     StoryEventEvidence[]
+  writingGoals           WritingGoal[]
 
   @@index([workspaceId])
 }
@@ -211,6 +212,7 @@ model Record {
   storyEventLocations        StoryEventLocation[] @relation("StoryEventPlace")
   storyEventScenes           StoryEventScene[]    @relation("StoryEventScene")
   storyEventEvidenceSources  StoryEventEvidence[] @relation("StoryEventEvidenceSource")
+  writingGoals               WritingGoal[]
 
   @@index([projectId, type])
   @@index([parentRecordId])
@@ -263,6 +265,26 @@ model BoardCard {
   @@index([projectId])
   @@index([recordId])
   @@index([imageId])
+}
+
+/// Optional word targets for a project or a chapter. Not revisioned content.
+model WritingGoal {
+  id           String    @id
+  projectId    String
+  project      Project   @relation(fields: [projectId], references: [id])
+  /// project | chapter
+  scope        String
+  /// Set when scope is chapter (manuscript_chapter).
+  recordId     String?
+  record       Record?   @relation(fields: [recordId], references: [id])
+  targetWords  Int
+  deadlineAt   DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@unique([projectId, scope, recordId])
+  @@index([projectId])
+  @@index([recordId])
 }
 
 /// Ordered reading pins for references kept open beside prose. Scoped by project

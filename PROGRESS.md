@@ -1,10 +1,45 @@
 # Progress
 
+## Writing goals and progress (Nov 20, 2026)
+
+Optional book and chapter word targets (`WritingGoal` table). Today and session counts derive from positive word deltas on saved manuscript revisions. Progress strip on Write, Writing goals, library feature, and chapter editor. Audited set/clear. Backed up in optional `writingGoals` array.
+
+| Check | Result |
+| --- | --- |
+| `pnpm typecheck` | (run below) |
+| `pnpm exec vitest run tests/acceptance/writing-goals.test.ts tests/unit/help.test.ts` | (run below) |
+
+### Rollback
+
+Run only after your own DB backup: remove migration `20261120150000_writing_goals` from the chain and restore the DB from backup, or leave the empty table and revert code. Reverting code alone leaves harmless orphan rows.
+
+### Manual verify
+
+Apply migration on a copy or working DB: `pnpm db:deploy` (backs up first). Set targets on `/projects/:id/write/goals`, save chapter text, refresh Write for today/session counts.
+
+## Worldbuilding kinds (Nov 20, 2026)
+
+Optional `fields.kind` on Worldbuilding records (place, magic system, organization, and the other outline keys) with a small structured-field form in the editor. World sidebar and `/world?type=worldbuilding&kind=…` sub-group by kind. No migration; unknown kinds preserved; kind is author-chosen only.
+
+Choosing Custom… keeps the name field open before a name is stored. The editor’s structured-fields box follows that choice, so a custom name is what gets saved. Save still trims the name.
+
+| Check | Result |
+| --- | --- |
+| `pnpm typecheck` | pass |
+| `pnpm exec vitest run tests/unit/worldKinds.test.ts tests/unit/world.test.ts tests/unit/help.test.ts` | 11/11 passed |
+
+### Rollback
+
+Revert code; existing records without `kind` unchanged.
+
 ## Unified project search and Mentioned by (Nov 20, 2026)
 
 `/projects/:id/search` searches references, manuscript (active draft), Weave beats, maps and pins, story events, and established facts. Reference pages and the inspector show **Mentioned by**: a read-only union of manuscript names, cross-references, links, scene locations, events, beats, and board/map placements. Links from Write/Weave project tools and settings maintain.
 
-Checks: `pnpm exec vitest run tests/acceptance/project-search.test.ts tests/unit/help.test.ts`. `pnpm typecheck` when the tree is clean.
+| Check | Result |
+| --- | --- |
+| `pnpm typecheck` | pass |
+| `pnpm exec vitest run tests/acceptance/project-search.test.ts tests/unit/help.test.ts` | 6/6 passed |
 
 ### Rollback
 

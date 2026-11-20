@@ -40,8 +40,10 @@ import {
   UPGRADE,
   WEAVE,
   WORLD,
+  WORLD_KIND,
   WRITE,
   WRITING,
+  WRITING_GOALS,
   XREF,
   XREF_CHECK,
 } from "@/ui/labels";
@@ -920,6 +922,24 @@ export function HelpContent() {
           </p>
         </Sub>
 
+        <Sub id="writing-goals">
+          <p>
+            <L>{WRITING_GOALS.heading}</L> stores optional word targets for the book and for individual chapters. Open it from{" "}
+            <L>{SHELL.write}</L> project tools or the <L>{WRITING_GOALS.editGoals}</L> link on the progress strip.
+          </p>
+          <p>
+            {WRITING_GOALS.lead} On <L>{SHELL.write}</L> and the library home feature, the progress strip shows{" "}
+            <L>{WRITING_GOALS.today}</L>, <L>{WRITING_GOALS.session}</L> (from your first visit to Write in this browser
+            session, up to 24 hours), and <L>{WRITING_GOALS.book}</L> against the book target when one is set. Opening a
+            chapter can show its chapter target on the same strip. Targets and deadlines are listed in the audit log when you
+            save or clear them.
+          </p>
+          <p className="small muted">
+            Session counts need the Write page once per session so the app can start the timer. Unsaved typing is never
+            counted until you save a new revision.
+          </p>
+        </Sub>
+
         <Sub id="project-search">
           <p>
             <L>{PROJECT_SEARCH.heading}</L> ({<L>{NAV.projectSearch}</L>} in project tools or settings) searches saved text
@@ -1695,9 +1715,28 @@ export function HelpContent() {
           </ul>
           <p>
             The categories are the document types you choose when importing or creating a record; the app never guesses
-            them. There are no separate categories for places or magic: those are {RECORD_TYPE_LABELS.worldbuilding}{" "}
-            documents. A document that covers several subjects still has one type. It is listed under that type and under{" "}
-            <L>{WORLD.allReferences}</L>, so nothing is hidden.
+            them. Places, religions, magic systems, and other setting notes stay{" "}
+            {RECORD_TYPE_LABELS.worldbuilding} records. On those records you can optionally choose a{" "}
+            <L>{WORLD_KIND.kindLabel}</L> (place, magic system, organization, and the rest) in structured fields. That kind
+            only sub-groups the sidebar and World list; it is never inferred from the title or text. See{" "}
+            <See anchor="world-kinds" />. A document that covers several subjects still has one document type.
+          </p>
+        </Sub>
+
+        <Sub id="world-kinds">
+          <p>
+            <L>{WORLD_KIND.kindLabel}</L> is optional metadata on a {RECORD_TYPE_LABELS.worldbuilding} record, stored as{" "}
+            <code>kind</code> in structured fields. The eight kinds match the original outline names: place, religion,
+            culture, organization, species, magic system, object, and language. Choosing a kind can show a few optional
+            fields (parent place, climate, goal, and so on). They are saved with the record and travel in backups and
+            change packages like other structured fields.
+          </p>
+          <p>
+            When you set a kind, the World sidebar under <L>{WORLD_CATEGORY_LABELS.worldbuilding}</L> lists each built-in kind
+            with a count, then <L>{WORLD.worldKindOther}</L> for custom names, and <L>{WORLD.worldKindUnset}</L> for records
+            with no kind. Choose <L>{WORLD_KIND.kindCustomOption}</L> when editing to type any label; it is stored in{" "}
+            <code>kind</code> like the built-ins. {WORLD_KIND.historyNote}{" "}
+            <L>{WORLD.outlineHeading}</L> still only adds Markdown headings to the text; it does not set <code>kind</code>.
           </p>
         </Sub>
 
@@ -1842,8 +1881,9 @@ export function HelpContent() {
         <Sub id="reference-outlines">
           <p>
             On a World reference, <L>{WORLD.outlineHeading}</L> offers eight optional outlines: Place, Religion, Culture,
-            Organization, Species, Magic system, Object, and Language. They are not new document types. A place is still{" "}
-            {RECORD_TYPE_LABELS.worldbuilding} unless you chose another World type yourself.
+            Organization, Species, Magic system, Object, and Language. They are not new document types and they do not set{" "}
+            <L>{WORLD_KIND.kindLabel}</L>. A place is still {RECORD_TYPE_LABELS.worldbuilding}; use structured fields if you
+            want the record grouped as a place. See <See anchor="world-kinds" />.
           </p>
           <ul>
             <li>

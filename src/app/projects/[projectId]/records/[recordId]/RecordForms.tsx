@@ -19,6 +19,8 @@ import { normalizeNewlines } from "@/proofread/anchors";
 import type { DictionaryWord } from "@/spelling/dictionary";
 import { applyTextareaEdit } from "@/components/writing/textareaEdit";
 import { imageMarkdown } from "@/images/imageFormat";
+import { WorldKindFields } from "@/components/world/WorldKindFields";
+import type { RecordType } from "@/domain/recordTypes";
 import { IMAGES, RECORD, WRITING } from "@/ui/labels";
 import { invertEdit } from "@/writing/findReplace";
 import type { SpellChecker, SpellingLanguage } from "@/writing/spelling";
@@ -100,6 +102,7 @@ function UnlockCheckbox({
 export function RecordEditor(props: {
   projectId: string;
   recordId: string;
+  recordType: RecordType;
   revision: number;
   title: string;
   body: string;
@@ -188,6 +191,9 @@ export function RecordEditor(props: {
         Title
         <input type="text" name="title" defaultValue={props.title} required spellCheck lang={language} onInput={(e) => setTitle(e.currentTarget.value)} />
       </label>
+      {props.recordType === "worldbuilding" ? (
+        <WorldKindFields fieldsJson={fields} onFieldsJsonChange={setFields} disabled={!editable} />
+      ) : null}
       <div className="writing-tools stack">
         <div className="row">
           <strong>{WRITING.toolsHeading}</strong>
@@ -284,7 +290,7 @@ export function RecordEditor(props: {
         <textarea
           name="fields"
           className="mono"
-          defaultValue={props.fieldsJson}
+          value={fields}
           style={{ minHeight: "6rem" }}
           spellCheck={false}
           onInput={(e) => setFields(e.currentTarget.value)}

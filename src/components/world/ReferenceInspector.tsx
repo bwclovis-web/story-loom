@@ -11,7 +11,7 @@ import {
   type SceneChoice,
 } from "@/app/projects/[projectId]/records/[recordId]/EstablishedInRail";
 import type { EstablishedFactView } from "@/server/services/establishedFactService";
-import { WORLD } from "@/ui/labels";
+import { WORLD, WORLD_KIND } from "@/ui/labels";
 import { placementHref, type ReferenceInspectorModel } from "@/world/inspectorModel";
 
 export interface InspectorEstablished {
@@ -119,6 +119,12 @@ export function ReferenceInspector({
               <span className="badge labelled type">
                 <span className="badge-label">{WORLD.documentType}:</span> {model.typeLabel}
               </span>
+              {model.worldKindLabel !== undefined ? (
+                <span className="badge labelled type">
+                  <span className="badge-label">{WORLD_KIND.fieldKind}:</span>{" "}
+                  {model.worldKindLabel ?? <span className="muted">{WORLD_KIND.kindNone}</span>}
+                </span>
+              ) : null}
               <CanonBadge status={model.authorityStatus} />
               <SavedVersionBadge revision={model.revision} />
               <ProtectionStateBadge isProtected={model.protected} />

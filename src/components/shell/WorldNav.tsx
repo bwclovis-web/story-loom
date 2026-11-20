@@ -6,7 +6,21 @@ import { useId, useMemo, useState } from "react";
 import { TreeSearch } from "@/components/ui/SearchPanel";
 import { WORLD } from "@/ui/labels";
 import type { RecordNavEntry } from "@/ui/navigation";
-import { categoryLabel, filterWorldTitles, isWorldType, WORLD_CATEGORY_LABELS, WORLD_TYPES, worldCounts, worldHref, type WorldType } from "@/ui/world";
+import { REFERENCE_TEMPLATES } from "@/world/referenceTemplates";
+import {
+  categoryLabel,
+  filterWorldTitles,
+  isWorldType,
+  isWorldbuildingKindFilter,
+  WORLD_CATEGORY_LABELS,
+  WORLD_TYPES,
+  worldCounts,
+  worldHref,
+  worldKindCounts,
+  WORLDBUILDING_KIND_OTHER,
+  WORLDBUILDING_KIND_UNSET,
+  type WorldType,
+} from "@/ui/world";
 import { CollapsibleNavSection } from "./CollapsibleNavSection";
 
 /**
@@ -52,12 +66,26 @@ export function WorldNav({
   const counts = useMemo(() => worldCounts(records), [records]);
   const currentRecord = currentRecordId ? records.find((r) => r.id === currentRecordId) : undefined;
   const pageType = onWorldPage && !onSpecial ? params.get("type") : null;
+  const pageKindRaw = onWorldPage && !onSpecial ? params.get("kind") : null;
+  const pageKind = isWorldbuildingKindFilter(pageKindRaw) ? pageKindRaw : null;
   const listMode = onWorldPage && !onSpecial && params.get("list") === "1";
   const category: WorldType | null = isWorldType(pageType) ? pageType : currentRecord && isWorldType(currentRecord.type) ? currentRecord.type : null;
-  const allCurrent = listMode && !isWorldType(pageType) && !urlQuery;
+  const recordKind =
+    currentRecord?.type === "worldbuilding" && currentRecord.customKind
+      ? WORLDBUILDING_KIND_OTHER
+      : currentRecord?.type === "worldbuilding" && currentRecord.worldKind
+        ? currentRecord.worldKind
+        : null;
+  const worldKind: typeof pageKind | null =
+  pageKind ?? (category === "worldbuilding" && recordKind && !pageType ? recordKind : null);
+  const allCurrent = listMode && !isWorldType(pageType) && !urlQuery && !pageKind;
 
   const searching = query.trim() !== "";
-  const listed = useMemo(() => filterWorldTitles(records, query, searching ? null : category), [records, query, searching, category]);
+  const listed = useMemo(
+    () => filterWorldTitles(records, query, searching ? null : category, searching || category !== "worldbuilding" ? null : worldKind),
+    [records, query, searching, category, worldKind],
+  );
+  const kindCounts = useMemo(() => worldKindCounts(records), [records]);
   const recordHref = (id: string) => `/projects/${encodeURIComponent(projectId)}/records/${encodeURIComponent(id)}`;
   const listHeading = searching ? WORLD.matchingTitles : category ? WORLD.inCategory(WORLD_CATEGORY_LABELS[category]) : WORLD.allReferences;
 
@@ -139,11 +167,15 @@ export function WorldNav({
           </Link>
         </li>
         {WORLD_TYPES.map((type) => {
-          const pageCurrent = onWorldPage && pageType === type && !urlQuery;
-          const holdsCurrent = !onWorldPage && category === type;
+          const pageCurrent = onWorldPage && pageType === type && !urlQuery && !pageKind;
+          const holdsCurrent = !onWorldPage && category === type && type !== "worldbuilding";
+          const recordInType = !onWorldPage && category === type && type === "worldbuilding" && !recordKind;
           return (
             <li key={type}>
-              <Link href={worldHref(projectId, { type })} aria-current={pageCurrent ? "page" : holdsCurrent ? "true" : undefined}>
+              <Link
+                href={worldHref(projectId, { type })}
+                aria-current={pageCurrent || recordInType ? "page" : holdsCurrent ? "true" : undefined}
+              >
                 {WORLD_CATEGORY_LABELS[type]}
                 <span className="nav-count">{counts.byType[type]}</span>
               </Link>
@@ -151,6 +183,48 @@ export function WorldNav({
           );
         })}
       </ul>
+      {category === "worldbuilding" && !searching ? (
+        <ul className="nav-list world-kind-list" aria-label={WORLD.worldKindSubheading}>
+          <li>
+            <Link
+              href={worldHref(projectId, { type: "worldbuilding" })}
+              aria-current={!worldKind ? "page" : undefined}
+            >
+              {WORLD.allReferences}
+              <span className="nav-count">{counts.byType.worldbuilding}</span>
+            </Link>
+          </li>
+          {REFERENCE_TEMPLATES.map((template) => (
+            <li key={template.key}>
+              <Link
+                href={worldHref(projectId, { type: "worldbuilding", kind: template.key })}
+                aria-current={worldKind === template.key ? "page" : undefined}
+              >
+                {template.label}
+                <span className="nav-count">{kindCounts[template.key]}</span>
+              </Link>
+            </li>
+          ))}
+          <li>
+            <Link
+              href={worldHref(projectId, { type: "worldbuilding", kind: WORLDBUILDING_KIND_OTHER })}
+              aria-current={worldKind === WORLDBUILDING_KIND_OTHER ? "page" : undefined}
+            >
+              {WORLD.worldKindOther}
+              <span className="nav-count">{kindCounts[WORLDBUILDING_KIND_OTHER]}</span>
+            </Link>
+          </li>
+          <li>
+            <Link
+              href={worldHref(projectId, { type: "worldbuilding", kind: WORLDBUILDING_KIND_UNSET })}
+              aria-current={worldKind === WORLDBUILDING_KIND_UNSET ? "page" : undefined}
+            >
+              {WORLD.worldKindUnset}
+              <span className="nav-count">{kindCounts[WORLDBUILDING_KIND_UNSET]}</span>
+            </Link>
+          </li>
+        </ul>
+      ) : null}
       <p className="tree-note">{WORLD.categoryNote}</p>
 
       <CollapsibleNavSection
@@ -173,7 +247,21 @@ export function WorldNav({
               <li key={r.id}>
                 <Link href={recordHref(r.id)} aria-current={r.id === currentRecordId ? "page" : undefined}>
                   <span className="world-nav-title">{r.title}</span>
-                  {searching || !category ? <span className="nav-count">{categoryLabel(r.type)}</span> : null}
+                  {searching || !category ? (
+                    <span className="nav-count">
+                      {r.type === "worldbuilding" && r.worldKind
+                        ? REFERENCE_TEMPLATES.find((t) => t.key === r.worldKind)?.label ?? categoryLabel(r.type)
+                        : r.type === "worldbuilding" && r.customKind
+                          ? r.customKind
+                          : categoryLabel(r.type)}
+                    </span>
+                  ) : category === "worldbuilding" && (r.worldKind || r.customKind) && !worldKind ? (
+                    <span className="nav-count">
+                      {r.worldKind
+                        ? REFERENCE_TEMPLATES.find((t) => t.key === r.worldKind)?.label
+                        : r.customKind}
+                    </span>
+                  ) : null}
                 </Link>
               </li>
             ))}

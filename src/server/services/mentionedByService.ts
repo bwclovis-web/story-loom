@@ -54,7 +54,7 @@ export async function listMentionedBy(
     });
   }
 
-  if (isLinkableReferenceType(record.type)) {
+  if (isRecordType(record.type) && isLinkableReferenceType(record.type)) {
     const links = await listLinkingRecords(db, projectId, recordId);
     for (const link of links) {
       if (!isRecordType(link.type)) continue;

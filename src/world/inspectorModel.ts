@@ -1,5 +1,7 @@
 import type { AuthorityStatus } from "@/domain/statuses";
+import type { JsonObject } from "@/domain/json";
 import { isLinkableReferenceType, isRecordType, RECORD_TYPE_LABELS, type RecordType } from "@/domain/recordTypes";
+import { worldKindDisplayFromFields } from "@/world/worldKinds";
 import { listSections } from "@/writing/sections";
 
 export interface InspectorSection {
@@ -55,6 +57,8 @@ export interface ReferenceInspectorModel {
   manuscriptLinks: InspectorManuscriptLink[];
   placements: RecordPlacement[];
   supportsEstablished: boolean;
+  /** Set on worldbuilding records: kind label, or null when kind is unset. */
+  worldKindLabel?: string | null;
 }
 
 function clip(text: string, max = 280): string {
@@ -84,6 +88,7 @@ export function buildReferenceInspectorModel(input: {
   revision: number;
   protected: boolean;
   body: string;
+  fields?: JsonObject;
   fieldKeys: readonly string[];
   images: InspectorImage[];
   relations: InspectorRelation[];
@@ -116,5 +121,6 @@ export function buildReferenceInspectorModel(input: {
     manuscriptLinks: input.manuscriptLinks,
     placements: input.placements,
     supportsEstablished: isLinkableReferenceType(input.type),
+    worldKindLabel: input.type === "worldbuilding" ? worldKindDisplayFromFields(input.fields ?? {}) : undefined,
   };
 }

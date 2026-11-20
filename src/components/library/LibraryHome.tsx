@@ -7,6 +7,8 @@ import { clearCoverAction, setCoverAction, trashWorkspaceAction } from "@/app/(s
 import { trashProjectAction } from "@/app/projects/[projectId]/actions";
 import { HOME, SHELL, TRASH } from "@/ui/labels";
 import { isExampleWorkspace, manuscriptEyebrow, pickFeaturedProject } from "@/ui/library";
+import { WritingProgressStrip } from "@/components/writing/WritingProgressStrip";
+import type { WritingProgressSnapshot } from "@/server/services/writingProgressService";
 import { formatWordCount } from "@/writing/wordCount";
 
 export interface LibraryProject {
@@ -30,10 +32,12 @@ export function LibraryHome({
   workspaces,
   selectedId,
   trashedWorkspaces,
+  featuredProgress = null,
 }: {
   workspaces: LibraryWorkspace[];
   selectedId: string | null;
   trashedWorkspaces: number;
+  featuredProgress?: WritingProgressSnapshot | null;
 }) {
   const ordered = workspaces.flatMap((workspace) =>
     workspace.projects.map((project) => ({
@@ -61,6 +65,7 @@ export function LibraryHome({
             <FeaturedManuscript
               project={featured}
               eyebrow={manuscriptEyebrow(featured.seriesName, featured.workspaceName)}
+              progress={featuredProgress}
             />
           ) : null}
 
@@ -116,9 +121,11 @@ function EmptyLibrary({ trashedWorkspaces }: { trashedWorkspaces: number }) {
 function FeaturedManuscript({
   project,
   eyebrow,
+  progress,
 }: {
   project: LibraryProject & { workspaceName: string };
   eyebrow: string;
+  progress: WritingProgressSnapshot | null;
 }) {
   return (
     <section className="library-feature" aria-labelledby="featured-manuscript">
@@ -127,6 +134,7 @@ function FeaturedManuscript({
         {eyebrow ? <p className="library-kicker">{eyebrow}</p> : null}
         <h2 id="featured-manuscript">{project.title}</h2>
         <ManuscriptMeta chapterCount={project.chapterCount} manuscriptWords={project.manuscriptWords} />
+        {progress ? <WritingProgressStrip projectId={project.id} progress={progress} compact /> : null}
         <Link className="library-open-manuscript" href={manuscriptHref(project.id)}>
           {HOME.openManuscript}
           <span className="sr-only">: {project.title}</span>

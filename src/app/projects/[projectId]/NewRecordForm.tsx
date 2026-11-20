@@ -1,11 +1,12 @@
 "use client";
 
-import { useActionState, useRef } from "react";
+import { useActionState, useRef, useState } from "react";
+import { WorldKindFields } from "@/components/world/WorldKindFields";
 import { HelpHint } from "@/components/HelpHint";
 import { IssueList } from "@/components/IssueList";
 import { Banner } from "@/components/ui/Banner";
 import { submitWithoutReset } from "@/components/submitWithoutReset";
-import { RECORD_TYPE_LABELS, RECORD_TYPES, requiresParent, type RecordType } from "@/domain/recordTypes";
+import { isRecordType, RECORD_TYPE_LABELS, RECORD_TYPES, requiresParent, type RecordType } from "@/domain/recordTypes";
 import { AUTHORITY_STATUSES } from "@/domain/statuses";
 import { RECORD, WORLD } from "@/ui/labels";
 import { isReferenceTemplateKey, REFERENCE_TEMPLATES, referenceTemplate, scaffoldBody } from "@/world/referenceTemplates";
@@ -27,13 +28,19 @@ export function NewRecordForm({
   );
   const bodyRef = useRef<HTMLTextAreaElement>(null);
   const lastScaffold = useRef("");
+  const [recordType, setRecordType] = useState<RecordType>(defaultType);
+  const [fieldsJson, setFieldsJson] = useState("{}");
 
   return (
     <form onSubmit={submitWithoutReset(action)} className="stack">
       <div className="row">
         <label>
           Type
-          <select name="type" defaultValue={defaultType}>
+          <select
+            name="type"
+            defaultValue={defaultType}
+            onChange={(event) => isRecordType(event.target.value) && setRecordType(event.target.value)}
+          >
             {RECORD_TYPES.filter((t) => !requiresParent(t)).map((t) => (
               <option key={t} value={t}>
                 {RECORD_TYPE_LABELS[t]}
@@ -89,6 +96,7 @@ export function NewRecordForm({
         {RECORD.bodyLabel}
         <textarea ref={bodyRef} name="body" className="document" spellCheck lang={spellingLanguage} />
       </label>
+      {recordType === "worldbuilding" ? <WorldKindFields fieldsJson={fieldsJson} onFieldsJsonChange={setFieldsJson} /> : null}
       <label>
         {RECORD.newFieldsLabel}
         <textarea
@@ -97,6 +105,8 @@ export function NewRecordForm({
           style={{ minHeight: "4rem" }}
           placeholder='{"aliases": ["..."]}'
           spellCheck={false}
+          value={fieldsJson}
+          onChange={(event) => setFieldsJson(event.target.value)}
         />
       </label>
       {state.message ? <Banner tone="error">{state.message}</Banner> : null}

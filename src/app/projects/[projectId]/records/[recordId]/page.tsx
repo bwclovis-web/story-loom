@@ -1,4 +1,6 @@
+import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
+import { WritingProgressStrip } from "@/components/writing/WritingProgressStrip";
 import { ContentClassBadge, ProtectionBadge, RevisionBadge, StatusBadge } from "@/components/Badges";
 import type { RecordView } from "@/domain/records";
 import { isManuscriptType, isRecordType, RECORD_TYPE_LABELS } from "@/domain/recordTypes";
@@ -38,6 +40,7 @@ import { dictionaryWordsForProject } from "@/server/services/dictionaryService";
 import { getSpellChecker, getSpellingLanguage } from "@/server/spelling";
 import { loadCrossRefIndex } from "@/server/services/crossRefService";
 import { listMentionedBy } from "@/server/services/mentionedByService";
+import { buildWritingProgress } from "@/server/services/writingProgressService";
 import { listWeaveBeatsForManuscript } from "@/server/services/weaveService";
 import { RECORD, XREF } from "@/ui/labels";
 import { buildManuscriptTree, manuscriptIdsInBookOrder } from "@/ui/manuscriptTree";
@@ -121,7 +124,28 @@ export default async function RecordPage({
       listReadingPins(db, projectId, pinScopeId),
       listWeaveBeatsForManuscript(db, projectId, record.id),
     ]);
+    const chapterProgress =
+      record.type === "manuscript_chapter"
+        ? await (async () => {
+            const cookieStore = await cookies();
+            const sessionRaw = cookieStore.get("wordly-writing-session")?.value;
+            const sessionSince = sessionRaw ? new Date(decodeURIComponent(sessionRaw)) : null;
+            return buildWritingProgress(db, {
+              projectId,
+              hasDrafts: drafts.length > 0,
+              draftId: recordDraftId,
+              sessionSince: sessionSince && !Number.isNaN(sessionSince.getTime()) ? sessionSince : null,
+              chapterRecordId: record.id,
+            });
+          })()
+        : null;
     return (
+      <>
+        {chapterProgress ? (
+          <div className="record-writing-progress">
+            <WritingProgressStrip projectId={projectId} progress={chapterProgress} showChapter compact />
+          </div>
+        ) : null}
       <WriteEditor
         key={record.id}
         projectId={projectId}
@@ -193,6 +217,7 @@ export default async function RecordPage({
           />
         }
       />
+      </>
     );
   }
 
