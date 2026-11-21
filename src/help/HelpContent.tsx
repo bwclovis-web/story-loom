@@ -147,6 +147,69 @@ export function HelpContent() {
           reference handy, board, map, plot beat, assistant). See <See anchor="optional-features" />. You can skip it;
           nothing is required.
         </p>
+
+        <Sub id="whats-new">
+          <p>
+            Recent Story Loom additions are optional: nothing turns on until you use it, and older backups still restore.
+            Jump to the topic you care about:
+          </p>
+          <h4>Manuscript and tools</h4>
+          <ul>
+            <li>
+              <See anchor="saved-versions" />: save an earlier version again as a new revision (restore).
+            </li>
+            <li>
+              <See anchor="manuscript-replace" /> and <See anchor="record-rename" />: reviewed replace and character
+              rename across the manuscript.
+            </li>
+            <li>
+              <See anchor="panels-focus" />: split view and typewriter scrolling on Write.
+            </li>
+            <li>
+              <See anchor="manuscript-style-check" />, <See anchor="writing-goals" />, and{" "}
+              <See anchor="manuscript-annotations" />: local style checks, goals, synopsis cards, and margin comments.
+            </li>
+            <li>
+              <See anchor="pdf-export" />: shared compile settings; export PDF, DOCX, or EPUB.
+            </li>
+            <li>
+              <See anchor="selection-assist" />: optional AI assist on a selection (suggestion only).
+            </li>
+            <li>
+              <See anchor="dictionary" />: multi-word phrase entries; <See anchor="project-search" />: search the whole
+              project; <See anchor="mentioned-by" />: backlinks on reference pages.
+            </li>
+          </ul>
+          <h4>World and codex</h4>
+          <ul>
+            <li>
+              <See anchor="world-kinds" />: optional kind on worldbuilding records with extra fields.
+            </li>
+            <li>
+              <See anchor="record-relations" /> and <See anchor="relationship-views" />: explicit relationships and graph
+              or tree views.
+            </li>
+            <li>
+              <See anchor="world-calendar" /> and <See anchor="story-events" />: in-world calendar and optional structured
+              event dates.
+            </li>
+            <li>
+              Reference <See anchor="reference-page" />: <L>{INFOBOX.heading}</L> summary at the top when reading.
+            </li>
+            <li>
+              <See anchor="world-maps" />: author map layers, labelled scale bar, geography from <em>part_of</em>.
+            </li>
+            <li>
+              <See anchor="world-names" />: suggest names from language patterns (dictionary or dossier only when you ask).
+            </li>
+          </ul>
+          <h4>Backups</h4>
+          <ul>
+            <li>
+              <See anchor="backup-mirror" />: optionally copy each full backup to a folder (for example Dropbox).
+            </li>
+          </ul>
+        </Sub>
       </Section>
 
       <Section id="getting-started">
@@ -247,9 +310,39 @@ export function HelpContent() {
 
         <Sub id="optional-maps">
           <p>
-            <L>{WORLD.maps}</L> use an uploaded image or an existing reference image as a backdrop. A marker can open a
-            reference, another map, or both. <L>{WORLD.mapModeBrowse}</L> pans the map; <L>{WORLD.mapModeEdit}</L> moves
-            markers. Details: <See anchor="world-maps" />.
+            <L>{WORLD.maps}</L> use an uploaded image or an existing reference image as a backdrop. Markers can be points,
+            routes, areas, or labels; they can link a reference, another map, or both. Author-defined{" "}
+            <L>{WORLD.mapLayers}</L>, an optional <L>{WORLD.mapScale}</L> bar (caption only), and a{" "}
+            <L>{WORLD.mapGeography}</L> list from place relationships are optional.{" "}
+            <L>{WORLD.mapModeBrowse}</L> pans; <L>{WORLD.mapModeEdit}</L> places and edits markers. Details:{" "}
+            <See anchor="world-maps" />.
+          </p>
+        </Sub>
+
+        <Sub id="optional-calendar">
+          <p>
+            <L>{WORLD.worldCalendar}</L> on <L>{SHELL.world}</L> defines months, day counts, and eras once per project.
+            On <L>{WORLD.storyTimeline}</L> you can still use free-text times; structured dates are optional and never
+            override explicit earlier/later links by themselves. Details: <See anchor="world-calendar" /> and{" "}
+            <See anchor="story-events" />.
+          </p>
+        </Sub>
+
+        <Sub id="optional-relationships">
+          <p>
+            Place and record relationships are explicit rows you add on reference pages—not inferred from mentions or pin
+            positions. <L>{WORLD.relationships}</L> on <L>{SHELL.world}</L> graphs them and offers family, organization,
+            and geography trees plus a list view. Details: <See anchor="record-relations" />,{" "}
+            <See anchor="place-relations" />, and <See anchor="relationship-views" />.
+          </p>
+        </Sub>
+
+        <Sub id="optional-names">
+          <p>
+            On a worldbuilding record with kind <em>language</em>, optional syllable and pattern fields feed{" "}
+            <L>{WORLD.nameGenerator}</L> on <L>{SHELL.world}</L>. The tool only suggests names; you choose{" "}
+            <L>{WORLD.nameGeneratorAddDictionary}</L> or <L>{WORLD.nameGeneratorCreateDossier}</L> for each one. Details:{" "}
+            <See anchor="world-names" /> and <See anchor="world-kinds" />.
           </p>
         </Sub>
 
@@ -297,6 +390,10 @@ export function HelpContent() {
             <L>{SHELL.settings}</L> → <L>{SHELL.trash}</L>: what you have moved to the Trash. See <See anchor="trash" />.
           </li>
           <li>
+            <L>{NAV.projectSearch}</L> in project tools (or settings): search saved text across World, the manuscript,
+            maps, events, and more. See <See anchor="project-search" />.
+          </li>
+          <li>
             <L>{SHELL.help}</L> at the bottom of the left column: this page.
           </li>
         </ul>
@@ -330,7 +427,7 @@ export function HelpContent() {
             it. The <L>{SHELL.plan}</L> landing does not show that second column.{" "}
             <L>{WEAVE.planningReferences}</L> on the page lists the same records, and <L>{SHELL.projectTools}</L> stays
             on the page. Grid editors, templates, and analysis keep the project column. On{" "}
-            <L>{SHELL.world}</L> and its records, search and categories instead (see <See anchor="world-nav" />
+            <L>{SHELL.world}</L> and its records, <L>{WORLD.worldSections}</L> (see <See anchor="world-nav" />
             ). On <L>{SHELL.write}</L> and its records, the chapters and scenes (see <See anchor="manuscript-panel" />
             ).
           </li>
@@ -360,7 +457,9 @@ export function HelpContent() {
         <p>
           On a narrow window, such as a phone-sized one, both columns are hidden. Choose the menu button (three lines,
           top left) for the main navigation, and <L>{SHELL.openProjectMenu}</L> above the page for the project&apos;s
-          pages. Choose a page, press <kbd>Esc</kbd>, or choose the close button to close them again.
+          pages. On World, that button is labeled <L>{WORLD.worldSections}</L> and names the surface you are on.
+          Choose a page, press <kbd>Esc</kbd>, or choose the close button to close them again. Focus returns to the
+          button that opened the menu.
         </p>
         <p>
           This browser remembers whether the navigation is collapsed, the theme, and which project you opened last. It
@@ -441,7 +540,9 @@ export function HelpContent() {
           one project never change another project. This is a safe place to try an import or a change package first.
         </p>
         <p className="warning">
-          Workspaces and projects cannot be renamed in the app. (A record&apos;s title can be changed when you edit it and
+          Rename a workspace or manuscript from its menu on the home page. The new name is written to History for each
+          live manuscript in that workspace, or for that manuscript. Record text is not changed. (A record&apos;s title can
+          still be changed when you edit it and
           save.) When you no longer need a trial workspace, open its actions menu (the … button) and choose{" "}
           <L>{TRASH.moveWorkspace}</L>. See <See anchor="trash" />.
         </p>
@@ -673,7 +774,8 @@ export function HelpContent() {
           </li>
         </ol>
         <p>
-          Nothing is saved until you choose that button; there is no autosave. After saving you see{" "}
+          Nothing is stored as a revision until you choose that button. This browser may keep a local copy of unsaved
+          text until you save or discard it. After saving you see{" "}
           <em>Saved as revision N.</em> If the save is refused, your typing stays on screen and the reason is shown.
         </p>
         <p>
@@ -1051,7 +1153,8 @@ export function HelpContent() {
           </p>
           <p>
             When the project has Zero draft and Author manuscript trees, choose the <L>{DRAFT.readingDraft}</L> for this
-            visit. <L>{DRAFT.setDefaultReading}</L> remembers the default for next time; starting a rewrite does not change
+            visit, or choose <L>{READ_BOOK.besideDrafts}</L> to show the zero draft and the author manuscript in two
+            columns. <L>{DRAFT.setDefaultReading}</L> remembers the default for next time; starting a rewrite does not change
             it.
           </p>
         </Sub>
@@ -1116,8 +1219,8 @@ export function HelpContent() {
               version, and <L>{WRITE.notSaved}</L> when a save was refused (the reason is shown below).
             </li>
             <li>
-              <L>{WRITE.save}</L>. Nothing is saved until you choose it or press <kbd>Ctrl</kbd>+<kbd>S</kbd>; there is
-              no autosave.
+              <L>{WRITE.save}</L>. Nothing is stored as a revision until you choose it or press <kbd>Ctrl</kbd>+
+              <kbd>S</kbd>. This browser keeps a local copy while the record is unsaved.
             </li>
             <li>
               <L>{WRITE.versionHistory}</L>, which jumps to <L>{RECORD.historyHeading}</L> lower on the page.
@@ -1205,7 +1308,8 @@ export function HelpContent() {
           <p>
             If you choose a link in the app while a chapter, scene or note has unsaved changes, the browser asks &ldquo;
             {WRITE.leaveUnsaved}&rdquo; Choose Cancel to stay; your typing is still there. Closing or reloading the tab
-            shows the browser&apos;s own warning. The browser&apos;s Back button does not ask, so save before using it.
+            shows the browser&apos;s own warning. The browser&apos;s Back button does not ask. If you leave without
+            saving, the next open of that record in this browser can offer the local copy.
           </p>
         </Sub>
 
@@ -1320,10 +1424,16 @@ export function HelpContent() {
               <kbd>End</kbd> for the narrowest and widest.
             </li>
             <li>
-              <L>{WRITE.splitView}</L> turns on a second chapter or scene beside the one you are editing. Pick which
-              document in the split pane. The split pane is{" "}
-              <L>{WRITE.splitReadOnly}</L>; choose <L>{WRITE.splitEditHere}</L> to open that document in the editor. If
-              you have unsaved changes, the usual leave warning appears first.
+              <L>{WRITE.splitView}</L> turns on a second chapter or scene beside the one you are editing, including a
+              chapter from another draft in the same manuscript. Pick which document in the split pane.{" "}
+              <L>{WRITE.splitDiff}</L> shows word changes between the text you are editing and the saved text beside
+              it. The split pane is <L>{WRITE.splitReadOnly}</L>; choose <L>{WRITE.splitEditHere}</L> to open that
+              document in the editor. If you have unsaved changes, the usual leave warning appears first.{" "}
+              <L>{WRITE.preview}</L> shows the chapter as rendered Markdown beside the text box. The text box stays in
+              place, so spelling, proofreading, and comments still use the same offsets. Typing <code>[[</code> or{" "}
+              <code>@</code> offers reference titles; inserting one writes the title as ordinary text. You can also
+              link that reference. On <L>{NAV.readBook}</L>, <L>{READ_BOOK.besideDrafts}</L> shows the zero draft and
+              the author manuscript in two columns when both exist.
             </li>
             <li>
               In <L>{WRITE.modeFocus}</L>, <L>{WRITE.typewriterScroll}</L> keeps the insertion point partway down the
@@ -1508,11 +1618,15 @@ export function HelpContent() {
       <Section id="world">
         <p>
           <L>{SHELL.world}</L> holds the project&apos;s reference documents of these types:{" "}
-          {WORLD_TYPES.map((t) => RECORD_TYPE_LABELS[t]).join(", ")}. The World page opens on search, recent references,
-          and <L>{WORLD.references}</L>, <L>{WORLD.maps}</L>, <L>{WORLD.boards}</L>, and{" "}
-          <L>{WORLD.storyTimeline}</L>.{" "}
-          <L>{WORLD.allReferences}</L> and each category still list documents in a table with type, canon status, saved
-          version, and protection. Under <L>{WORLD.boards}</L> you can place references, images and freeform notes on a
+          {WORLD_TYPES.map((t) => RECORD_TYPE_LABELS[t]).join(", ")}. The World page is <L>{WORLD.references}</L>:
+          search, document-type filters, an optional worldbuilding-kind filter, recent references, and{" "}
+          <L>{WORLD.worldDirectory}</L>. The project column lists the same surfaces under <L>{WORLD.loreAndCodex}</L>,{" "}
+          <L>{WORLD.visualSpaces}</L>, <L>{WORLD.timeAndContinuity}</L>, and <L>{WORLD.toolsHeading}</L>:{" "}
+          <L>{WORLD.references}</L>, <L>{WORLD.relationships}</L>, <L>{WORLD.maps}</L>, <L>{WORLD.boards}</L>,{" "}
+          <L>{WORLD.storyTimeline}</L>, <L>{WORLD.worldCalendar}</L>, and <L>{WORLD.nameGenerator}</L>. Opening one
+          does not change records. <L>{WORLD.allReferences}</L> and each category still list documents in a table with
+          type, canon status, saved version, and protection. Under <L>{WORLD.boards}</L> you can place references,
+          images and freeform notes on a
           focused board (see <See anchor="world-boards" />). Under <L>{WORLD.maps}</L> you can pin places on an existing
           reference image (see <See anchor="world-maps" />). <L>{WORLD.storyTimeline}</L> lists events in an order you
           set, separate from the manuscript (see <See anchor="story-events" />). Plot grids stay under{" "}
@@ -1533,7 +1647,8 @@ export function HelpContent() {
 
         <Sub id="world-boards">
           <p>
-            <L>{WORLD.boards}</L> in the World column lists boards for this project. A project can have none; creating the
+            <L>{WORLD.boards}</L> opens the board list for this project. The project column links to Boards; each board
+            title stays on that page. A project can have none; creating the
             first board does not change existing records. Choose <L>{WORLD.newBoard}</L> with{" "}
             <L>{WORLD.templateBlank}</L> (empty) or <L>{WORLD.templateGeography}</L> (invented region notes you can edit,
             move or remove).
@@ -1770,23 +1885,27 @@ export function HelpContent() {
 
         <Sub id="world-nav">
           <p>
-            On <L>{SHELL.world}</L> and on a World document&apos;s page, the second column shows{" "}
-            <L>{WORLD.boards}</L>, <L>{WORLD.maps}</L>, and <L>{WORLD.references}</L>. Choose the{" "}
-            <L>{WORLD.boards}</L>, <L>{WORLD.maps}</L>, or title-list heading to show or hide that list. Search and the
-            categories stay visible, and a title search keeps the title list open:
+            The project column on World keeps every surface visible: <L>{WORLD.loreAndCodex}</L> (
+            <L>{WORLD.references}</L>, <L>{WORLD.relationships}</L>), <L>{WORLD.visualSpaces}</L> (
+            <L>{WORLD.maps}</L>, <L>{WORLD.boards}</L>), <L>{WORLD.timeAndContinuity}</L> (
+            <L>{WORLD.storyTimeline}</L>, <L>{WORLD.worldCalendar}</L>), and <L>{WORLD.toolsHeading}</L> (
+            <L>{WORLD.nameGenerator}</L>). The same list is <L>{WORLD.worldSections}</L> on a narrow window. One surface
+            is current. A map, a board, or a reference record keeps its parent surface current without listing every
+            title in the column. Maps and boards are chosen on their own pages. Deeper pages show a breadcrumb trail
+            back to World.
           </p>
           <ul>
             <li>
-              <L>{WORLD.searchReferences}</L>. Typing filters the titles listed in the column. Press <kbd>Enter</kbd> to
-              also search the text and structured fields of every World document. The results page says where each match
-            was found and shows the surrounding text. Every match is listed. <L>{WORLD.clearSearch}</L> returns to the
-            World page. Search ignores upper and lower case.
+              <L>{WORLD.searchReferences}</L> on the World page searches titles, text, and structured fields. The results
+              say where each match was found and show the surrounding text. Every match is listed.{" "}
+              <L>{WORLD.clearSearch}</L> returns to the World page. Search ignores upper and lower case and does not
+              change any record.
             </li>
             <li>
-              <L>{WORLD.allReferences}</L> and one category per document type:{" "}
+              <L>{WORLD.allDocumentTypes}</L> and one filter per document type:{" "}
               {WORLD_TYPES.map((t) => WORLD_CATEGORY_LABELS[t]).join(", ")}. The number beside each is how many documents
-              of that type the project has. Choose one to list those documents on the World page and below the
-              categories.
+              of that type the project has. Choose one to list those documents. While a search or a filter is active,
+              the directory is hidden and <L>{WORLD.clearFilters}</L> or <L>{WORLD.clearSearch}</L> returns to the hub.
             </li>
           </ul>
           <p>
@@ -1794,7 +1913,7 @@ export function HelpContent() {
             them. Places, religions, magic systems, and other setting notes stay{" "}
             {RECORD_TYPE_LABELS.worldbuilding} records. On those records you can optionally choose a{" "}
             <L>{WORLD_KIND.kindLabel}</L> (place, magic system, organization, and the rest) in structured fields. That kind
-            only sub-groups the sidebar and World list; it is never inferred from the title or text. See{" "}
+            only filters the World list; it is never inferred from the title or text. See{" "}
             <See anchor="world-kinds" />. A document that covers several subjects still has one document type.
           </p>
         </Sub>
@@ -1808,9 +1927,9 @@ export function HelpContent() {
             change packages like other structured fields.
           </p>
           <p>
-            When you set a kind, the World sidebar under <L>{WORLD_CATEGORY_LABELS.worldbuilding}</L> lists each built-in kind
-            with a count, then <L>{WORLD.worldKindOther}</L> for custom names, and <L>{WORLD.worldKindUnset}</L> for records
-            with no kind. Choose <L>{WORLD_KIND.kindCustomOption}</L> when editing to type any label; it is stored in{" "}
+            When you set a kind, the World page can filter {RECORD_TYPE_LABELS.worldbuilding} records by each built-in kind,
+            then <L>{WORLD.worldKindOther}</L> for custom names, and <L>{WORLD.worldKindUnset}</L> for records with no kind.
+            Choosing a filter does not write a kind. Choose <L>{WORLD_KIND.kindCustomOption}</L> when editing to type any label; it is stored in{" "}
             <code>kind</code> like the built-ins. {WORLD_KIND.historyNote}{" "}
             <L>{WORLD.outlineHeading}</L> still only adds Markdown headings to the text; it does not set <code>kind</code>.
           </p>
@@ -1868,6 +1987,12 @@ export function HelpContent() {
             Links to web pages open in a new tab. Images attached to the document are shown where the text refers to
             them (see <See anchor="images" />). Any other picture address is shown as a link and is not loaded. HTML is
             shown as plain text.
+          </p>
+          <p>
+            On linkable references (not while editing), <L>{INFOBOX.heading}</L> at the top summarizes kind fields,
+            aliases, accepted established facts, relationships, map pins, and the first manuscript appearance from saved
+            name matches. Pending or dismissed facts are omitted. Open questions still come from an{" "}
+            <L>{INFOBOX.openQuestions}</L> heading in the text. See <See anchor="mentioned-by" /> for backlinks.
           </p>
           <p>
             <L>{WORLD.contents}</L> lists the document&apos;s own headings. Choose one to jump to it. Structured fields, if
@@ -3688,14 +3813,20 @@ export function HelpContent() {
             proposal changes.
           </li>
           <li>
-            Workspaces and projects cannot be renamed. Change packages and the assistant cannot move anything to
-            the Trash or delete it; only you can, in the app.
+            Change packages and the assistant cannot rename a workspace or manuscript, and they cannot move anything
+            to the Trash or delete it; only you can, in the app.
           </li>
           <li>
             Deleting permanently removes the item&apos;s whole history from the database, including its entries in{" "}
             <L>{NAV.history}</L> when a whole project or workspace goes. Only the backup made just before keeps it.
           </li>
-          <li>No autosave. Restoring an earlier version only helps when its title or text (or structured fields, if you tick that box) differs from the current saved version.</li>
+          <li>
+            Saving still happens only when you choose Save. While you type, this browser keeps a local copy of unsaved
+            title, text, and structured fields for the open record. That copy is not a revision and is not in a backup.
+            After a reload, Restore local draft or Discard offers that copy when it differs from the saved record.
+            Restoring an earlier saved version only helps when its title or text (or structured fields, if you tick that
+            box) differs from the current saved version.
+          </li>
           <li>
             Chapter files can be imported as chapters (see <See anchor="import-chapters" />), but scenes cannot, and
             chapters and scenes are exported as PDF, DOCX, or EPUB from <L>{NAV.exportPdf}</L>; reference bundles remain PDF-only. A chapter imported later goes after the existing ones until
@@ -3722,14 +3853,21 @@ export function HelpContent() {
             aliases, accepted established facts, relationships, map presence, and the first manuscript appearance from
             name matches; pending or dismissed facts are omitted. Open questions still come from an{" "}
             <L>{INFOBOX.openQuestions}</L> heading in the text, not a separate tab. Maps can be browsed, zoomed, and marked with points, routes, areas, and labels. Freehand drawing
-            is not available, and marker positions are not distances or travel times. A marker can list chapters and
-            scenes assigned to its place. That list is not mentions, linked references, or planned events, and it does
-            not invent a story date. The story timeline can leave an event&apos;s time unknown and can order events
-            without following the manuscript. A planned event stays marked. <L>{WORLD.showOnMap}</L> is offered only
-            when a linked place has a marker. A separate <See anchor="relationship-views" /> page graphs place and record
-            relationships only (not mentions).
+            is not available, and marker positions are not distances or travel times. Maps use author-defined{" "}
+            <L>{WORLD.mapLayers}</L>, an optional labelled <L>{WORLD.mapScale}</L> bar (caption only), and a{" "}
+            <L>{WORLD.mapGeography}</L> list from <em>part_of</em> links. A marker can list chapters and scenes assigned
+            to its place. That list is not mentions, linked references, or planned events, and it does not invent a
+            story date. The story timeline can leave an event&apos;s time unknown, can use structured in-world dates from{" "}
+            <See anchor="world-calendar" />, and can order events without following the manuscript. A planned event stays
+            marked. <L>{WORLD.showOnMap}</L> is offered only when a linked place has a marker. A separate{" "}
+            <See anchor="relationship-views" /> page graphs place and record relationships only (not mentions).{" "}
+            <See anchor="world-names" /> suggests names but never saves them until you add a dictionary entry or create a
+            dossier.
           </li>
-          <li>The browser&apos;s Back button does not warn about unsaved changes.</li>
+          <li>
+            Closing the tab warns when the editor has unsaved changes. The browser&apos;s Back button does not. A local
+            copy may still be offered the next time you open that record in this browser.
+          </li>
           <li>
             In one chapter or scene, find and replace works on that record&apos;s text only. Across the manuscript, use{" "}
             <L>{MANUSCRIPT_REPLACE.heading}</L> (literal text, saved versions only).
@@ -3744,11 +3882,13 @@ export function HelpContent() {
             checking while you type.
           </li>
           <li>
-            Dictionary entries are single words. &ldquo;{SPELLING.ignoreOnce}&rdquo; lasts until the page is reloaded.
+            Dictionary entries are single words or exact multi-word phrases. &ldquo;{SPELLING.ignoreOnce}&rdquo; lasts until
+            the page is reloaded.
           </li>
           <li>
-            Text search covers <L>{SHELL.world}</L> documents only (press <kbd>Enter</kbd> in{" "}
-            <L>{WORLD.searchReferences}</L>). The manuscript column filters chapters and scenes by title, and the{" "}
+            <L>{WORLD.searchReferences}</L> on World filters titles in the column; press <kbd>Enter</kbd> to search saved
+            text in World documents only. <L>{PROJECT_SEARCH.heading}</L> (<See anchor="project-search" />) searches a wider
+            set across the project. The manuscript column filters chapters and scenes by title, and the{" "}
             <L>{WRITE.references}</L> tab filters reference records by title or type. The local read-only adapter can
             search reference records its grant allows.
           </li>

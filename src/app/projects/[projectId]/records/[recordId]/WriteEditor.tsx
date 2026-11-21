@@ -19,6 +19,7 @@ import {
   type ReactNode,
 } from "react";
 import { IssueList } from "@/components/IssueList";
+import { MarkdownView } from "@/components/MarkdownView";
 import { type DraftOption } from "@/components/drafts/DraftControls";
 import { StoryLoomMark } from "@/components/library/StoryLoomMark";
 import { ContextRail, useContextRail } from "@/components/shell/ContextRail";
@@ -61,6 +62,13 @@ import { tidyText } from "@/writing/tidy";
 import { styleRangeHighlightEnd } from "@/writing/styleCheck";
 import type { SpellChecker, SpellingLanguage } from "@/writing/spelling";
 import { saveRecordAction, type FormResult } from "../../actions";
+import { linkReferenceAction } from "../../write/actions";
+import { CodexSuggestBox } from "@/components/writing/CodexSuggestBox";
+import type { CodexEntry } from "@/writing/codexSuggest";
+import { RecoveryBanner } from "@/writing/RecoveryBanner";
+import { suggestSplitPeer } from "@/writing/splitPeers";
+import { useLocalRecovery } from "@/writing/useLocalRecovery";
+import { parseMarkdown } from "@/writing/markdownParse";
 import {
   WriteContext,
   type AttachableSource,
@@ -105,6 +113,8 @@ export function WriteEditor(props: {
   initialPins: import("@/server/services/readingPinService").ReadingPinView[];
   plotBeats: PlotBeatItem[];
   manuscriptSplitOptions: ManuscriptSplitOption[];
+  preferredSplitIds: string[];
+  codexEntries: CodexEntry[];
   styleCheckNames: readonly string[];
   synopsisBody: string;
   marginComments: MarginCommentView[];
@@ -186,7 +196,8 @@ export function WriteEditor(props: {
       splitRecordId && splitRecordId !== props.recordId && splitPeers.some((o) => o.id === splitRecordId)
         ? splitRecordId
         : null;
-    const next = remembered ?? splitPeers[0]?.id ?? null;
+    const next =
+      remembered ?? suggestSplitPeer(props.manuscriptSplitOptions, props.recordId, props.preferredSplitIds);
     if (next) updateLayout({ writeSplitRecordId: next });
   };
   useEffect(() => {
@@ -228,6 +239,38 @@ export function WriteEditor(props: {
     document.addEventListener("selectionchange", onChange);
     return () => document.removeEventListener("selectionchange", onChange);
   }, [readSelection]);
+
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const previewDoc = useMemo(() => parseMarkdown(overlayText), [overlayText]);
+  const baseline = useMemo(
+    () => ({ title: props.title, body: savedText, fields: props.fieldsJson }),
+    [props.title, savedText, props.fieldsJson],
+  );
+  const currentDraft = useMemo(() => ({ title, body: text, fields }), [title, text, fields]);
+  const recovery = useLocalRecovery({
+    recordId: props.recordId,
+    revision: props.revision,
+    baseline,
+    current: currentDraft,
+    enabled: true,
+    saved: state.ok && Boolean(state.message) && !dirty,
+    onRestore: (draft) => {
+      setTitle(draft.title);
+      setText(normalizeNewlines(draft.body));
+      setFields(draft.fields);
+      const titleInput = formRef.current?.querySelector<HTMLInputElement>('input[name="title"]');
+      if (titleInput) titleInput.value = draft.title;
+      const fieldsBox = formRef.current?.querySelector<HTMLTextAreaElement>('textarea[name="fields"]');
+      if (fieldsBox) fieldsBox.value = draft.fields;
+      const body = bodyRef.current;
+      if (body) {
+        body.value = draft.body;
+        const end = body.value.length;
+        body.setSelectionRange(end, end);
+        setSelection({ start: end, end });
+      }
+    },
+  });
 
   const onBodyInput = (e: FormEvent<HTMLTextAreaElement>) => {
     setText(e.currentTarget.value);
@@ -547,6 +590,7 @@ export function WriteEditor(props: {
                 {splitPeers.length > 0 ? (
                   <LabeledSwitch label={WRITE.splitView} checked={splitOpen} onCheckedChange={setSplitOpen} />
                 ) : null}
+                <LabeledSwitch label={WRITE.preview} checked={previewOpen} onCheckedChange={setPreviewOpen} />
                 <WriteModeSwitch mode={writeMode} onChange={selectMode} />
               </div>
             </div>
@@ -557,6 +601,7 @@ export function WriteEditor(props: {
               unlocked={unlocked}
               onUnlocked={setUnlocked}
             />
+            <RecoveryBanner pending={recovery.pending} onRestore={recovery.restore} onDiscard={recovery.discard} />
             {!state.ok ? <IssueList issues={state.issues ?? []} /> : null}
             {!state.ok && state.message ? <Banner tone="error">{state.message}</Banner> : null}
             {loadNote && (loadNote.tone !== "info" || dirty) ? (
@@ -625,7 +670,7 @@ export function WriteEditor(props: {
             </div>
           </header>
 
-          <div className={`write-panes${splitOpen ? " is-split" : ""}`}>
+          <div className={`write-panes${splitOpen ? " is-split" : ""}${previewOpen ? " is-preview" : ""}`}>
           <div className={`write-column${writeMode === "desk" ? " has-tools" : ""}`}>
             {writeMode === "desk" ? (
               <div className="write-tools-launch">
@@ -666,6 +711,27 @@ export function WriteEditor(props: {
                 <SpellOverlay textareaRef={bodyRef} text={overlayText} flags={overlayFlags} current={flagAt(overlayFlags, selection)} />
               ) : null}
             </span>
+            <CodexSuggestBox
+              entries={props.codexEntries.filter((entry) => entry.id !== props.recordId)}
+              text={text}
+              cursor={selection.start}
+              onApply={(next) => {
+                const body = bodyRef.current;
+                if (!body) return;
+                body.value = next.text;
+                setText(normalizeNewlines(next.text));
+                body.setSelectionRange(next.cursor, next.cursor);
+                setSelection({ start: next.cursor, end: next.cursor });
+              }}
+              onLink={(entry) => {
+                void linkReferenceAction(props.projectId, props.recordId, entry.id);
+              }}
+            />
+            {previewOpen ? (
+              <div className="write-preview" aria-label={WRITE.previewLabel}>
+                <MarkdownView doc={previewDoc} className="write-preview-prose" />
+              </div>
+            ) : null}
             <details className="write-fields" id={`${idPrefix}-fields`}>
               <summary>{WRITE.structuredFields}</summary>
               <textarea
@@ -685,6 +751,7 @@ export function WriteEditor(props: {
               recordId={props.recordId}
               splitRecordId={splitRecordId}
               options={props.manuscriptSplitOptions}
+              liveText={text}
               onSelectSplit={(id) => updateLayout({ writeSplitRecordId: id })}
             />
           ) : null}

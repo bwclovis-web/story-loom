@@ -10,8 +10,9 @@ import {
   type DraftOption,
 } from "@/components/drafts/DraftControls";
 import { RECORD_TYPE_LABELS } from "@/domain/recordTypes";
-import { ANALYZE, DRAFT, NAV, SHELL, WEAVE, WRITE } from "@/ui/labels";
+import { ANALYZE, DRAFT, NAV, SHELL, WEAVE, WORLD, WRITE } from "@/ui/labels";
 import { groupForProjectPath, isWeaveLibraryPath, parseProjectPath, RECORD_GROUPS, type RecordNavEntry } from "@/ui/navigation";
+import { matchWorldDestination, worldDestinationByKey } from "@/ui/worldDestinations";
 import { IconButton } from "@/components/ui/IconButton";
 import { CollapsibleNavSection } from "./CollapsibleNavSection";
 import { Drawer } from "./Drawer";
@@ -35,16 +36,12 @@ export function ProjectNav({
   openReviewItems,
   drafts = [],
   activeDraftId = null,
-  boards = [],
-  maps = [],
 }: {
   project: ProjectInfo;
   records: RecordNavEntry[];
   openReviewItems: number;
   drafts?: DraftOption[];
   activeDraftId?: string | null;
-  boards?: Array<{ id: string; title: string }>;
-  maps?: Array<{ id: string; title: string }>;
 }) {
   const pathname = usePathname();
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -74,11 +71,15 @@ export function ProjectNav({
     pathname,
     drafts,
     activeDraftId,
-    boards,
-    maps,
     collapsed,
     onToggleSection: toggleSection,
   };
+  const group = parsed ? groupForProjectPath(parsed.rest, typeOf) : null;
+  const worldMatch =
+    group === "world"
+      ? matchWorldDestination(pathname ?? "", { recordIsWorld: parsed?.rest[0] === "records" })
+      : null;
+  const worldLabel = worldMatch ? worldDestinationByKey(worldMatch.key).label : null;
 
   const modeHidesNav = writeScreen && writeMode !== "desk";
   const secondaryOpen = !modeHidesNav && !layout.secondaryHidden;
@@ -139,13 +140,14 @@ export function ProjectNav({
           aria-controls="project-drawer"
           onClick={() => setDrawerOpen(true)}
         >
-          {SHELL.openProjectMenu}
+          {worldMatch ? WORLD.worldSections : SHELL.openProjectMenu}
           <span className="project-bar-title">{project.title}</span>
+          {worldLabel ? <span className="project-bar-current">{worldLabel}</span> : null}
         </button>
       </div>
       <Drawer
         id="project-drawer"
-        label={SHELL.projectNav}
+        label={worldMatch ? WORLD.worldSections : SHELL.projectNav}
         closeLabel={SHELL.closeProjectMenu}
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
@@ -163,8 +165,6 @@ function ProjectNavContent({
   pathname,
   drafts,
   activeDraftId,
-  boards = [],
-  maps = [],
   collapsed,
   onToggleSection,
   hideButton,
@@ -175,8 +175,6 @@ function ProjectNavContent({
   pathname: string;
   drafts: DraftOption[];
   activeDraftId: string | null;
-  boards?: Array<{ id: string; title: string }>;
-  maps?: Array<{ id: string; title: string }>;
   collapsed: ReadonlySet<string>;
   onToggleSection: (key: string) => void;
   hideButton?: React.ReactNode;
@@ -276,16 +274,7 @@ function ProjectNavContent({
           draftId={activeDraftId}
         />
       ) : group === "world" ? (
-        <WorldNav
-          projectId={project.id}
-          records={records}
-          onWorldPage={parsed?.rest[0] === "world"}
-          currentRecordId={currentRecordId}
-          boards={boards}
-          maps={maps}
-          collapsed={collapsed}
-          onToggleSection={onToggleSection}
-        />
+        <WorldNav projectId={project.id} records={records} />
       ) : group === "plan" ? (
         <>
           <CollapsibleNavSection

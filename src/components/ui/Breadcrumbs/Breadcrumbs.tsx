@@ -8,7 +8,11 @@ export type BreadcrumbItem = {
   current?: boolean;
 };
 
-/** Compact trail above a page title. Last item may omit href and set `current`. */
+/**
+ * Compact trail above a page title. Use this on nested pages (World tools,
+ * Weave grids, reference records) instead of a one-off breadcrumb list.
+ * The last item may omit href and set `current`.
+ */
 export function Breadcrumbs({
   label,
   items,

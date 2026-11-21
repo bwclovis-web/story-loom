@@ -23,6 +23,10 @@ import { imageMarkdown } from "@/images/imageFormat";
 import { WorldKindFields } from "@/components/world/WorldKindFields";
 import type { RecordType } from "@/domain/recordTypes";
 import { IMAGES, RECORD, WRITING } from "@/ui/labels";
+import { CodexSuggestBox } from "@/components/writing/CodexSuggestBox";
+import type { CodexEntry } from "@/writing/codexSuggest";
+import { RecoveryBanner } from "@/writing/RecoveryBanner";
+import { useLocalRecovery } from "@/writing/useLocalRecovery";
 import { invertEdit } from "@/writing/findReplace";
 import type { SpellChecker, SpellingLanguage } from "@/writing/spelling";
 import { saveRecordAction, setStatusAction, type FormResult } from "../../actions";
@@ -118,6 +122,7 @@ export function RecordEditor(props: {
   proofread: ProofreadConfig;
   /** Images attached to this reference document, for Insert image. */
   images?: { name: string; label: string }[];
+  codexEntries?: CodexEntry[];
 }) {
   const [state, action, pending] = useActionState<FormResult, FormData>(
     saveRecordAction.bind(null, props.projectId, props.recordId),
@@ -178,6 +183,34 @@ export function RecordEditor(props: {
     return () => document.removeEventListener("selectionchange", onChange);
   }, []);
 
+  const baseline = useMemo(
+    () => ({ title: props.title, body: savedText, fields: props.fieldsJson }),
+    [props.title, savedText, props.fieldsJson],
+  );
+  const currentDraft = useMemo(() => ({ title, body: text, fields }), [title, text, fields]);
+  const recovery = useLocalRecovery({
+    recordId: props.recordId,
+    revision: props.revision,
+    baseline,
+    current: currentDraft,
+    enabled: true,
+    saved: state.ok && Boolean(state.message) && !dirty,
+    onRestore: (draft) => {
+      setTitle(draft.title);
+      setText(normalizeNewlines(draft.body));
+      setFields(draft.fields);
+      const titleInput = bodyRef.current?.form?.querySelector<HTMLInputElement>('input[name="title"]');
+      if (titleInput) titleInput.value = draft.title;
+      const body = bodyRef.current;
+      if (body) {
+        body.value = draft.body;
+        const end = body.value.length;
+        body.setSelectionRange(end, end);
+        setSelection({ start: end, end });
+      }
+    },
+  });
+
   const onBodyInput = (e: FormEvent<HTMLTextAreaElement>) => {
     setText(e.currentTarget.value);
     readSelection();
@@ -186,6 +219,7 @@ export function RecordEditor(props: {
 
   return (
     <form onSubmit={submitWithoutReset(action)} className="stack">
+      <RecoveryBanner pending={recovery.pending} onRestore={recovery.restore} onDiscard={recovery.discard} />
       <input type="hidden" name="expectedRevision" value={props.revision} />
       <input type="hidden" name="authorityStatus" value={props.authorityStatus} />
       <label>
@@ -293,6 +327,19 @@ export function RecordEditor(props: {
             <SpellOverlay textareaRef={bodyRef} text={overlayText} flags={overlayFlags} current={flagAt(overlayFlags, selection)} />
           ) : null}
         </span>
+        <CodexSuggestBox
+          entries={(props.codexEntries ?? []).filter((entry) => entry.id !== props.recordId)}
+          text={text}
+          cursor={selection.start}
+          onApply={(next) => {
+            const body = bodyRef.current;
+            if (!body) return;
+            body.value = next.text;
+            setText(normalizeNewlines(next.text));
+            body.setSelectionRange(next.cursor, next.cursor);
+            setSelection({ start: next.cursor, end: next.cursor });
+          }}
+        />
       </label>
       <WordCounts
         text={text}

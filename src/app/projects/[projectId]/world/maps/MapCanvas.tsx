@@ -531,23 +531,21 @@ export function MapCanvas({
 
         <div className="doc-toolbar">
           <h2 className="board-title-display">{title}</h2>
+          <div className="map-mode" role="group" aria-label={`${WORLD.mapModeBrowse} / ${WORLD.mapModeEdit}`}>
+            <Button type="button" size="sm" variant={mode === "browse" ? "primary" : "secondary"} aria-pressed={mode === "browse"} onClick={() => changeMode("browse")}>
+              {WORLD.mapModeBrowse}
+            </Button>
+            <Button type="button" size="sm" variant={mode === "edit" ? "primary" : "secondary"} aria-pressed={mode === "edit"} onClick={() => changeMode("edit")}>
+              {WORLD.mapModeEdit}
+            </Button>
+          </div>
           <div className="doc-toolbar-end">
             <ContextRailToggle rail={rail} controls={railId} />
           </div>
         </div>
 
-        <div className="map-mode" role="group" aria-label={`${WORLD.mapModeBrowse} / ${WORLD.mapModeEdit}`}>
-          <Button type="button" size="sm" variant={mode === "browse" ? "primary" : "secondary"} aria-pressed={mode === "browse"} onClick={() => changeMode("browse")}>
-            {WORLD.mapModeBrowse}
-          </Button>
-          <Button type="button" size="sm" variant={mode === "edit" ? "primary" : "secondary"} aria-pressed={mode === "edit"} onClick={() => changeMode("edit")}>
-            {WORLD.mapModeEdit}
-          </Button>
-          <p className="small muted">{mode === "browse" ? WORLD.mapModeBrowseHint : WORLD.mapModeEditHint}</p>
-        </div>
-
         <p className="board-meta small muted">
-          <span>{WORLD.pinClickHint}</span>
+          <span>{mode === "browse" ? WORLD.mapModeBrowseHint : WORLD.mapModeEditHint}</span>
           <span>
             Backdrop: {map.imageName} on {map.hostRecordTitle}
           </span>

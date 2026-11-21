@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CanonBadge } from "@/components/Badges";
-import { LandingHeader } from "@/components/library/LandingHeader";
 import { OverflowDisclosure } from "@/components/shell/OverflowDisclosure";
 import { ProjectOnboarding } from "@/components/shell/ProjectOnboarding";
 import { Breadcrumbs } from "@/components/ui/Breadcrumbs";
@@ -10,16 +9,15 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { WorldRecordTableRow } from "@/components/ui/RecordRow";
 import { SearchPanel } from "@/components/ui/SearchPanel";
-import { WorldSurfaceNav } from "@/components/world/WorldSurfaceNav";
+import { WorldDirectory } from "@/components/world/WorldDirectory";
+import { WorldKindBrowse, WorldReferenceFilters } from "@/components/world/WorldReferenceFilters";
 import { stableStringify } from "@/domain/json";
 import { getDb } from "@/server/db";
-import { listProjectCoverHashes } from "@/server/services/coverService";
 import { findProject } from "@/server/services/projectService";
 import { listRecords } from "@/server/services/recordService";
 import { searchProjectRecords, type SearchHit } from "@/server/services/searchService";
 import { getSpellingLanguage } from "@/server/spelling";
 import { GROUP_PAGES, RECORD, SHELL, WORLD, WORLD_KIND } from "@/ui/labels";
-import { manuscriptEyebrow } from "@/ui/library";
 import { isReferenceTemplateKey } from "@/world/referenceTemplates";
 import {
   WORLDBUILDING_KIND_OTHER,
@@ -35,7 +33,9 @@ import {
   isWorldbuildingKindFilter,
   WORLD_CATEGORY_LABELS,
   WORLD_TYPES,
+  worldCounts,
   worldHref,
+  worldKindCounts,
 } from "@/ui/world";
 import { NewRecordForm } from "../NewRecordForm";
 
@@ -57,16 +57,21 @@ export default async function WorldPage({
     type === "worldbuilding" && isWorldbuildingKindFilter(query.kind) ? query.kind : null;
   const db = getDb();
   const base = `/projects/${encodeURIComponent(projectId)}`;
-  const [project, records, hits, spellingLanguage, coverHashes] = await Promise.all([
+  const [project, records, hits, spellingLanguage] = await Promise.all([
     findProject(db, projectId),
     listRecords(db, projectId),
     q ? searchProjectRecords(db, { projectId, query: q, types: WORLD_TYPES, includeManuscript: false }) : null,
     getSpellingLanguage(),
-    listProjectCoverHashes(db, [projectId]),
   ]);
   if (!project) notFound();
-  const coverHash = coverHashes.get(projectId) ?? null;
   const worldRecords = records.filter((r) => isWorldType(r.type));
+  const counted = worldRecords.map((record) => ({
+    type: record.type,
+    worldKind: record.type === "worldbuilding" ? worldbuildingKindFromFields(record.fields) : null,
+    customKind: record.type === "worldbuilding" ? worldbuildingCustomKind(record.fields) : null,
+  }));
+  const counts = worldCounts(counted);
+  const kindCounts = worldKindCounts(counted);
   const listed = type
     ? worldRecords.filter((r) => {
         if (r.type !== type) return false;
@@ -106,6 +111,23 @@ export default async function WorldPage({
           : WORLD.allReferencesList;
   const crumb = q ? WORLD.search : listTitle;
 
+  const newReference = (
+    <OverflowDisclosure id="new-reference" summary={WORLD.newReference} className="world-new-reference">
+      <h2 className="sr-only">{RECORD.newRecordHeading}</h2>
+      <NewRecordForm projectId={projectId} spellingLanguage={spellingLanguage} defaultType={type ?? "character_dossier"} />
+    </OverflowDisclosure>
+  );
+  const kindBrowse =
+    !q && (showHub || type === "worldbuilding") ? (
+      <WorldKindBrowse
+        projectId={projectId}
+        type={type}
+        kind={kindFilter}
+        searching={!!q}
+        kindCounts={kindCounts}
+      />
+    ) : null;
+
   return (
     <>
       {type || q || list ? (
@@ -118,57 +140,116 @@ export default async function WorldPage({
         />
       ) : null}
       {showHub ? (
-        <LandingHeader
-          projectId={projectId}
-          title={project.title}
-          eyebrow={manuscriptEyebrow(project.seriesName, project.workspace.name)}
-          coverSrc={coverHash ? `${base}/cover?v=${coverHash}` : null}
-          description={WORLD.hubLead}
-          gettingStarted={<ProjectOnboarding projectId={projectId} quiet marked />}
-        />
+        <header className="world-hub-header">
+          <div className="world-hub-heading">
+            <p className="outline-eyebrow">{project.title}</p>
+            <h1>{SHELL.world}</h1>
+            <ProjectOnboarding projectId={projectId} quiet marked />
+          </div>
+          {newReference}
+        </header>
       ) : (
-        <PageHeader
-          title={q ? WORLD.resultsFor(q) : listTitle}
-          lead={GROUP_PAGES.world}
-        />
+        <PageHeader title={q ? WORLD.resultsFor(q) : listTitle} lead={GROUP_PAGES.world} actions={newReference} />
       )}
-      <WorldSurfaceNav projectId={projectId} current="references" />
 
       {showHub ? (
+        <div className="world-hub-layout">
+          <div className="world-hub-main">
+            <SearchPanel
+              action={worldHref(projectId)}
+              label={WORLD.searchReferences}
+              inputId="world-hub-q"
+              submitLabel={WORLD.search}
+              hint={WORLD.hubSearchHint}
+              defaultValue={q}
+              className="world-hub-search"
+            />
+            <WorldReferenceFilters
+              projectId={projectId}
+              type={type}
+              kind={kindFilter}
+              searching={!!q}
+              listing={list}
+              counts={counts}
+            />
+            <section aria-labelledby="world-recent-heading">
+              <div className="world-section-head">
+                <h2 id="world-recent-heading">{WORLD.recentReferences}</h2>
+                <Link href={worldHref(projectId, { list: true })}>{WORLD.viewAllReferences}</Link>
+              </div>
+              {recent.length === 0 ? (
+                <EmptyState>{WORLD.noRecent}</EmptyState>
+              ) : (
+                <ul className="world-recent">
+                  {recent.map((r) => {
+                    const kindLabel = r.type === "worldbuilding" ? worldKindDisplayFromFields(r.fields) : null;
+                    return (
+                      <li key={r.id}>
+                        <Link className="world-recent-title" href={`${base}/records/${encodeURIComponent(r.id)}`}>
+                          {r.title}
+                        </Link>
+                        <p className="world-recent-meta small muted">
+                          {categoryLabel(r.type)}
+                          {kindLabel ? ` · ${kindLabel}` : ""}
+                          {" · "}
+                          {r.updatedAt.toLocaleString(undefined, { dateStyle: "medium" })}
+                        </p>
+                        <span className="world-recent-status">
+                          <CanonBadge status={r.authorityStatus} />
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </section>
+            {kindBrowse}
+            <OverflowDisclosure summary={SHELL.exportAndImport}>
+              <div className="row" style={{ flexWrap: "wrap", gap: "0.5rem" }}>
+                <ButtonLink variant="secondary" href={`${base}/import-markdown`}>
+                  {WORLD.importReferences}
+                </ButtonLink>
+                <ButtonLink variant="secondary" href={exportHref}>
+                  {WORLD.exportForChatGpt}
+                </ButtonLink>
+                <ButtonLink variant="secondary" href={pdfHref}>
+                  {WORLD.exportPdf}
+                </ButtonLink>
+              </div>
+            </OverflowDisclosure>
+          </div>
+          <WorldDirectory projectId={projectId} current="references" rail />
+        </div>
+      ) : (
         <>
           <SearchPanel
             action={worldHref(projectId)}
             label={WORLD.searchReferences}
             inputId="world-hub-q"
             submitLabel={WORLD.search}
-            hint={WORLD.searchHint}
-            visibleLabel
+            hint={WORLD.hubSearchHint}
+            defaultValue={q}
             className="world-hub-search"
           />
-          <section className="panel" aria-labelledby="world-recent-heading">
-            <h2 id="world-recent-heading">{WORLD.recentReferences}</h2>
-            {recent.length === 0 ? (
-              <EmptyState>{WORLD.noRecent}</EmptyState>
-            ) : (
-              <ul className="world-recent">
-                {recent.map((r) => (
-                  <li key={r.id}>
-                    <Link href={`${base}/records/${encodeURIComponent(r.id)}`}>{r.title}</Link>
-                    <span className="small muted">{categoryLabel(r.type)}</span>
-                    <CanonBadge status={r.authorityStatus} />
-                    <span className="small muted">{r.updatedAt.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
+          <WorldReferenceFilters
+            projectId={projectId}
+            type={type}
+            kind={kindFilter}
+            searching={!!q}
+            listing={list}
+            counts={counts}
+          />
+          {kindBrowse}
+          {q ? (
             <p className="small">
-              <Link href={worldHref(projectId, { list: true })}>{WORLD.allReferencesList}</Link>
+              <Link href={worldHref(projectId)}>{WORLD.clearSearch}</Link>
             </p>
-          </section>
-        </>
-      ) : null}
-
-      <OverflowDisclosure summary={SHELL.exportAndImport}>
+          ) : (
+            <p className="small">
+              <Link href={worldHref(projectId)}>{WORLD.clearFilters}</Link>
+            </p>
+          )}
+          <OverflowDisclosure summary={SHELL.exportAndImport}>
         <div className="row" style={{ flexWrap: "wrap", gap: "0.5rem" }}>
           <ButtonLink variant="secondary" href={`${base}/import-markdown`}>
             {WORLD.importReferences}
@@ -263,11 +344,8 @@ export default async function WorldPage({
           )}
         </section>
       ) : null}
-
-      <OverflowDisclosure summary={SHELL.newRecord} className="panel">
-        <h2 className="sr-only">{RECORD.newRecordHeading}</h2>
-        <NewRecordForm projectId={projectId} spellingLanguage={spellingLanguage} defaultType={type ?? "character_dossier"} />
-      </OverflowDisclosure>
+        </>
+      )}
     </>
   );
 }

@@ -1,13 +1,12 @@
 import Link from "next/link";
 import { HelpHint } from "@/components/HelpHint";
-import { Breadcrumbs } from "@/components/ui/Breadcrumbs";
 import { ButtonLink } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { PageHeader } from "@/components/ui/PageHeader";
+import { WorldToolHeader } from "@/components/world/WorldToolHeader";
 import { getDb } from "@/server/db";
 import { listBoards } from "@/server/services/boardService";
-import { WorldSurfaceNav } from "@/components/world/WorldSurfaceNav";
-import { SHELL, WORLD } from "@/ui/labels";
+import { WORLD } from "@/ui/labels";
+import { worldSurfaceCrumbs } from "@/ui/worldDestinations";
 import { CreateBoardForm } from "./CreateBoardForm";
 
 export const dynamic = "force-dynamic";
@@ -19,19 +18,16 @@ export default async function WorldBoardsPage({ params }: { params: Promise<{ pr
 
   return (
     <>
-      <Breadcrumbs
-        label={WORLD.breadcrumb}
-        items={[
-          { href: `${base}/world`, label: SHELL.world },
-          { label: WORLD.boards, current: true },
-        ]}
+      <WorldToolHeader
+        items={worldSurfaceCrumbs(projectId, "boards")}
+        title={WORLD.boards}
+        help={
+          <HelpHint anchor="world-boards" topic="World boards">
+            Boards are optional. Removing a card only removes it from that board. Ask about this board previews linked
+            records before opening the assistant.
+          </HelpHint>
+        }
       />
-      <PageHeader title={WORLD.boards} lead={WORLD.boardsLead} />
-      <WorldSurfaceNav projectId={projectId} current="boards" />
-      <HelpHint anchor="world-boards" topic="World boards">
-        Boards are optional. Removing a card only removes it from that board. Ask about this board previews linked
-        records before opening the assistant.
-      </HelpHint>
 
       <section className="panel stack" aria-labelledby="create-board-heading">
         <h2 id="create-board-heading">{WORLD.newBoard}</h2>

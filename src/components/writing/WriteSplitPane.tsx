@@ -1,34 +1,35 @@
 "use client";
 
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import { ButtonLink } from "@/components/ui/Button";
 import { fetchManuscriptSnapshotAction, type ManuscriptSnapshot } from "@/app/projects/[projectId]/records/[recordId]/split-actions";
+import { hasTextChange, textDiff } from "@/changePackage/diff";
 import { confirmLeave } from "@/components/shell/unsaved";
+import { splitGroups, type ManuscriptSplitOption } from "@/writing/splitPeers";
 import { WRITE } from "@/ui/labels";
 
-export type ManuscriptSplitOption = {
-  id: string;
-  title: string;
-  kind: "chapter" | "scene";
-};
+export type { ManuscriptSplitOption };
 
 export function WriteSplitPane({
   projectId,
   recordId,
   splitRecordId,
   options,
+  liveText,
   onSelectSplit,
 }: {
   projectId: string;
   recordId: string;
   splitRecordId: string;
   options: readonly ManuscriptSplitOption[];
+  liveText: string;
   onSelectSplit: (recordId: string) => void;
 }) {
   const titleId = useId();
   const [snapshot, setSnapshot] = useState<ManuscriptSnapshot | null>(null);
   const [error, setError] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [showDiff, setShowDiff] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -53,6 +54,11 @@ export function WriteSplitPane({
 
   const href = `/projects/${encodeURIComponent(projectId)}/records/${encodeURIComponent(splitRecordId)}`;
   const peers = options.filter((o) => o.id !== recordId);
+  const groups = splitGroups(peers);
+  const diff = useMemo(
+    () => (showDiff && snapshot ? textDiff(liveText, snapshot.body) : []),
+    [showDiff, snapshot, liveText],
+  );
 
   return (
     <aside className="write-split" aria-labelledby={titleId}>
@@ -79,13 +85,27 @@ export function WriteSplitPane({
               {WRITE.savedRevision(snapshot.revision)}
               {snapshot.isProtected ? ` · ${WRITE.protectedReadOnly}` : null}
             </p>
-            <textarea
-              className="document manuscript-text write-split-text"
-              readOnly
-              aria-label={WRITE.splitPaneText}
-              value={snapshot.body}
-              tabIndex={0}
-            />
+            {showDiff ? (
+              hasTextChange(diff) ? (
+                <p className="write-split-diff" aria-label={WRITE.splitDiff}>
+                  {diff.map((part, index) => (
+                    <span key={index} className={part.added ? "diff-added" : part.removed ? "diff-removed" : undefined}>
+                      {part.value}
+                    </span>
+                  ))}
+                </p>
+              ) : (
+                <p className="small muted">{WRITE.splitDiffHint}</p>
+              )
+            ) : (
+              <textarea
+                className="document manuscript-text write-split-text"
+                readOnly
+                aria-label={WRITE.splitPaneText}
+                value={snapshot.body}
+                tabIndex={0}
+              />
+            )}
           </>
         ) : null}
       </div>
@@ -99,12 +119,20 @@ export function WriteSplitPane({
               if (next && next !== recordId) onSelectSplit(next);
             }}
           >
-            {peers.map((o) => (
-              <option key={o.id} value={o.id}>
-                {o.title}
-              </option>
+            {groups.map((group) => (
+              <optgroup key={group.draftId || group.draftLabel} label={group.draftLabel}>
+                {group.options.map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {option.kind === "scene" ? `${WRITE.sceneKind}: ${option.title}` : option.title}
+                  </option>
+                ))}
+              </optgroup>
             ))}
           </select>
+        </label>
+        <label className="check-inline">
+          <input type="checkbox" checked={showDiff} onChange={(event) => setShowDiff(event.target.checked)} />
+          {WRITE.splitDiff}
         </label>
         <ButtonLink
           href={href}

@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode, type RefObject } from "react";
-import { Image as ImageIcon, Trash2 } from "lucide-react";
+import { useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode, type RefObject } from "react";
+import { Image as ImageIcon, Pencil, Trash2 } from "lucide-react";
 import { ConfirmAction, type ConfirmResult } from "@/components/ConfirmAction";
 import { MoreIcon } from "@/components/shell/icons";
 import { Button } from "@/components/ui/Button";
@@ -12,15 +12,18 @@ type TrashAction = (prev: ConfirmResult, formData: FormData) => Promise<ConfirmR
 type CoverResult = { ok: true } | { ok: false; message: string };
 type SetCoverAction = (formData: FormData) => Promise<CoverResult>;
 type ClearCoverAction = () => Promise<CoverResult>;
+type RenameAction = (name: string) => Promise<CoverResult>;
 
 export function WorkspaceActions({
   name,
   projectCount,
   action,
+  rename,
 }: {
   name: string;
   projectCount: number;
   action: TrashAction;
+  rename: RenameAction;
 }) {
   const details =
     projectCount === 0
@@ -28,8 +31,20 @@ export function WorkspaceActions({
       : projectCount === 1
         ? "Its manuscript and everything in it move too."
         : `Its ${SHELL.projects(projectCount)} and everything in them move too.`;
+  const dialogRef = useRef<HTMLDialogElement>(null);
   return (
+    <>
     <ActionsMenu label={HOME.workspaceActions(name)}>
+      <Button
+        type="button"
+        variant="secondary"
+        size="sm"
+        className="library-menu-action"
+        icon={<Pencil strokeWidth={1.75} />}
+        onClick={() => dialogRef.current?.showModal()}
+      >
+        {HOME.renameWorkspace}
+      </Button>
       <ConfirmAction
         action={action}
         label={TRASH.moveWorkspace}
@@ -45,6 +60,8 @@ export function WorkspaceActions({
         small
       />
     </ActionsMenu>
+    <RenameDialog dialogRef={dialogRef} heading={HOME.renameWorkspaceHeading} label={HOME.workspaceName} initial={name} rename={rename} />
+    </>
   );
 }
 
@@ -54,17 +71,30 @@ export function ManuscriptActions({
   hasCover,
   setCover,
   clearCover,
+  rename,
 }: {
   title: string;
   action: TrashAction;
   hasCover: boolean;
   setCover: SetCoverAction;
   clearCover: ClearCoverAction;
+  rename: RenameAction;
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const renameRef = useRef<HTMLDialogElement>(null);
   return (
     <>
       <ActionsMenu label={HOME.manuscriptActions(title)}>
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          className="library-menu-action"
+          icon={<Pencil strokeWidth={1.75} />}
+          onClick={() => renameRef.current?.showModal()}
+        >
+          {HOME.renameManuscript}
+        </Button>
         <Button
           type="button"
           variant="secondary"
@@ -90,8 +120,74 @@ export function ManuscriptActions({
           small
         />
       </ActionsMenu>
+      <RenameDialog dialogRef={renameRef} heading={HOME.renameManuscriptHeading} label={HOME.manuscriptTitle} initial={title} rename={rename} />
       <CoverDialog title={title} hasCover={hasCover} setCover={setCover} clearCover={clearCover} dialogRef={dialogRef} />
     </>
+  );
+}
+
+function RenameDialog({
+  heading,
+  label,
+  initial,
+  rename,
+  dialogRef,
+}: {
+  heading: string;
+  label: string;
+  initial: string;
+  rename: RenameAction;
+  dialogRef: RefObject<HTMLDialogElement | null>;
+}) {
+  const titleId = useId();
+  const [name, setName] = useState(initial);
+  const [message, setMessage] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
+
+  async function save(event: FormEvent) {
+    event.preventDefault();
+    setPending(true);
+    setMessage(null);
+    const result = await rename(name);
+    setPending(false);
+    if (!result.ok) {
+      setMessage(result.message);
+      return;
+    }
+    dialogRef.current?.close();
+  }
+
+  return (
+    <dialog
+      ref={dialogRef}
+      className="library-dialog"
+      aria-labelledby={titleId}
+      onClose={() => {
+        setMessage(null);
+        setName(initial);
+      }}
+    >
+      <form onSubmit={(event) => void save(event)}>
+        <h2 id={titleId}>{heading}</h2>
+        <label>
+          {label}
+          <input value={name} onChange={(event) => setName(event.target.value)} required maxLength={200} />
+        </label>
+        {message ? (
+          <p className="small" role="alert">
+            {message}
+          </p>
+        ) : null}
+        <div className="row">
+          <Button type="submit" disabled={pending}>
+            {HOME.renameSave}
+          </Button>
+          <Button type="button" variant="secondary" onClick={() => dialogRef.current?.close()} disabled={pending}>
+            {HOME.cancel}
+          </Button>
+        </div>
+      </form>
+    </dialog>
   );
 }
 

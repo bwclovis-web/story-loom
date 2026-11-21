@@ -12,7 +12,11 @@ export interface HelpSection {
 }
 
 export const HELP_SECTIONS = [
-  { id: "quick-start", title: "Quick start" },
+  {
+    id: "quick-start",
+    title: "Quick start",
+    children: [{ id: "whats-new", title: "What's new" }],
+  },
   { id: "getting-started", title: "Getting started" },
   {
     id: "optional-features",
@@ -22,6 +26,9 @@ export const HELP_SECTIONS = [
       { id: "optional-pins", title: "Reference pins" },
       { id: "optional-boards", title: "World Boards" },
       { id: "optional-maps", title: "World maps" },
+      { id: "optional-calendar", title: "In-world calendar" },
+      { id: "optional-relationships", title: "Relationships and graph" },
+      { id: "optional-names", title: "Name generator" },
       { id: "optional-rewrites", title: "Author rewrites" },
     ],
   },
@@ -96,7 +103,7 @@ export const HELP_SECTIONS = [
       { id: "world-nav", title: "Finding references" },
       { id: "world-kinds", title: "Worldbuilding kinds" },
       { id: "world-names", title: "Name generator" },
-      { id: "reference-page", title: "Reading a reference" },
+      { id: "reference-page", title: "Reading a reference (incl. At a glance)" },
       { id: "reference-context", title: "Context beside a reference" },
       { id: "mentioned-by", title: "Mentioned by" },
       { id: "reference-outlines", title: "Original outlines" },
@@ -219,6 +226,9 @@ export const HELP_ROUTES = [
   "/projects/[projectId]/world/boards/[boardId]",
   "/projects/[projectId]/world/maps",
   "/projects/[projectId]/world/maps/[mapId]",
+  "/projects/[projectId]/world/calendar",
+  "/projects/[projectId]/world/relationships",
+  "/projects/[projectId]/world/names",
   "/projects/[projectId]/records/[recordId]",
   "/projects/[projectId]/import",
   "/projects/[projectId]/import-markdown",

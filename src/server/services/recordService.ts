@@ -4,6 +4,7 @@ import { toRecordView, toRevisionView, type RecordView, type RevisionView } from
 import { isLinkableReferenceType, isRecordType, RECORD_TYPE_LABELS, type RecordType } from "@/domain/recordTypes";
 import { isAuthorityStatus, type AuthorityStatus } from "@/domain/statuses";
 import type { RecordNavEntry } from "@/ui/navigation";
+import { aliasesOf } from "@/writing/crossRefs";
 import { worldbuildingCustomKind, worldbuildingKindFromFields } from "@/world/worldKinds";
 import type { Db, DbOrTx } from "../db";
 import { MutationRejectedError, NotFoundError } from "./errors";
@@ -281,6 +282,32 @@ export async function listReferenceChoices(db: DbOrTx, projectId: string): Promi
       ? [{ id: r.id, title: r.title, type: r.type, authorityStatus: r.authorityStatus }]
       : [],
   );
+}
+
+export interface CodexEntryRow {
+  id: string;
+  title: string;
+  aliases: string[];
+}
+
+/** Titles and aliases for inline [[ / @ suggestions. Bodies are not loaded. */
+export async function listCodexEntries(db: DbOrTx, projectId: string): Promise<CodexEntryRow[]> {
+  const rows = await db.record.findMany({
+    where: { projectId, trashedAt: null },
+    orderBy: [{ title: "asc" }, { id: "asc" }],
+    select: { id: true, title: true, type: true, fields: true },
+  });
+  return rows.flatMap((row) => {
+    if (!isRecordType(row.type) || !isLinkableReferenceType(row.type)) return [];
+    let fields: Record<string, unknown> = {};
+    try {
+      const parsed = JSON.parse(row.fields) as unknown;
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) fields = parsed as Record<string, unknown>;
+    } catch {
+      fields = {};
+    }
+    return [{ id: row.id, title: row.title, aliases: aliasesOf(fields) }];
+  });
 }
 
 /** Records in the Trash are not found. */

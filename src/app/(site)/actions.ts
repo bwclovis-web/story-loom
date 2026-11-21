@@ -7,7 +7,7 @@ import { errorIssue } from "@/domain/issues";
 import { getDb } from "@/server/db";
 import { clearProjectCover, setProjectCover } from "@/server/services/coverService";
 import { MutationRejectedError, NotFoundError } from "@/server/services/errors";
-import { createProject, createWorkspace } from "@/server/services/projectService";
+import { createProject, createWorkspace, renameProject, renameWorkspace } from "@/server/services/projectService";
 import { trashWorkspace } from "@/server/services/trashService";
 
 export type CoverResult = { ok: true } | { ok: false; message: string };
@@ -54,6 +54,28 @@ export async function clearCoverAction(projectId: string): Promise<CoverResult> 
     throw error;
   }
   revalidatePath("/");
+  return { ok: true };
+}
+
+export async function renameWorkspaceAction(workspaceId: string, name: string): Promise<CoverResult> {
+  try {
+    await renameWorkspace(getDb(), { workspaceId, name, actor: "author" });
+  } catch (error) {
+    if (error instanceof NotFoundError) return { ok: false, message: "That workspace is not available." };
+    return { ok: false, message: (error as Error).message };
+  }
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+export async function renameProjectAction(projectId: string, title: string): Promise<CoverResult> {
+  try {
+    await renameProject(getDb(), { projectId, title, actor: "author" });
+  } catch (error) {
+    if (error instanceof NotFoundError) return { ok: false, message: "That manuscript is not available." };
+    return { ok: false, message: (error as Error).message };
+  }
+  revalidatePath("/", "layout");
   return { ok: true };
 }
 

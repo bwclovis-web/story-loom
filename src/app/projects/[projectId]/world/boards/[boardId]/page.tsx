@@ -7,7 +7,8 @@ import { listRecordImages } from "@/server/services/imageService";
 import { listRecords } from "@/server/services/recordService";
 import { isLinkableReferenceType, RECORD_TYPE_LABELS } from "@/domain/recordTypes";
 import { isWorldType } from "@/ui/world";
-import { SHELL, WORLD } from "@/ui/labels";
+import { WORLD } from "@/ui/labels";
+import { worldSurfaceCrumbs } from "@/ui/worldDestinations";
 import { BoardCanvas } from "../BoardCanvas";
 
 export const dynamic = "force-dynamic";
@@ -47,18 +48,9 @@ export default async function WorldBoardPage({
     }
   }
 
-  const base = `/projects/${encodeURIComponent(projectId)}`;
-
   return (
     <>
-      <Breadcrumbs
-        label={WORLD.breadcrumb}
-        items={[
-          { href: `${base}/world`, label: SHELL.world },
-          { href: `${base}/world/boards`, label: WORLD.boards },
-          { label: board.title, current: true },
-        ]}
-      />
+      <Breadcrumbs label={WORLD.breadcrumb} items={worldSurfaceCrumbs(projectId, "boards", board.title)} />
       <BoardCanvas
         projectId={projectId}
         board={board}

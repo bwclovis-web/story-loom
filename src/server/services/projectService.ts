@@ -75,6 +75,60 @@ export async function listProjectSummaries(db: DbOrTx): Promise<ProjectSummary[]
   );
 }
 
+const NAME_MAX = 200;
+
+function requiredName(value: string, label: string): string {
+  const name = value.trim();
+  if (!name) throw new Error(`${label} is required`);
+  if (name.length > NAME_MAX) throw new Error(`${label} is too long`);
+  return name;
+}
+
+/** Renames a workspace. Each live manuscript in it gets an audit row. */
+export async function renameWorkspace(db: Db, input: { workspaceId: string; name: string; actor?: string }) {
+  const name = requiredName(input.name, "Workspace name");
+  const actor = input.actor ?? "author";
+  return db.$transaction(async (tx) => {
+    const workspace = await tx.workspace.findFirst({
+      where: { id: input.workspaceId, trashedAt: null },
+      include: { projects: { where: { trashedAt: null }, select: { id: true } } },
+    });
+    if (!workspace) throw new NotFoundError(`Workspace ${input.workspaceId} not found`);
+    if (workspace.name === name) return workspace;
+    const updated = await tx.workspace.update({ where: { id: workspace.id }, data: { name } });
+    for (const project of workspace.projects) {
+      await writeAudit(tx, {
+        projectId: project.id,
+        action: "workspace.rename",
+        actor,
+        summary: `Renamed workspace from "${workspace.name}" to "${name}"`,
+        details: { workspaceId: workspace.id, from: workspace.name, to: name },
+      });
+    }
+    return updated;
+  });
+}
+
+/** Renames a manuscript. Audited on that project. Record text is unchanged. */
+export async function renameProject(db: Db, input: { projectId: string; title: string; actor?: string }) {
+  const title = requiredName(input.title, "Manuscript title");
+  const actor = input.actor ?? "author";
+  return db.$transaction(async (tx) => {
+    const project = await tx.project.findFirst({ where: { id: input.projectId, ...LIVE_PROJECT } });
+    if (!project) throw new NotFoundError(`Project ${input.projectId} not found`);
+    if (project.title === title) return project;
+    const updated = await tx.project.update({ where: { id: project.id }, data: { title } });
+    await writeAudit(tx, {
+      projectId: project.id,
+      action: "project.rename",
+      actor,
+      summary: `Renamed manuscript from "${project.title}" to "${title}"`,
+      details: { projectId: project.id, from: project.title, to: title },
+    });
+    return updated;
+  });
+}
+
 /** Projects in the Trash, or in a workspace in the Trash, are not found. */
 export async function getProject(db: DbOrTx, projectId: string) {
   const project = await findProject(db, projectId);

@@ -8,7 +8,8 @@ import { getWorldMap, listWorldMaps } from "@/server/services/worldMapService";
 import { buildMapGeographyTree } from "@/world/mapGeography";
 import { isLinkableReferenceType, RECORD_TYPE_LABELS } from "@/domain/recordTypes";
 import { isWorldType } from "@/ui/world";
-import { SHELL, WORLD } from "@/ui/labels";
+import { WORLD } from "@/ui/labels";
+import { worldSurfaceCrumbs } from "@/ui/worldDestinations";
 import { MapCanvas } from "../MapCanvas";
 
 export const dynamic = "force-dynamic";
@@ -47,18 +48,10 @@ export default async function WorldMapPage({
     if (pin.recordId && !pin.unavailable) pinsByRecordId.set(pin.recordId, pin.id);
   }
   const geography = buildMapGeographyTree(graph.nodes, graph.edges, pinsByRecordId);
-  const base = `/projects/${encodeURIComponent(projectId)}`;
 
   return (
     <>
-      <Breadcrumbs
-        label={WORLD.breadcrumb}
-        items={[
-          { href: `${base}/world`, label: SHELL.world },
-          { href: `${base}/world/maps`, label: WORLD.maps },
-          { label: map.title, current: true },
-        ]}
-      />
+      <Breadcrumbs label={WORLD.breadcrumb} items={worldSurfaceCrumbs(projectId, "maps", map.title)} />
       <MapCanvas
         projectId={projectId}
         map={map}

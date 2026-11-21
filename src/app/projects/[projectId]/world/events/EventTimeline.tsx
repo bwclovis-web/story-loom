@@ -64,41 +64,40 @@ export function EventTimeline({ projectId, timeline }: { projectId: string; time
   return (
     <div className="write-layout reference-write-layout board-layout">
       <div className="write-main board-main">
-        <div className="doc-toolbar">
-          <h2 className="board-title-display">{WORLD.storyTimeline}</h2>
+        <div className="doc-toolbar world-surface-toolbar">
+          <label className="world-toolbar-field">
+            {WORLD.sceneDraftFilter}
+            <select
+              value={timeline.draft}
+              onChange={(event) => {
+                const draft = event.target.value;
+                const query = new URLSearchParams();
+                if (draft !== "all") query.set("draft", draft);
+                if (selected) query.set("event", selected.id);
+                const text = query.toString();
+                router.push(text ? `${base}?${text}` : base);
+              }}
+            >
+              <option value="all">{WORLD.allDrafts}</option>
+              <option value="unscoped">{WORLD.unscopedDraft}</option>
+              {timeline.drafts.map((draft) => (
+                <option key={draft.id} value={draft.id}>
+                  {draft.title}
+                </option>
+              ))}
+            </select>
+          </label>
+          <ButtonLink variant="secondary" size="sm" href={`${base.replace("/events", "/calendar")}`}>
+            {WORLD.worldCalendarOpen}
+          </ButtonLink>
           <div className="doc-toolbar-end">
             <ContextRailToggle rail={rail} controls={railId} />
           </div>
         </div>
-        <p className="small muted">{WORLD.storyEventNote}</p>
-        <p>
-          <ButtonLink variant="secondary" href={`${base.replace("/events", "/calendar")}`}>
-            {WORLD.worldCalendarOpen}
-          </ButtonLink>
-        </p>
+        <p className="small muted" style={{ margin: 0 }}>{WORLD.storyEventNote}</p>
         <IssueList issues={issues} />
-        <label>
-          {WORLD.sceneDraftFilter}
-          <select
-            value={timeline.draft}
-            onChange={(event) => {
-              const draft = event.target.value;
-              const query = new URLSearchParams();
-              if (draft !== "all") query.set("draft", draft);
-              if (selected) query.set("event", selected.id);
-              const text = query.toString();
-              router.push(text ? `${base}?${text}` : base);
-            }}
-          >
-            <option value="all">{WORLD.allDrafts}</option>
-            <option value="unscoped">{WORLD.unscopedDraft}</option>
-            {timeline.drafts.map((draft) => (
-              <option key={draft.id} value={draft.id}>
-                {draft.title}
-              </option>
-            ))}
-          </select>
-        </label>
+        <details className="overflow-disclosure world-new-event">
+          <summary>{WORLD.newEvent}</summary>
         <CreateEvent
           pending={pending}
           drafts={timeline.drafts}
@@ -116,6 +115,7 @@ export function EventTimeline({ projectId, timeline }: { projectId: string; time
             })
           }
         />
+        </details>
         {timeline.events.length === 0 ? (
           <p className="muted">{WORLD.noStoryEvents}</p>
         ) : (

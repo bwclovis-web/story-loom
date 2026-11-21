@@ -39,10 +39,12 @@ export function RelationshipExplorer({
   const base = `/projects/${encodeURIComponent(projectId)}`;
   const [view, setView] = useState<ExplorerView>("graph");
   const [presentation, setPresentation] = useState<Presentation>("diagram");
+  const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [focusId, setFocusId] = useState(initialFocus);
   const [steps, setSteps] = useState(initialSteps);
   const [kinds, setKinds] = useState<Set<string>>(() => new Set(DEFAULT_GRAPH_KINDS));
   const controlsId = useId();
+  const inspectorId = useId();
 
   const allowedKinds = kinds;
   const subgraph = useMemo(
@@ -53,6 +55,7 @@ export function RelationshipExplorer({
     () => (presentation === "diagram" && view === "graph" ? layoutRadial(subgraph.nodes, subgraph.edges, focusId || null, 720, 420) : new Map()),
     [subgraph, focusId, presentation, view],
   );
+  const selectedEdge = subgraph.edges.find((edge) => edge.id === selectedEdgeId) ?? null;
 
   const family = useMemo(() => buildFamilyForest(graph.nodes, graph.edges), [graph]);
   const organization = useMemo(() => buildOrganizationForest(graph.nodes, graph.edges), [graph]);
@@ -81,6 +84,7 @@ export function RelationshipExplorer({
         {WORLD.relationshipExplorerControls}
       </h2>
 
+      <div className="relationship-toolbar">
       <SegmentedControl label={WORLD.relationshipViewTabs}>
         {(
           [
@@ -111,7 +115,7 @@ export function RelationshipExplorer({
 
       {view === "graph" ? (
         <div className="row" style={{ flexWrap: "wrap", gap: "0.75rem", alignItems: "end" }}>
-          <label>
+          <label className="world-toolbar-field">
             {WORLD.relationshipFocus}
             <select
               value={focusId}
@@ -128,7 +132,7 @@ export function RelationshipExplorer({
               ))}
             </select>
           </label>
-          <label>
+          <label className="world-toolbar-field">
             {WORLD.relationshipSteps}
             <input
               type="number"
@@ -154,15 +158,38 @@ export function RelationshipExplorer({
           ))}
         </SegmentedControl>
       ) : null}
+      </div>
 
       {graph.edges.length === 0 ? (
         <p className="muted">{WORLD.relationshipNoData}</p>
       ) : view === "graph" ? (
-        presentation === "diagram" ? (
-          <GraphSvg projectId={projectId} nodes={subgraph.nodes} edges={subgraph.edges} positions={positions} focusId={focusId || null} />
-        ) : (
-          <EdgeList projectId={projectId} edges={subgraph.edges} nodes={subgraph.nodes} />
-        )
+        <div className="relationship-workspace">
+          {presentation === "diagram" ? (
+            <GraphSvg
+              projectId={projectId}
+              nodes={subgraph.nodes}
+              edges={subgraph.edges}
+              positions={positions}
+              focusId={focusId || null}
+              selectedId={selectedEdge?.id ?? null}
+              onSelect={setSelectedEdgeId}
+            />
+          ) : (
+            <EdgeList
+              projectId={projectId}
+              edges={subgraph.edges}
+              nodes={subgraph.nodes}
+              selectedId={selectedEdge?.id ?? null}
+              onSelect={setSelectedEdgeId}
+            />
+          )}
+          <RelationshipInspector
+            id={inspectorId}
+            projectId={projectId}
+            edge={selectedEdge}
+            nodes={subgraph.nodes}
+          />
+        </div>
       ) : view === "family" ? (
         presentation === "diagram" ? (
           <ForestDiagram projectId={projectId} trees={family.tree} extras={family.loose} nodes={graph.nodes} />
@@ -196,27 +223,44 @@ function GraphSvg({
   edges,
   positions,
   focusId,
+  selectedId,
+  onSelect,
 }: {
   projectId: string;
   nodes: ProjectRelationshipGraph["nodes"];
   edges: RelationshipEdge[];
   positions: Map<string, { x: number; y: number }>;
   focusId: string | null;
+  selectedId: string | null;
+  onSelect: (id: string) => void;
 }) {
   const byId = new Map(nodes.map((n) => [n.id, n]));
   return (
     <figure className="relationship-figure">
-      <svg className="relationship-graph-svg" viewBox="0 0 720 420" role="img" aria-label={WORLD.relationshipGraphSvgLabel}>
+      <svg className="relationship-graph-svg" viewBox="0 0 720 420" aria-label={WORLD.relationshipGraphSvgLabel}>
         {edges.map((e) => {
           const a = positions.get(e.fromRecordId);
           const b = positions.get(e.toRecordId);
           if (!a || !b) return null;
+          const label = `${byId.get(e.fromRecordId)?.title} — ${e.kindLabel} → ${byId.get(e.toRecordId)?.title}`;
           return (
-            <g key={e.id}>
-              <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} className="relationship-edge" />
-              <title>
-                {byId.get(e.fromRecordId)?.title} — {e.kindLabel} → {byId.get(e.toRecordId)?.title}
-              </title>
+            <g
+              key={e.id}
+              role="button"
+              tabIndex={0}
+              aria-pressed={selectedId === e.id}
+              aria-label={label}
+              onClick={() => onSelect(e.id)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  onSelect(e.id);
+                }
+              }}
+            >
+              <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} className={selectedId === e.id ? "relationship-edge selected" : "relationship-edge"} />
+              <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} className="relationship-edge-hit" />
+              <title>{label}</title>
             </g>
           );
         })}
@@ -251,10 +295,14 @@ function EdgeList({
   projectId,
   edges,
   nodes,
+  selectedId = null,
+  onSelect,
 }: {
   projectId: string;
   edges: RelationshipEdge[];
   nodes: ProjectRelationshipGraph["nodes"];
+  selectedId?: string | null;
+  onSelect?: (id: string) => void;
 }) {
   const titleOf = (id: string) => nodes.find((n) => n.id === id)?.title ?? id;
   if (!edges.length) return <p className="muted small">{WORLD.relationshipSubgraphEmpty}</p>;
@@ -263,12 +311,51 @@ function EdgeList({
       {edges.map((e) => (
         <li key={e.id}>
           <Link href={recordHref(projectId, e.fromRecordId)}>{titleOf(e.fromRecordId)}</Link>
-          <span className="small muted"> {e.kindLabel} </span>
+          {onSelect ? (
+            <button type="button" className="linkish" aria-pressed={selectedId === e.id} onClick={() => onSelect(e.id)}>
+              {e.kindLabel}
+            </button>
+          ) : (
+            <span className="small muted"> {e.kindLabel} </span>
+          )}
           <Link href={recordHref(projectId, e.toRecordId)}>{titleOf(e.toRecordId)}</Link>
           <span className="small muted"> ({edgeKindKey(e.family, e.kind)})</span>
         </li>
       ))}
     </ul>
+  );
+}
+
+function RelationshipInspector({
+  id,
+  projectId,
+  edge,
+  nodes,
+}: {
+  id: string;
+  projectId: string;
+  edge: RelationshipEdge | null;
+  nodes: ProjectRelationshipGraph["nodes"];
+}) {
+  const titleOf = (recordId: string) => nodes.find((node) => node.id === recordId)?.title ?? recordId;
+  return (
+    <aside className="relationship-inspector" aria-labelledby={id}>
+      <h2 id={id}>{WORLD.relationshipSelected}</h2>
+      {edge ? (
+        <>
+          <p>
+            <Link href={recordHref(projectId, edge.fromRecordId)}>{titleOf(edge.fromRecordId)}</Link>
+          </p>
+          <p>{edge.kindLabel}</p>
+          <p>
+            <Link href={recordHref(projectId, edge.toRecordId)}>{titleOf(edge.toRecordId)}</Link>
+          </p>
+          <p className="small muted">{WORLD.relationshipSourceNote}</p>
+        </>
+      ) : (
+        <p className="muted">{WORLD.relationshipSelectPrompt}</p>
+      )}
+    </aside>
   );
 }
 

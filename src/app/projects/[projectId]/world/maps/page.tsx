@@ -1,17 +1,16 @@
 import Link from "next/link";
 import { HelpHint } from "@/components/HelpHint";
-import { Breadcrumbs } from "@/components/ui/Breadcrumbs";
 import { ButtonLink } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { PageHeader } from "@/components/ui/PageHeader";
+import { WorldToolHeader } from "@/components/world/WorldToolHeader";
 import { getDb } from "@/server/db";
 import { listRecordImages } from "@/server/services/imageService";
 import { listRecords } from "@/server/services/recordService";
 import { listWorldMaps } from "@/server/services/worldMapService";
 import { isLinkableReferenceType } from "@/domain/recordTypes";
 import { isWorldType } from "@/ui/world";
-import { WorldSurfaceNav } from "@/components/world/WorldSurfaceNav";
-import { SHELL, WORLD } from "@/ui/labels";
+import { WORLD } from "@/ui/labels";
+import { worldSurfaceCrumbs } from "@/ui/worldDestinations";
 import { ClearMapTrail } from "./ClearMapTrail";
 import { CreateMapForm } from "./CreateMapForm";
 
@@ -35,19 +34,16 @@ export default async function WorldMapsPage({ params }: { params: Promise<{ proj
 
   return (
     <>
-      <Breadcrumbs
-        label={WORLD.breadcrumb}
-        items={[
-          { href: `${base}/world`, label: SHELL.world },
-          { label: WORLD.maps, current: true },
-        ]}
+      <WorldToolHeader
+        items={worldSurfaceCrumbs(projectId, "maps")}
+        title={WORLD.maps}
+        help={
+          <HelpHint anchor="world-maps" topic="World maps">
+            Upload a backdrop or choose an existing image. Markers can open a reference, another map, or both. Browse
+            pans the map; Edit moves markers.
+          </HelpHint>
+        }
       />
-      <PageHeader title={WORLD.maps} lead={WORLD.mapsLead} />
-      <WorldSurfaceNav projectId={projectId} current="maps" />
-      <HelpHint anchor="world-maps" topic="World maps">
-        Upload a backdrop or choose an existing image. Markers can open a reference, another map, or both. Browse
-        pans the map; Edit moves markers.
-      </HelpHint>
       <ClearMapTrail projectId={projectId} />
 
       <section className="panel" aria-labelledby="new-map-heading">

@@ -1,4 +1,5 @@
 import { ButtonAnchor, ButtonLink } from "@/components/ui/Button";
+import { Breadcrumbs as BreadcrumbTrail } from "@/components/ui/Breadcrumbs";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { findFieldTextDisagreements } from "@/assistant/fieldText";
@@ -31,6 +32,7 @@ import { MENTIONED_BY, RECORD, SHELL, WORLD, WORLD_KIND, XREF } from "@/ui/label
 import { groupOfType } from "@/ui/navigation";
 import { categoryLabel, isWorldType, worldHref } from "@/ui/world";
 import { crossRefsFor, type CrossRefIndex } from "@/writing/crossRefs";
+import type { CodexEntry } from "@/writing/codexSuggest";
 import { parseMarkdown, type MarkdownDocument } from "@/writing/markdownParse";
 import { splitStatusTag, statusTagOf } from "@/writing/sections";
 import type { SpellChecker, SpellingLanguage } from "@/writing/spelling";
@@ -119,6 +121,7 @@ export interface ReferenceViewProps {
   placements: RecordPlacement[];
   mentionedBy: MentionedByItem[];
   infobox: ReferenceInfoboxModel | null;
+  codexEntries: CodexEntry[];
   editor: {
     spellingLanguage: SpellingLanguage;
     spellChecker: SpellChecker;
@@ -169,18 +172,13 @@ function Breadcrumbs({ projectId, record, parent }: { projectId: string; record:
     if (parent) crumbs.push({ href: `${base}/records/${encodeURIComponent(parent.id)}`, label: parent.title });
   }
   return (
-    <nav aria-label={WORLD.breadcrumb} className="breadcrumbs">
-      <ol>
-        {crumbs.map((c) => (
-          <li key={c.href}>
-            <Link href={c.href}>{c.label}</Link>
-          </li>
-        ))}
-        <li>
-          <span aria-current="page">{record.title}</span>
-        </li>
-      </ol>
-    </nav>
+    <BreadcrumbTrail
+      label={WORLD.breadcrumb}
+      items={[
+        ...crumbs.map((crumb) => ({ href: crumb.href, label: crumb.label })),
+        { label: record.title, current: true },
+      ]}
+    />
   );
 }
 
@@ -412,6 +410,7 @@ export function ReferenceView(props: ReferenceViewProps) {
                 dictionaryWords={props.editor.dictionaryWords}
                 proofread={props.editor.proofread}
                 images={gallery.map((g) => ({ name: g.name, label: g.caption || g.altText }))}
+                codexEntries={props.codexEntries}
               />
             </section>
           ) : (

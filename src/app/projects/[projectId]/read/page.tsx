@@ -26,7 +26,7 @@ export default async function ReadBookPage({
   searchParams,
 }: {
   params: Promise<{ projectId: string }>;
-  searchParams: Promise<{ draft?: string }>;
+  searchParams: Promise<{ draft?: string; beside?: string }>;
 }) {
   const { projectId } = await params;
   const query = await searchParams;
@@ -52,6 +52,10 @@ export default async function ReadBookPage({
   const editHref = (id: string) => `${base}/records/${encodeURIComponent(id)}`;
   const anchor = (id: string) => `read-${id}`;
   const selectedLabel = drafts.find((d) => d.id === selectedDraftId)?.label;
+  const beside = query.beside === "1" && drafts.length >= 2;
+  const zeroDraft = drafts.find((d) => d.kind === "zero_draft") ?? drafts[0];
+  const authorDraft = drafts.find((d) => d.kind === "author_manuscript" && d.id !== zeroDraft?.id) ?? drafts.find((d) => d.id !== zeroDraft?.id);
+
 
   const Part = ({ id, level }: { id: string; level: 2 | 3 }) => {
     const record = byId.get(id);
@@ -76,7 +80,7 @@ export default async function ReadBookPage({
   };
 
   return (
-    <div className="book-view">
+    <div className={`book-view${beside ? " is-beside" : ""}`}>
       <div className="book-top">
         <div>
           <h1>{NAV.readBook}</h1>
@@ -84,6 +88,15 @@ export default async function ReadBookPage({
         </div>
         <TextAppearanceMenu />
       </div>
+      {drafts.length >= 2 ? (
+        <p className="row">
+          {beside ? (
+            <Link href={`${base}/read`}>{READ_BOOK.oneDraft}</Link>
+          ) : (
+            <Link href={`${base}/read?beside=1`}>{READ_BOOK.besideDrafts}</Link>
+          )}
+        </p>
+      ) : null}
       {hasDrafts ? (
         <section className="panel stack">
           <VisitDraftSwitcher
@@ -107,7 +120,12 @@ export default async function ReadBookPage({
           />
         </section>
       ) : null}
-      {hasDrafts && !selectedDraftId ? (
+      {beside && zeroDraft && authorDraft ? (
+        <div className="book-beside">
+          <BookColumn projectId={projectId} draft={zeroDraft} hasDrafts={hasDrafts} />
+          <BookColumn projectId={projectId} draft={authorDraft} hasDrafts={hasDrafts} />
+        </div>
+      ) : hasDrafts && !selectedDraftId ? (
         <p className="muted">{DRAFT.chooseDraftFirst}</p>
       ) : ids.length === 0 ? (
         <p className="muted">
@@ -154,5 +172,68 @@ export default async function ReadBookPage({
         </>
       )}
     </div>
+  );
+}
+
+async function BookColumn({
+  projectId,
+  draft,
+  hasDrafts,
+}: {
+  projectId: string;
+  draft: { id: string; label: string };
+  hasDrafts: boolean;
+}) {
+  const db = getDb();
+  const tree = buildManuscriptTree(await listRecordNav(db, projectId, { hasDrafts, draftId: draft.id }));
+  const ids = [...tree.chapters.flatMap((c) => [c.id, ...c.scenes.map((s) => s.id)]), ...tree.unplaced.map((s) => s.id)];
+  const rows = ids.length
+    ? await db.record.findMany({
+        where: { projectId, id: { in: ids }, trashedAt: null },
+        select: { id: true, title: true, body: true },
+      })
+    : [];
+  const byId = new Map(rows.map((r) => [r.id, r]));
+  const words = rows.reduce((sum, r) => sum + countWords(r.body), 0);
+  const anchor = (id: string) => `read-${draft.id}-${id}`;
+  const editHref = (id: string) => `/projects/${encodeURIComponent(projectId)}/records/${encodeURIComponent(id)}`;
+  const Part = ({ id, level }: { id: string; level: 2 | 3 }) => {
+    const record = byId.get(id);
+    if (!record) return null;
+    const Heading = level === 2 ? "h2" : "h3";
+    const text = withoutTitleHeading(record.body, record.title);
+    return (
+      <section className={level === 2 ? "book-chapter" : "book-scene"} aria-labelledby={anchor(id)}>
+        <div className="book-heading">
+          <Heading id={anchor(id)}>{record.title}</Heading>
+          <Link className="small" href={editHref(id)} aria-label={`${READ_BOOK.edit} ${record.title}`}>
+            {READ_BOOK.edit}
+          </Link>
+        </div>
+        {text.trim() ? <MarkdownView doc={parseMarkdown(text)} className="book-text" /> : <p className="muted small">{READ_BOOK.emptyText}</p>}
+      </section>
+    );
+  };
+  return (
+    <section className="book-beside-col" aria-label={draft.label}>
+      <h2>{draft.label}</h2>
+      {ids.length === 0 ? (
+        <p className="muted">{READ_BOOK.besideEmpty}</p>
+      ) : (
+        <>
+          <p className="small muted">{READ_BOOK.wordsTotal(formatWordCount(words))}</p>
+          <article className="book-body">
+            {tree.chapters.map((c) => (
+              <div key={c.id}>
+                <Part id={c.id} level={2} />
+                {c.scenes.map((s) => (
+                  <Part key={s.id} id={s.id} level={3} />
+                ))}
+              </div>
+            ))}
+          </article>
+        </>
+      )}
+    </section>
   );
 }

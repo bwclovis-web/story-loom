@@ -25,6 +25,7 @@ import { listImportedFilesForRecord } from "@/server/services/markdownImportServ
 import { PROOFREAD_SCHEMA_CHARS } from "@/server/services/proofreadService";
 import {
   getRecord,
+  listCodexEntries,
   listNotes,
   listRecordsInside,
   listReferenceChoices,
@@ -48,10 +49,11 @@ import { listMentionedBy } from "@/server/services/mentionedByService";
 import { buildWritingProgress } from "@/server/services/writingProgressService";
 import { getSynopsis, listMarginComments } from "@/server/services/manuscriptAnnotationService";
 import { listWeaveBeatsForManuscript } from "@/server/services/weaveService";
-import { RECORD, XREF } from "@/ui/labels";
+import { RECORD, WRITE, XREF } from "@/ui/labels";
 import { buildManuscriptTree, manuscriptIdsInBookOrder } from "@/ui/manuscriptTree";
 import { buildReferenceInfobox } from "@/world/referenceInfobox";
 import { crossRefsFor, type RecordCrossRefs } from "@/writing/crossRefs";
+import { splitOptionsFromTree } from "@/writing/splitPeers";
 import { parseStyleRangeQuery, styleCheckNameTerms } from "@/writing/styleCheck";
 import { CrossRefsPanel } from "@/components/CrossRefsPanel";
 import { CompareSection, HistorySection, ProtectionSection, StatusSection, TrashSection, type InsideRecord } from "./RecordSections";
@@ -107,21 +109,25 @@ export default async function RecordPage({
 
   if (manuscript) {
     const pinScopeId = await resolvePinScope(db, projectId, recordDraftId);
-    const manuscriptNav = await listManuscriptNav(db, projectId, {
-      hasDrafts: drafts.length > 0,
-      draftId: pinScopeId === "" ? null : pinScopeId,
-    });
-    const manuscriptSplitOptions = (() => {
-      const tree = buildManuscriptTree(manuscriptNav);
-      const out: { id: string; title: string; kind: "chapter" | "scene" }[] = [];
-      for (const chapter of tree.chapters) {
-        out.push({ id: chapter.id, title: chapter.title, kind: "chapter" });
-        for (const scene of chapter.scenes) out.push({ id: scene.id, title: scene.title, kind: "scene" });
-      }
-      for (const scene of tree.unplaced) out.push({ id: scene.id, title: scene.title, kind: "scene" });
-      return out;
-    })();
-    const [notes, linked, sceneLocations, choices, sources, attachableSources, pins, plotBeats, synopsis, marginComments] =
+    const manuscriptSplitOptions =
+      drafts.length === 0
+        ? splitOptionsFromTree(
+            "",
+            WRITE.splitThisBook,
+            buildManuscriptTree(await listManuscriptNav(db, projectId, { hasDrafts: false })),
+          )
+        : (
+            await Promise.all(
+              drafts.map(async (draft) =>
+                splitOptionsFromTree(
+                  draft.id,
+                  draft.label,
+                  buildManuscriptTree(await listManuscriptNav(db, projectId, { hasDrafts: true, draftId: draft.id })),
+                ),
+              ),
+            )
+          ).flat();
+    const [notes, linked, sceneLocations, choices, sources, attachableSources, pins, plotBeats, synopsis, marginComments, codexEntries] =
       await Promise.all([
       listNotes(db, projectId, record.id),
       listLinkedReferences(db, projectId, record.id),
@@ -133,6 +139,7 @@ export default async function RecordPage({
       listWeaveBeatsForManuscript(db, projectId, record.id),
       getSynopsis(db, projectId, record.id),
       listMarginComments(db, projectId, record.id),
+      listCodexEntries(db, projectId),
     ]);
     const chapterProgress =
       record.type === "manuscript_chapter"
@@ -215,6 +222,8 @@ export default async function RecordPage({
           gridTitle: b.gridTitle,
         }))}
         manuscriptSplitOptions={manuscriptSplitOptions}
+        preferredSplitIds={sources.map((s) => s.toRecordId)}
+        codexEntries={codexEntries}
         styleCheckNames={styleCheckNameTerms(crossRefs)}
         synopsisBody={synopsis?.body ?? ""}
         marginComments={marginComments}
@@ -365,9 +374,12 @@ export default async function RecordPage({
     placements,
   });
 
+  const codexEntries = await listCodexEntries(db, projectId);
+
   return (
     <ReferenceView
       key={record.id}
+      codexEntries={codexEntries}
       projectId={projectId}
       record={record}
       editing={query.edit === "1"}

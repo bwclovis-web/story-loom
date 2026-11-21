@@ -3,7 +3,7 @@ import { BookCover } from "@/components/library/BookCover";
 import { NewManuscriptButton, NewWorkspaceButton } from "@/components/library/LibraryDialogs";
 import { ManuscriptActions, WorkspaceActions } from "@/components/library/LibraryMenus";
 import { helpHref } from "@/help/outline";
-import { clearCoverAction, setCoverAction, trashWorkspaceAction } from "@/app/(site)/actions";
+import { clearCoverAction, renameProjectAction, renameWorkspaceAction, setCoverAction, trashWorkspaceAction } from "@/app/(site)/actions";
 import { trashProjectAction } from "@/app/projects/[projectId]/actions";
 import { HOME, SHELL, TRASH } from "@/ui/labels";
 import { isExampleWorkspace, manuscriptEyebrow, pickFeaturedProject } from "@/ui/library";
@@ -153,6 +153,7 @@ function WorkspaceBlock({ workspace, example = false }: { workspace: LibraryWork
           name={workspace.name}
           projectCount={workspace.projects.length}
           action={trashWorkspaceAction.bind(null, workspace.id)}
+          rename={renameWorkspaceAction.bind(null, workspace.id)}
         />
       </div>
       {workspace.projects.length === 0 ? <p className="library-empty">{HOME.noManuscripts}</p> : null}
@@ -199,6 +200,7 @@ function ManuscriptEntry({
         hasCover={project.coverHash !== null}
         setCover={setCoverAction.bind(null, project.id)}
         clearCover={clearCoverAction.bind(null, project.id)}
+        rename={renameProjectAction.bind(null, project.id)}
       />
     </div>
   );

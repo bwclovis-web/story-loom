@@ -60,7 +60,7 @@ export function SearchPanel({
   );
 }
 
-/** Column / nav search with icon (WorldNav, ManuscriptTree). */
+/** Column search with icon (ManuscriptTree). */
 export function TreeSearch({
   action,
   label,

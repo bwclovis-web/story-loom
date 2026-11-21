@@ -8,15 +8,18 @@ export function OverflowDisclosure({
   children,
   className = "",
   defaultOpen = false,
+  id,
 }: {
   summary: string;
   children: ReactNode;
   className?: string;
   defaultOpen?: boolean;
+  id?: string;
 }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
     <details
+      id={id}
       className={`overflow-disclosure ${className}`.trim()}
       open={open}
       onToggle={(e: SyntheticEvent<HTMLDetailsElement>) => setOpen(e.currentTarget.open)}

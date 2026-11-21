@@ -1,5 +1,31 @@
 # Progress
 
+## Drafting safety, side-by-side drafts, preview, and rename (Nov 21, 2026)
+
+No schema and no backup-format change. Split view lists chapters and scenes from every draft, can highlight word changes, and prefers a rewrite source. Read can show the zero draft and author manuscript together. The editor keeps an unsaved local copy in this browser (`storyloom-recovery:`) and can restore or discard it; that copy is not a revision. Preview renders Markdown beside the text box. `[[` and `@` insert a reference title, and a chapter or scene can link it. Workspaces and manuscripts can be renamed from Home, with an audit row.
+
+| Check | Result |
+| --- | --- |
+| `pnpm typecheck` | pass |
+| `pnpm exec vitest run tests/unit/splitPeers.test.ts tests/unit/localRecovery.test.ts tests/unit/codexSuggest.test.ts tests/acceptance/rename.test.ts tests/unit/help.test.ts tests/acceptance/write-split.test.ts` | 17/17 passed |
+
+### Rollback
+
+Revert the code. Local recovery copies stay in the browser until discarded; they are not in the database.
+
+## World navigation and workspace chrome (Nov 21, 2026)
+
+No schema. World uses one destination list (Lore & Codex, Visual spaces, Time & continuity, Tools) in the project column and in the narrow-screen World sections control. The References page keeps search, document-type filters, a Browse kinds menu when you are not searching, recent references, and the directory beside them. Tool pages keep their own controls in one bar above the workspace. Maps, boards, timeline, calendar, relationships, and the name generator no longer repeat that directory. Nested pages use the shared breadcrumb trail. Opening or filtering a page does not write records.
+
+| Check | Result |
+| --- | --- |
+| `pnpm typecheck` | pass |
+| `pnpm exec vitest run tests/unit/worldDestinations.test.ts tests/unit/world.test.ts tests/unit/worldKinds.test.ts tests/unit/help.test.ts` | 17/17 passed |
+
+### Rollback
+
+Revert this change. No database step.
+
 ## Optional backup mirror folder (Nov 21, 2026)
 
 No schema. **Backup & restore** can save a mirror path (`local/backup-mirror.json`, git-ignored) or `WORDLY_BACKUP_MIRROR_DIR`; each full backup is copied after `writeFullBackup`. Docs: `docs/backup-sync.md`.
