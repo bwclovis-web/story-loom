@@ -21,3 +21,6 @@ alwaysApply: true
   `var(--color-accent)`, …). Avoid short Tailwind theme aliases that alias
   back into the same `--color-*` name (circular). Buttons use the `sl-btn`
   class so legacy global `button { … }` rules do not override contrast.
+- Reuse a component that already exists. The project header is
+  `LandingHeader` / `ProjectPageHeader`. Nested pages change `title` and add
+  breadcrumbs. Do not invent a second header.

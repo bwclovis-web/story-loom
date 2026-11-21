@@ -12,6 +12,8 @@ const KIND_LABEL: Record<StyleCheckKind, string> = {
   adverb: STYLE_CHECK.kindAdverb,
   long_sentence: STYLE_CHECK.kindLongSentence,
   name_repeat: STYLE_CHECK.kindName,
+  passive: STYLE_CHECK.kindPassive,
+  weak_verb: STYLE_CHECK.kindWeakVerb,
 };
 
 export function StyleCheckPanel({

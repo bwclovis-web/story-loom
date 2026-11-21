@@ -1,5 +1,15 @@
 import { newId } from "@/domain/ids";
 import { errorIssue } from "@/domain/issues";
+import {
+  marginPoints,
+  parseExcludedIds,
+  parseFontPreset,
+  parseSpacingPreset,
+  parseTrimSize,
+  type FontPreset,
+  type SpacingPreset,
+  type TrimSize,
+} from "@/writing/compileLayout";
 import type { Db, DbOrTx } from "../db";
 import { writeAudit } from "./auditService";
 import { MutationRejectedError, NotFoundError } from "./errors";
@@ -22,6 +32,17 @@ export interface CompileProfileView {
   chapterHeadingStyle: ChapterHeadingStyle;
   includeSynopses: boolean;
   includeMarginComments: boolean;
+  trimSize: TrimSize;
+  marginInches: number;
+  runningHeader: string;
+  runningFooter: string;
+  fontPreset: FontPreset;
+  spacingPreset: SpacingPreset;
+  firstParagraphNoIndent: boolean;
+  dropCap: boolean;
+  includeToc: boolean;
+  backMatterBody: string;
+  excludedRecordIds: string[];
   updatedAt: Date | null;
 }
 
@@ -35,6 +56,17 @@ export const DEFAULT_COMPILE_PROFILE: Omit<CompileProfileView, "projectId"> = {
   chapterHeadingStyle: CHAPTER_HEADING_STYLE.centered,
   includeSynopses: false,
   includeMarginComments: false,
+  trimSize: "6x9",
+  marginInches: 0.75,
+  runningHeader: "",
+  runningFooter: "",
+  fontPreset: "serif",
+  spacingPreset: "novel",
+  firstParagraphNoIndent: true,
+  dropCap: false,
+  includeToc: true,
+  backMatterBody: "",
+  excludedRecordIds: [],
   updatedAt: null,
 };
 
@@ -73,8 +105,20 @@ function toView(row: {
   chapterHeadingStyle: string;
   includeSynopses: boolean;
   includeMarginComments: boolean;
+  trimSize: string;
+  marginInches: number;
+  runningHeader: string;
+  runningFooter: string;
+  fontPreset: string;
+  spacingPreset: string;
+  firstParagraphNoIndent: boolean;
+  dropCap: boolean;
+  includeToc: boolean;
+  backMatterBody: string;
+  excludedRecordIds: string;
   updatedAt: Date;
 }): CompileProfileView {
+  const margin = Number.isFinite(row.marginInches) ? row.marginInches : DEFAULT_COMPILE_PROFILE.marginInches;
   return {
     id: row.id,
     projectId: row.projectId,
@@ -86,6 +130,17 @@ function toView(row: {
     chapterHeadingStyle: parseHeadingStyle(row.chapterHeadingStyle),
     includeSynopses: row.includeSynopses,
     includeMarginComments: row.includeMarginComments,
+    trimSize: parseTrimSize(row.trimSize),
+    marginInches: marginPoints(margin) / 72,
+    runningHeader: row.runningHeader.slice(0, 120),
+    runningFooter: row.runningFooter.slice(0, 120),
+    fontPreset: parseFontPreset(row.fontPreset),
+    spacingPreset: parseSpacingPreset(row.spacingPreset),
+    firstParagraphNoIndent: row.firstParagraphNoIndent,
+    dropCap: row.dropCap,
+    includeToc: row.includeToc,
+    backMatterBody: row.backMatterBody,
+    excludedRecordIds: parseExcludedIds(row.excludedRecordIds),
     updatedAt: row.updatedAt,
   };
 }
@@ -109,6 +164,17 @@ export interface CompileProfileInput {
   chapterHeadingStyle: string;
   includeSynopses: boolean;
   includeMarginComments: boolean;
+  trimSize?: string;
+  marginInches?: number;
+  runningHeader?: string;
+  runningFooter?: string;
+  fontPreset?: string;
+  spacingPreset?: string;
+  firstParagraphNoIndent?: boolean;
+  dropCap?: boolean;
+  includeToc?: boolean;
+  backMatterBody?: string;
+  excludedRecordIds?: readonly string[];
 }
 
 export async function upsertCompileProfile(db: Db, projectId: string, input: CompileProfileInput): Promise<CompileProfileView> {
@@ -121,6 +187,17 @@ export async function upsertCompileProfile(db: Db, projectId: string, input: Com
     chapterHeadingStyle: parseHeadingStyle(input.chapterHeadingStyle),
     includeSynopses: !!input.includeSynopses,
     includeMarginComments: !!input.includeMarginComments,
+    trimSize: parseTrimSize(input.trimSize ?? DEFAULT_COMPILE_PROFILE.trimSize),
+    marginInches: marginPoints(input.marginInches ?? DEFAULT_COMPILE_PROFILE.marginInches) / 72,
+    runningHeader: (input.runningHeader ?? "").trim().slice(0, 120),
+    runningFooter: (input.runningFooter ?? "").trim().slice(0, 120),
+    fontPreset: parseFontPreset(input.fontPreset ?? DEFAULT_COMPILE_PROFILE.fontPreset),
+    spacingPreset: parseSpacingPreset(input.spacingPreset ?? DEFAULT_COMPILE_PROFILE.spacingPreset),
+    firstParagraphNoIndent: input.firstParagraphNoIndent !== false,
+    dropCap: input.dropCap === true,
+    includeToc: input.includeToc !== false,
+    backMatterBody: parseMatter(input.backMatterBody ?? "", "Back matter"),
+    excludedRecordIds: JSON.stringify([...(input.excludedRecordIds ?? [])].filter((id) => id.length > 0 && id.length <= 80).slice(0, 500)),
   };
 
   return db.$transaction(async (tx) => {

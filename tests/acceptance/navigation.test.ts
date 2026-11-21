@@ -48,7 +48,20 @@ describe("project summaries", () => {
     expect(entries.map((e) => e.id).sort()).toEqual(
       [IDS.chapter, IDS.outline, IDS.dossier, IDS.world, IDS.decision].sort(),
     );
-    for (const e of entries) expect(Object.keys(e).sort()).toEqual(["createdAt", "id", "parentRecordId", "position", "title", "type"]);
+    for (const e of entries) {
+      expect(Object.keys(e).sort()).toEqual([
+        "createdAt",
+        "customKind",
+        "draftId",
+        "id",
+        "parentRecordId",
+        "position",
+        "title",
+        "type",
+        "worldKind",
+      ]);
+      expect("body" in e).toBe(false);
+    }
     expect(await listRecordNav(t.db, "prj_missing")).toEqual([]);
     expect(await countOpenReviewItems(t.db, IDS.project)).toBe(0);
     expect(await snapshotState(t.db)).toEqual(before);

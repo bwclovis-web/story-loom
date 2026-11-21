@@ -1,3 +1,4 @@
+import { LandingHeader } from "@/components/library/LandingHeader";
 import { ButtonAnchor, ButtonLink } from "@/components/ui/Button";
 import { Breadcrumbs as BreadcrumbTrail } from "@/components/ui/Breadcrumbs";
 import Link from "next/link";
@@ -28,7 +29,8 @@ import {
   worldKindDisplayFromFields,
   worldKindLabel,
 } from "@/world/worldKinds";
-import { MENTIONED_BY, RECORD, SHELL, WORLD, WORLD_KIND, XREF } from "@/ui/labels";
+import { Banner } from "@/components/ui/Banner";
+import { MENTIONED_BY, RECORD, REFERENCE_FORM, SERIES, SHELL, WORLD, WORLD_KIND, XREF } from "@/ui/labels";
 import { groupOfType } from "@/ui/navigation";
 import { categoryLabel, isWorldType, worldHref } from "@/ui/world";
 import { crossRefsFor, type CrossRefIndex } from "@/writing/crossRefs";
@@ -122,6 +124,11 @@ export interface ReferenceViewProps {
   mentionedBy: MentionedByItem[];
   infobox: ReferenceInfoboxModel | null;
   codexEntries: CodexEntry[];
+  kindTemplates?: import("@/world/kindTemplates").KindTemplateView[];
+  /** This reference is shared with other books in the series. Editing stays here. */
+  seriesShared?: boolean;
+  /** Shared project header. The record title replaces the book title; the cover stays. */
+  header: { eyebrow: string; coverTitle: string; coverSrc: string | null };
   editor: {
     spellingLanguage: SpellingLanguage;
     spellChecker: SpellChecker;
@@ -296,36 +303,38 @@ export function ReferenceView(props: ReferenceViewProps) {
 
   return (
     <div className="reference-page">
-      <Breadcrumbs projectId={projectId} record={record} parent={props.parent} />
-      <div className="page-head">
-        <h1 className="reference-title">{record.title}</h1>
-        <div className="page-actions">
-          <ButtonLink variant="secondary" href={`${base}/import-markdown`}>
-            {WORLD.importReferences}
-          </ButtonLink>
-          <ButtonLink variant="secondary" href={`${base}/export?record=${encodeURIComponent(record.id)}`}>
-            {WORLD.exportForChatGpt}
-          </ButtonLink>
-          <ButtonAnchor variant="secondary" href={`${base}/pdf?kind=references&record=${encodeURIComponent(record.id)}`} download>
-            {WORLD.downloadPdf}
-          </ButtonAnchor>
-        </div>
-      </div>
+      {props.seriesShared ? <Banner>{SERIES.sharedHere}</Banner> : null}
+      <LandingHeader
+        projectId={projectId}
+        title={record.title}
+        coverTitle={props.header.coverTitle}
+        eyebrow={props.header.eyebrow}
+        coverSrc={props.header.coverSrc}
+        description={
+          worldKindDisplay
+            ? `${RECORD_TYPE_LABELS[record.type]} · ${worldKindDisplay}`
+            : RECORD_TYPE_LABELS[record.type]
+        }
+        breadcrumbs={<Breadcrumbs projectId={projectId} record={record} parent={props.parent} />}
+        actions={
+          <div className="page-actions">
+            {editing ? null : (
+              <ButtonLink href={`${recordHref}?edit=1`}>{REFERENCE_FORM.editReference}</ButtonLink>
+            )}
+            <ButtonLink variant="secondary" href={`${base}/import-markdown`}>
+              {WORLD.importReferences}
+            </ButtonLink>
+            <ButtonLink variant="secondary" href={`${base}/export?record=${encodeURIComponent(record.id)}`}>
+              {WORLD.exportForChatGpt}
+            </ButtonLink>
+            <ButtonAnchor variant="secondary" href={`${base}/pdf?kind=references&record=${encodeURIComponent(record.id)}`} download>
+              {WORLD.downloadPdf}
+            </ButtonAnchor>
+          </div>
+        }
+      />
 
       <ul className="reference-facts" aria-label="Record details">
-        <li>
-          <span className="badge labelled type">
-            <span className="badge-label">{WORLD.documentType}:</span> {RECORD_TYPE_LABELS[record.type]}
-          </span>
-        </li>
-        {record.type === "worldbuilding" ? (
-          <li>
-            <span className="badge labelled type">
-              <span className="badge-label">{WORLD_KIND.fieldKind}:</span>{" "}
-              {worldKindDisplay ?? <span className="muted">{WORLD_KIND.kindNone}</span>}
-            </span>
-          </li>
-        ) : null}
         <li>
           <CanonBadge status={record.authorityStatus} />
         </li>
@@ -351,21 +360,22 @@ export function ReferenceView(props: ReferenceViewProps) {
         ) : null}
       </ul>
 
-      {!editing && props.infobox ? <ReferenceInfobox model={props.infobox} /> : null}
+      {!editing && props.infobox?.rows.length ? <ReferenceInfobox model={props.infobox} factsOnly /> : null}
+      {!editing && !props.infobox?.rows.length ? (
+        <p className="reference-add-details">
+          <Link href={`${recordHref}?edit=1#reference-editor`}>{REFERENCE_FORM.addDetails}</Link>
+        </p>
+      ) : null}
 
       <WorldContextProvider>
       <div className="write-layout reference-write-layout">
         <div className="reference-main write-main">
           <div className="doc-toolbar">
             {editing ? (
-              <ButtonLink href={recordHref}>
+              <ButtonLink href={recordHref} variant="secondary">
                 {WORLD.doneEditing}
               </ButtonLink>
-            ) : (
-              <ButtonLink href={`${recordHref}?edit=1`}>
-                {WORLD.edit}
-              </ButtonLink>
-            )}
+            ) : null}
             <ButtonAnchor variant="secondary" href="#history">
               {WORLD.history}
             </ButtonAnchor>
@@ -407,6 +417,7 @@ export function ReferenceView(props: ReferenceViewProps) {
                 otherChaptersWords={null}
                 spellingLanguage={props.editor.spellingLanguage}
                 spellChecker={props.editor.spellChecker}
+                kindTemplates={props.kindTemplates}
                 dictionaryWords={props.editor.dictionaryWords}
                 proofread={props.editor.proofread}
                 images={gallery.map((g) => ({ name: g.name, label: g.caption || g.altText }))}
@@ -508,6 +519,8 @@ export function ReferenceView(props: ReferenceViewProps) {
               projectId={projectId}
               model={inspector}
               linkMode="page"
+              context="page"
+              hasDetails={Boolean(props.infobox?.rows.length)}
               editing={editing}
               established={
                 linkable && props.establishedFacts

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { WorldDestinationIcon } from "@/components/world/WorldDestinationIcon";
 import { WORLD } from "@/ui/labels";
 import {
   worldDestinationHref,
@@ -32,6 +33,7 @@ export function WorldDirectory({
                     href={worldDestinationHref(projectId, destination.key)}
                     aria-current={destination.key === current ? "page" : undefined}
                   >
+                    <WorldDestinationIcon destination={destination.key} />
                     {destination.label}
                   </Link>
                   <p className="small muted">{destination.hint}</p>

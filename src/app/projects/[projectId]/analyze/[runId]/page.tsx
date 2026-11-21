@@ -1,6 +1,5 @@
 import Link from "next/link";
-import { Breadcrumbs } from "@/components/ui/Breadcrumbs";
-import { PageHeader } from "@/components/ui/PageHeader";
+import { ProjectPageHeader } from "@/components/library/ProjectPageHeader";
 import { getDb } from "@/server/db";
 import { getChapterAnalysis } from "@/server/services/chapterAnalysisService";
 import { NotFoundError } from "@/server/services/errors";
@@ -20,7 +19,7 @@ export default async function AnalyzeReviewPage({ params }: { params: Promise<{ 
     if (error instanceof NotFoundError) {
       return (
         <>
-          <PageHeader title={ANALYZE.heading} lead="This analysis is not in the project." />
+          <ProjectPageHeader projectId={projectId} title={ANALYZE.heading} description="This analysis is not in the project." />
         </>
       );
     }
@@ -42,17 +41,15 @@ export default async function AnalyzeReviewPage({ params }: { params: Promise<{ 
 
   return (
     <>
-      <Breadcrumbs
-        label="Breadcrumb"
-        items={[
+      <ProjectPageHeader
+        projectId={projectId}
+        title={ANALYZE.review}
+        description={`${run.chapterTitle}, revision ${run.pinnedRevision}. Status: ${run.status}.`}
+        crumbs={[
           { href: `${base}/plan`, label: SHELL.plan },
           { href: `${base}/analyze`, label: ANALYZE.heading },
           { label: run.chapterTitle, current: true },
         ]}
-      />
-      <PageHeader
-        title={ANALYZE.review}
-        lead={`${run.chapterTitle}, revision ${run.pinnedRevision}. Status: ${run.status}.`}
       />
       {run.errorMessage ? <p role="status">{run.errorMessage}</p> : null}
       {run.usage ? (

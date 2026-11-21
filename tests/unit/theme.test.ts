@@ -22,7 +22,7 @@ describe("colour theme", () => {
     const css = readFileSync(path.join(process.cwd(), "src/app/globals.css"), "utf8");
     const rules = css.slice(css.indexOf("* { box-sizing"));
     const hex = [...rules.matchAll(/#[0-9a-fA-F]{3,8}\b/g)].map((m) => m[0]);
-    // White brand text on the navigation column, which is dark in both themes.
-    expect(hex).toEqual(["#fff", "#fff"]);
+    // White title on the project switcher, which sits on the dark navigation column in both themes.
+    expect(hex).toEqual(["#fff"]);
   });
 });

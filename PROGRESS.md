@@ -1,5 +1,148 @@
 # Progress
 
+## Guided tour, help, and docs (Nov 21, 2026)
+
+Getting started is a seven-step tour: write and compare drafts, including the unsaved local copy; pin a reference and insert its name; start from a beat sheet and make a scene; build World references; track the story timeline; share a series bible and review open questions; set a pace, compile, and back up. The tour lives in the onboarding cookie and does not write records. A cookie dismissed on an earlier tour opens again at task 1. Don't show again stores `dismissed:storyloom-tour-2026-11-21` and stays dismissed.
+
+Help adds Side-by-side drafts and Unsaved local copy. What's new points at beat sheets, series sharing, continuity, the timeline, compile layout, pace, and pattern replace. Limitations that are no longer true were removed: reference downloads are not PDF-only, find and replace can use a pattern, compile profiles have layout choices, and style check and continuity review exist and do not change the manuscript.
+
+`docs/world-and-weave.md` covers series sharing, premade beat sheets, custom kinds, and timeline checks. `docs/backup-format.md` documents `worldKindTemplates` and the optional compile-profile layout fields. `docs/upgrade-baseline.md` notes that `worldScope=series` is in use after the Nov 14 baseline. The README lists the in-app tour and the existing screenshots.
+
+Thread colors, brass current-link ink, map group colors, and assistant message bubbles now use theme tokens. The project switcher title stays white on the dark navigation column.
+
+| Check | Result |
+| --- | --- |
+| `pnpm typecheck` | pass |
+| `pnpm test` | 125 files, 685 tests passed |
+| `pnpm build` | pass |
+| Browser | Salt Archive Write showed task 1 of 7, “Write, compare drafts, and keep a local copy.” Advancing showed task 2, then the cookie was set back to task 1. Nothing was saved. |
+
+### Rollback
+
+Revert the tour, help, README, `docs/world-and-weave.md`, and the backup-format and upgrade-baseline notes. No database change. An author who already dismissed this tour keeps that dismissal. Clearing the `wordly-onboarding` cookie shows the tour again.
+
+## Compile layout, world-bible formats, and writing pace (Nov 21, 2026)
+
+A compile profile can set trim size (5×8, 5.5×8.5, 6×9, A4, Letter), margins, a running header and footer, a font and spacing preset, a first-paragraph indent option, a larger first letter on each chapter in the PDF, a clickable contents page, back matter, and which chapters and scenes to leave out. Leaving a chapter out also leaves its scenes out of that chapter; a scene that is still included is exported with the unplaced scenes. None of this changes the manuscript. Drop cap is off unless you tick it, and in the PDF it is a larger first letter.
+
+World and reference downloads can be DOCX, EPUB, or a Markdown zip as well as PDF. The zip is one file per selected document plus a list. Manuscript chapters and scenes are not included in those downloads.
+
+Writing goals show a daily pace when a book target and a deadline are both set, a streak of days with saved words, and a chart of words saved over the last 30 days. The sprint timer on a chapter or scene (15, 25, or 45 minutes) stays in the browser and does not save a revision. Style check adds possible passive voice and a short weak-verb list, plus chapter length, dialogue against narration, and how often codex names appear. Find and replace can use a regular expression. Patterns that are too long, nested, invalid, or too slow are refused before anything is written, and the replacement text stays literal.
+
+New compile-profile fields are optional in a backup. An older backup restores with 6×9 in, 0.75 in margins, serif, novel spacing, a contents page, and nothing excluded. A backup that includes the new fields will not restore on an older app that does not know those keys.
+
+| Check | Result |
+| --- | --- |
+| Isolated `pnpm db:deploy` | Applied `20261121210000_compile_profile_layout` with the earlier migrations. `CompileProfile` has the new columns. |
+| Working `pnpm db:deploy` | Backup `backups/2026-11-21T17-58-42-755Z-pre-migrate`, then the same migration. |
+| `pnpm typecheck` | pass |
+| Unit tests (layout, pace, style, find/replace, help) | 26/26 passed |
+| Acceptance (compile profiles, world-bible export, manuscript replace, backup restore) | passed |
+| Browser | Salt Archive export shows trim, margins, font, spacing, header, footer, contents, drop cap, and a ticked chapter. Ticking The Salt Guild enables PDF, DOCX, EPUB, and Markdown downloads. The Markdown route returned a zip. Goals shows daily pace, a 0-day streak, and the 30-day chart. The chapter editor shows 15/25/45, Start (which becomes Pause), and Reset. Style check shows chapter length, dialogue and narration, and name balance. Nothing was saved. |
+
+### Rollback
+
+Restore `backups/2026-11-21T17-58-42-755Z-pre-migrate` if the new compile-profile columns need to come back out. That snapshot was taken before the migration. Revert the compile, export, pace, style, and find/replace changes with it. Do not reset the database.
+
+## New reference header, radios, and kind fields (Nov 21, 2026)
+
+New reference uses the shared project header, with the breadcrumb World / References / New reference. Document type uses the shared radio group: a brass ring with a filled center, and the choices sit in a row. Starting headings say they only add an outline to the writing. Details holds the fields: a Character reference lists name, aliases, and role there, and a Worldbuilding kind lists its fields there too, such as parent place and climate. Advanced JSON stays in that panel.
+
+| Check | Result |
+| --- | --- |
+| `pnpm exec tsc --noEmit` | fails on existing style-check and compile-profile types. No errors in the New reference files. |
+| `pnpm exec vitest run tests/unit/help.test.ts tests/unit/weave-library.test.ts` | 7/7 passed |
+| Browser | Details shows name, aliases, and role for Character, and parent place plus climate for a Place kind. Document type radios use the shared brass control. Nothing was saved. |
+
+### Rollback
+
+Revert the New reference page, `RadioGroup`, the kind-field placement, and the help sentence. No data change.
+
+## Timeline board, age notes, and map scale (Nov 21, 2026)
+
+The story timeline keeps its keyboard list and adds a board beside it. Lanes are characters, organizations, or places already linked to an event. A complete structured date sets the horizontal position. Events without one stay in the order you recorded and are marked unknown time. An event titled or summarized with birth or born, and a complete date, is that character's birth. Later dated events show an age. The board notes two places on the same date, a date before that birth, and a manuscript that reveals a later event first. Putting Flashback in the event or the revealing title marks that reveal on purpose. Ages and notes are calculated when the page loads. They are not saved onto records.
+
+Maps can measure two clicks and a route length from the scale bar you set. The result says it is estimated from that bar. Layer presets show all, hide all, or one of the original groups. Export SVG and Export PNG download the markers that are currently visible. Nothing is written to the map by measuring or exporting. No schema or backup change.
+
+| Check | Result |
+| --- | --- |
+| `pnpm typecheck` | pass |
+| `pnpm exec vitest run tests/unit/timeline-board.test.ts tests/unit/map-scale.test.ts tests/acceptance/timeline-maps.test.ts tests/unit/help.test.ts` | 16/16 passed |
+| Browser | Salt Archive timeline shows the empty list (this database has no story events). Harbour quay sketch: Measure asks for a numbered scale, Only Story locations hid the Places pin, Show all layers brought it back. No demo rows were saved. |
+
+### Rollback
+
+Revert the code. There is no migration and no backup-format change.
+
+## Shared project header (Nov 21, 2026)
+
+Project pages use one header: the book cover and series line stay, and only the title changes. Nested pages add the breadcrumb trail in that header. `ProjectPageHeader` loads the cover for pages that do not already have it.
+
+| Check | Result |
+| --- | --- |
+| `pnpm exec tsc --noEmit` | pass |
+| Browser | World hub, New reference, and a reference record show the same cover header. New reference and the record add breadcrumbs. |
+
+### Rollback
+
+Revert the header components, page call sites, and the header rules. No data change.
+
+## Series bible, kind templates, and continuity triage (Nov 21, 2026)
+
+Series-scoped references from a sibling book with the same series name show on World, in World search, in the chapter context rail, and in context export. Opening one in the other book is read-only, with Edit in the home book. Book scope and unset scope stay in their own book. Saves still go through the record that owns the row.
+
+Characters, canon decisions, and continuity notes have name, alias chips, and role or summary. Other JSON keys stay. A custom worldbuilding kind can remember field keys and labels on `WorldKindTemplate` (optional backup array `worldKindTemplates`). World → Open questions lists unresolved records, Open questions sections, facts and story evidence that need another look, margin comments that need another look, and open review items.
+
+| Check | Result |
+| --- | --- |
+| `pnpm typecheck` | pass |
+| `pnpm exec vitest run tests/unit/referenceMeta.test.ts tests/acceptance/series-bible.test.ts tests/unit/help.test.ts tests/unit/worldDestinations.test.ts tests/acceptance/backup-restore.test.ts tests/acceptance/assignments-backup.test.ts` | 21/21 passed |
+| `pnpm db:deploy` on an isolated database | 36 migrations applied, including `20261121190000_world_kind_templates` |
+| Working database | `pnpm db:deploy` applied the same migration after writing `backups/2026-11-21T16-49-59-132Z-pre-migrate` |
+
+### Rollback
+
+Revert the code. To undo the table, restore `backups/2026-11-21T16-49-59-132Z-pre-migrate` with the app's restore flow. Leaving the empty `WorldKindTemplate` table in place is safe if you only revert the code. Kind templates already saved are lost if that backup is restored. Series scope on existing records is unchanged by this migration.
+
+## Reference create, read, and edit (Nov 21, 2026)
+
+No schema change. New reference opens one form for Character, Worldbuilding, Rules & glossary, and Research note. Worldbuilding kind, details, and JSON share one field draft. Starting headings are inserted only after a preview of the current unsaved text. The reference page header shows type, kind, canon, protection, and revision once. At a glance lists populated facts, or one Add details action. The record-page inspector keeps actions and placements; a board or map inspector still shows the record’s identity.
+
+| Check | Result |
+| --- | --- |
+| `pnpm exec tsc --noEmit` | pass |
+| `pnpm exec vitest run tests/unit/fieldDraft.test.ts tests/unit/world.test.ts tests/acceptance/reference-entry.test.ts tests/unit/help.test.ts tests/unit/navigation.test.ts tests/unit/reference-infobox.test.ts` | 19/19 passed |
+
+### Rollback
+
+Revert the code. Records already saved with `rules_glossary` or `research_note` stay in the database.
+
+## Premade Weave beat sheets (Nov 21, 2026)
+
+No schema and no backup-format change. Six starter beat sheets can be saved as an editable template or opened as a new plot grid with threads, beat notes, and setup→payoff links. A template stores each beat's column as a first line `Thread: …`; applying the template creates those threads and drops the line. From a beat that is not yet linked, Create scene from beat adds a protected scene in a chapter you choose, copies the beat notes into the synopsis, links cited World records, and points the beat at the scene. The plot grid can filter by a cited character, a cited place, or a point of view on the linked scene. Freeform setup→payoff lines follow the beat cards.
+
+| Check | Result |
+| --- | --- |
+| `pnpm typecheck` | pass |
+| `pnpm exec vitest run tests/unit/weaveBeatPresets.test.ts tests/acceptance/weave-presets.test.ts tests/unit/help.test.ts` | 18/18 passed |
+
+### Rollback
+
+Revert the code. No database step. A grid, template, or scene already created from a starter stays until you delete the grid or template, or move the scene to Trash.
+
+## Split, merge, convert, scene fields, and corkboard (Nov 21, 2026)
+
+No schema and no backup-format change. A chapter or scene can be split at a saved cursor, two scenes in one chapter can be merged, and a scene can become a chapter or a chapter with no scenes can become a scene. Those actions stay in the record writer, keep protection and revisions, and move notes, links, locations, comments, and story-event reveals with the text. Point of view, draft status, and a story-date note are optional fields on the same JSON. The corkboard lists every chapter and scene, edits synopses, and reorders with the existing book-order move.
+
+| Check | Result |
+| --- | --- |
+| `pnpm typecheck` | pass |
+| `pnpm exec vitest run tests/unit/manuscriptStructure.test.ts tests/acceptance/manuscript-structure.test.ts tests/unit/help.test.ts` | 11/11 passed |
+
+### Rollback
+
+Revert the code. No database step. A split, merge, or convert already saved in a manuscript stays until you restore a backup or put the trashed scene back and edit the text.
+
 ## Drafting safety, side-by-side drafts, preview, and rename (Nov 21, 2026)
 
 No schema and no backup-format change. Split view lists chapters and scenes from every draft, can highlight word changes, and prefers a rewrite source. Read can show the zero draft and author manuscript together. The editor keeps an unsaved local copy in this browser (`storyloom-recovery:`) and can restore or discard it; that copy is not a revision. Preview renders Markdown beside the text box. `[[` and `@` insert a reference title, and a chapter or scene can link it. Workspaces and manuscripts can be renamed from Home, with an audit row.
@@ -15,7 +158,7 @@ Revert the code. Local recovery copies stay in the browser until discarded; they
 
 ## World navigation and workspace chrome (Nov 21, 2026)
 
-No schema. World uses one destination list (Lore & Codex, Visual spaces, Time & continuity, Tools) in the project column and in the narrow-screen World sections control. The References page keeps search, document-type filters, a Browse kinds menu when you are not searching, recent references, and the directory beside them. Tool pages keep their own controls in one bar above the workspace. Maps, boards, timeline, calendar, relationships, and the name generator no longer repeat that directory. Nested pages use the shared breadcrumb trail. Opening or filtering a page does not write records.
+No schema. World uses one destination list (Lore & Codex, Visual spaces, Time & continuity, Tools) in the project column and in the narrow-screen World sections control. The References page keeps search, document-type filters, a Browse kinds menu when you are not searching, recent references, and the directory beside them. Recent cards put the type icon in a rounded well beside the title and date, with canon status on the right. New reference is a button that opens the existing create form. The World header uses the same compact cover as Write, Weave, and Assistant. Tool pages keep their own controls in one bar above the workspace. Maps, boards, timeline, calendar, relationships, and the name generator no longer repeat that directory. Nested pages use the shared breadcrumb trail. Opening or filtering a page does not write records.
 
 | Check | Result |
 | --- | --- |

@@ -5,9 +5,9 @@ import { WritingProgressStrip } from "@/components/writing/WritingProgressStrip"
 import { WritingSessionInit } from "@/components/writing/WritingSessionInit";
 import { MarkRewriteCompleteButton, StartAuthorRewriteButton, WriteDraftSwitcher } from "@/components/drafts/DraftControls";
 import { ProjectOnboarding } from "@/components/shell/ProjectOnboarding";
+import { type CorkboardCard, type CorkboardGroup } from "@/components/write/Corkboard";
 import {
   ManuscriptOutline,
-  type CorkboardCard,
   type OutlineChapter,
   type OutlineNote,
   type OutlineScene,
@@ -27,6 +27,7 @@ import { MANUSCRIPT_REPLACE, MANUSCRIPT_SEARCH, NAV, SHELL, STYLE_CHECK, WRITE, 
 import { manuscriptEyebrow } from "@/ui/library";
 import { buildManuscriptTree } from "@/ui/manuscriptTree";
 import type { RecordNavEntry } from "@/ui/navigation";
+import { readManuscriptMeta } from "@/writing/manuscriptStructure";
 import { countWords } from "@/writing/wordCount";
 import { BookOrder, type OrderItem } from "./BookOrder";
 
@@ -77,6 +78,7 @@ export default async function WritePage({
       words: countWords(record.body),
       authorityStatus: record.authorityStatus,
       isProtected: record.protected,
+      revision: record.currentRevision,
     };
   };
   const outline = buildOutline(nav);
@@ -98,7 +100,7 @@ export default async function WritePage({
     projectId,
     nav.filter((r) => r.type === "manuscript_chapter" || r.type === "manuscript_scene").map((r) => r.id),
   );
-  const corkboardCards = buildCorkboardCards(outline, synopsisById, unplacedScenes);
+  const corkboard = buildCorkboard(outline, byId, synopsisById);
   const bookWords = [...chapters.flatMap((chapter) => [chapter, ...chapter.scenes]), ...unplaced].reduce(
     (sum, record) => sum + record.words,
     0,
@@ -123,7 +125,8 @@ export default async function WritePage({
       unplaced={outline.unplaced}
       looseNotes={outline.looseNotes}
       synopsisById={synopsisById}
-      corkboardCards={corkboardCards}
+      corkboardGroups={corkboard.groups}
+      corkboardUnplaced={corkboard.unplaced}
       draftId={activeDraftId}
       initialQuery={q}
       headerActions={
@@ -168,23 +171,43 @@ export default async function WritePage({
   );
 }
 
-function buildCorkboardCards(
+function buildCorkboard(
   outline: { chapters: OutlineChapter[]; unplaced: OutlineScene[] },
+  byId: Map<string, { fields: Record<string, unknown> }>,
   synopsisById: Map<string, string>,
-  unplaced: OutlineScene[],
-): CorkboardCard[] {
-  const cards: CorkboardCard[] = [];
-  const push = (recordId: string, title: string, type: string) => {
-    const body = synopsisById.get(recordId)?.trim();
-    if (!body) return;
-    cards.push({ recordId, title, type, body });
+): { groups: CorkboardGroup[]; unplaced: CorkboardCard[] } {
+  const card = (recordId: string, title: string, type: string, parentRecordId: string | null): CorkboardCard | null => {
+    const record = byId.get(recordId);
+    if (!record) return null;
+    const meta = readManuscriptMeta(record.fields);
+    return {
+      recordId,
+      title,
+      type,
+      synopsis: synopsisById.get(recordId) ?? "",
+      pov: meta.pov,
+      sceneStatus: meta.sceneStatus,
+      parentRecordId,
+    };
   };
-  for (const chapter of outline.chapters) {
-    push(chapter.id, chapter.title, "manuscript_chapter");
-    for (const scene of chapter.scenes) push(scene.id, scene.title, "manuscript_scene");
-  }
-  for (const scene of unplaced) push(scene.id, scene.title, "manuscript_scene");
-  return cards;
+  const groups = outline.chapters.flatMap((chapter) => {
+    const chapterCard = card(chapter.id, chapter.title, "manuscript_chapter", null);
+    if (!chapterCard) return [];
+    return [
+      {
+        chapter: chapterCard,
+        scenes: chapter.scenes.flatMap((scene) => {
+          const sceneCard = card(scene.id, scene.title, "manuscript_scene", chapter.id);
+          return sceneCard ? [sceneCard] : [];
+        }),
+      },
+    ];
+  });
+  const unplaced = outline.unplaced.flatMap((scene) => {
+    const sceneCard = card(scene.id, scene.title, "manuscript_scene", null);
+    return sceneCard ? [sceneCard] : [];
+  });
+  return { groups, unplaced };
 }
 
 function buildOutline(nav: readonly RecordNavEntry[]): {

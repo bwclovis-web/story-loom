@@ -11,7 +11,7 @@ import {
   type SceneChoice,
 } from "@/app/projects/[projectId]/records/[recordId]/EstablishedInRail";
 import type { EstablishedFactView } from "@/server/services/establishedFactService";
-import { WORLD, WORLD_KIND } from "@/ui/labels";
+import { REFERENCE_FORM, WORLD, WORLD_KIND } from "@/ui/labels";
 import { placementHref, type ReferenceInspectorModel } from "@/world/inspectorModel";
 
 export interface InspectorEstablished {
@@ -37,6 +37,9 @@ export function ReferenceInspector({
   sourceNote,
   overviewExtra,
   relationshipsExtra,
+  /** Record page already shows the header. A board or map still needs identity here. */
+  context = "remote",
+  hasDetails = true,
 }: {
   projectId: string;
   model: ReferenceInspectorModel;
@@ -47,6 +50,8 @@ export function ReferenceInspector({
   sourceNote?: string | null;
   overviewExtra?: ReactNode;
   relationshipsExtra?: ReactNode;
+  context?: "page" | "remote";
+  hasDetails?: boolean;
 }) {
   const idPrefix = useId();
   const showEstablished = model.supportsEstablished && established !== null;
@@ -113,34 +118,44 @@ export function ReferenceInspector({
       <div role="tabpanel" id={`${idPrefix}-panel-overview`} aria-labelledby={`${idPrefix}-tab-overview`} hidden={active !== "overview"}>
         <div className="stack">
           {sourceNote ? <p className="small muted">{sourceNote}</p> : null}
-          <div>
-            <h3 className="inspector-record-title">{model.title}</h3>
-            <p className="row small" style={{ flexWrap: "wrap", gap: "0.35rem" }}>
-              <span className="badge labelled type">
-                <span className="badge-label">{WORLD.documentType}:</span> {model.typeLabel}
-              </span>
-              {model.worldKindLabel !== undefined ? (
-                <span className="badge labelled type">
-                  <span className="badge-label">{WORLD_KIND.fieldKind}:</span>{" "}
-                  {model.worldKindLabel ?? <span className="muted">{WORLD_KIND.kindNone}</span>}
-                </span>
+          {context === "page" ? (
+            <div className="stack">
+              {hasDetails ? (
+                <p className="reference-inspector-actions">
+                  <a href={`${recordHref}?edit=1#reference-editor`}>{REFERENCE_FORM.editDetails}</a>
+                  {model.recordType === "worldbuilding" ? (
+                    <>
+                      {" "}
+                      <a href={`${recordHref}?edit=1#reference-editor`}>{REFERENCE_FORM.changeKind}</a>
+                    </>
+                  ) : null}
+                </p>
               ) : null}
-              <CanonBadge status={model.authorityStatus} />
-              <SavedVersionBadge revision={model.revision} />
-              <ProtectionStateBadge isProtected={model.protected} />
-            </p>
-          </div>
-          {editing ? <p className="small muted">{WORLD.inspectorSavedNote}</p> : null}
-          {model.lead ? <p className="small inspector-lead">{model.lead}</p> : <p className="small muted">{WORLD.emptyDocument}</p>}
-          <p className="small">
-            {model.fieldKeys.length ? (
-              <>
-                {WORLD.inspectorFields}: {model.fieldKeys.join(", ")}
-              </>
-            ) : (
-              <span className="muted">{WORLD.outlineNoFields}</span>
-            )}
-          </p>
+              {editing ? <p className="small muted">{WORLD.inspectorSavedNote}</p> : null}
+            </div>
+          ) : (
+            <>
+              <div>
+                <h3 className="inspector-record-title">{model.title}</h3>
+                <p className="row small" style={{ flexWrap: "wrap", gap: "0.35rem" }}>
+                  <span className="badge labelled type">
+                    <span className="badge-label">{WORLD.documentType}:</span> {model.typeLabel}
+                  </span>
+                  {model.worldKindLabel !== undefined ? (
+                    <span className="badge labelled type">
+                      <span className="badge-label">{WORLD_KIND.fieldKind}:</span>{" "}
+                      {model.worldKindLabel ?? <span className="muted">{WORLD_KIND.kindNone}</span>}
+                    </span>
+                  ) : null}
+                  <CanonBadge status={model.authorityStatus} />
+                  <SavedVersionBadge revision={model.revision} />
+                  <ProtectionStateBadge isProtected={model.protected} />
+                </p>
+              </div>
+              {editing ? <p className="small muted">{WORLD.inspectorSavedNote}</p> : null}
+              {model.lead ? <p className="small inspector-lead">{model.lead}</p> : <p className="small muted">{WORLD.emptyDocument}</p>}
+            </>
+          )}
           <div>
             <h3>{WORLD.onBoardsAndMaps}</h3>
             {model.placements.length === 0 ? (

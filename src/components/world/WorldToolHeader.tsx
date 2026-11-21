@@ -1,19 +1,20 @@
 import type { ReactNode } from "react";
-import { Breadcrumbs, type BreadcrumbItem } from "@/components/ui/Breadcrumbs";
-import { PageHeader } from "@/components/ui/PageHeader";
-import { WORLD } from "@/ui/labels";
+import { ProjectPageHeader } from "@/components/library/ProjectPageHeader";
+import type { BreadcrumbItem } from "@/components/ui/Breadcrumbs";
 
 /**
- * Tool-page chrome: the shared breadcrumb trail, then the existing page header.
- * Nested pages outside World can keep using `Breadcrumbs` on their own.
+ * World tool pages use the shared project header. The title changes.
+ * `items` is the breadcrumb trail for this nested page.
  */
-export function WorldToolHeader({
+export async function WorldToolHeader({
+  projectId,
   items,
   title,
   lead,
   actions,
   help,
 }: {
+  projectId: string;
   items: BreadcrumbItem[];
   title: ReactNode;
   lead?: ReactNode;
@@ -22,8 +23,14 @@ export function WorldToolHeader({
 }) {
   return (
     <header className="world-tool-header">
-      <Breadcrumbs label={WORLD.breadcrumb} items={items} />
-      <PageHeader title={title} lead={lead} actions={actions} />
+      <ProjectPageHeader
+        projectId={projectId}
+        title={title}
+        description={typeof lead === "string" ? lead : undefined}
+        crumbs={items}
+        actions={actions}
+      />
+      {lead != null && typeof lead !== "string" ? lead : null}
       {help}
     </header>
   );

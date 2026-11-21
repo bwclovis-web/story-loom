@@ -15,6 +15,10 @@ import {
   DRAFT,
   EXPORT,
   INFOBOX,
+  KIND_TEMPLATE,
+  REFERENCE_META,
+  SERIES,
+  CONTINUITY,
   FILE,
   HISTORY,
   HOME,
@@ -48,6 +52,8 @@ import {
   WRITING,
   WRITING_GOALS,
   MANUSCRIPT_ANNOTATIONS,
+  MANUSCRIPT_STRUCTURE,
+  SCENE_META,
   XREF,
   XREF_CHECK,
 } from "@/ui/labels";
@@ -163,7 +169,8 @@ export function HelpContent() {
               rename across the manuscript.
             </li>
             <li>
-              <See anchor="panels-focus" />: split view and typewriter scrolling on Write.
+              <See anchor="panels-focus" />, <See anchor="draft-comparison" />, and <See anchor="local-recovery" />: layout,
+              side-by-side drafts, and an unsaved copy kept in this browser.
             </li>
             <li>
               <See anchor="manuscript-style-check" />, <See anchor="writing-goals" />, and{" "}
@@ -183,7 +190,14 @@ export function HelpContent() {
           <h4>World and codex</h4>
           <ul>
             <li>
-              <See anchor="world-kinds" />: optional kind on worldbuilding records with extra fields.
+              <See anchor="world-kinds" /> and <See anchor="world-series" />: optional kinds, custom field lists, and series
+              references you can read in a sibling book.
+            </li>
+            <li>
+              <See anchor="world-continuity" />: open questions and items that need a recheck, in one list.
+            </li>
+            <li>
+              <See anchor="weave-templates" />: premade beat sheets, and a scene created from a beat.
             </li>
             <li>
               <See anchor="record-relations" /> and <See anchor="relationship-views" />: explicit relationships and graph
@@ -274,7 +288,9 @@ export function HelpContent() {
       <Section id="optional-features">
         <p>
           When a project is open, Story Loom can show an on-demand checklist titled <L>{ONBOARDING.heading}</L>. It walks
-          one real task at a time (continue writing, keep a reference handy, board, map, plot beat, assistant).{" "}
+          one task at a time: <L>{ONBOARDING.taskWrite}</L>, <L>{ONBOARDING.taskCodex}</L>, <L>{ONBOARDING.taskBeats}</L>,{" "}
+          <L>{ONBOARDING.taskWorld}</L>, <L>{ONBOARDING.taskTimeline}</L>, <L>{ONBOARDING.taskSeries}</L>, and{" "}
+          <L>{ONBOARDING.taskPublish}</L>.{" "}
           <L>{ONBOARDING.skip}</L> pauses and keeps your place so <L>{ONBOARDING.resume}</L> can restore it.{" "}
           <L>{ONBOARDING.dismiss}</L> hides the guide permanently until you choose <L>{ONBOARDING.showAgain}</L>. Nothing
           is written to your records; progress is stored in this browser only.
@@ -312,7 +328,7 @@ export function HelpContent() {
           <p>
             <L>{WORLD.maps}</L> use an uploaded image or an existing reference image as a backdrop. Markers can be points,
             routes, areas, or labels; they can link a reference, another map, or both. Author-defined{" "}
-            <L>{WORLD.mapLayers}</L>, an optional <L>{WORLD.mapScale}</L> bar (caption only), and a{" "}
+            <L>{WORLD.mapLayers}</L>, an optional <L>{WORLD.mapScale}</L> bar, and a{" "}
             <L>{WORLD.mapGeography}</L> list from place relationships are optional.{" "}
             <L>{WORLD.mapModeBrowse}</L> pans; <L>{WORLD.mapModeEdit}</L> places and edits markers. Details:{" "}
             <See anchor="world-maps" />.
@@ -969,10 +985,22 @@ export function HelpContent() {
               <L>{BOOK_ORDER.chooseChapter}</L>), then choose <L>{BOOK_ORDER.moveTo}</L>. The scene goes to the end of that
               chapter, and its scene notes go with it.
             </li>
+            <li>
+              Tick <L>{MANUSCRIPT_STRUCTURE.unlock}</L> before merging or converting. <L>{MANUSCRIPT_STRUCTURE.mergePrevious}</L>{" "}
+              joins a scene onto the scene above it in the same chapter: the earlier scene keeps its title, the later text
+              follows after a blank line, and notes, links, locations, and story-event reveals move with the text. The later
+              scene goes to the Trash.
+            </li>
+            <li>
+              <L>{MANUSCRIPT_STRUCTURE.makeChapter}</L> turns a scene into a chapter placed just after its old chapter.{" "}
+              <L>{MANUSCRIPT_STRUCTURE.makeSceneDo}</L> turns a chapter that has no scenes into a scene at the end of the
+              chapter you pick. Neither changes the text or its saved version.
+            </li>
           </ul>
           <p>
-            Moving changes no text and makes no new saved version, so it does not need the protection tick. Every move is
-            listed in the <L>{HISTORY.auditLog}</L> on <L>{NAV.history}</L>. A chapter you create or import later goes at the end of the book. Backups keep
+            Moving changes no text and makes no new saved version, so it does not need the protection tick. Merging and
+            converting do, because they change protected records. Every move, split, merge, and conversion is listed in the{" "}
+            <L>{HISTORY.auditLog}</L> on <L>{NAV.history}</L>. A chapter you create or import later goes at the end of the book. Backups keep
             the order.
           </p>
         </Sub>
@@ -1013,7 +1041,9 @@ export function HelpContent() {
           <p>
             <L>{STYLE_CHECK.heading}</L> runs deterministic checks on Markdown source text: echoed words in a short
             window, common filter words, many <code>-ly</code> adverbs, long sentences, and character or place names
-            repeated close together. Nothing is stored and nothing changes in the manuscript.
+            repeated close together, possible passive voice, and a short list of weak verbs. The manuscript pass also
+            shows <L>{STYLE_CHECK.pacing}</L>, <L>{STYLE_CHECK.dialogue}</L>, and <L>{STYLE_CHECK.pov}</L>. Nothing is
+            stored and nothing changes in the manuscript.
           </p>
           <p>
             On a chapter or scene, open <L>{STYLE_CHECK.toolbar}</L> beside <L>{WRITE.spellcheck}</L>. The panel reads the
@@ -1037,8 +1067,11 @@ export function HelpContent() {
             {WRITING_GOALS.lead} On <L>{SHELL.write}</L> and the library home feature, the progress strip shows{" "}
             <L>{WRITING_GOALS.today}</L>, <L>{WRITING_GOALS.session}</L> (from your first visit to Write in this browser
             session, up to 24 hours), and <L>{WRITING_GOALS.book}</L> against the book target when one is set. Opening a
-            chapter can show its chapter target on the same strip. Targets and deadlines are listed in the audit log when you
-            save or clear them.
+            chapter can show its chapter target on the same strip.             Targets and deadlines are listed in the audit log when you
+            save or clear them. When both a book target and a deadline are set, the page shows{" "}
+            <L>{WRITING_GOALS.dailyPace}</L> and <L>{WRITING_GOALS.streak}</L> from saved revisions, plus{" "}
+            <L>{WRITING_GOALS.chartHeading}</L>. <L>{WRITING_GOALS.sprint}</L> on a chapter or scene is a local timer
+            (15, 25, or 45 minutes). It does not save words.
           </p>
           <p className="small muted">
             Session counts need the Write page once per session so the app can start the timer. Unsaved typing is never
@@ -1053,8 +1086,12 @@ export function HelpContent() {
             revision or need the protection tick.
           </p>
           <p>
-            Edit the synopsis under the text on a chapter or scene. On <L>{SHELL.write}</L>, the{" "}
-            <L>{MANUSCRIPT_ANNOTATIONS.corkboardTab}</L> tab lists synopsis cards in book order for the active draft. Pin a margin
+            Edit the synopsis under the text on a chapter or scene, or on the{" "}
+            <L>{MANUSCRIPT_ANNOTATIONS.corkboardTab}</L> tab on <L>{SHELL.write}</L>. That tab lists every chapter and scene
+            in book order, with <L>{SCENE_META.pov}</L> and <L>{SCENE_META.status}</L> when they are set. Save a synopsis on
+            the card. Move a card with <L>{BOOK_ORDER.moveUp}</L>, <L>{BOOK_ORDER.moveDown}</L>, or{" "}
+            <L>{MANUSCRIPT_STRUCTURE.drag}</L>. Reordering uses the same book order as <L>{BOOK_ORDER.heading}</L> and does
+            not need the protection tick. Pin a margin
             comment to a saved passage by selecting text, saving if needed, then choosing <L>{MANUSCRIPT_ANNOTATIONS.pinSelection}</L>.
             When you save a new revision, older pins show <L>{MANUSCRIPT_ANNOTATIONS.needsRecheck}</L> until you resolve or remove them.
             Exports include synopses or margin comments only when the compile profile on{" "}
@@ -1079,7 +1116,8 @@ export function HelpContent() {
         <Sub id="manuscript-replace">
           <p>
             <L>{MANUSCRIPT_REPLACE.heading}</L> searches every saved chapter, scene and scene note in the draft you have
-            selected, lists each literal match, and lets you replace the ones you tick in one step. Canon status is not
+            selected, lists each match, and lets you replace the ones you tick in one step. Tick{" "}
+            <L>{MANUSCRIPT_REPLACE.useRegex}</L> to search with a pattern. {MANUSCRIPT_REPLACE.regexNote} Canon status is not
             changed. Titles can be included when they match.
           </p>
           <ol>
@@ -1232,7 +1270,7 @@ export function HelpContent() {
             <li>
               <L>{WRITE.more}</L>: jumps to <L>{RECORD.statusHeading}</L>, <L>{RECORD.protectionHeading}</L>,{" "}
               <L>{RECORD.historyHeading}</L>, <L>{RECORD.compareHeading}</L> and <L>{WRITE.structuredFields}</L>, and
-              offers <L>{WRITE.loadFromFile}</L> (see <See anchor="load-from-file" />) and <L>{WRITE.tidy}</L> (see{" "}
+              offers <L>{MANUSCRIPT_STRUCTURE.split}</L>, <L>{WRITE.loadFromFile}</L> (see <See anchor="load-from-file" />) and <L>{WRITE.tidy}</L> (see{" "}
               <See anchor="tidy-text" />
               ).
             </li>
@@ -1243,6 +1281,15 @@ export function HelpContent() {
             the confirmation that you are intentionally changing protected text, and it clears after each save. Until
             you choose it, the formatting buttons are unavailable and a save is refused with your typing kept on
             screen. See <See anchor="protection" />.
+          </p>
+          <p>
+            <L>{MANUSCRIPT_STRUCTURE.split}</L> is in that same menu. Put the cursor in saved text, with words on both
+            sides, then name the new part. The text before the cursor stays; the rest becomes a new chapter or scene just
+            after this one, with the same links and story-event reveals. Save unsaved typing first, and choose{" "}
+            <L>{WRITE.enableEditing}</L> when the record is protected. Under <L>{WRITE.structuredFields}</L>,{" "}
+            <L>{SCENE_META.pov}</L>, <L>{SCENE_META.status}</L> (<L>{SCENE_META.outline}</L>, <L>{SCENE_META.rough}</L>,{" "}
+            <L>{SCENE_META.revised}</L>, <L>{SCENE_META.final}</L>), and <L>{SCENE_META.storyDate}</L> are optional. They
+            are stored in the same JSON as any other fields, and a blank value removes only that field.
           </p>
           <h4>Formatting toolbar</h4>
           <p>
@@ -1450,6 +1497,26 @@ export function HelpContent() {
             the chapter list is in <L>{SHELL.openProjectMenu}</L>, and the toolbar wraps onto a second row.
           </p>
         </Sub>
+
+        <Sub id="draft-comparison">
+          <p>
+            <L>{WRITE.splitView}</L> opens a second chapter or scene beside the one you are editing, including one from
+            another draft of the same manuscript. <L>{WRITE.splitDiff}</L> marks word changes against the saved text
+            beside it. That pane is <L>{WRITE.splitReadOnly}</L>. <L>{WRITE.splitEditHere}</L> opens it in the editor.
+            On <L>{NAV.readBook}</L>, <L>{READ_BOOK.besideDrafts}</L> shows the zero draft and the author manuscript in
+            two columns when both exist. Comparing drafts does not copy text and does not create a revision.
+          </p>
+        </Sub>
+
+        <Sub id="local-recovery">
+          <p>
+            Saving still happens only when you choose Save. While a chapter, scene, or reference is open, this browser
+            keeps a local copy of unsaved title, text, and structured fields. After a reload, <L>{WRITE.recoverHeading}</L>{" "}
+            offers <L>{WRITE.recoverRestore}</L> or <L>{WRITE.recoverDiscard}</L> when that copy differs from the saved
+            record. {WRITE.recoverNote} The copy is not in a workspace backup. Closing the tab warns when the editor has
+            unsaved changes. The browser&apos;s Back button does not.
+          </p>
+        </Sub>
       </Section>
 
       <Section id="plan">
@@ -1488,8 +1555,12 @@ export function HelpContent() {
             scroll. A beat linked to the rewrite pair of a visible row stays on that row, marked{" "}
             <L>{WEAVE.otherDraftBeat}</L>, and cannot be dragged, so the stored link is not moved onto this draft.
             The collapsible Unplaced beats tray holds beats with no scene link, or a link that is neither this draft
-            nor its rewrite pair. One toolbar sits above the grid: Grid / Freeform, Threads visibility, decision filter, density, and
-            gold <L>{WEAVE.addBeatPrimary}</L>. Compact scope chips show the project name as plain text; book switches
+            nor its rewrite pair. <L>{WEAVE.filterLinks}</L> keeps beats that cite a character dossier, cite a place, or
+            carry a <L>{WEAVE.filterPov}</L> saved on the linked scene. <L>{WEAVE.filterPovAny}</L> shows every beat
+            that has one; choosing a name keeps that name. A character cite, a place cite, and a point of view also mark
+            the beat. One toolbar sits above the grid: Grid / Freeform, Threads visibility, decision filter,{" "}
+            <L>{WEAVE.filterLinks}</L>, density, and gold <L>{WEAVE.addBeatPrimary}</L>. Compact scope chips show the
+            project name as plain text; book switches
             among series siblings when more than one exists; plan switches the Write draft when drafts exist. On narrow
             screens the grid becomes a single-thread scene list. Switching layout keeps freeform positions and never
             reorders the manuscript — use Book order on Write for that.{" "}
@@ -1501,8 +1572,10 @@ export function HelpContent() {
             beat opens the shared context rail with thread, scene, note, setup/payoff links,{" "}
             <L>{WEAVE.openSceneInWrite}</L>, and <L>{WEAVE.compareZeroDraft}</L> when the linked rewrite scene has pinned
             Zero-draft sources (a chooser appears when several are pinned). On the freeform canvas, filter by decision,
-            use <L>{WEAVE.fitSelection}</L> / <L>{WEAVE.fitAll}</L>, and move between beats with the arrow keys. On the
-            plot grid, arrow keys move between cells; Enter selects or adds in a blank cell; drag relocates beats
+            use <L>{WEAVE.fitSelection}</L> / <L>{WEAVE.fitAll}</L>, and move between beats with the arrow keys. Setup→payoff
+            links draw as lines between the beat cards, with an arrow toward the payoff. Moving a beat moves its line and
+            does not change the link or the manuscript. On the plot grid, arrow keys move between cells; Enter selects or
+            adds in a blank cell; drag relocates beats
             without changing book order. Unsaved title and notes stay across refreshes and draft switches on this grid.
             Older projects open in freeform with their existing canvas intact.
           </p>
@@ -1609,6 +1682,21 @@ export function HelpContent() {
             change that copy.
           </p>
           <p>
+            <L>{WEAVE.presetHeading}</L> on Plan and on <L>{WEAVE.templates}</L> are <L>{WEAVE.presetThreeAct}</L>,{" "}
+            <L>{WEAVE.presetSaveTheCat}</L>, <L>{WEAVE.presetHerosJourney}</L>, <L>{WEAVE.presetSevenPoint}</L>,{" "}
+            <L>{WEAVE.presetRomance}</L>, and <L>{WEAVE.presetMystery}</L>. <L>{WEAVE.presetStartGrid}</L> opens a plot
+            grid with that sheet&apos;s threads, beats, and setup→payoff links. <L>{WEAVE.presetSaveTemplate}</L> copies
+            the same beats into a template you can edit. A beat&apos;s column is stored as a first line beginning with{" "}
+            <L>{WEAVE.presetThreadPrefix}</L>; applying the template creates those threads and removes that line from the
+            notes. The starter itself does not change when you edit the copy.
+          </p>
+          <p>
+            <L>{WEAVE.createSceneFromBeat}</L> is on a beat that is not yet linked to a chapter or scene. Choose a{" "}
+            <L>{WEAVE.createSceneChapter}</L>. Story Loom adds a protected scene there, copies the beat notes into the
+            synopsis, links each cited World record, and points the beat at the new scene. The scene body stays empty.
+            This does not reorder the book (see <See anchor="book-order" />).
+          </p>
+          <p>
             Weave grids, story threads, beats (including thread associations), setup→payoff links and templates are
             included in workspace backups. Older backups without threads restore as freeform.
           </p>
@@ -1624,7 +1712,14 @@ export function HelpContent() {
           <L>{WORLD.visualSpaces}</L>, <L>{WORLD.timeAndContinuity}</L>, and <L>{WORLD.toolsHeading}</L>:{" "}
           <L>{WORLD.references}</L>, <L>{WORLD.relationships}</L>, <L>{WORLD.maps}</L>, <L>{WORLD.boards}</L>,{" "}
           <L>{WORLD.storyTimeline}</L>, <L>{WORLD.worldCalendar}</L>, and <L>{WORLD.nameGenerator}</L>. Opening one
-          does not change records. <L>{WORLD.allReferences}</L> and each category still list documents in a table with
+          does not change records. <L>{WORLD.newReference}</L> opens one form: title, document type (Character,
+          Worldbuilding, Rules &amp; glossary, or Research note), an optional Worldbuilding kind, optional starting
+          headings that are added only after you confirm a preview, writing, and optional details. Document type is
+          the category the reference is stored as. Starting headings are an outline in the writing and do not set that
+          category or the kind. A Character reference stores name, aliases, and role in Details. Choosing a
+          Worldbuilding kind lists that kind&apos;s fields there too, such as parent place and climate. Those fields
+          do not rewrite the writing. Saving uses the
+          existing record revision. <L>{WORLD.allReferences}</L> and each category still list documents in a table with
           type, canon status, saved version, and protection. Under <L>{WORLD.boards}</L> you can place references,
           images and freeform notes on a
           focused board (see <See anchor="world-boards" />). Under <L>{WORLD.maps}</L> you can pin places on an existing
@@ -1734,19 +1829,25 @@ export function HelpContent() {
               again after you started, the write is refused and the stored shape stays as it was. The marker list and
               the point fields (<L>{WORLD.drawPointX}</L>, <L>{WORLD.drawPointY}</L>, <L>{WORLD.drawMoveEarlier}</L>,{" "}
               <L>{WORLD.drawMoveLater}</L>) select and edit a shape without the pointer. Each marker can still link a
-              World reference. Freehand drawing is not part of this screen, and positions are not distance or travel
-              time.
+              World reference.               Freehand drawing is not part of this screen. Positions are not travel time.{" "}
+              <L>{WORLD.mapMeasure}</L> and <L>{WORLD.mapRouteLength}</L> estimate a distance from the scale bar you
+              set, and the result is labelled <L>{WORLD.mapMeasureDerived}</L>.
             </li>
             <li>
               Each map has author-defined <L>{WORLD.mapLayers}</L>. Older maps open with the former four groups as
               default layer names. In <L>{WORLD.mapModeEdit}</L> you can rename layers, add more (up to sixteen), and
-              save them. The <L>{WORLD.mapLayerLegend}</L> toggles which layers show on the map. New markers use the
+              save them. The <L>{WORLD.mapLayerLegend}</L> toggles which layers show on the map.{" "}
+              <L>{WORLD.mapLayersShowAll}</L>, <L>{WORLD.mapLayersHideAll}</L>, and <L>{WORLD.mapLayerPreset("Places")}</L>{" "}
+              switch a whole preset at once. New markers use the
               layer you pick in the toolbar or on the marker form.
             </li>
             <li>
               An optional labelled <L>{WORLD.mapScale}</L> bar sits on the image. You write the caption and how wide the
-              bar is as a percent of the image. It is not computed distance or travel time (see{" "}
-              <L>{WORLD.geometryNote}</L>).
+              bar is as a percent of the image. <L>{WORLD.mapMeasure}</L> uses two clicks, and a route shows{" "}
+              <L>{WORLD.mapRouteLength}</L>. Both say <L>{WORLD.mapMeasureDerived}</L>. A caption needs a number at the
+              start, such as 10 miles, or the distance stays blank. See <L>{WORLD.geometryNote}</L>.{" "}
+              <L>{WORLD.mapExportSvg}</L> and <L>{WORLD.mapExportPng}</L> download the markers that are currently
+              visible, including the scale caption. The export does not change the map.
             </li>
             <li>
               <L>{WORLD.mapGeography}</L> lists places linked by part_of (see <See anchor="place-relations" />).{" "}
@@ -1823,6 +1924,10 @@ export function HelpContent() {
             If a full structured date disagrees with an explicit <L>{WORLD.recordOrder}</L> link, the timeline warns you;
             it never changes constraints for you. <L>{WORLD.recordOrder}</L> says which event happens first. That order is
             not the manuscript order, so a later chapter can reveal an earlier event. A circle is refused and nothing is saved.
+            <L>{WORLD.timelineBoard}</L> places events on lanes for <L>{WORLD.timelineLaneCharacters}</L>,{" "}
+            <L>{WORLD.timelineLaneFactions}</L>, or <L>{WORLD.timelineLaneLocations}</L>. A full structured date sets the
+            horizontal position. Events without one stay on the recorded order and are marked{" "}
+            <L>{WORLD.timelineUnknownTime}</L>. The list under the board stays available from the keyboard.
           </p>
           <p>
             Selecting an event shows its passages and revealing scenes in the right rail.{" "}
@@ -1830,6 +1935,15 @@ export function HelpContent() {
             a marker. If more than one map has that place, choose the map first. Selecting a place lists its events.
             Filter the list by draft. A passage pinned to an older revision is marked{" "}
             <L>{WORLD.evidenceStale}</L> after the source is saved again. The excerpt stays as it was pinned.
+          </p>
+          <p>
+            <L>{WORLD.timelineWarnings}</L> are notes, not contradictions the app will fix. An event whose title or
+            summary contains the word birth or born, with a full structured date, is that character&apos;s birth. Later
+            dated events for the same character show <L>{WORLD.timelineAge("Name", "N")}</L>. A character linked to two
+            different places on the same structured date is listed with <L>{WORLD.timelineSameDate("Name", "Place, Place")}</L>.
+            When the manuscript reveals a later event before an earlier one, the board says so unless the event or the
+            revealing chapter or scene title contains the word Flashback. Ages and notes are calculated when you open
+            the timeline. They are not written back onto the records.
           </p>
           <p>
             Adding an event does not change prose, revisions, scene locations, or markers. Events are included in
@@ -1922,15 +2036,16 @@ export function HelpContent() {
           <p>
             <L>{WORLD_KIND.kindLabel}</L> is optional metadata on a {RECORD_TYPE_LABELS.worldbuilding} record, stored as{" "}
             <code>kind</code> in structured fields. The eight kinds match the original outline names: place, religion,
-            culture, organization, species, magic system, object, and language. Choosing a kind can show a few optional
-            fields (parent place, climate, goal, and so on). They are saved with the record and travel in backups and
+            culture, organization, species, magic system, object, and language. Choosing a kind lists a few optional
+            fields in Details (parent place, climate, goal, and so on). They are saved with the record and travel in backups and
             change packages like other structured fields.
           </p>
           <p>
             When you set a kind, the World page can filter {RECORD_TYPE_LABELS.worldbuilding} records by each built-in kind,
             then <L>{WORLD.worldKindOther}</L> for custom names, and <L>{WORLD.worldKindUnset}</L> for records with no kind.
             Choosing a filter does not write a kind. Choose <L>{WORLD_KIND.kindCustomOption}</L> when editing to type any label; it is stored in{" "}
-            <code>kind</code> like the built-ins. {WORLD_KIND.historyNote}{" "}
+            <code>kind</code> like the built-ins. For that custom name, <L>{KIND_TEMPLATE.legend}</L> can remember field keys and labels
+            for this book. <L>{KIND_TEMPLATE.remember}</L> stores the list; it does not rewrite the reference. {WORLD_KIND.historyNote}{" "}
             <L>{WORLD.outlineHeading}</L> still only adds Markdown headings to the text; it does not set <code>kind</code>.
           </p>
           <p>
@@ -1938,6 +2053,32 @@ export function HelpContent() {
             <strong>Name syllables</strong> and <strong>Name patterns</strong> fields support the{" "}
             <L>{WORLD.nameGenerator}</L> (see <See anchor="world-names" />). Patterns use <code>{"{s}"}</code> or{" "}
             <code>{"{S}"}</code> for a random syllable. They are revisioned with the record, not a separate table.
+          </p>
+        </Sub>
+
+        <Sub id="world-series">
+          <p>
+            When two books in the same workspace share a series name, a reference whose scope is Series shows up in the
+            other book. World lists it with <L>{SERIES.homeBadge("the home book")}</L> and{" "}
+            <L>{SERIES.editIn("the home book")}</L>. Opening it there is read-only. Saving, linking, and Trash stay on
+            the book that owns the record. A Book scope, or no scope, stays in its own book. Search on World and the
+            context rail beside a chapter can find these references. A context export includes them with{" "}
+            <code>seriesHome</code> and tells the reader not to update them in this book&apos;s change package.
+          </p>
+        </Sub>
+
+        <Sub id="world-continuity">
+          <p>
+            World → <L>{CONTINUITY.nav}</L> (<code>/projects/&lt;project&gt;/continuity</code>) gathers{" "}
+            <L>{CONTINUITY.unresolved}</L>, sections titled <L>{INFOBOX.openQuestions}</L>,{" "}
+            <L>{CONTINUITY.facts}</L>, <L>{CONTINUITY.storyEvidence}</L>, <L>{CONTINUITY.comments}</L>, and{" "}
+            <L>{CONTINUITY.reviews}</L>. Opening the page changes nothing. Each row links to the record, or to the story
+            timeline for story evidence.
+          </p>
+          <p>
+            Characters, canon decisions, and continuity notes can also store <L>{REFERENCE_META.name}</L>,{" "}
+            <L>{REFERENCE_META.aliases}</L>, and <L>{REFERENCE_META.role}</L> or <L>{REFERENCE_META.summary}</L> in
+            structured fields. Empty values are removed. Other JSON keys stay.
           </p>
         </Sub>
 
@@ -2400,7 +2541,9 @@ export function HelpContent() {
             whole category.
           </li>
           <li>
-            Choose <L>{PDF.downloadReferences("N")}</L>.
+            Choose <L>{PDF.downloadReferences("N")}</L>, <L>{PDF.downloadReferencesDocx("N")}</L>,{" "}
+            <L>{PDF.downloadReferencesEpub("N")}</L>, or <L>{PDF.downloadReferencesMarkdown("N")}</L>. DOCX, EPUB, and
+            the Markdown zip use the same ticked references. The Markdown zip is one file per document plus a list.
           </li>
         </ol>
         <p>
@@ -2421,7 +2564,7 @@ export function HelpContent() {
           </li>
           <li>
             Set the <L>{COMPILE_PROFILE.heading}</L> (title and other front matter, scene-break glyph, chapter heading
-            alignment, and whether to include synopses or margin comments), then choose{" "}
+            alignment, trim, margins, running header and footer, font and spacing, and whether to include synopses or margin comments), then choose{" "}
             <L>{PDF.downloadManuscript}</L>, <L>{PDF.downloadManuscriptDocx}</L>, or <L>{PDF.downloadManuscriptEpub}</L>.
           </li>
         </ol>
@@ -2434,7 +2577,14 @@ export function HelpContent() {
         <p>
           One profile per project. Filled-in title, copyright, dedication, and acknowledgement pages are included before
           the first chapter in every manuscript format. A custom title page replaces the default project title page. Scene
-          breaks use your glyph when scene titles are off. Synopses and unresolved margin comments are optional.
+          breaks use your glyph when scene titles are off. Synopses and unresolved margin comments are optional.{" "}
+          <L>{COMPILE_PROFILE.trimSize}</L>, <L>{COMPILE_PROFILE.marginInches}</L>, <L>{COMPILE_PROFILE.runningHeader}</L>,{" "}
+          <L>{COMPILE_PROFILE.runningFooter}</L>, <L>{COMPILE_PROFILE.fontPreset}</L>, and{" "}
+          <L>{COMPILE_PROFILE.spacingPreset}</L> shape the manuscript PDF. <L>{COMPILE_PROFILE.includeToc}</L> adds a
+          contents page whose chapter titles jump to those chapters. <L>{COMPILE_PROFILE.dropCap}</L> sets the first
+          letter of each chapter larger in the PDF. <L>{COMPILE_PROFILE.includeInCompile}</L> leaves unticked chapters
+          and scenes out of PDF, DOCX, and EPUB without changing the manuscript. <L>{COMPILE_PROFILE.backMatter}</L>{" "}
+          follows the chapters.
         </p>
         <h4>What a PDF contains</h4>
         <ul>
@@ -3829,15 +3979,19 @@ export function HelpContent() {
           </li>
           <li>
             Chapter files can be imported as chapters (see <See anchor="import-chapters" />), but scenes cannot, and
-            chapters and scenes are exported as PDF, DOCX, or EPUB from <L>{NAV.exportPdf}</L>; reference bundles remain PDF-only. A chapter imported later goes after the existing ones until
+            chapters and scenes are exported as PDF, DOCX, or EPUB from <L>{NAV.exportPdf}</L>. Selected references can
+            also download as DOCX, EPUB, or a Markdown zip. A chapter imported later goes after the existing ones until
             you move it.
           </li>
           <li>
-            Manuscript-wide replace is literal only. It does not use patterns. A scene cannot be turned into a chapter, or a chapter into a scene.
+            A chapter that still has scenes cannot
+            become a scene, and only two scenes in the same chapter and draft can be merged. Split, merge, and convert
+            need the protection tick. Split also needs saved text with words on both sides of the cursor.
           </li>
           <li>
             Chapters and scenes cannot have images. Images cannot be cropped, resized or renamed in the app. PDFs include
-            PNG and JPEG images only, and have no layout choices beyond scene titles.
+            PNG and JPEG images only. Manuscript PDF trim, margins, headers, contents, and which chapters to include are
+            set on the compile profile.
           </li>
           <li>
             Formatting buttons exist only for chapters and scenes, and there is no underline. Reference pages show common
@@ -3846,6 +4000,7 @@ export function HelpContent() {
             recognised as headings or code.
           </li>
           <li>
+            A series reference can be read in a sibling book and edited only in the book that owns it.{" "}
             <L>{SHELL.world}</L> categories are the document types. There are no separate categories for places, magic
             or other subjects. Optional outlines add headings inside the document you already have; they do not change
             its type. The reference inspector has Overview, Sections, Images, Relationships, and Established in when
@@ -3853,8 +4008,9 @@ export function HelpContent() {
             aliases, accepted established facts, relationships, map presence, and the first manuscript appearance from
             name matches; pending or dismissed facts are omitted. Open questions still come from an{" "}
             <L>{INFOBOX.openQuestions}</L> heading in the text, not a separate tab. Maps can be browsed, zoomed, and marked with points, routes, areas, and labels. Freehand drawing
-            is not available, and marker positions are not distances or travel times. Maps use author-defined{" "}
-            <L>{WORLD.mapLayers}</L>, an optional labelled <L>{WORLD.mapScale}</L> bar (caption only), and a{" "}
+            is not available. Marker positions are not travel times. <L>{WORLD.mapMeasure}</L> and{" "}
+            <L>{WORLD.mapRouteLength}</L> estimate distance from the scale bar you set and label that estimate. Maps use author-defined{" "}
+            <L>{WORLD.mapLayers}</L>, an optional labelled <L>{WORLD.mapScale}</L> bar, and a{" "}
             <L>{WORLD.mapGeography}</L> list from <em>part_of</em> links. A marker can list chapters and scenes assigned
             to its place. That list is not mentions, linked references, or planned events, and it does not invent a
             story date. The story timeline can leave an event&apos;s time unknown, can use structured in-world dates from{" "}
@@ -3870,11 +4026,12 @@ export function HelpContent() {
           </li>
           <li>
             In one chapter or scene, find and replace works on that record&apos;s text only. Across the manuscript, use{" "}
-            <L>{MANUSCRIPT_REPLACE.heading}</L> (literal text, saved versions only).
+            <L>{MANUSCRIPT_REPLACE.heading}</L> (saved versions only; a regular expression is optional and refused when it is unsafe).
           </li>
           <li>
             <L>{PROOFREAD.heading}</L> checks spelling, grammar and punctuation only, in one record&apos;s saved text at a
-            time. There is no style or continuity review. Suggestions are not kept after you leave the page.
+            time. <L>{STYLE_CHECK.heading}</L> and <L>{CONTINUITY.nav}</L> are separate and do not change the manuscript.
+            Suggestions are not kept after you leave the page.
           </li>
           <li>
             Spelling is checked in US or UK English only. The Story Loom checker and your dictionary apply to a record&apos;s

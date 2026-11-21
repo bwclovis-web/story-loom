@@ -69,9 +69,12 @@ creates no revision; every image change is in the audit log. After pulling
 this change, run `pnpm db:deploy` (it backs up first) to add the image table.
 
 **Export PDF** (in project tools and on the World page) and **Download PDF**
-(on a document's page) download a PDF made on this computer from saved versions: the whole
-manuscript, a selection or category of reference documents, or one document.
-PNG and JPEG images are embedded; other formats are listed by name. The PDF is
+(on a document's page) download a file made on this computer from saved versions.
+The manuscript can be PDF, DOCX, or EPUB. A compile profile sets front matter,
+trim size, margins, running header and footer, font and spacing, a contents
+page, back matter, and which chapters and scenes to leave out. Selected
+reference documents can be PDF, DOCX, EPUB, or a Markdown zip. PNG and JPEG
+images are embedded in PDFs; other formats are listed by name. The file is
 not stored by the app.
 
 ### Deleting and the Trash
@@ -256,6 +259,38 @@ applies cleanly to a freshly seeded database. Import it on the project's
    Assistant proposals use the same screen.
 4. **History & review.** View the audit log, applied packages, and open
    review items for records that may need follow-up.
+
+### In the app
+
+Guided tasks (skip anytime; stored only in this browser) follow the same order:
+
+1. Write a chapter in Desk, Focus, or Companion. Split view can show another draft beside it. An unsaved local copy is offered after a reload and is not a revision.
+2. Keep a reference handy, or type `[[` or `@` to insert its title.
+3. Start a Weave grid from a premade beat sheet. Create a scene from a beat when you want a protected scene and a synopsis; the scene body stays empty.
+4. Add World references, including a custom kind whose fields you can remember for that book. Boards and maps place records you already have.
+5. Set an in-world calendar and read the story timeline. Ages and warnings are notes, not saved facts.
+6. Read a series reference in a sibling book, and edit it in the book that owns it. Continuity lists open questions.
+7. Set a writing goal, compile PDF, DOCX, or EPUB, and back up the workspace.
+
+Details: [docs/world-and-weave.md](docs/world-and-weave.md) and **How to use** in the app.
+
+### Screenshots
+
+Pictures of earlier interface passes are in `docs/screenshots/`. They are not regenerated for every feature.
+
+| File | What it shows |
+| --- | --- |
+| `discover-1-continue-writing.png` | Opening a chapter to keep writing |
+| `discover-2-keep-beside.png` | A reference kept beside the draft |
+| `discover-3-board-chooser.png` | Choosing a board |
+| `discover-4-map-pin.png` | A pin on a map |
+| `discover-5-weave-beat.png` | A Weave beat |
+| `discover-6-assistant-narrow.png` | The assistant on a narrow window |
+| `redesign-1-write-references.png` | Write, with references |
+| `redesign-2-write-focus-mode.png` | Focus mode |
+| `redesign-3-world-reference.png` | A World reference |
+| `pdf-1-export-page.png` | The export page |
+| `world-hub-light.png` | The World page |
 
 ## Concepts (kept separate)
 

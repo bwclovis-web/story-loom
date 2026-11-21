@@ -3,10 +3,12 @@ import {
   applyEdit,
   applySelectedReplacements,
   findMatches,
+  findRegexMatches,
   invertEdit,
   matchAt,
   nextMatch,
   previousMatch,
+  regexPreviewError,
   replaceAllEdit,
   replaceOneEdit,
 } from "@/writing/findReplace";
@@ -32,6 +34,14 @@ describe("findMatches", () => {
       { start: 0, end: 2 },
       { start: 2, end: 4 },
     ]);
+  });
+
+  it("refuses an unsafe regular expression and finds a simple one", () => {
+    expect(regexPreviewError("(a+)+")).toBe("nested");
+    expect(regexPreviewError("[")).toBe("invalid");
+    expect(findRegexMatches("salt and salt", "s.lt", { matchCase: false }).matches).toHaveLength(2);
+    const replaced = applySelectedReplacements("cat", findRegexMatches("cat", "c(.)t", { matchCase: true }).matches, "$1");
+    expect(replaced).toBe("$1");
   });
 
   it("wholeWord skips matches inside longer words", () => {

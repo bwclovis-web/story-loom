@@ -1,7 +1,7 @@
 import type { CrossRefIndex } from "./crossRefs";
 import { findMatches } from "./findReplace";
 
-export type StyleCheckKind = "echo" | "filter" | "adverb" | "long_sentence" | "name_repeat";
+export type StyleCheckKind = "echo" | "filter" | "adverb" | "long_sentence" | "name_repeat" | "passive" | "weak_verb";
 
 export interface StyleIssue {
   kind: StyleCheckKind;
@@ -300,8 +300,76 @@ export function runStyleCheck(text: string, options: StyleCheckOptions = {}): St
   findAdverbs(text, opts, out);
   findNameRepeats(text, tokens, opts, out);
   findEchoes(text, tokens, opts, out);
+  findPassiveAndWeak(text, opts, out);
   out.sort((a, b) => a.start - b.start || a.end - b.end || a.kind.localeCompare(b.kind));
   return out;
+}
+
+const PASSIVE =
+  /\b(?:was|were|is|are|been|be|being)\s+(?:[\p{L}\p{M}'-]+ed|known|seen|done|made|taken|given|told|written|found|left|kept)\b/giu;
+const WEAK_VERBS = ["got", "get", "went", "looked", "look", "walked", "walk"] as const;
+
+function findPassiveAndWeak(text: string, opts: typeof DEFAULT_OPTS, out: StyleIssue[]): void {
+  for (const match of text.matchAll(PASSIVE)) {
+    if (
+      !pushIssue(
+        out,
+        {
+          kind: "passive",
+          start: match.index!,
+          end: match.index! + match[0].length,
+          detail: `Possible passive: “${snippet(text, match.index!, match.index! + match[0].length)}”`,
+        },
+        opts.maxIssues,
+      )
+    ) {
+      return;
+    }
+  }
+  for (const verb of WEAK_VERBS) {
+    const hits = findMatches(text, verb, { matchCase: false, wholeWord: true });
+    for (const hit of hits) {
+      if (
+        !pushIssue(
+          out,
+          {
+            kind: "weak_verb",
+            start: hit.start,
+            end: hit.end,
+            detail: `Weak verb “${text.slice(hit.start, hit.end)}”`,
+          },
+          opts.maxIssues,
+        )
+      ) {
+        return;
+      }
+    }
+  }
+}
+
+export interface DialogueRatio {
+  dialogueWords: number;
+  narrationWords: number;
+}
+
+/** Words inside straight or curly quotes, compared with the rest of the text. */
+export function dialogueRatio(text: string): DialogueRatio {
+  const quoted = text.match(/"[^"\n]{0,500}"|“[^”\n]{0,500}”/g) ?? [];
+  const dialogueWords = quoted.reduce((sum, part) => sum + tokenizeWords(part).length, 0);
+  const narrationWords = Math.max(0, tokenizeWords(text).length - dialogueWords);
+  return { dialogueWords, narrationWords };
+}
+
+export interface PovCount {
+  name: string;
+  count: number;
+}
+
+export function povCounts(text: string, names: readonly string[]): PovCount[] {
+  return names
+    .map((name) => ({ name, count: findMatches(text, name, { matchCase: true, wholeWord: true }).length }))
+    .filter((row) => row.count > 0)
+    .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
 }
 
 export function styleCheckNameTerms(index: CrossRefIndex): string[] {

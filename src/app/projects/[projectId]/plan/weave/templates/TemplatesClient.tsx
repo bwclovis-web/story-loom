@@ -18,6 +18,7 @@ import {
   deleteWeaveTemplateAction,
   upsertWeaveTemplateBeatAction,
 } from "../actions";
+import { StarterBeatSheets } from "../StarterBeatSheets";
 
 export function TemplatesClient({
   projectId,
@@ -35,6 +36,7 @@ export function TemplatesClient({
   return (
     <>
       <IssueList issues={issues} />
+      <StarterBeatSheets projectId={projectId} />
       <section className="panel" aria-labelledby="new-template">
         <h2 id="new-template">{WEAVE.newTemplate}</h2>
         <form

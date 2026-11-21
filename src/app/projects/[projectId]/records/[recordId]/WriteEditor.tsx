@@ -24,6 +24,7 @@ import { type DraftOption } from "@/components/drafts/DraftControls";
 import { StoryLoomMark } from "@/components/library/StoryLoomMark";
 import { ContextRail, useContextRail } from "@/components/shell/ContextRail";
 import { Banner } from "@/components/ui/Banner";
+import { WritingSprint } from "@/components/writing/WritingSprint";
 import { LabeledSwitch } from "@/components/ui/LabeledSwitch";
 import { IconAnchor, IconButton } from "@/components/ui/IconButton";
 import { HistoryIcon, MoreIcon } from "@/components/shell/icons";
@@ -54,7 +55,7 @@ import {
   MarginCommentsPanel,
 } from "@/components/writing/ManuscriptAnnotationPanels";
 import type { MarginCommentView } from "@/server/services/manuscriptAnnotationService";
-import { ASSISTANT, NAV, RECORD, SHELL, tidySummary, WRITE, WRITING } from "@/ui/labels";
+import { ASSISTANT, MANUSCRIPT_STRUCTURE, NAV, RECORD, SHELL, tidySummary, WRITE, WRITING } from "@/ui/labels";
 import type { WriteMode } from "@/writing/writeMode";
 import { invertEdit } from "@/writing/findReplace";
 import { minimalEdit, toggleInline } from "@/writing/markdownFormat";
@@ -62,7 +63,8 @@ import { tidyText } from "@/writing/tidy";
 import { styleRangeHighlightEnd } from "@/writing/styleCheck";
 import type { SpellChecker, SpellingLanguage } from "@/writing/spelling";
 import { saveRecordAction, type FormResult } from "../../actions";
-import { linkReferenceAction } from "../../write/actions";
+import { linkReferenceAction, splitManuscriptAction } from "../../write/actions";
+import { ManuscriptMetaFields } from "@/components/writing/ManuscriptMetaFields";
 import { CodexSuggestBox } from "@/components/writing/CodexSuggestBox";
 import type { CodexEntry } from "@/writing/codexSuggest";
 import { RecoveryBanner } from "@/writing/RecoveryBanner";
@@ -156,6 +158,10 @@ export function WriteEditor(props: {
   const [spellOpen, setSpellOpen] = useState(false);
   const [styleOpen, setStyleOpen] = useState(props.initialStyleRange !== null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [splitTitle, setSplitTitle] = useState("");
+  const [splitError, setSplitError] = useState<string | null>(null);
+  const [splitPending, setSplitPending] = useState(false);
+  const splitDialogRef = useRef<HTMLDialogElement>(null);
   const [linkRequest, setLinkRequest] = useState<(LinkSeed & { id: number }) | null>(null);
   /** "notice" shows even with nothing unsaved and clears on the next keystroke. */
   const [loadNote, setLoadNote] = useState<{ tone: "info" | "error" | "notice"; text: string } | null>(null);
@@ -471,6 +477,7 @@ export function WriteEditor(props: {
                 <span className="write-project-name">{props.projectTitle}</span>
               </div>
               <div className="write-actions">
+                <WritingSprint />
                 <p className={`save-status ${statusTone}`} role="status">
                   {saveStatus}
                 </p>
@@ -527,6 +534,31 @@ export function WriteEditor(props: {
                       <a className="menu-item" href={`#${idPrefix}-fields`}>
                         {WRITE.structuredFields}
                       </a>
+                    </li>
+                    <li>
+                      <button
+                        type="button"
+                        className="menu-item"
+                        disabled={!editable || splitPending}
+                        title={editable ? MANUSCRIPT_STRUCTURE.split : WRITE.protectedReadOnly}
+                        onClick={() => {
+                          if (dirty) {
+                            setLoadNote({ tone: "error", text: MANUSCRIPT_STRUCTURE.splitSaveFirst });
+                            return;
+                          }
+                          const body = bodyRef.current?.value ?? text;
+                          const at = selection.start;
+                          if (at <= 0 || at >= body.length) {
+                            setLoadNote({ tone: "error", text: MANUSCRIPT_STRUCTURE.splitEdge });
+                            return;
+                          }
+                          setSplitTitle("");
+                          setSplitError(null);
+                          splitDialogRef.current?.showModal();
+                        }}
+                      >
+                        {MANUSCRIPT_STRUCTURE.split}
+                      </button>
                     </li>
                     <li>
                       <button
@@ -734,15 +766,7 @@ export function WriteEditor(props: {
             ) : null}
             <details className="write-fields" id={`${idPrefix}-fields`}>
               <summary>{WRITE.structuredFields}</summary>
-              <textarea
-                name="fields"
-                aria-label={WRITE.structuredFields}
-                className="mono"
-                defaultValue={props.fieldsJson}
-                style={{ minHeight: "6rem" }}
-                spellCheck={false}
-                onInput={(e) => setFields(e.currentTarget.value)}
-              />
+              <ManuscriptMetaFields value={fields} onChange={setFields} />
             </details>
           </div>
           {splitOpen && splitRecordId ? (
@@ -798,6 +822,53 @@ export function WriteEditor(props: {
             onToggleSpell={() => setSpellOpen((open) => !open)}
           />
         </form>
+        <dialog ref={splitDialogRef} className="library-dialog" aria-labelledby={`${idPrefix}-split-title`}>
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              const body = bodyRef.current;
+              if (!body) return;
+              setSplitPending(true);
+              setSplitError(null);
+              void splitManuscriptAction(props.projectId, {
+                recordId: props.recordId,
+                expectedRevision: props.revision,
+                splitAt: selection.start,
+                newTitle: splitTitle,
+                unlockProtected: unlocked,
+              }).then((result) => {
+                setSplitPending(false);
+                if (!result.ok) {
+                  setSplitError(result.issues.map((issue) => issue.message).join(" "));
+                  return;
+                }
+                body.value = result.head;
+                setText(normalizeNewlines(result.head));
+                const end = result.head.length;
+                body.setSelectionRange(end, end);
+                setSelection({ start: end, end });
+                splitDialogRef.current?.close();
+                setLoadNote({ tone: "notice", text: MANUSCRIPT_STRUCTURE.splitDone(splitTitle.trim()) });
+              });
+            }}
+          >
+            <h2 id={`${idPrefix}-split-title`}>{MANUSCRIPT_STRUCTURE.splitHeading}</h2>
+            <p className="small">{MANUSCRIPT_STRUCTURE.splitNote}</p>
+            <label>
+              {MANUSCRIPT_STRUCTURE.splitTitle}
+              <input value={splitTitle} onChange={(event) => setSplitTitle(event.target.value)} required />
+            </label>
+            {splitError ? <p className="small error-text">{splitError}</p> : null}
+            <div className="row">
+              <Button type="button" variant="secondary" onClick={() => splitDialogRef.current?.close()}>
+                {WRITE.close}
+              </Button>
+              <Button type="submit" disabled={splitPending}>
+                {splitPending ? MANUSCRIPT_STRUCTURE.splitWorking : MANUSCRIPT_STRUCTURE.splitDo}
+              </Button>
+            </div>
+          </form>
+        </dialog>
         <ManuscriptSynopsisPanel projectId={props.projectId} recordId={props.recordId} initialBody={props.synopsisBody} />
         <MarginCommentsPanel
           projectId={props.projectId}

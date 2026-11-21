@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { Breadcrumbs } from "@/components/ui/Breadcrumbs";
+import { ProjectPageHeader } from "@/components/library/ProjectPageHeader";
 import { getDb } from "@/server/db";
 import { NotFoundError } from "@/server/services/errors";
 import { listRecords } from "@/server/services/recordService";
@@ -8,7 +8,6 @@ import { getWorldMap, listWorldMaps } from "@/server/services/worldMapService";
 import { buildMapGeographyTree } from "@/world/mapGeography";
 import { isLinkableReferenceType, RECORD_TYPE_LABELS } from "@/domain/recordTypes";
 import { isWorldType } from "@/ui/world";
-import { WORLD } from "@/ui/labels";
 import { worldSurfaceCrumbs } from "@/ui/worldDestinations";
 import { MapCanvas } from "../MapCanvas";
 
@@ -51,7 +50,11 @@ export default async function WorldMapPage({
 
   return (
     <>
-      <Breadcrumbs label={WORLD.breadcrumb} items={worldSurfaceCrumbs(projectId, "maps", map.title)} />
+      <ProjectPageHeader
+        projectId={projectId}
+        title={map.title}
+        crumbs={worldSurfaceCrumbs(projectId, "maps", map.title)}
+      />
       <MapCanvas
         projectId={projectId}
         map={map}

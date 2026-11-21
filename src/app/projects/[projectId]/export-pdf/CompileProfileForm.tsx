@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/Button";
 import { submitWithoutReset } from "@/components/submitWithoutReset";
 import type { CompileProfileView } from "@/server/services/compileProfileService";
 import { CHAPTER_HEADING_STYLE } from "@/server/services/compileProfileService";
+import { TRIM_SIZE_KEYS, TRIM_SIZES } from "@/writing/compileLayout";
 import { COMPILE_PROFILE } from "@/ui/labels";
 import { saveCompileProfileAction, type CompileProfileFormResult } from "./actions";
 
@@ -16,7 +17,15 @@ function Result({ state }: { state: CompileProfileFormResult }) {
   return null;
 }
 
-export function CompileProfileForm({ projectId, profile }: { projectId: string; profile: CompileProfileView }) {
+export function CompileProfileForm({
+  projectId,
+  profile,
+  manuscript,
+}: {
+  projectId: string;
+  profile: CompileProfileView;
+  manuscript: { id: string; title: string }[];
+}) {
   const [state, save, pending] = useActionState<CompileProfileFormResult, FormData>(
     saveCompileProfileAction.bind(null, projectId),
     { ok: true },
@@ -41,6 +50,52 @@ export function CompileProfileForm({ projectId, profile }: { projectId: string; 
         {COMPILE_PROFILE.acknowledgements}
         <textarea name="acknowledgementsBody" rows={3} defaultValue={profile.acknowledgementsBody} />
       </label>
+      <label className="stack">
+        {COMPILE_PROFILE.backMatter}
+        <textarea name="backMatterBody" rows={3} defaultValue={profile.backMatterBody} />
+      </label>
+      <div className="row" style={{ flexWrap: "wrap", gap: "1rem" }}>
+        <label>
+          {COMPILE_PROFILE.trimSize}
+          <select name="trimSize" defaultValue={profile.trimSize}>
+            {TRIM_SIZE_KEYS.map((key) => (
+              <option key={key} value={key}>
+                {TRIM_SIZES[key].label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          {COMPILE_PROFILE.marginInches}
+          <input name="marginInches" type="number" min={0.5} max={1.25} step={0.05} defaultValue={profile.marginInches} />
+        </label>
+        <label>
+          {COMPILE_PROFILE.fontPreset}
+          <select name="fontPreset" defaultValue={profile.fontPreset}>
+            <option value="serif">{COMPILE_PROFILE.fontSerif}</option>
+            <option value="sans">{COMPILE_PROFILE.fontSans}</option>
+            <option value="mono">{COMPILE_PROFILE.fontMono}</option>
+          </select>
+        </label>
+        <label>
+          {COMPILE_PROFILE.spacingPreset}
+          <select name="spacingPreset" defaultValue={profile.spacingPreset}>
+            <option value="novel">{COMPILE_PROFILE.spacingNovel}</option>
+            <option value="tight">{COMPILE_PROFILE.spacingTight}</option>
+            <option value="loose">{COMPILE_PROFILE.spacingLoose}</option>
+          </select>
+        </label>
+      </div>
+      <div className="row" style={{ flexWrap: "wrap", gap: "1rem" }}>
+        <label>
+          {COMPILE_PROFILE.runningHeader}
+          <input name="runningHeader" type="text" maxLength={120} defaultValue={profile.runningHeader} />
+        </label>
+        <label>
+          {COMPILE_PROFILE.runningFooter}
+          <input name="runningFooter" type="text" maxLength={120} defaultValue={profile.runningFooter} />
+        </label>
+      </div>
       <div className="row" style={{ flexWrap: "wrap", gap: "1rem" }}>
         <label>
           {COMPILE_PROFILE.sceneBreakGlyph}
@@ -63,7 +118,37 @@ export function CompileProfileForm({ projectId, profile }: { projectId: string; 
           <input type="checkbox" name="includeMarginComments" value="1" defaultChecked={profile.includeMarginComments} />
           {COMPILE_PROFILE.includeMarginComments}
         </label>
+        <label className="inline">
+          <input type="checkbox" name="firstParagraphNoIndent" value="1" defaultChecked={profile.firstParagraphNoIndent} />
+          {COMPILE_PROFILE.firstParagraphNoIndent}
+        </label>
+        <label className="inline">
+          <input type="checkbox" name="dropCap" value="1" defaultChecked={profile.dropCap} />
+          {COMPILE_PROFILE.dropCap}
+        </label>
+        <label className="inline">
+          <input type="checkbox" name="includeToc" value="1" defaultChecked={profile.includeToc} />
+          {COMPILE_PROFILE.includeToc}
+        </label>
       </div>
+      {manuscript.length ? (
+        <fieldset className="stack">
+          <legend>{COMPILE_PROFILE.includeInCompile}</legend>
+          <p className="small muted">{COMPILE_PROFILE.includeInCompileNote}</p>
+          {manuscript.map((item) => (
+            <label key={item.id} className="inline">
+              <input type="hidden" name="manuscriptId" value={item.id} />
+              <input
+                type="checkbox"
+                name="includeRecord"
+                value={item.id}
+                defaultChecked={!profile.excludedRecordIds.includes(item.id)}
+              />
+              {item.title}
+            </label>
+          ))}
+        </fieldset>
+      ) : null}
       <Result state={state} />
       <Button type="submit" disabled={pending}>
         {COMPILE_PROFILE.save}

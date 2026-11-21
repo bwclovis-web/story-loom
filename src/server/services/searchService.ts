@@ -6,7 +6,9 @@ import { aliasesOf } from "@/writing/crossRefs";
 import { findMatches } from "@/writing/findReplace";
 import { listSections } from "@/writing/sections";
 import { searchText, type Excerpt } from "@/writing/textSearch";
+import type { SeriesHomeRef } from "@/world/seriesHome";
 import type { DbOrTx } from "../db";
+import { listSeriesSharedRecords } from "./seriesBibleService";
 
 /** Excerpt window. Hits say when the source text is longer than this. */
 export const SEARCH_EXCERPT_CHARS = 240;
@@ -24,6 +26,8 @@ export interface SearchHit {
   /** True when the matched text is longer than the excerpt window. The full text is not included. */
   excerptTruncated: boolean;
   excerptLimit: number;
+  /** Set when the hit lives in another book of this series. */
+  seriesHome?: SeriesHomeRef;
 }
 
 /**
@@ -33,7 +37,14 @@ export interface SearchHit {
  */
 export async function searchProjectRecords(
   db: DbOrTx,
-  input: { projectId: string; query: string; types?: readonly RecordType[]; includeManuscript: boolean },
+  input: {
+    projectId: string;
+    query: string;
+    types?: readonly RecordType[];
+    includeManuscript: boolean;
+    /** Also search series-scoped references in sibling books. */
+    includeSeriesBible?: boolean;
+  },
 ): Promise<SearchHit[]> {
   const query = input.query.normalize("NFC").trim();
   const rows = await db.record.findMany({
@@ -80,6 +91,33 @@ export async function searchProjectRecords(
       excerpt: match.excerpt,
       excerptTruncated: match.excerptTruncated,
       excerptLimit: SEARCH_EXCERPT_CHARS,
+    });
+  }
+  if (!input.includeSeriesBible) return hits;
+  const shared = await listSeriesSharedRecords(db, input.projectId);
+  const seen = new Set(hits.map((hit) => hit.id));
+  for (const item of shared) {
+    if (seen.has(item.record.id)) continue;
+    if (input.types && !input.types.includes(item.record.type)) continue;
+    const record = item.record;
+    const title = excerptAt(record.title, query);
+    const body = title ? null : excerptAt(record.body, query);
+    const fields = title || body ? null : excerptAt(JSON.stringify(record.fields), query);
+    const match = title ? { matchedIn: "title" as const, ...title } : body ? { matchedIn: "body" as const, ...body } : fields ? { matchedIn: "fields" as const, ...fields } : null;
+    if (!match) continue;
+    hits.push({
+      id: record.id,
+      projectId: record.projectId,
+      type: record.type,
+      title: record.title,
+      authorityStatus: record.authorityStatus,
+      protected: record.protected,
+      currentRevision: record.currentRevision,
+      matchedIn: match.matchedIn,
+      excerpt: match.excerpt,
+      excerptTruncated: match.excerptTruncated,
+      excerptLimit: SEARCH_EXCERPT_CHARS,
+      seriesHome: item.home,
     });
   }
   return hits;
@@ -230,6 +268,8 @@ export interface ContextSearchHit {
   /** Heading anchor when matchedIn is section. */
   sectionId: string | null;
   sectionTitle: string | null;
+  /** Set when the reference lives in another book of this series. */
+  seriesHome?: SeriesHomeRef;
 }
 
 /**
@@ -323,6 +363,47 @@ export async function searchContextReferences(
         sectionTitle: section.title,
       });
       if (hits.length >= limit) break;
+    }
+  }
+  if (hits.length >= limit) return hits;
+  const shared = await listSeriesSharedRecords(db, input.projectId);
+  for (const item of shared) {
+    if (hits.length >= limit) break;
+    if (hits.some((hit) => hit.id === item.record.id)) continue;
+    const row = item.record;
+    if (!isLinkableReferenceType(row.type)) continue;
+    const base = {
+      id: row.id,
+      title: row.title,
+      type: row.type,
+      authorityStatus: row.authorityStatus,
+      currentRevision: row.currentRevision,
+      seriesHome: item.home,
+    };
+    if (findMatch(row.title, query) >= 0) {
+      hits.push({ ...base, matchedIn: "title", excerpt: clipExcerpt(row.title, query), sectionId: null, sectionTitle: null });
+      continue;
+    }
+    const fields = row.fields;
+    const name = typeof fields.name === "string" ? fields.name.trim() : "";
+    if (name && findMatch(name, query) >= 0) {
+      hits.push({ ...base, matchedIn: "name", excerpt: clipExcerpt(name, query), sectionId: null, sectionTitle: null });
+      continue;
+    }
+    const aliasHit = aliasesOf(fields).find((alias) => findMatch(alias, query) >= 0);
+    if (aliasHit) {
+      hits.push({ ...base, matchedIn: "aliases", excerpt: clipExcerpt(aliasHit, query), sectionId: null, sectionTitle: null });
+      continue;
+    }
+    const section = listSections(row.body).find((itemSection) => findMatch(itemSection.title, query) >= 0);
+    if (section) {
+      hits.push({
+        ...base,
+        matchedIn: "section",
+        excerpt: clipExcerpt(section.title, query),
+        sectionId: section.id,
+        sectionTitle: section.title,
+      });
     }
   }
   return hits;

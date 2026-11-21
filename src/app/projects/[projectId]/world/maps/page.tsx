@@ -35,6 +35,7 @@ export default async function WorldMapsPage({ params }: { params: Promise<{ proj
   return (
     <>
       <WorldToolHeader
+        projectId={projectId}
         items={worldSurfaceCrumbs(projectId, "maps")}
         title={WORLD.maps}
         help={

@@ -43,6 +43,7 @@ const MATTER_LABELS: Record<string, string> = {
   dedication: "Dedication",
   copyright: "Copyright",
   acknowledgements: "Acknowledgements",
+  "back-matter": "Back matter",
 };
 
 function appendMarkdown(parts: string[], markdown: string) {

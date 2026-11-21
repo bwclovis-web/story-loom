@@ -1,6 +1,7 @@
 import JSZip from "jszip";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { upsertCompileProfile } from "@/server/services/compileProfileService";
+import { createWorkspaceBackup, restoreWorkspaceBackup } from "@/server/services/backupService";
+import { getCompileProfile, upsertCompileProfile } from "@/server/services/compileProfileService";
 import { buildManuscriptDocx } from "@/server/services/docxExportService";
 import { buildManuscriptEpub } from "@/server/services/epubExportService";
 import { buildManuscriptPdf } from "@/server/services/pdfExportService";
@@ -60,5 +61,41 @@ describe("Compile profiles in manuscript export", () => {
     const ch1 = (await epubZip.file("OEBPS/ch-1.xhtml")?.async("string")) ?? "";
     expect(ch1).toContain("Synopsis");
     expect(ch1).toContain("###");
+  });
+
+  it("round-trips layout fields and leaves an excluded chapter out of the PDF", async () => {
+    await upsertCompileProfile(t.db, IDS.project, {
+      titlePageBody: "",
+      copyrightPageBody: "",
+      dedicationBody: "",
+      acknowledgementsBody: "",
+      sceneBreakGlyph: "***",
+      chapterHeadingStyle: "centered",
+      includeSynopses: false,
+      includeMarginComments: false,
+      trimSize: "5x8",
+      marginInches: 0.6,
+      runningHeader: "Salt",
+      runningFooter: "Archive",
+      fontPreset: "sans",
+      spacingPreset: "tight",
+      firstParagraphNoIndent: false,
+      dropCap: false,
+      includeToc: false,
+      backMatterBody: "About the salt.",
+      excludedRecordIds: [IDS.chapter],
+    });
+    const backup = await createWorkspaceBackup(t.db, IDS.workspace);
+    const fresh = await createTestDb();
+    const outcome = await restoreWorkspaceBackup(fresh.db, backup, { idStrategy: "preserve" });
+    expect(outcome.ok).toBe(true);
+    const restored = await getCompileProfile(fresh.db, IDS.project);
+    expect(restored.trimSize).toBe("5x8");
+    expect(restored.runningHeader).toBe("Salt");
+    expect(restored.backMatterBody).toBe("About the salt.");
+    expect(restored.excludedRecordIds).toEqual([IDS.chapter]);
+    const pdf = await buildManuscriptPdf(fresh.db, IDS.project, { sceneTitles: false, hasDrafts: false, draftId: null });
+    expect(pdf.documentCount).toBe(0);
+    await fresh.cleanup();
   });
 });

@@ -5,9 +5,9 @@ import { ProtectionBadge, StatusBadge } from "@/components/Badges";
 import { Button, ButtonLink } from "@/components/ui/Button";
 import { RecordFlexRow } from "@/components/ui/RecordRow";
 import type { AuthorityStatus } from "@/domain/statuses";
-import { BOOK_ORDER, WRITING } from "@/ui/labels";
+import { BOOK_ORDER, MANUSCRIPT_STRUCTURE, WRITING } from "@/ui/labels";
 import { formatWordCount } from "@/writing/wordCount";
-import { moveInBookAction } from "./actions";
+import { convertManuscriptAction, mergeManuscriptScenesAction, moveInBookAction } from "./actions";
 
 export interface OrderItem {
   id: string;
@@ -15,6 +15,7 @@ export interface OrderItem {
   words: number;
   authorityStatus: AuthorityStatus;
   isProtected: boolean;
+  revision: number;
 }
 
 export interface OrderChapter extends OrderItem {
@@ -34,6 +35,7 @@ export function BookOrder({
   bookWords: number;
 }) {
   const [pending, startTransition] = useTransition();
+  const [unlock, setUnlock] = useState(false);
   const [message, setMessage] = useState<{ error: boolean; text: string } | null>(null);
   const href = (id: string) => `/projects/${encodeURIComponent(projectId)}/records/${encodeURIComponent(id)}`;
 
@@ -49,6 +51,14 @@ export function BookOrder({
     const target = chapters.find((c) => c.id === chapterId);
     if (target) move(item, target.id, target.scenes.length);
   };
+  const locked = (...items: OrderItem[]) => items.some((item) => item.isProtected) && !unlock;
+  const structure = (run: () => Promise<{ ok: boolean; issues?: { message: string }[] }>) => {
+    setMessage(null);
+    startTransition(async () => {
+      const result = await run();
+      if (!result.ok) setMessage({ error: true, text: (result.issues ?? []).map((issue) => issue.message).join(" ") });
+    });
+  };
 
   return (
     <section className="panel book-order" aria-labelledby="book-order-heading">
@@ -57,8 +67,12 @@ export function BookOrder({
         {WRITING.bookCount}: <strong>{formatWordCount(bookWords)}</strong> <span className="muted">{WRITING.bookSavedNote}</span>
       </p>
       <p className="small muted">{BOOK_ORDER.note}</p>
+      <label className="check-inline">
+        <input type="checkbox" checked={unlock} onChange={(event) => setUnlock(event.target.checked)} />
+        {MANUSCRIPT_STRUCTURE.unlock}
+      </label>
       <p className={message?.error ? "small error-text" : "small"} role="status" aria-live="polite">
-        {pending ? BOOK_ORDER.moving : (message?.text ?? "")}
+        {pending ? MANUSCRIPT_STRUCTURE.working : (message?.text ?? "")}
       </p>
       {chapters.length === 0 ? (
         <p className="muted">{BOOK_ORDER.noChapters}</p>
@@ -73,6 +87,19 @@ export function BookOrder({
                 onUp={i > 0 ? () => move(c, null, i - 1) : null}
                 onDown={i < chapters.length - 1 ? () => move(c, null, i + 1) : null}
               />
+              {c.scenes.length === 0 ? (
+                <ConvertToScene
+                  item={c}
+                  chapters={chapters.filter((other) => other.id !== c.id)}
+                  pending={pending}
+                  locked={locked(c)}
+                  onConvert={(parentRecordId) =>
+                    structure(() =>
+                      convertManuscriptAction(projectId, { recordId: c.id, to: "scene", parentRecordId, unlockProtected: unlock }),
+                    )
+                  }
+                />
+              ) : null}
               {c.scenes.length ? (
                 <ol className="book-order-scenes">
                   {c.scenes.map((s, j) => (
@@ -86,6 +113,42 @@ export function BookOrder({
                         otherChapters={chapters.filter((other) => other.id !== c.id)}
                         onMoveTo={moveToChapter(s)}
                       />
+                      <div className="book-order-structure">
+                        {j > 0 ? (
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            size="sm"
+                            disabled={pending || locked(c.scenes[j - 1], s)}
+                            title={locked(c.scenes[j - 1], s) ? MANUSCRIPT_STRUCTURE.needsUnlock : undefined}
+                            onClick={() =>
+                              structure(() =>
+                                mergeManuscriptScenesAction(projectId, {
+                                  keepRecordId: c.scenes[j - 1].id,
+                                  dropRecordId: s.id,
+                                  expectedKeepRevision: c.scenes[j - 1].revision,
+                                  expectedDropRevision: s.revision,
+                                  unlockProtected: unlock,
+                                }),
+                              )
+                            }
+                          >
+                            {MANUSCRIPT_STRUCTURE.mergePrevious}
+                          </Button>
+                        ) : null}
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="sm"
+                          disabled={pending || locked(s)}
+                          title={locked(s) ? MANUSCRIPT_STRUCTURE.needsUnlock : undefined}
+                          onClick={() =>
+                            structure(() => convertManuscriptAction(projectId, { recordId: s.id, to: "chapter", unlockProtected: unlock }))
+                          }
+                        >
+                          {MANUSCRIPT_STRUCTURE.makeChapter}
+                        </Button>
+                      </div>
                     </li>
                   ))}
                 </ol>
@@ -116,6 +179,55 @@ export function BookOrder({
         </>
       ) : null}
     </section>
+  );
+}
+
+function ConvertToScene({
+  item,
+  chapters,
+  pending,
+  locked,
+  onConvert,
+}: {
+  item: OrderItem;
+  chapters: { id: string; title: string }[];
+  pending: boolean;
+  locked: boolean;
+  onConvert: (chapterId: string) => void;
+}) {
+  const [target, setTarget] = useState("");
+  if (chapters.length === 0) return null;
+  return (
+    <div className="book-order-structure">
+      <span className="book-order-move">
+        <select
+          aria-label={`${MANUSCRIPT_STRUCTURE.makeScene}: ${item.title}`}
+          value={target}
+          onChange={(event) => setTarget(event.target.value)}
+          disabled={pending || locked}
+        >
+          <option value="">{BOOK_ORDER.chooseChapter}</option>
+          {chapters.map((chapter) => (
+            <option key={chapter.id} value={chapter.id}>
+              {chapter.title}
+            </option>
+          ))}
+        </select>
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          disabled={pending || locked || !target}
+          title={locked ? MANUSCRIPT_STRUCTURE.needsUnlock : undefined}
+          onClick={() => {
+            onConvert(target);
+            setTarget("");
+          }}
+        >
+          {MANUSCRIPT_STRUCTURE.makeSceneDo}
+        </Button>
+      </span>
+    </div>
   );
 }
 

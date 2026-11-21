@@ -1,5 +1,6 @@
 "use client";
 import { Button } from "@/components/ui/Button";
+import { RadioGroup } from "@/components/ui/RadioGroup";
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
@@ -37,28 +38,20 @@ export function CreateBoardForm({ projectId }: { projectId: string }) {
         {WORLD.boardTitle}
         <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} required />
       </label>
-      <fieldset>
-        <legend>{WORLD.boardTemplate}</legend>
-        <label className="inline">
-          <input
-            type="radio"
-            name="template"
-            checked={templateKey === "blank"}
-            onChange={() => setTemplateKey("blank")}
-          />
-          {WORLD.templateBlank}
-        </label>
-        <label className="inline">
-          <input
-            type="radio"
-            name="template"
-            checked={templateKey === "geography"}
-            onChange={() => setTemplateKey("geography")}
-          />
-          {WORLD.templateGeography}
-        </label>
-        {templateKey === "geography" ? <p className="small muted">{WORLD.templateGeographyHint}</p> : null}
-      </fieldset>
+      <RadioGroup
+        layout="stack"
+        legend={WORLD.boardTemplate}
+        name="template"
+        value={templateKey}
+        onValueChange={(value) => {
+          if (value === "blank" || value === "geography") setTemplateKey(value);
+        }}
+        options={[
+          { value: "blank", label: WORLD.templateBlank },
+          { value: "geography", label: WORLD.templateGeography },
+        ]}
+      />
+      {templateKey === "geography" ? <p className="small muted">{WORLD.templateGeographyHint}</p> : null}
       <IssueList issues={issues} />
       <Button type="submit" disabled={pending} size="sm">
         {WORLD.createBoard}

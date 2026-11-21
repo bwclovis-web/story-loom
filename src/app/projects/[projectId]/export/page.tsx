@@ -1,3 +1,4 @@
+import { ProjectPageHeader } from "@/components/library/ProjectPageHeader";
 import { DraftScopeChip, VisitDraftSwitcher, type DraftOption } from "@/components/drafts/DraftControls";
 import { HelpHint } from "@/components/HelpHint";
 import { Banner } from "@/components/ui/Banner";
@@ -67,7 +68,7 @@ export default async function ExportPage({
 
   return (
     <>
-      <h1>{EXPORT.heading}</h1>
+      <ProjectPageHeader projectId={projectId} title={EXPORT.heading} />
       <p className="muted small">
         Select the current records to bring into a ChatGPT conversation. The bundle includes record IDs, current revision
         numbers, types, authority statuses and protection flags, plus instructions and a JSON Schema so the assistant can

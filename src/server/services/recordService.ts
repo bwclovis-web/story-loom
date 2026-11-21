@@ -20,6 +20,9 @@ import {
   type TrashedBatch,
 } from "./mutationService";
 import { LIVE_RECORD } from "./trashFilters";
+import { getSeriesSharedRecord, listSeriesSharedRecords, type SeriesSharedRecord } from "./seriesBibleService";
+import { isWorldType } from "@/ui/world";
+import type { SeriesHomeRef } from "@/world/seriesHome";
 
 /*
  * Direct author edits from the UI. The author editing in the app may touch
@@ -297,7 +300,7 @@ export async function listCodexEntries(db: DbOrTx, projectId: string): Promise<C
     orderBy: [{ title: "asc" }, { id: "asc" }],
     select: { id: true, title: true, type: true, fields: true },
   });
-  return rows.flatMap((row) => {
+  const local = rows.flatMap((row) => {
     if (!isRecordType(row.type) || !isLinkableReferenceType(row.type)) return [];
     let fields: Record<string, unknown> = {};
     try {
@@ -308,6 +311,46 @@ export async function listCodexEntries(db: DbOrTx, projectId: string): Promise<C
     }
     return [{ id: row.id, title: row.title, aliases: aliasesOf(fields) }];
   });
+  const seen = new Set(local.map((entry) => entry.id));
+  const shared = await listSeriesSharedRecords(db, projectId);
+  for (const item of shared) {
+    if (seen.has(item.record.id) || !isLinkableReferenceType(item.record.type)) continue;
+    seen.add(item.record.id);
+    local.push({ id: item.record.id, title: item.record.title, aliases: aliasesOf(item.record.fields) });
+  }
+  return local;
+}
+
+export interface WorldIndexEntry {
+  record: RecordView;
+  /** Set when the reference lives in another book of this series. */
+  home: SeriesHomeRef | null;
+}
+
+/** This book's world references, plus series-scoped references from sibling books. */
+export async function listWorldIndex(db: DbOrTx, projectId: string): Promise<WorldIndexEntry[]> {
+  const [local, shared] = await Promise.all([listRecords(db, projectId), listSeriesSharedRecords(db, projectId)]);
+  return [
+    ...local.filter((record) => isWorldType(record.type)).map((record) => ({ record, home: null })),
+    ...shared.filter((item) => isWorldType(item.record.type)).map((item) => ({ record: item.record, home: item.home })),
+  ];
+}
+
+/**
+ * The record when it belongs to this project, or a read-only series reference
+ * from a sibling book. Null when neither matches. Does not authorize writes.
+ */
+export async function readRecordForProject(
+  db: DbOrTx,
+  projectId: string,
+  recordId: string,
+): Promise<{ record: RecordView; home: SeriesHomeRef | null } | SeriesSharedRecord | null> {
+  try {
+    return { record: await getRecord(db, projectId, recordId), home: null };
+  } catch (error) {
+    if (!(error instanceof NotFoundError)) throw error;
+  }
+  return getSeriesSharedRecord(db, projectId, recordId);
 }
 
 /** Records in the Trash are not found. */

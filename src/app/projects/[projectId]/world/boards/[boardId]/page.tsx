@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { Breadcrumbs } from "@/components/ui/Breadcrumbs";
+import { ProjectPageHeader } from "@/components/library/ProjectPageHeader";
 import { getDb } from "@/server/db";
 import { getBoard } from "@/server/services/boardService";
 import { NotFoundError } from "@/server/services/errors";
@@ -7,7 +7,6 @@ import { listRecordImages } from "@/server/services/imageService";
 import { listRecords } from "@/server/services/recordService";
 import { isLinkableReferenceType, RECORD_TYPE_LABELS } from "@/domain/recordTypes";
 import { isWorldType } from "@/ui/world";
-import { WORLD } from "@/ui/labels";
 import { worldSurfaceCrumbs } from "@/ui/worldDestinations";
 import { BoardCanvas } from "../BoardCanvas";
 
@@ -50,7 +49,11 @@ export default async function WorldBoardPage({
 
   return (
     <>
-      <Breadcrumbs label={WORLD.breadcrumb} items={worldSurfaceCrumbs(projectId, "boards", board.title)} />
+      <ProjectPageHeader
+        projectId={projectId}
+        title={board.title}
+        crumbs={worldSurfaceCrumbs(projectId, "boards", board.title)}
+      />
       <BoardCanvas
         projectId={projectId}
         board={board}

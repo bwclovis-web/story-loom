@@ -81,6 +81,60 @@ export async function wordsWrittenSince(
   return total;
 }
 
+/** Positive word deltas on saved revisions since `since`, one row per revision. */
+export async function positiveWordDeltas(
+  db: DbOrTx,
+  projectId: string,
+  scope: DraftScope,
+  since: Date,
+): Promise<{ at: Date; words: number }[]> {
+  const recordIds = (
+    await db.record.findMany({
+      where: {
+        projectId,
+        trashedAt: null,
+        type: { in: [...MANUSCRIPT_TYPES] },
+        ...manuscriptDraftWhere(scope),
+      },
+      select: { id: true },
+    })
+  ).map((row) => row.id);
+  if (!recordIds.length) return [];
+  const revisions = await db.revision.findMany({
+    where: { recordId: { in: recordIds }, createdAt: { gte: since } },
+    select: { recordId: true, revisionNumber: true, body: true, createdAt: true },
+    orderBy: [{ recordId: "asc" }, { revisionNumber: "asc" }],
+  });
+  if (!revisions.length) return [];
+  const firstInPeriod = new Map<string, number>();
+  for (const revision of revisions) {
+    const current = firstInPeriod.get(revision.recordId);
+    if (current === undefined || revision.revisionNumber < current) firstInPeriod.set(revision.recordId, revision.revisionNumber);
+  }
+  const baselinePairs = [...firstInPeriod.entries()]
+    .filter(([, revisionNumber]) => revisionNumber > 1)
+    .map(([recordId, revisionNumber]) => ({ recordId, revisionNumber: revisionNumber - 1 }));
+  const baselineRows = baselinePairs.length
+    ? await db.revision.findMany({
+        where: { OR: baselinePairs },
+        select: { recordId: true, revisionNumber: true, body: true },
+      })
+    : [];
+  const baseline = new Map(baselineRows.map((row) => [`${row.recordId}:${row.revisionNumber}`, countWords(row.body)]));
+  const running = new Map<string, number>();
+  const deltas: { at: Date; words: number }[] = [];
+  for (const revision of revisions) {
+    const prev =
+      revision.revisionNumber === 1
+        ? 0
+        : (running.get(revision.recordId) ?? baseline.get(`${revision.recordId}:${revision.revisionNumber - 1}`) ?? 0);
+    const next = countWords(revision.body);
+    deltas.push({ at: revision.createdAt, words: Math.max(0, next - prev) });
+    running.set(revision.recordId, next);
+  }
+  return deltas;
+}
+
 export async function buildWritingProgress(
   db: DbOrTx,
   input: {

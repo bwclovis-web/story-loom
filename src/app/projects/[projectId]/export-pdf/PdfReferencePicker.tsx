@@ -12,7 +12,21 @@ export interface PdfPickerGroup {
 }
 
 /** A plain GET form, so the browser downloads the PDF and the page stays as it is. */
-export function PdfReferencePicker({ action, groups, initialSelection }: { action: string; groups: PdfPickerGroup[]; initialSelection: string[] }) {
+export function PdfReferencePicker({
+  action,
+  docxAction,
+  epubAction,
+  markdownAction,
+  groups,
+  initialSelection,
+}: {
+  action: string;
+  docxAction: string;
+  epubAction: string;
+  markdownAction: string;
+  groups: PdfPickerGroup[];
+  initialSelection: string[];
+}) {
   const [selected, setSelected] = useState<Set<string>>(() => new Set(initialSelection));
   const toggle = (ids: string[], on: boolean) =>
     setSelected((prev) => {
@@ -55,6 +69,15 @@ export function PdfReferencePicker({ action, groups, initialSelection }: { actio
       <div className="row">
         <button type="submit" disabled={selected.size === 0}>
           {PDF.downloadReferences(selected.size)}
+        </button>
+        <button type="submit" formAction={docxAction} formMethod="get" disabled={selected.size === 0}>
+          {PDF.downloadReferencesDocx(selected.size)}
+        </button>
+        <button type="submit" formAction={epubAction} formMethod="get" disabled={selected.size === 0}>
+          {PDF.downloadReferencesEpub(selected.size)}
+        </button>
+        <button type="submit" formAction={markdownAction} formMethod="get" disabled={selected.size === 0}>
+          {PDF.downloadReferencesMarkdown(selected.size)}
         </button>
         {selected.size === 0 ? (
           <span className="small muted" role="status">

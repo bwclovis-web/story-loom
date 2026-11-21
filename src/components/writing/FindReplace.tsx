@@ -3,15 +3,17 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type RefObject } from "react";
 import {
   findMatches,
+  findRegexMatches,
   invertEdit,
   matchAt,
   nextMatch,
   previousMatch,
   replaceAllEdit,
   replaceOneEdit,
+  type RegexPreviewError,
   type TextEdit,
 } from "@/writing/findReplace";
-import { WRITING } from "@/ui/labels";
+import { MANUSCRIPT_REPLACE, WRITING } from "@/ui/labels";
 import { ProtectionTick } from "./ProtectionTick";
 import { applyTextareaEdit, selectRange } from "./textareaEdit";
 import { Button } from "@/components/ui/Button";
@@ -45,9 +47,15 @@ export function FindReplace({
   const [query, setQuery] = useState(initial?.query ?? "");
   const [replacement, setReplacement] = useState("");
   const [matchCase, setMatchCase] = useState(initial?.matchCase ?? false);
+  const [useRegex, setUseRegex] = useState(false);
   const [message, setMessage] = useState("");
 
-  const matches = useMemo(() => findMatches(text, query, { matchCase }), [text, query, matchCase]);
+  const found = useMemo(
+    () => (useRegex ? findRegexMatches(text, query, { matchCase }) : { matches: findMatches(text, query, { matchCase }), error: null as RegexPreviewError | null }),
+    [text, query, matchCase, useRegex],
+  );
+  const matches = found.matches;
+  const regexMessage = found.error ? REGEX_ERROR[found.error] : "";
   const current = matchAt(matches, selection.start, selection.end);
 
   const selectedInitial = useRef(false);
@@ -154,6 +162,13 @@ export function FindReplace({
             }} />
           {WRITING.matchCase}
         </label>
+        <label className="inline">
+          <input type="checkbox" checked={useRegex} onChange={(e) => {
+              setUseRegex(e.target.checked);
+              setMessage("");
+            }} />
+          {MANUSCRIPT_REPLACE.useRegex}
+        </label>
         <Button type="button" variant="secondary" onClick={() => go("previous")} disabled={matches.length === 0}>
           {WRITING.previous}
         </Button>
@@ -161,7 +176,7 @@ export function FindReplace({
           {WRITING.next}
         </Button>
         <span className="small muted" aria-live="polite">
-          {status}
+          {regexMessage || status}
         </span>
       </div>
       <div className="row">
@@ -193,5 +208,12 @@ export function FindReplace({
     </div>
   );
 }
+
+const REGEX_ERROR: Record<RegexPreviewError, string> = {
+  too_long: MANUSCRIPT_REPLACE.regexTooLong,
+  nested: MANUSCRIPT_REPLACE.regexNested,
+  invalid: MANUSCRIPT_REPLACE.regexInvalid,
+  slow: MANUSCRIPT_REPLACE.regexSlow,
+};
 
 export type { DirectUndo };

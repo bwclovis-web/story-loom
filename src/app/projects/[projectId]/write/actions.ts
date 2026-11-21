@@ -8,6 +8,7 @@ import { listSections } from "@/writing/sections";
 import { getDb } from "@/server/db";
 import { MutationRejectedError, NotFoundError } from "@/server/services/errors";
 import { listRecordImages } from "@/server/services/imageService";
+import { getSeriesSharedRecord } from "@/server/services/seriesBibleService";
 import { linkReference, unlinkReference } from "@/server/services/linkService";
 import {
   assignSceneLocation,
@@ -26,6 +27,7 @@ import {
   resolvePinScope,
   type ReadingPinView,
 } from "@/server/services/readingPinService";
+import { convertChapterScene, mergeManuscriptScenes, splitManuscriptRecord } from "@/server/services/mutationService";
 import { createRecord, getRecord, moveRecordInBook } from "@/server/services/recordService";
 import { searchContextReferences, type ContextSearchHit } from "@/server/services/searchService";
 import type { FormResult } from "../actions";
@@ -69,6 +71,51 @@ export async function moveInBookAction(
     const result = await moveRecordInBook(getDb(), projectId, input);
     if (result.moved) revalidatePath(`/projects/${projectId}`, "layout");
     return { ok: true, ...result };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+export async function splitManuscriptAction(
+  projectId: string,
+  input: { recordId: string; expectedRevision: number; splitAt: number; newTitle: string; unlockProtected: boolean },
+): Promise<{ ok: true; newRecordId: string; head: string; revision: number } | { ok: false; issues: Issue[] }> {
+  try {
+    const result = await splitManuscriptRecord(getDb(), { projectId, ...input });
+    revalidatePath(`/projects/${projectId}`, "layout");
+    return { ok: true, ...result };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+export async function mergeManuscriptScenesAction(
+  projectId: string,
+  input: {
+    keepRecordId: string;
+    dropRecordId: string;
+    expectedKeepRevision: number;
+    expectedDropRevision: number;
+    unlockProtected: boolean;
+  },
+): Promise<{ ok: true; keepRecordId: string } | { ok: false; issues: Issue[] }> {
+  try {
+    const result = await mergeManuscriptScenes(getDb(), { projectId, ...input });
+    revalidatePath(`/projects/${projectId}`, "layout");
+    return { ok: true, keepRecordId: result.keepRecordId };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+export async function convertManuscriptAction(
+  projectId: string,
+  input: { recordId: string; to: "chapter" | "scene"; parentRecordId?: string | null; unlockProtected: boolean },
+): Promise<{ ok: true; recordId: string; type: "manuscript_chapter" | "manuscript_scene" } | { ok: false; issues: Issue[] }> {
+  try {
+    const result = await convertChapterScene(getDb(), { projectId, ...input });
+    revalidatePath(`/projects/${projectId}`, "layout");
+    return { ok: true, recordId: result.recordId, type: result.type };
   } catch (error) {
     return failure(error);
   }
@@ -121,6 +168,8 @@ export type ReferencePreview =
       body: string;
       sections: Array<{ id: string; title: string; level: number; start: number; end: number }>;
       images: Array<{ id: string; name: string; altText: string; caption: string }>;
+      /** Set when the preview is a series reference from another book. */
+      seriesHome?: { projectId: string; title: string; bookName: string | null };
     }
   | { ok: false; message: string };
 
@@ -128,9 +177,19 @@ export type ReferencePreview =
 export async function previewReferenceAction(projectId: string, recordId: string): Promise<ReferencePreview> {
   try {
     const db = getDb();
-    const record = await getRecord(db, projectId, recordId);
+    let seriesHome: { projectId: string; title: string; bookName: string | null } | undefined;
+    let record;
+    try {
+      record = await getRecord(db, projectId, recordId);
+    } catch (error) {
+      if (!(error instanceof NotFoundError)) throw error;
+      const shared = await getSeriesSharedRecord(db, projectId, recordId);
+      if (!shared) throw error;
+      record = shared.record;
+      seriesHome = shared.home;
+    }
     if (!isLinkableReferenceType(record.type)) return { ok: false, message: "Only reference records open here." };
-    const images = await listRecordImages(db, projectId, recordId);
+    const images = await listRecordImages(db, seriesHome?.projectId ?? projectId, recordId);
     return {
       ok: true,
       id: record.id,
@@ -139,6 +198,7 @@ export async function previewReferenceAction(projectId: string, recordId: string
       authorityStatus: record.authorityStatus,
       revision: record.currentRevision,
       body: record.body,
+      ...(seriesHome ? { seriesHome } : {}),
       sections: listSections(record.body).map((s) => ({
         id: s.id,
         title: s.title,

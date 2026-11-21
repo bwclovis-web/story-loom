@@ -36,6 +36,7 @@ export async function applyManuscriptReplaceAction(
   const replace = String(formData.get("replace") ?? "");
   const matchCase = formData.get("matchCase") === "on";
   const wholeWord = formData.get("wholeWord") === "on";
+  const regex = formData.get("regex") === "on";
   const unlockProtected = formData.get("unlockProtected") === "on";
   const selectedMatchIds = formData.getAll("matchId").map(String);
   const recordRevisions: Record<string, number> = {};
@@ -50,6 +51,7 @@ export async function applyManuscriptReplaceAction(
       replace,
       matchCase,
       wholeWord,
+      regex,
       selectedMatchIds,
       recordRevisions,
       unlockProtected,

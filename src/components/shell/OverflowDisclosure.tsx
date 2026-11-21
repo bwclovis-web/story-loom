@@ -7,12 +7,18 @@ export function OverflowDisclosure({
   summary,
   children,
   className = "",
+  summaryClassName,
+  icon,
   defaultOpen = false,
   id,
 }: {
   summary: string;
   children: ReactNode;
   className?: string;
+  /** Classes for the summary. Use `buttonVariants` when it should look like a Button. */
+  summaryClassName?: string;
+  /** Decorative icon before the summary label. */
+  icon?: ReactNode;
   defaultOpen?: boolean;
   id?: string;
 }) {
@@ -24,7 +30,14 @@ export function OverflowDisclosure({
       open={open}
       onToggle={(e: SyntheticEvent<HTMLDetailsElement>) => setOpen(e.currentTarget.open)}
     >
-      <summary>{summary}</summary>
+      <summary className={summaryClassName}>
+        {icon ? (
+          <span className="icon" aria-hidden="true">
+            {icon}
+          </span>
+        ) : null}
+        {summary}
+      </summary>
       <div className="overflow-disclosure-body">{children}</div>
     </details>
   );

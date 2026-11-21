@@ -89,6 +89,7 @@ model Project {
   worldCalendar          WorldCalendar?
   worldCalendarMonths    WorldCalendarMonth[]
   worldCalendarEras      WorldCalendarEra[]
+  worldKindTemplates     WorldKindTemplate[]
 
   @@index([workspaceId])
 }
@@ -325,6 +326,23 @@ model ManuscriptAnnotation {
   @@index([recordId, needsRecheck])
 }
 
+/// Author-defined fields for one custom worldbuilding kind (`fields.kind`).
+/// Not a record and not revisioned. Record text stays on the record save path.
+model WorldKindTemplate {
+  id         String   @id
+  projectId  String
+  project    Project  @relation(fields: [projectId], references: [id])
+  /// Custom kind name, matched to `fields.kind` after trim.
+  kind       String
+  /// JSON array of { key, label, multiline? }.
+  fieldsJson String   @default("[]")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([projectId, kind])
+  @@index([projectId])
+}
+
 /// Saved front/back matter and compile options for manuscript PDF, DOCX, and EPUB.
 model CompileProfile {
   id                     String   @id
@@ -339,6 +357,21 @@ model CompileProfile {
   chapterHeadingStyle    String   @default("centered")
   includeSynopses        Boolean  @default(false)
   includeMarginComments  Boolean  @default(false)
+  /// 5x8 | 5.5x8.5 | 6x9 | A4 | Letter
+  trimSize               String   @default("6x9")
+  marginInches           Float    @default(0.75)
+  runningHeader          String   @default("")
+  runningFooter          String   @default("")
+  /// serif | sans | mono
+  fontPreset             String   @default("serif")
+  /// novel | tight | loose
+  spacingPreset          String   @default("novel")
+  firstParagraphNoIndent Boolean  @default(true)
+  dropCap                Boolean  @default(false)
+  includeToc             Boolean  @default(true)
+  backMatterBody         String   @default("")
+  /// JSON array of manuscript record ids left out of compile.
+  excludedRecordIds      String   @default("[]")
   createdAt              DateTime @default(now())
   updatedAt              DateTime @updatedAt
 

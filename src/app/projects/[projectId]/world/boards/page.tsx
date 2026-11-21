@@ -19,6 +19,7 @@ export default async function WorldBoardsPage({ params }: { params: Promise<{ pr
   return (
     <>
       <WorldToolHeader
+        projectId={projectId}
         items={worldSurfaceCrumbs(projectId, "boards")}
         title={WORLD.boards}
         help={

@@ -29,6 +29,7 @@ describe("weave library", () => {
     expect(isProjectLandingPath(["world"])).toBe(true);
     expect(isProjectLandingPath(["assistant"])).toBe(true);
     expect(isProjectLandingPath(["plan"])).toBe(true);
+    expect(isProjectLandingPath(["world", "new"])).toBe(true);
     expect(isProjectLandingPath(["world", "maps"])).toBe(false);
     expect(isProjectLandingPath(["assistant", "proposals", "x"])).toBe(false);
   });

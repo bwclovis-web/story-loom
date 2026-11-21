@@ -36,6 +36,17 @@ export async function saveCompileProfileAction(
       chapterHeadingStyle: String(formData.get("chapterHeadingStyle") ?? "centered"),
       includeSynopses: checkbox(formData, "includeSynopses"),
       includeMarginComments: checkbox(formData, "includeMarginComments"),
+      trimSize: String(formData.get("trimSize") ?? "6x9"),
+      marginInches: Number(formData.get("marginInches") ?? 0.75),
+      runningHeader: String(formData.get("runningHeader") ?? ""),
+      runningFooter: String(formData.get("runningFooter") ?? ""),
+      fontPreset: String(formData.get("fontPreset") ?? "serif"),
+      spacingPreset: String(formData.get("spacingPreset") ?? "novel"),
+      firstParagraphNoIndent: checkbox(formData, "firstParagraphNoIndent"),
+      dropCap: checkbox(formData, "dropCap"),
+      includeToc: checkbox(formData, "includeToc"),
+      backMatterBody: String(formData.get("backMatterBody") ?? ""),
+      excludedRecordIds: formData.getAll("manuscriptId").map(String).filter((id) => !formData.getAll("includeRecord").map(String).includes(id)),
     });
     revalidatePath(`/projects/${projectId}/export-pdf`);
     return { ok: true, message: "Compile profile saved." };

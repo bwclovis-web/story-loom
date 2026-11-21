@@ -234,7 +234,7 @@ describe("PDF export", () => {
       const file = await buildManuscriptPdf(t.db, IDS.project, { sceneTitles }, new Date(2026, 0, 2));
       expect(isPdf(file.bytes)).toBe(true);
       expect(file.documentCount).toBe(2);
-      expect(file.pageCount).toBe(3);
+      expect(file.pageCount).toBe(4);
       expect(file.filename).toBe("test-novel-manuscript-2026-01-02.pdf");
     }
   });

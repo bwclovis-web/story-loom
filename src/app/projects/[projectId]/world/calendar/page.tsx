@@ -13,6 +13,7 @@ export default async function WorldCalendarPage({ params }: { params: Promise<{ 
   return (
     <>
       <WorldToolHeader
+        projectId={projectId}
         items={worldSurfaceCrumbs(projectId, "calendar")}
         title={WORLD.worldCalendar}
         lead={WORLD.worldCalendarLead}

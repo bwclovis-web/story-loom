@@ -23,3 +23,7 @@ alwaysApply: true
 - Implement the requested milestone. Run the relevant checks and report
   actual results, compatibility limits, and rollback steps. Update Help and
   PROGRESS.md when behavior changes. Push or deploy only when requested.
+- Use one project header. `LandingHeader` (or `ProjectPageHeader`, which loads
+  the cover and series line) is the header on every project page. Keep the
+  cover and eyebrow. Change only `title`. On a nested page, pass `breadcrumbs`
+  or `crumbs`. Do not add a second page title with a bare `h1` or `page-head`.

@@ -13,7 +13,9 @@ import { parseJsonObject, sha256, sha256Bytes, stableStringify } from "@/domain/
 import { sniffImage } from "@/images/imageFormat";
 import { snapshotHash, snapshotOf, type RecordSnapshot } from "@/domain/records";
 import { allowedParent, isLinkableReferenceType, isManuscriptType, requiresParent } from "@/domain/recordTypes";
+import { isWorldType } from "@/ui/world";
 import { Prisma } from "@/generated/prisma/client";
+import { parseKindTemplateFields } from "@/world/kindTemplates";
 import { parseStoredPoints } from "@/world/mapGeometry";
 import { orderGraphHasCycle } from "@/world/storyOrder";
 import { validateDictionaryWord, wordKey } from "@/spelling/dictionary";
@@ -92,6 +94,10 @@ function manuscriptAnnotationsOf(b: WorkspaceBackupV1) {
 
 function compileProfilesOf(b: WorkspaceBackupV1) {
   return b.compileProfiles ?? [];
+}
+
+function worldKindTemplatesOf(b: WorkspaceBackupV1) {
+  return b.worldKindTemplates ?? [];
 }
 
 function boardsOf(b: WorkspaceBackupV1) {
@@ -432,6 +438,19 @@ async function manuscriptAnnotationRows(db: DbOrTx, projectIds: string[]) {
   }
 }
 
+async function worldKindTemplateRows(db: DbOrTx, projectIds: string[]) {
+  if (!("worldKindTemplate" in db) || !(db as { worldKindTemplate?: { findMany: unknown } }).worldKindTemplate) return [];
+  try {
+    return await db.worldKindTemplate.findMany({
+      where: { projectId: { in: projectIds } },
+      orderBy: [{ projectId: "asc" }, { kind: "asc" }, { id: "asc" }],
+    });
+  } catch (error) {
+    if (isMissingSchemaError(error, "P2021")) return [];
+    throw error;
+  }
+}
+
 async function compileProfileRows(db: DbOrTx, projectIds: string[]) {
   if (!("compileProfile" in db) || !(db as { compileProfile?: { findMany: unknown } }).compileProfile) return [];
   try {
@@ -441,6 +460,40 @@ async function compileProfileRows(db: DbOrTx, projectIds: string[]) {
     });
   } catch (error) {
     if (isMissingSchemaError(error, "P2021")) return [];
+    if (isMissingSchemaError(error, "P2022")) {
+      const rows = await db.compileProfile.findMany({
+        where: { projectId: { in: projectIds } },
+        orderBy: [{ projectId: "asc" }, { id: "asc" }],
+        select: {
+          id: true,
+          projectId: true,
+          titlePageBody: true,
+          copyrightPageBody: true,
+          dedicationBody: true,
+          acknowledgementsBody: true,
+          sceneBreakGlyph: true,
+          chapterHeadingStyle: true,
+          includeSynopses: true,
+          includeMarginComments: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      });
+      return rows.map((row) => ({
+        ...row,
+        trimSize: "6x9",
+        marginInches: 0.75,
+        runningHeader: "",
+        runningFooter: "",
+        fontPreset: "serif",
+        spacingPreset: "novel",
+        firstParagraphNoIndent: true,
+        dropCap: false,
+        includeToc: true,
+        backMatterBody: "",
+        excludedRecordIds: "[]",
+      }));
+    }
     throw error;
   }
 }
@@ -1040,6 +1093,7 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
     assistantProposals,
     projectAssistantSettings,
     chapterAnalyses,
+    worldKindTemplates,
   ] = await Promise.all([
     recordRows(db, projectIds),
     db.source.findMany({ where: inProjects, orderBy: { id: "asc" } }),
@@ -1084,6 +1138,7 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
     assistantProposalRows(db, projectIds),
     projectAssistantSettingsRows(db, projectIds),
     chapterAnalysisRows(db, projectIds),
+    worldKindTemplateRows(db, projectIds),
   ]);
   const weaveTemplateBeats = await weaveTemplateBeatRows(
     db,
@@ -1356,9 +1411,51 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
             chapterHeadingStyle: p.chapterHeadingStyle === "left" ? ("left" as const) : ("centered" as const),
             includeSynopses: p.includeSynopses,
             includeMarginComments: p.includeMarginComments,
+            trimSize: p.trimSize === "5x8" || p.trimSize === "5.5x8.5" || p.trimSize === "A4" || p.trimSize === "Letter" ? p.trimSize : ("6x9" as const),
+            marginInches: p.marginInches,
+            runningHeader: p.runningHeader,
+            runningFooter: p.runningFooter,
+            fontPreset: p.fontPreset === "sans" || p.fontPreset === "mono" ? p.fontPreset : ("serif" as const),
+            spacingPreset: p.spacingPreset === "tight" || p.spacingPreset === "loose" ? p.spacingPreset : ("novel" as const),
+            firstParagraphNoIndent: p.firstParagraphNoIndent,
+            dropCap: p.dropCap,
+            includeToc: p.includeToc,
+            backMatterBody: p.backMatterBody,
+            excludedRecordIds: (() => {
+              try {
+                const parsed = JSON.parse(p.excludedRecordIds) as unknown;
+                return Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === "string") : [];
+              } catch {
+                return [];
+              }
+            })(),
             createdAt: iso(p.createdAt),
             updatedAt: iso(p.updatedAt),
           })),
+        }
+      : {}),
+    ...(worldKindTemplates.length
+      ? {
+          worldKindTemplates: worldKindTemplates.map((template) => {
+            let parsed: unknown = [];
+            try {
+              parsed = JSON.parse(template.fieldsJson) as unknown;
+            } catch {
+              parsed = [];
+            }
+            return {
+              id: template.id,
+              projectId: template.projectId,
+              kind: template.kind,
+              fields: parseKindTemplateFields(parsed).map((field) => ({
+                key: field.key,
+                label: field.label,
+                ...(field.multiline ? { multiline: true as const } : {}),
+              })),
+              createdAt: iso(template.createdAt),
+              updatedAt: iso(template.updatedAt),
+            };
+          }),
         }
       : {}),
     ...(boards.length
@@ -1865,6 +1962,7 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
       ...(writingGoals.length ? { writingGoals: writingGoals.length } : {}),
       ...(manuscriptAnnotations.length ? { manuscriptAnnotations: manuscriptAnnotations.length } : {}),
       ...(compileProfiles.length ? { compileProfiles: compileProfiles.length } : {}),
+      ...(worldKindTemplates.length ? { worldKindTemplates: worldKindTemplates.length } : {}),
       ...(boards.length ? { boards: boards.length } : {}),
       ...(boardCards.length ? { boardCards: boardCards.length } : {}),
       ...(worldMaps.length ? { worldMaps: worldMaps.length } : {}),
@@ -1952,6 +2050,7 @@ function checkInternalConsistency(b: WorkspaceBackupV1): Issue[] {
     writingGoals: writingGoalsOf(b).length,
     manuscriptAnnotations: manuscriptAnnotationsOf(b).length,
     compileProfiles: compileProfilesOf(b).length,
+    worldKindTemplates: worldKindTemplatesOf(b).length,
     boards: boardsOf(b).length,
     boardCards: boardCardsOf(b).length,
     worldMaps: worldMapsOf(b).length,
@@ -2035,6 +2134,12 @@ function checkInternalConsistency(b: WorkspaceBackupV1): Issue[] {
   checkUnique(manuscriptAnnotationsOf(b).map((a) => a.id), "manuscript annotation", issues);
   checkUnique(compileProfilesOf(b).map((p) => p.id), "compile profile", issues);
   checkUnique(compileProfilesOf(b).map((p) => p.projectId), "compile profile project", issues);
+  checkUnique(worldKindTemplatesOf(b).map((template) => template.id), "world kind template", issues);
+  checkUnique(
+    worldKindTemplatesOf(b).map((template) => `${template.projectId}/${template.kind}`),
+    "world kind template kind",
+    issues,
+  );
   checkUnique(boardsOf(b).map((x) => x.id), "board", issues);
   checkUnique(boardCardsOf(b).map((c) => c.id), "board card", issues);
   checkUnique(worldMapsOf(b).map((x) => x.id), "world map", issues);
@@ -2151,7 +2256,7 @@ function checkInternalConsistency(b: WorkspaceBackupV1): Issue[] {
         issues.push(integrity(`Record ${r.id} (${r.type}) cannot belong to a manuscript draft.`));
       }
     }
-    if (r.worldScope && r.type !== "character_dossier" && r.type !== "worldbuilding" && r.type !== "canon_decision" && r.type !== "continuity_note" && r.type !== "reference_note") {
+    if (r.worldScope && !isWorldType(r.type)) {
       issues.push(integrity(`Record ${r.id} (${r.type}) cannot have a World scope.`));
     }
   });
@@ -2217,6 +2322,10 @@ function checkInternalConsistency(b: WorkspaceBackupV1): Issue[] {
     } else {
       issues.push(integrity(`Writing goal ${g.id} has unknown scope ${g.scope}.`));
     }
+  });
+  worldKindTemplatesOf(b).forEach((template) => {
+    needProject(template.projectId, `World kind template ${template.id}`);
+    if (!template.kind.trim()) issues.push(integrity(`World kind template ${template.id} needs a kind name.`));
   });
   compileProfilesOf(b).forEach((p) => {
     needProject(p.projectId, `Compile profile ${p.id}`);
@@ -2790,6 +2899,12 @@ async function findCollisions(db: DbOrTx, b: WorkspaceBackupV1): Promise<Issue[]
   if (compileProfilesOf(b).length) {
     await check("compile profile", db.compileProfile.count({ where: { id: { in: compileProfilesOf(b).map((p) => p.id) } } }));
   }
+  if (worldKindTemplatesOf(b).length) {
+    await check(
+      "world kind template",
+      db.worldKindTemplate.count({ where: { id: { in: worldKindTemplatesOf(b).map((template) => template.id) } } }),
+    );
+  }
   if (boardsOf(b).length) {
     await check("board", db.board.count({ where: { id: { in: boardsOf(b).map((x) => x.id) } } }));
   }
@@ -3049,6 +3164,7 @@ export async function restoreWorkspaceBackup(db: Db, input: string | unknown, op
   writingGoalsOf(b).forEach((g) => assign(g.id, "wgoal"));
   manuscriptAnnotationsOf(b).forEach((a) => assign(a.id, "man"));
   compileProfilesOf(b).forEach((p) => assign(p.id, "cprof"));
+  worldKindTemplatesOf(b).forEach((template) => assign(template.id, "wkt"));
   boardsOf(b).forEach((x) => assign(x.id, "brd"));
   boardCardsOf(b).forEach((c) => assign(c.id, "bcd"));
   worldMapsOf(b).forEach((x) => assign(x.id, "wmp"));
@@ -3370,6 +3486,25 @@ export async function restoreWorkspaceBackup(db: Db, input: string | unknown, op
             })),
           });
         }
+        const kindTemplates = worldKindTemplatesOf(b);
+        if (kindTemplates.length) {
+          await tx.worldKindTemplate.createMany({
+            data: kindTemplates.map((template) => ({
+              id: m(template.id),
+              projectId: m(template.projectId),
+              kind: template.kind,
+              fieldsJson: JSON.stringify(
+                template.fields.map((field) => ({
+                  key: field.key,
+                  label: field.label,
+                  ...(field.multiline ? { multiline: true } : {}),
+                })),
+              ),
+              createdAt: new Date(template.createdAt),
+              updatedAt: new Date(template.updatedAt),
+            })),
+          });
+        }
         const profiles = compileProfilesOf(b);
         if (profiles.length) {
           await tx.compileProfile.createMany({
@@ -3384,6 +3519,17 @@ export async function restoreWorkspaceBackup(db: Db, input: string | unknown, op
               chapterHeadingStyle: p.chapterHeadingStyle,
               includeSynopses: p.includeSynopses,
               includeMarginComments: p.includeMarginComments,
+              trimSize: p.trimSize ?? "6x9",
+              marginInches: p.marginInches ?? 0.75,
+              runningHeader: p.runningHeader ?? "",
+              runningFooter: p.runningFooter ?? "",
+              fontPreset: p.fontPreset ?? "serif",
+              spacingPreset: p.spacingPreset ?? "novel",
+              firstParagraphNoIndent: p.firstParagraphNoIndent ?? true,
+              dropCap: p.dropCap ?? false,
+              includeToc: p.includeToc ?? true,
+              backMatterBody: p.backMatterBody ?? "",
+              excludedRecordIds: JSON.stringify(p.excludedRecordIds ?? []),
               createdAt: new Date(p.createdAt),
               updatedAt: new Date(p.updatedAt),
             })),

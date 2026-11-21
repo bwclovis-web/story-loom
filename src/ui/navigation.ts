@@ -5,7 +5,15 @@ import type { ReferenceTemplateKey } from "@/world/referenceTemplates";
 export const RECORD_GROUPS = {
   write: ["manuscript_chapter", "manuscript_scene", "scene_note"],
   plan: ["chapter_outline", "story_architecture"],
-  world: ["character_dossier", "worldbuilding", "canon_decision", "continuity_note", "reference_note"],
+  world: [
+    "character_dossier",
+    "worldbuilding",
+    "rules_glossary",
+    "research_note",
+    "canon_decision",
+    "continuity_note",
+    "reference_note",
+  ],
 } as const satisfies Record<string, readonly RecordType[]>;
 
 export type RecordGroup = keyof typeof RECORD_GROUPS;
@@ -60,6 +68,7 @@ export function isWeaveLibraryPath(rest: readonly string[]): boolean {
 /** Write, Weave, World, and Assistant landings. Nested tools and records are not included. */
 export function isProjectLandingPath(rest: readonly string[]): boolean {
   if (rest.length === 1 && (rest[0] === "write" || rest[0] === "world" || rest[0] === "assistant")) return true;
+  if (rest.length === 2 && rest[0] === "world" && rest[1] === "new") return true;
   return isWeaveLibraryPath(rest);
 }
 
@@ -75,7 +84,7 @@ export function parseProjectPath(pathname: string): { projectId: string; rest: s
 /** The record group a project page belongs to, or null for project-wide pages such as history. */
 export function groupForProjectPath(rest: readonly string[], recordType: (id: string) => RecordType | undefined): RecordGroup | null {
   const [first, second] = rest;
-  if (first === "world") return "world";
+  if (first === "world" || first === "continuity") return "world";
   if (first && (RECORD_GROUP_IDS as string[]).includes(first) && rest.length === 1) return first as RecordGroup;
   if ((first === "read" || first === "import-chapters") && rest.length === 1) return "write";
   if (first === "records" && second) {

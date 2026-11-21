@@ -20,6 +20,7 @@ export default async function StoryEventsPage({
   return (
     <>
       <WorldToolHeader
+        projectId={projectId}
         items={worldSurfaceCrumbs(projectId, "events")}
         title={WORLD.storyTimeline}
         lead={WORLD.storyTimelineLead}

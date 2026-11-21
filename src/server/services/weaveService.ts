@@ -5,8 +5,12 @@ import {
   isManuscriptType,
   isRecordType,
   RECORD_TYPE_LABELS,
+  type RecordType,
 } from "@/domain/recordTypes";
 import { isAuthorityStatus, type AuthorityStatus } from "@/domain/statuses";
+import { readManuscriptMeta } from "@/writing/manuscriptStructure";
+import { readThreadLine, withThreadLine } from "@/world/weaveBeatPresets";
+import { worldbuildingKindFromFields } from "@/world/worldKinds";
 import type { Db, DbOrTx, Tx } from "../db";
 import { writeAudit } from "./auditService";
 import { MutationRejectedError, NotFoundError } from "./errors";
@@ -81,7 +85,9 @@ export interface WeaveWorldRefView {
   id: string;
   recordId: string;
   title: string;
+  type: RecordType;
   typeLabel: string;
+  worldKind: string | null;
   unavailable: boolean;
 }
 
@@ -104,6 +110,8 @@ export interface WeaveBeatView {
   manuscriptTitle: string | null;
   manuscriptTypeLabel: string | null;
   manuscriptUnavailable: boolean;
+  /** Point of view saved on the linked chapter or scene, when that record still exists. */
+  manuscriptPov: string;
   threadId: string | null;
   cellOrder: number;
   x: number;
@@ -230,12 +238,13 @@ function beatViewOf(b: {
     id: string;
     title: string;
     type: string;
+    fields: string;
     trashedAt: Date | null;
   } | null;
   worldRefs: Array<{
     id: string;
     recordId: string;
-    record: { title: string; type: string; trashedAt: Date | null };
+    record: { title: string; type: string; fields: string; trashedAt: Date | null };
   }>;
 }): WeaveBeatView {
   const ms = b.manuscriptRecord;
@@ -250,6 +259,7 @@ function beatViewOf(b: {
     manuscriptTitle: ms?.title ?? null,
     manuscriptTypeLabel: ms && isRecordType(ms.type) ? RECORD_TYPE_LABELS[ms.type] : null,
     manuscriptUnavailable: Boolean(ms?.trashedAt),
+    manuscriptPov: ms ? povOf(ms.fields) : "",
     threadId: b.threadId,
     cellOrder: b.cellOrder,
     x: b.x,
@@ -264,12 +274,32 @@ function beatViewOf(b: {
           id: r.id,
           recordId: r.recordId,
           title: r.record.title,
+          type: r.record.type,
           typeLabel: RECORD_TYPE_LABELS[r.record.type],
+          worldKind: r.record.type === "worldbuilding" ? worldKindOf(r.record.fields) : null,
           unavailable: r.record.trashedAt !== null,
         },
       ];
     }),
   };
+}
+
+function povOf(fields: string): string {
+  try {
+    const parsed: unknown = JSON.parse(fields);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return "";
+    return readManuscriptMeta(parsed as Record<string, unknown>).pov;
+  } catch {
+    return "";
+  }
+}
+
+function worldKindOf(fields: string): string | null {
+  try {
+    return worldbuildingKindFromFields(JSON.parse(fields));
+  } catch {
+    return null;
+  }
 }
 
 function layoutModeOf(raw: string | null | undefined): WeaveLayoutMode {
@@ -284,10 +314,10 @@ export async function getWeaveGrid(db: DbOrTx, projectId: string, gridId: string
       beats: {
         orderBy: [{ zIndex: "asc" }, { createdAt: "asc" }, { id: "asc" }],
         include: {
-          manuscriptRecord: { select: { id: true, title: true, type: true, trashedAt: true } },
+          manuscriptRecord: { select: { id: true, title: true, type: true, fields: true, trashedAt: true } },
           worldRefs: {
             orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-            include: { record: { select: { title: true, type: true, trashedAt: true } } },
+            include: { record: { select: { title: true, type: true, fields: true, trashedAt: true } } },
           },
           setupsFrom: {
             include: {
@@ -1104,29 +1134,52 @@ export async function applyWeaveTemplate(
     if (!template) throw new NotFoundError(`Weave template ${templateId} not found`);
     const title = (input.title?.trim() || `${template.title} copy`).trim();
     const gridId = newId("wvg");
+    const placed = template.beats.map((b) => ({ beat: b, thread: readThreadLine(b.body) }));
+    const threadTitles: string[] = [];
+    for (const row of placed) {
+      const threadTitle = row.thread.threadTitle;
+      if (threadTitle && !threadTitles.includes(threadTitle)) threadTitles.push(threadTitle);
+    }
     await tx.weaveGrid.create({
       data: {
         id: gridId,
         projectId,
         title,
         viewKind: input.viewKind,
+        layoutMode: threadTitles.length ? "plot_grid" : "freeform",
         sourceTemplateId: template.id,
       },
     });
-    for (const b of template.beats) {
+    const threadIds = new Map<string, string>();
+    for (const [position, threadTitle] of threadTitles.entries()) {
+      const threadId = newId("wth");
+      threadIds.set(threadTitle, threadId);
+      await tx.weaveThread.create({
+        data: { id: threadId, gridId, projectId, title: threadTitle, position },
+      });
+    }
+    const cellOrder = new Map<string, number>();
+    for (const row of placed) {
+      const threadTitle = row.thread.threadTitle;
+      const threadId = threadTitle ? threadIds.get(threadTitle) ?? null : null;
+      const orderKey = threadId ?? "";
+      const order = cellOrder.get(orderKey) ?? 0;
+      cellOrder.set(orderKey, order + 1);
       await tx.weaveBeat.create({
         data: {
           id: newId("wvb"),
           gridId,
           projectId,
-          title: b.title,
-          body: b.body,
-          decision: b.decision,
-          x: b.x,
-          y: b.y,
-          width: b.width,
-          height: b.height,
-          zIndex: b.zIndex,
+          title: row.beat.title,
+          body: row.thread.body,
+          decision: row.beat.decision,
+          threadId,
+          cellOrder: order,
+          x: row.beat.x,
+          y: row.beat.y,
+          width: row.beat.width,
+          height: row.beat.height,
+          zIndex: row.beat.zIndex,
         },
       });
     }
@@ -1155,6 +1208,7 @@ export async function saveWeaveGridAsTemplate(
     const beats = await tx.weaveBeat.findMany({
       where: { gridId },
       orderBy: [{ zIndex: "asc" }, { id: "asc" }],
+      include: { thread: { select: { title: true } } },
     });
     const templateId = newId("wvt");
     await tx.weaveTemplate.create({
@@ -1172,7 +1226,7 @@ export async function saveWeaveGridAsTemplate(
           id: newId("wvx"),
           templateId,
           title: b.title,
-          body: b.body,
+          body: b.thread?.title && !readThreadLine(b.body).threadTitle ? withThreadLine(b.thread.title, b.body) : b.body,
           decision: b.decision,
           x: b.x,
           y: b.y,

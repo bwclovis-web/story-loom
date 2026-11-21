@@ -28,8 +28,24 @@ const records = [
 
 describe("world categories", () => {
   it("are exactly the World document types, with no invented place or magic types", () => {
-    expect(WORLD_TYPES).toEqual(["character_dossier", "worldbuilding", "canon_decision", "continuity_note", "reference_note"]);
-    expect(WORLD_TYPES.map(categoryLabel)).toEqual(["Characters", "Worldbuilding", "Decisions", "Continuity notes", "Reference notes"]);
+    expect(WORLD_TYPES).toEqual([
+      "character_dossier",
+      "worldbuilding",
+      "rules_glossary",
+      "research_note",
+      "canon_decision",
+      "continuity_note",
+      "reference_note",
+    ]);
+    expect(WORLD_TYPES.map(categoryLabel)).toEqual([
+      "Characters",
+      "Worldbuilding",
+      "Rules & glossary",
+      "Research notes",
+      "Decisions",
+      "Continuity notes",
+      "Reference notes",
+    ]);
     expect(isWorldType("chapter_outline")).toBe(false);
     expect(isWorldType("places")).toBe(false);
     expect(isWorldType(null)).toBe(false);
@@ -38,7 +54,15 @@ describe("world categories", () => {
   it("counts only World records, including empty categories", () => {
     expect(worldCounts(records)).toEqual({
       all: 4,
-      byType: { character_dossier: 1, worldbuilding: 1, canon_decision: 1, continuity_note: 0, reference_note: 1 },
+      byType: {
+        character_dossier: 1,
+        worldbuilding: 1,
+        rules_glossary: 0,
+        research_note: 0,
+        canon_decision: 1,
+        continuity_note: 0,
+        reference_note: 1,
+      },
     });
   });
 

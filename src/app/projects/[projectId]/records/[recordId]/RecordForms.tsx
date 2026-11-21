@@ -1,11 +1,11 @@
 "use client";
 
-import { useActionState, useDeferredValue, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useActionState, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { HelpHint } from "@/components/HelpHint";
 import { IssueList } from "@/components/IssueList";
 import { submitWithoutReset } from "@/components/submitWithoutReset";
 import { Banner } from "@/components/ui/Banner";
-import { Button } from "@/components/ui/Button";
+import { Button, ButtonLink } from "@/components/ui/Button";
 import { FindReplace, type DirectUndo } from "@/components/writing/FindReplace";
 import { Proofreader, type ProofreadConfig } from "@/components/writing/Proofreader";
 import { SelectionAssister } from "@/components/writing/SelectionAssister";
@@ -20,9 +20,14 @@ import { normalizeNewlines } from "@/proofread/anchors";
 import type { DictionaryWord } from "@/spelling/dictionary";
 import { applyTextareaEdit } from "@/components/writing/textareaEdit";
 import { imageMarkdown } from "@/images/imageFormat";
+import { HeadingReviewDialog } from "@/components/world/HeadingReviewDialog";
+import { ReferenceMetaFields } from "@/components/world/ReferenceMetaFields";
 import { WorldKindFields } from "@/components/world/WorldKindFields";
+import type { KindTemplateView } from "@/world/kindTemplates";
 import type { RecordType } from "@/domain/recordTypes";
-import { IMAGES, RECORD, WRITING } from "@/ui/labels";
+import { IMAGES, RECORD, REFERENCE_FORM, WRITE, WRITING } from "@/ui/labels";
+import { isWorldType } from "@/ui/world";
+import { isReferenceTemplateKey, REFERENCE_TEMPLATES, type ReferenceTemplateKey } from "@/world/referenceTemplates";
 import { CodexSuggestBox } from "@/components/writing/CodexSuggestBox";
 import type { CodexEntry } from "@/writing/codexSuggest";
 import { RecoveryBanner } from "@/writing/RecoveryBanner";
@@ -123,6 +128,7 @@ export function RecordEditor(props: {
   /** Images attached to this reference document, for Insert image. */
   images?: { name: string; label: string }[];
   codexEntries?: CodexEntry[];
+  kindTemplates?: readonly KindTemplateView[];
 }) {
   const [state, action, pending] = useActionState<FormResult, FormData>(
     saveRecordAction.bind(null, props.projectId, props.recordId),
@@ -152,6 +158,12 @@ export function RecordEditor(props: {
 
   const [title, setTitle] = useState(props.title);
   const [fields, setFields] = useState(props.fieldsJson);
+  const [fieldsValid, setFieldsValid] = useState(true);
+  const [templateKey, setTemplateKey] = useState("");
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [headingNotice, setHeadingNotice] = useState("");
+  const onValidity = useCallback((valid: boolean) => setFieldsValid(valid), []);
+  const closePreview = useCallback(() => setPreviewOpen(false), []);
   if (unlockedRevision !== props.revision) {
     setUnlockedRevision(props.revision);
     setUnlocked(false);
@@ -217,6 +229,198 @@ export function RecordEditor(props: {
     if (e.nativeEvent.isTrusted && directUndo.length > 0) setDirectUndo([]);
   };
 
+  const selectedTemplate = isReferenceTemplateKey(templateKey) ? templateKey : null;
+  const readHref = `/projects/${encodeURIComponent(props.projectId)}/records/${encodeURIComponent(props.recordId)}`;
+
+  if (isWorldType(props.recordType)) {
+    return (
+      <form
+        id="reference-editor"
+        className="reference-composer stack"
+        onSubmit={(event) => {
+          if (!fieldsValid || !editable) {
+            event.preventDefault();
+            return;
+          }
+          submitWithoutReset(action)(event);
+        }}
+      >
+        <RecoveryBanner pending={recovery.pending} onRestore={recovery.restore} onDiscard={recovery.discard} />
+        <input type="hidden" name="expectedRevision" value={props.revision} />
+        <input type="hidden" name="fields" value={fields} />
+        <div className="reference-edit-bar">
+          <p className="reference-save-status" role="status">
+            {props.isProtected && !unlocked ? REFERENCE_FORM.protected : null}
+            {props.isProtected && unlocked ? REFERENCE_FORM.editingEnabled : null}
+            {dirty ? ` ${REFERENCE_FORM.unsaved}` : ""}
+            {pending ? ` ${REFERENCE_FORM.saving}` : ""}
+            {state.ok && state.message && !dirty ? ` ${REFERENCE_FORM.saved}` : ""}
+            {state.ok === false ? ` ${REFERENCE_FORM.failed}` : ""}
+          </p>
+          <div className="reference-save-actions">
+            <Button type="submit" disabled={pending || !fieldsValid || !editable}>
+              {REFERENCE_FORM.save}
+            </Button>
+            <ButtonLink
+              href={readHref}
+              variant="secondary"
+              onClick={(event) => {
+                if (dirty && !window.confirm(WRITE.leaveUnsaved)) event.preventDefault();
+              }}
+            >
+              {REFERENCE_FORM.cancel}
+            </ButtonLink>
+          </div>
+        </div>
+        {props.isProtected ? (
+          <UnlockCheckbox key={props.revision} isProtected={props.isProtected} checked={unlocked} onChange={setUnlocked} />
+        ) : null}
+        <p className="small muted">{REFERENCE_FORM.typeReadOnly}</p>
+        <div className="reference-composer-grid">
+          <label className="reference-title-field">
+            {REFERENCE_FORM.title}
+            <input
+              type="text"
+              name="title"
+              defaultValue={props.title}
+              required
+              spellCheck
+              lang={language}
+              disabled={!editable}
+              onInput={(e) => setTitle(e.currentTarget.value)}
+            />
+          </label>
+          {props.recordType === "character_dossier" || props.recordType === "canon_decision" || props.recordType === "continuity_note" ? (
+            <ReferenceMetaFields recordType={props.recordType} fieldsJson={fields} onFieldsJsonChange={setFields} disabled={!editable} />
+          ) : null}
+          <WorldKindFields
+            fieldsJson={fields}
+            onFieldsJsonChange={setFields}
+            onValidityChange={onValidity}
+            disabled={!editable}
+            showKind={props.recordType === "worldbuilding"}
+            projectId={props.projectId}
+            kindTemplates={props.kindTemplates}
+          />
+          <div className="reference-headings stack">
+            <label>
+              {REFERENCE_FORM.headings}
+              <select value={templateKey} disabled={!editable} onChange={(event) => setTemplateKey(event.target.value)}>
+                <option value="">{REFERENCE_FORM.headingsNone}</option>
+                {REFERENCE_TEMPLATES.map((template) => (
+                  <option key={template.key} value={template.key}>
+                    {template.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <Button type="button" variant="secondary" disabled={!editable || !selectedTemplate} onClick={() => setPreviewOpen(true)}>
+              {REFERENCE_FORM.reviewHeadings}
+            </Button>
+          </div>
+          <div className="reference-writing-field stack">
+            <div className="writing-tools stack">
+              <div className="row">
+                <strong>{WRITING.toolsHeading}</strong>
+                <SpellingLanguageSelect value={language} onChange={setLanguage} />
+              </div>
+              <SpellingPanel
+                projectId={props.projectId}
+                checker={checker}
+                onCheckerChange={setChecker}
+                spell={spell}
+                flags={flags}
+                text={text}
+                selection={selection}
+                textareaRef={bodyRef}
+                editable={editable}
+                onUnlock={() => setUnlocked(true)}
+                words={words}
+                onWordsChange={setWords}
+                onDirectEdit={(before, edit) =>
+                  setDirectUndo((stack) => [...stack, { inverse: invertEdit(before, edit), inserted: edit.text }])
+                }
+              />
+              <FindReplace
+                textareaRef={bodyRef}
+                text={text}
+                selection={selection}
+                canReplace={editable}
+                onUnlock={() => setUnlocked(true)}
+                directUndo={directUndo}
+                onDirectUndoChange={setDirectUndo}
+              />
+            </div>
+            <label>
+              {REFERENCE_FORM.writing}
+              <span className="spell-field">
+                <textarea
+                  ref={bodyRef}
+                  name="body"
+                  className="document"
+                  defaultValue={props.body}
+                  style={{ minHeight: "16rem" }}
+                  spellCheck={!appUnderlines}
+                  lang={language}
+                  readOnly={!editable}
+                  placeholder={REFERENCE_FORM.writingPlaceholder}
+                  onInput={onBodyInput}
+                  onSelect={readSelection}
+                  onKeyUp={readSelection}
+                  onMouseUp={readSelection}
+                />
+                {appUnderlines ? (
+                  <SpellOverlay textareaRef={bodyRef} text={overlayText} flags={overlayFlags} current={flagAt(overlayFlags, selection)} />
+                ) : null}
+              </span>
+            </label>
+            {headingNotice ? (
+              <p className="small" role="status">
+                {headingNotice}
+              </p>
+            ) : null}
+          </div>
+        </div>
+        <div className="reference-save-row">
+          <label>
+            {REFERENCE_FORM.canonStatus}
+            <select name="authorityStatus" defaultValue={props.authorityStatus} disabled={!editable}>
+              {AUTHORITY_STATUSES.map((status) => (
+                <option key={status} value={status}>
+                  {status}
+                </option>
+              ))}
+            </select>
+          </label>
+          <p className="small muted">{REFERENCE_FORM.draftHint}</p>
+          <Button type="submit" disabled={pending || !fieldsValid || !editable}>
+            {REFERENCE_FORM.save}
+          </Button>
+        </div>
+        <Result state={state} />
+        <HeadingReviewDialog
+          open={previewOpen}
+          templateKey={selectedTemplate}
+          body={text}
+          onClose={closePreview}
+          onApply={(next) => {
+            const ta = bodyRef.current;
+            if (!ta || !editable) return;
+            const before = ta.value;
+            const edit = { start: 0, end: before.length, text: next };
+            const how = applyTextareaEdit(ta, edit);
+            setText(normalizeNewlines(ta.value));
+            if (how === "direct") {
+              setDirectUndo((stack) => [...stack, { inverse: invertEdit(before, edit), inserted: edit.text }]);
+            }
+            setHeadingNotice(REFERENCE_FORM.addedUnsaved);
+            setPreviewOpen(false);
+          }}
+        />
+      </form>
+    );
+  }
+
   return (
     <form onSubmit={submitWithoutReset(action)} className="stack">
       <RecoveryBanner pending={recovery.pending} onRestore={recovery.restore} onDiscard={recovery.discard} />
@@ -226,9 +430,6 @@ export function RecordEditor(props: {
         Title
         <input type="text" name="title" defaultValue={props.title} required spellCheck lang={language} onInput={(e) => setTitle(e.currentTarget.value)} />
       </label>
-      {props.recordType === "worldbuilding" ? (
-        <WorldKindFields fieldsJson={fields} onFieldsJsonChange={setFields} disabled={!editable} />
-      ) : null}
       <div className="writing-tools stack">
         <div className="row">
           <strong>{WRITING.toolsHeading}</strong>

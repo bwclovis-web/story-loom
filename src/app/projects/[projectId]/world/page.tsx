@@ -1,23 +1,27 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CanonBadge } from "@/components/Badges";
+import { LandingHeader } from "@/components/library/LandingHeader";
 import { OverflowDisclosure } from "@/components/shell/OverflowDisclosure";
 import { ProjectOnboarding } from "@/components/shell/ProjectOnboarding";
 import { Breadcrumbs } from "@/components/ui/Breadcrumbs";
 import { ButtonLink } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { PageHeader } from "@/components/ui/PageHeader";
 import { WorldRecordTableRow } from "@/components/ui/RecordRow";
 import { SearchPanel } from "@/components/ui/SearchPanel";
 import { WorldDirectory } from "@/components/world/WorldDirectory";
+import { WorldRecordIcon } from "@/components/world/WorldDestinationIcon";
+import { Plus } from "lucide-react";
 import { WorldKindBrowse, WorldReferenceFilters } from "@/components/world/WorldReferenceFilters";
 import { stableStringify } from "@/domain/json";
 import { getDb } from "@/server/db";
+import { listProjectCoverHashes } from "@/server/services/coverService";
 import { findProject } from "@/server/services/projectService";
-import { listRecords } from "@/server/services/recordService";
+import { listWorldIndex } from "@/server/services/recordService";
 import { searchProjectRecords, type SearchHit } from "@/server/services/searchService";
-import { getSpellingLanguage } from "@/server/spelling";
-import { GROUP_PAGES, RECORD, SHELL, WORLD, WORLD_KIND } from "@/ui/labels";
+import { GROUP_PAGES, SERIES, SHELL, WORLD, WORLD_KIND } from "@/ui/labels";
+import { seriesBookLabel, seriesRecordHref } from "@/world/seriesHome";
+import { manuscriptEyebrow } from "@/ui/library";
 import { isReferenceTemplateKey } from "@/world/referenceTemplates";
 import {
   WORLDBUILDING_KIND_OTHER,
@@ -37,7 +41,6 @@ import {
   worldHref,
   worldKindCounts,
 } from "@/ui/world";
-import { NewRecordForm } from "../NewRecordForm";
 
 export const dynamic = "force-dynamic";
 
@@ -57,15 +60,24 @@ export default async function WorldPage({
     type === "worldbuilding" && isWorldbuildingKindFilter(query.kind) ? query.kind : null;
   const db = getDb();
   const base = `/projects/${encodeURIComponent(projectId)}`;
-  const [project, records, hits, spellingLanguage] = await Promise.all([
+  const [project, worldRecords, hits, coverHashes] = await Promise.all([
     findProject(db, projectId),
-    listRecords(db, projectId),
-    q ? searchProjectRecords(db, { projectId, query: q, types: WORLD_TYPES, includeManuscript: false }) : null,
-    getSpellingLanguage(),
+    listWorldIndex(db, projectId),
+    q
+      ? searchProjectRecords(db, {
+          projectId,
+          query: q,
+          types: WORLD_TYPES,
+          includeManuscript: false,
+          includeSeriesBible: true,
+        })
+      : null,
+    listProjectCoverHashes(db, [projectId]),
   ]);
   if (!project) notFound();
-  const worldRecords = records.filter((r) => isWorldType(r.type));
-  const counted = worldRecords.map((record) => ({
+  const coverHash = coverHashes.get(projectId) ?? null;
+  const eyebrow = manuscriptEyebrow(project.seriesName, project.workspace.name);
+  const counted = worldRecords.map(({ record }) => ({
     type: record.type,
     worldKind: record.type === "worldbuilding" ? worldbuildingKindFromFields(record.fields) : null,
     customKind: record.type === "worldbuilding" ? worldbuildingCustomKind(record.fields) : null,
@@ -73,7 +85,7 @@ export default async function WorldPage({
   const counts = worldCounts(counted);
   const kindCounts = worldKindCounts(counted);
   const listed = type
-    ? worldRecords.filter((r) => {
+    ? worldRecords.filter(({ record: r }) => {
         if (r.type !== type) return false;
         if (type === "worldbuilding" && kindFilter) {
           const kind = worldbuildingKindFromFields(r.fields);
@@ -86,10 +98,10 @@ export default async function WorldPage({
       })
     : worldRecords;
   const recent = [...worldRecords]
-    .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime() || a.title.localeCompare(b.title))
+    .sort((a, b) => b.record.updatedAt.getTime() - a.record.updatedAt.getTime() || a.record.title.localeCompare(b.record.title))
     .slice(0, 8);
   const showHub = !type && !q && !list;
-  const byId = new Map(records.map((r) => [r.id, r]));
+  const byId = new Map(worldRecords.map(({ record }) => [record.id, record]));
   const startsMidText = (hit: SearchHit): boolean => {
     const record = byId.get(hit.id);
     if (!hit.excerptTruncated || !record) return false;
@@ -112,10 +124,9 @@ export default async function WorldPage({
   const crumb = q ? WORLD.search : listTitle;
 
   const newReference = (
-    <OverflowDisclosure id="new-reference" summary={WORLD.newReference} className="world-new-reference">
-      <h2 className="sr-only">{RECORD.newRecordHeading}</h2>
-      <NewRecordForm projectId={projectId} spellingLanguage={spellingLanguage} defaultType={type ?? "character_dossier"} />
-    </OverflowDisclosure>
+    <ButtonLink href={`${base}/world/new${type ? `?type=${type}` : ""}`} icon={<Plus strokeWidth={1.75} />}>
+      {WORLD.newReference}
+    </ButtonLink>
   );
   const kindBrowse =
     !q && (showHub || type === "worldbuilding") ? (
@@ -130,27 +141,27 @@ export default async function WorldPage({
 
   return (
     <>
-      {type || q || list ? (
-        <Breadcrumbs
-          label={WORLD.breadcrumb}
-          items={[
-            { href: worldHref(projectId), label: SHELL.world },
-            { label: crumb, current: true },
-          ]}
-        />
-      ) : null}
-      {showHub ? (
-        <header className="world-hub-header">
-          <div className="world-hub-heading">
-            <p className="outline-eyebrow">{project.title}</p>
-            <h1>{SHELL.world}</h1>
-            <ProjectOnboarding projectId={projectId} quiet marked />
-          </div>
-          {newReference}
-        </header>
-      ) : (
-        <PageHeader title={q ? WORLD.resultsFor(q) : listTitle} lead={GROUP_PAGES.world} actions={newReference} />
-      )}
+      <LandingHeader
+        projectId={projectId}
+        title={showHub ? SHELL.world : q ? WORLD.resultsFor(q) : listTitle}
+        coverTitle={project.title}
+        eyebrow={eyebrow}
+        coverSrc={coverHash ? `${base}/cover?v=${coverHash}` : null}
+        description={showHub ? undefined : GROUP_PAGES.world}
+        gettingStarted={showHub ? <ProjectOnboarding projectId={projectId} quiet marked /> : undefined}
+        actions={newReference}
+        breadcrumbs={
+          type || q || list ? (
+            <Breadcrumbs
+              label={WORLD.breadcrumb}
+              items={[
+                { href: worldHref(projectId), label: SHELL.world },
+                { label: crumb, current: true },
+              ]}
+            />
+          ) : null
+        }
+      />
 
       {showHub ? (
         <div className="world-hub-layout">
@@ -181,16 +192,22 @@ export default async function WorldPage({
                 <EmptyState>{WORLD.noRecent}</EmptyState>
               ) : (
                 <ul className="world-recent">
-                  {recent.map((r) => {
+                  {recent.map(({ record: r, home }) => {
+                    const kind = r.type === "worldbuilding" ? worldbuildingKindFromFields(r.fields) : null;
                     const kindLabel = r.type === "worldbuilding" ? worldKindDisplayFromFields(r.fields) : null;
+                    const book = home ? seriesBookLabel(home) : null;
                     return (
                       <li key={r.id}>
+                        <span className="world-recent-icon">
+                          <WorldRecordIcon type={r.type} kind={kind} />
+                        </span>
                         <Link className="world-recent-title" href={`${base}/records/${encodeURIComponent(r.id)}`}>
                           {r.title}
                         </Link>
                         <p className="world-recent-meta small muted">
                           {categoryLabel(r.type)}
                           {kindLabel ? ` · ${kindLabel}` : ""}
+                          {book ? ` · ${SERIES.homeBadge(book)}` : ""}
                           {" · "}
                           {r.updatedAt.toLocaleString(undefined, { dateStyle: "medium" })}
                         </p>
@@ -281,6 +298,12 @@ export default async function WorldPage({
                     </Link>
                     <span className="small muted">{categoryLabel(h.type)}</span>
                     <CanonBadge status={h.authorityStatus} />
+                    {h.seriesHome ? (
+                      <span className="small">
+                        {SERIES.homeBadge(seriesBookLabel(h.seriesHome))}{" "}
+                        <Link href={seriesRecordHref(h.seriesHome.projectId, h.id)}>{SERIES.editIn(seriesBookLabel(h.seriesHome))}</Link>
+                      </span>
+                    ) : null}
                   </div>
                   <p className="hit-excerpt small">
                     <span className="muted">Matched in {WORLD.matchedIn[h.matchedIn]}: </span>
@@ -321,11 +344,12 @@ export default async function WorldPage({
                 </tr>
               </thead>
               <tbody>
-                {listed.map((r) => {
+                {listed.map(({ record: r, home }) => {
                   const kindLabel =
                     r.type === "worldbuilding"
                       ? worldKindDisplayFromFields(r.fields) ?? (type === "worldbuilding" ? "—" : undefined)
                       : undefined;
+                  const book = home ? seriesBookLabel(home) : null;
                   return (
                     <WorldRecordTableRow
                       key={r.id}
@@ -336,6 +360,7 @@ export default async function WorldPage({
                       authorityStatus={r.authorityStatus}
                       currentRevision={r.currentRevision}
                       isProtected={r.protected}
+                      homeBook={book && home ? { label: book, editHref: seriesRecordHref(home.projectId, r.id) } : null}
                     />
                   );
                 })}

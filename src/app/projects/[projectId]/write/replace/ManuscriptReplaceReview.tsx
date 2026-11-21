@@ -61,6 +61,7 @@ export function ManuscriptReplaceReview({
         <input type="hidden" name="replace" value={preview.replace} />
         {preview.matchCase ? <input type="hidden" name="matchCase" value="on" /> : null}
         {preview.wholeWord ? <input type="hidden" name="wholeWord" value="on" /> : null}
+        {preview.regex ? <input type="hidden" name="regex" value="on" /> : null}
         {[...grouped.entries()].map(([recordId, matches]) => (
           <input key={recordId} type="hidden" name={`rev_${recordId}`} value={String(matches[0]!.expectedRevision)} />
         ))}

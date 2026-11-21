@@ -10,7 +10,7 @@ import {
 describe("world destination registry", () => {
   it("lists each surface once, in the four groups", () => {
     const keys = WORLD_DESTINATION_GROUPS.flatMap((group) => group.keys);
-    expect(keys).toEqual(["references", "relationships", "maps", "boards", "events", "calendar", "names"]);
+    expect(keys).toEqual(["references", "relationships", "maps", "boards", "events", "calendar", "continuity", "names"]);
     expect(new Set(keys).size).toBe(WORLD_DESTINATIONS.length);
     expect(WORLD_DESTINATION_GROUPS.map((group) => group.heading)).toEqual([
       "Lore & Codex",
@@ -28,6 +28,8 @@ describe("world destination registry", () => {
     expect(worldDestinationHref("prj", "calendar")).toBe("/projects/prj/world/calendar");
     expect(worldDestinationHref("prj", "relationships")).toBe("/projects/prj/world/relationships");
     expect(worldDestinationHref("prj", "names")).toBe("/projects/prj/world/names");
+    expect(worldDestinationHref("prj", "continuity")).toBe("/projects/prj/continuity");
+    expect(matchWorldDestination("/projects/prj/continuity")).toEqual({ key: "continuity", exact: true });
   });
 
   it("marks the hub and a nested map differently, and ignores the query string", () => {

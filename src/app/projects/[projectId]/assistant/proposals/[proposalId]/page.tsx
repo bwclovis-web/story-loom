@@ -1,10 +1,11 @@
 import { notFound } from "next/navigation";
+import { ProjectPageHeader } from "@/components/library/ProjectPageHeader";
 import { HelpHint } from "@/components/HelpHint";
 import { getDb } from "@/server/db";
 import { getProposalReview, type ProposalReview } from "@/server/services/assistantProposalService";
 import { AssistantError } from "@/server/services/assistantService";
 import { findProject } from "@/server/services/projectService";
-import { REVIEW } from "@/ui/labels";
+import { REVIEW, SHELL } from "@/ui/labels";
 import { ProposalReviewClient } from "./ProposalReviewClient";
 
 export const dynamic = "force-dynamic";
@@ -25,7 +26,14 @@ export default async function ProposalReviewPage({ params }: { params: Promise<{
 
   return (
     <div className="stack">
-      <h1>{REVIEW.pageHeading}</h1>
+      <ProjectPageHeader
+        projectId={projectId}
+        title={REVIEW.pageHeading}
+        crumbs={[
+          { href: `/projects/${encodeURIComponent(projectId)}/assistant`, label: SHELL.assistant },
+          { label: REVIEW.pageHeading, current: true },
+        ]}
+      />
       <p className="muted small">{REVIEW.proposalIntro}</p>
       <HelpHint anchor="assistant-proposals" topic="reviewing proposals">
         Nothing changes until you choose Apply. The proposal is applied as a whole.

@@ -338,6 +338,42 @@ export const workspaceBackupV1Schema = z
             chapterHeadingStyle: z.enum(["centered", "left"]),
             includeSynopses: z.boolean(),
             includeMarginComments: z.boolean(),
+            trimSize: z.enum(["5x8", "5.5x8.5", "6x9", "A4", "Letter"]).optional(),
+            marginInches: z.number().min(0.5).max(1.25).optional(),
+            runningHeader: z.string().max(120).optional(),
+            runningFooter: z.string().max(120).optional(),
+            fontPreset: z.enum(["serif", "sans", "mono"]).optional(),
+            spacingPreset: z.enum(["novel", "tight", "loose"]).optional(),
+            firstParagraphNoIndent: z.boolean().optional(),
+            dropCap: z.boolean().optional(),
+            includeToc: z.boolean().optional(),
+            backMatterBody: z.string().max(120_000).optional(),
+            excludedRecordIds: z.array(z.string().min(1).max(80)).max(500).optional(),
+            createdAt: timestamp,
+            updatedAt: timestamp,
+          })
+          .strict(),
+      )
+      .optional(),
+  /** Custom worldbuilding kind field definitions. Omitted in older backups → none. */
+    worldKindTemplates: z
+      .array(
+        z
+          .object({
+            id,
+            projectId: id,
+            kind: z.string().min(1).max(120),
+            fields: z
+              .array(
+                z
+                  .object({
+                    key: z.string().min(1).max(41),
+                    label: z.string().min(1).max(80),
+                    multiline: z.boolean().optional(),
+                  })
+                  .strict(),
+              )
+              .max(12),
             createdAt: timestamp,
             updatedAt: timestamp,
           })
@@ -977,6 +1013,7 @@ export const workspaceBackupV1Schema = z
         writingGoals: z.number().int().optional(),
         manuscriptAnnotations: z.number().int().optional(),
         compileProfiles: z.number().int().optional(),
+        worldKindTemplates: z.number().int().optional(),
         boards: z.number().int().optional(),
         boardCards: z.number().int().optional(),
         worldMaps: z.number().int().optional(),

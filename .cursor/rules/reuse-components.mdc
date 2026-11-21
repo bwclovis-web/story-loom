@@ -1,0 +1,25 @@
+---
+description: Reuse existing Story Loom components instead of duplicating markup
+alwaysApply: true
+---
+
+# Reuse components
+
+Before adding markup, look in `src/components` for a component that already does the job. Import its barrel (`@/components/ui/Button`, `@/components/ui/Breadcrumbs`). Do not copy a second button, banner, empty state, breadcrumb, dialog, or page header.
+
+- Buttons are `Button`, `ButtonLink`, or `ButtonAnchor` from `@/components/ui/Button`.
+- Radio choices are `RadioGroup` from `@/components/ui/RadioGroup`. Do not hand-write a second set of radio inputs.
+- Trails are `Breadcrumbs` from `@/components/ui/Breadcrumbs`.
+- Page chrome is `LandingHeader` or `ProjectPageHeader` from `@/components/library`.
+- Empty, status, and help copy use `EmptyState`, `Banner`, and `HelpPopover` when those already fit.
+
+If a second screen needs the same piece, extend the existing component or extract one shared component. Do not leave a near-copy in the page.
+
+```tsx
+// The page title lives in the shared header. Nested pages add crumbs.
+<ProjectPageHeader
+  projectId={projectId}
+  title="Maps"
+  crumbs={[{ href: worldHref, label: "World" }, { label: "Maps", current: true }]}
+/>
+```

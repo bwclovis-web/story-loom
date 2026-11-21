@@ -176,6 +176,27 @@ export const ONBOARDING = {
   taskWeaveHint: "Open a Weave plot grid, add a beat, and link it to a chapter or scene.",
   taskAssistant: "Ask the assistant with project context",
   taskAssistantHint: "Start a conversation, choose Include items from this project, then ask your question.",
+  taskWrite: "Write, compare drafts, and keep a local copy",
+  taskWriteHint:
+    "Open a chapter. Desk, Focus, and Companion change the layout. Split view can show another draft beside this one. If the browser closes, this computer may still offer Restore local draft. That copy is not a saved revision.",
+  taskCodex: "Pin a reference and insert its name",
+  taskCodexHint:
+    "From a chapter, Keep handy on a dossier or place. In the text, type [[ or @ to insert a reference title. You can also add a link. A pin is not a scene link.",
+  taskBeats: "Start from a beat sheet and make a scene",
+  taskBeatsHint:
+    "On Weave, start a grid from a premade beat sheet, or open Templates. Create scene from beat adds a protected scene in a chapter you choose and leaves the scene body empty.",
+  taskWorld: "Build World references",
+  taskWorldHint:
+    "Add a reference, choose a worldbuilding kind, and remember fields for a custom kind. Boards place records you already have. Maps pin places on an image, with layers and a scale bar you set.",
+  taskTimeline: "Track the story timeline",
+  taskTimelineHint:
+    "Set an in-world calendar, then open the story timeline. The board shows lanes for characters, organizations, and places. Ages and warnings are notes. They are not saved onto records.",
+  taskSeries: "Share a series bible and review open questions",
+  taskSeriesHint:
+    "A series reference can be read in a sibling book and edited in the book that owns it. Continuity gathers unresolved records, open questions, and items that need a recheck.",
+  taskPublish: "Set a pace, compile, and back up",
+  taskPublishHint:
+    "Writing goals can show a daily pace, a streak, and words saved over 30 days. Export PDF, DOCX, or EPUB uses the compile profile. Backup & restore copies one workspace. The sprint timer does not save words.",
 } as const;
 
 /** Plain-language chooser between map, board, and plot grid. */
@@ -233,7 +254,7 @@ export const WEAVE = {
   planningTools: "Planning tools",
   worldTools: "World tools",
   toolsAside: "Planning and world tools",
-  templatesHint: "Start from a story structure for your next grid.",
+  templatesHint: "Start from a beat sheet, or save a grid as a template you can edit.",
   analyzeHint: "Review evidence-backed suggestions from a saved chapter.",
   boardsHint: "Collect and organize ideas, research, and references.",
   mapsHint: "Explore places and their spatial relationships.",
@@ -305,6 +326,12 @@ export const WEAVE = {
   dragBeatHint: "Drag beats to reposition. Moving a beat never reorders manuscript chapters or scenes.",
   beatsCount: (n: Count) => `${n} beat${n === 1 ? "" : "s"}`,
   filterDecision: "Filter by decision",
+  filterLinks: "Filter by link",
+  filterLinksAll: "All links",
+  filterCharacters: "Characters",
+  filterLocations: "Places",
+  filterPov: "Point of view",
+  filterPovAny: "Any point of view",
   filterAll: "All decisions",
   filterEmpty: "No beats match this filter.",
   fitSelection: "Fit selection",
@@ -414,8 +441,26 @@ export const WEAVE = {
   buildSelectAllAccept: "Accept all",
   buildSelectAllSkip: "Skip all",
   templatesLead:
-    "Editable beat layouts. Applying a template creates an independent Weave grid copy — later template edits do not change that copy.",
-  noTemplates: "No templates yet. Save a stable grid as a template, or create one blank.",
+    "Editable beat layouts. Applying a template creates an independent Weave grid copy — later template edits do not change that copy. A starter beat sheet can be saved here or opened as a new grid.",
+  noTemplates: "No templates yet. Save a starter beat sheet, save a stable grid as a template, or create one blank.",
+  presetHeading: "Starter beat sheets",
+  presetLead:
+    "Each sheet is a starting copy. Save as template keeps the beats editable. Start a grid opens a plot grid with the threads, beats, and setup→payoff links. You can rename or delete any of it afterward.",
+  presetSaveTemplate: "Save as template",
+  presetStartGrid: "Start a grid",
+  presetThreadPrefix: "Thread:",
+  presetThreeAct: "Three-Act Structure",
+  presetSaveTheCat: "Save the Cat 15-Beat",
+  presetHerosJourney: "Hero's Journey 12-Stage",
+  presetSevenPoint: "Seven-Point Story Structure",
+  presetRomance: "Romance Beat Sheet",
+  presetMystery: "Mystery Clue & Red Herring Arc",
+  createSceneFromBeat: "Create scene from beat",
+  createSceneChapter: "Chapter",
+  createSceneHint:
+    "Adds a scene in the chapter you choose. The beat notes become that scene's synopsis, and cited World records are linked. Book order does not change.",
+  createSceneNeedChapter: "Add a chapter on Write before creating a scene from this beat.",
+  createSceneWorking: "Creating scene…",
   newTemplate: "New template",
   templateTitle: "Template title",
   templateDescription: "Description",
@@ -732,6 +777,42 @@ export const BOOK_ORDER = {
   unplacedNote: "These scenes' chapter is missing. Move each one into a chapter.",
 } as const;
 
+/** Split, merge, and turning a chapter into a scene or the reverse. */
+export const MANUSCRIPT_STRUCTURE = {
+  unlock: "I am intentionally changing these protected chapters or scenes.",
+  needsUnlock: "Tick the protection line before merging or converting.",
+  split: "Split at cursor",
+  splitHeading: "Split into a new document",
+  splitTitle: "Title of the new part",
+  splitNote:
+    "Text before the cursor stays here. Text from the cursor on becomes the new chapter or scene, placed just after this one. Save first if this text has unsaved changes.",
+  splitDo: "Split",
+  splitWorking: "Splitting…",
+  splitSaveFirst: "Save this text before splitting.",
+  splitEdge: "Put the cursor in the middle of the text, with words on both sides.",
+  splitDone: (title: string) => `Split. “${title}” is the new part, placed just after this one.`,
+  mergePrevious: "Merge into previous",
+  makeChapter: "Make this a chapter",
+  makeScene: "Make this a scene in",
+  makeSceneDo: "Make a scene",
+  working: "Updating the book…",
+  drag: "Drag to reorder",
+} as const;
+
+/** Optional planning fields stored on a chapter or scene. */
+export const SCENE_META = {
+  pov: "Point of view",
+  status: "Draft status",
+  statusNone: "Not set",
+  outline: "Outline",
+  rough: "Rough",
+  revised: "Revised",
+  final: "Final",
+  storyDate: "Story date note",
+  fieldsJson: "Other structured fields",
+  invalidJson: "This structured fields text is not a JSON object, so the fields above are paused until it is fixed.",
+} as const;
+
 export const WRITING_GOALS = {
   heading: "Writing goals",
   lead: "Optional targets for the active manuscript draft. Today and this session count new words on saved revisions only (not unsaved typing).",
@@ -753,6 +834,17 @@ export const WRITING_GOALS = {
   ofTarget: (current: Count, target: Count) => `${current} / ${target} words`,
   deadlineBy: (date: string) => `Deadline ${date}`,
   noTarget: "No book target set.",
+  dailyPace: "Daily pace",
+  dailyPaceValue: (words: Count) => `${words} words a day to meet the deadline`,
+  paceNone: "Set a book target and a deadline to see a daily pace.",
+  streak: "Writing streak",
+  streakDays: (days: Count) => `${days} day${days === 1 ? "" : "s"} with saved words`,
+  chartHeading: "Words saved, last 30 days",
+  sprint: "Writing sprint",
+  sprintStart: "Start",
+  sprintPause: "Pause",
+  sprintReset: "Reset",
+  sprintMinutes: (minutes: Count) => `${minutes} min`,
 } as const;
 
 export const MANUSCRIPT_ANNOTATIONS = {
@@ -773,8 +865,10 @@ export const MANUSCRIPT_ANNOTATIONS = {
   confirmRecheck: "Mark as checked",
   noComments: "No open margin comments.",
   corkboardTab: "Corkboard",
-  corkboardLead: "Synopsis cards for the active draft, in book order. Edit a card from the chapter or scene, or open it below.",
-  corkboardEmpty: "No synopsis cards yet. Add a synopsis when you edit a chapter or scene.",
+  corkboardLead:
+    "Every chapter and scene in this draft, in book order. Point of view and draft status show when they are set. Edit a synopsis here. Move a card up or down, or drag it, among its siblings.",
+  corkboardEmpty: "No chapters or scenes in this draft yet.",
+  corkboardSaved: "Synopsis saved.",
   openRecord: "Open",
 } as const;
 
@@ -843,6 +937,67 @@ export const INFOBOX = {
   onMaps: "On maps",
   establishedFacts: "Established facts",
   openQuestions: "Open questions",
+  role: "Role",
+  summary: "Summary",
+} as const;
+
+export const REFERENCE_FORM = {
+  newTitle: "New reference",
+  createStep: "01 — Create reference",
+  title: "Title",
+  documentType: "Document type",
+  documentTypeHint: "The category this reference is stored as. It is separate from starting headings.",
+  typeCharacter: "Character",
+  typeWorldbuilding: "Worldbuilding",
+  typeRules: "Rules & glossary",
+  typeResearch: "Research note",
+  kindLabel: "Worldbuilding kind (optional)",
+  kindHint: "Choose a kind, or leave it unclassified.",
+  kindFieldsEmpty:
+    "Choose a kind to list its fields here. Place adds parent place and climate. These fields do not change the writing.",
+  kindRetained:
+    "Worldbuilding kind and details stay in the fields. This document type does not use a kind.",
+  otherSaved: "Other saved details",
+  otherSavedHint: "These values stay saved when the kind changes. Nothing here is deleted.",
+  otherKept: "Kept in Advanced fields. This control does not rewrite it.",
+  headings: "Starting headings (optional)",
+  headingsHint:
+    "An optional outline added to the writing after you preview it. Choosing Place here does not make the document type Place, and it does not set the worldbuilding kind.",
+  headingsNone: "None",
+  previewHeadings: "Preview headings",
+  reviewHeadings: "Review missing headings",
+  writing: "Writing",
+  writingPlaceholder: "Write freely, or add starting headings.",
+  details: "Details (optional)",
+  detailsHint: "Short facts used by reference tools.",
+  detailsEditHint: "Editing details does not rewrite your document.",
+  advancedJson: "Advanced fields (JSON)",
+  jsonInvalid: "Advanced fields are not valid JSON. Saving stays off until this is fixed.",
+  showJsonError: "Show the JSON error",
+  canonStatus: "Canon status",
+  draftHint: "Draft is not approved canon.",
+  create: "Create reference",
+  save: "Save changes",
+  cancel: "Cancel",
+  editReference: "Edit reference",
+  editDetails: "Edit details",
+  changeKind: "Change kind",
+  addDetails: "Add details",
+  alreadyPresent: "Already present",
+  willAdd: "Will be added",
+  headingsUnchanged: "Existing writing and details remain unchanged.",
+  allPresent: "All headings are already present",
+  addMissing: (n: number) => `Add ${n} missing headings`,
+  addedUnsaved: "Added to your unsaved writing. Save changes to keep them.",
+  undoHeadings: "Undo",
+  protected: "Protected",
+  editingEnabled: "Editing enabled for this revision",
+  unsaved: "Unsaved",
+  saving: "Saving",
+  saved: "Saved",
+  failed: "Failed",
+  currentType: "Document type",
+  typeReadOnly: "Type stays as it was created. Kind can still change on a Worldbuilding reference.",
 } as const;
 
 export const WORLD_KIND = {
@@ -857,6 +1012,55 @@ export const WORLD_KIND = {
   readNoneHint: "No structured fields yet. Choose Edit above to set Kind and other fields.",
   historyNote:
     "Kind is part of structured fields. Each save creates a revision; use History below or Compare to see when kind changed.",
+} as const;
+
+export const SERIES = {
+  homeBadge: (book: string) => `From ${book}`,
+  editIn: (book: string) => `Edit in ${book}`,
+  readOnly: (book: string) => `Read-only. This reference belongs to ${book}.`,
+  sharedHere: "Shared with other books in this series. Edit it in this book.",
+  contextNote: "Series reference. Linking and pinning stay in its home book.",
+} as const;
+
+export const REFERENCE_META = {
+  legend: "Reference details",
+  name: "Name",
+  aliases: "Aliases",
+  aliasPlaceholder: "Add an alias",
+  addAlias: "Add alias",
+  removeAlias: "Remove",
+  role: "Role",
+  summary: "Summary",
+  hint: "Saved in structured fields with anything else already there.",
+} as const;
+
+export const KIND_TEMPLATE = {
+  legend: "Fields for this kind",
+  hint: "Define these once. Later records with the same custom kind show the same fields. Other saved details stay.",
+  key: "Field key",
+  label: "Field label",
+  multiline: "Long text",
+  addField: "Add field",
+  removeField: "Remove field",
+  remember: "Remember these fields",
+  forget: "Forget these fields",
+  remembered: "Fields remembered for this kind.",
+  forgotten: "Fields forgotten for this kind.",
+  needName: "Type a custom kind name first.",
+} as const;
+
+export const CONTINUITY = {
+  title: "Open questions",
+  lead: "Unresolved records, open-question sections, sources that need another look, and open review items. Opening this page changes nothing.",
+  none: "Nothing is waiting.",
+  unresolved: "Unresolved records",
+  openQuestions: "Open questions in the text",
+  facts: "Facts to recheck",
+  storyEvidence: "Story evidence to recheck",
+  comments: "Margin comments to recheck",
+  reviews: "Open review items",
+  nav: "Open questions",
+  navHint: "Unresolved records, open questions, and items that need another look.",
 } as const;
 
 export const MENTIONED_BY = {
@@ -892,7 +1096,14 @@ export const STYLE_CHECK = {
   kindAdverb: "Adverbs",
   kindLongSentence: "Long sentences",
   kindName: "Repeated names",
+  kindPassive: "Passive voice",
+  kindWeakVerb: "Weak verbs",
   toolbar: "Style check",
+  pacing: "Chapter and scene length",
+  dialogue: "Dialogue and narration",
+  dialogueRatio: (dialogue: Count, narration: Count) => `${dialogue} dialogue words, ${narration} narration words`,
+  pov: "Name balance",
+  povEmpty: "No character names from the codex appear in this draft.",
 } as const;
 
 export const MANUSCRIPT_REPLACE = {
@@ -903,6 +1114,12 @@ export const MANUSCRIPT_REPLACE = {
   find: "Find",
   replaceWith: "Replace with",
   wholeWord: "Whole words only",
+  useRegex: "Regular expression",
+  regexNote: "The replacement is the text you type. It does not insert captured groups. A pattern that is invalid, nested, or too slow is refused before anything is saved.",
+  regexTooLong: "That pattern is too long.",
+  regexNested: "That pattern nests a repeat inside a repeat, so it was not run.",
+  regexInvalid: "That pattern is not a valid regular expression.",
+  regexSlow: "That pattern took too long on this text, so it was not run.",
   preview: "Review matches",
   reviewHeading: "Review matches",
   reviewLead: (selected: Count, total: Count) =>
@@ -1190,8 +1407,34 @@ export const WORLD = {
   openChapterInWrite: "Open chapter",
   primaryBadge: "Primary",
   storyTimeline: "Story timeline",
-  storyTimelineLead: "Events in the order you set. That order is not the manuscript order, and an event can leave its time unknown.",
+  storyTimelineLead:
+    "Events by calendar date when a full structured date is set, otherwise in the order you set. That order is not the manuscript order, and an event can leave its time unknown.",
   storyTimelineHint: "Record events, who reveals them, and where they happen.",
+  timelineBoard: "Timeline board",
+  timelineLanes: "Lanes",
+  timelineLaneCharacters: "Characters",
+  timelineLaneFactions: "Factions",
+  timelineLaneLocations: "Locations",
+  timelineAllLanes: "All lanes",
+  timelineUnassigned: "Unassigned",
+  timelineUnknownTime: "Unknown time",
+  timelineWarnings: "Timeline notes",
+  timelineAge: (name: string, years: Count) => `Age ${years} · ${name}`,
+  timelineSameDate: (name: string, places: string) => `${name} is linked to ${places} on the same date.`,
+  timelineRevealOrder: (later: string, earlier: string) =>
+    `${later} is revealed before ${earlier} in the manuscript. The timeline places ${earlier} first. Put Flashback in a revealing title to mark that on purpose.`,
+  timelineBeforeBirth: (name: string, birth: string) => `${name} is dated before ${birth}.`,
+  mapMeasure: "Measure",
+  mapMeasureHint: "Click two points. The distance is estimated from the scale bar you set.",
+  mapMeasureDerived: "Estimated from your scale bar, not a surveyed distance.",
+  mapMeasureNeedScale: "Set a scale label that starts with a number, and a bar width, before a distance can be estimated.",
+  mapRouteLength: "Route length",
+  mapExportPng: "Export PNG",
+  mapExportSvg: "Export SVG",
+  mapExportPngFailed: "The map image could not be copied into the PNG. Use Export SVG instead.",
+  mapLayersShowAll: "Show all layers",
+  mapLayersHideAll: "Hide all layers",
+  mapLayerPreset: (title: string) => `Only ${title}`,
   nameGenerator: "Name generator",
   nameGeneratorNavHint: "Suggest names from syllables and patterns stored on language references. Nothing is saved until you add a dictionary entry or create a dossier.",
   nameGeneratorPageLead:
@@ -1504,7 +1747,10 @@ export const PDF = {
   downloadManuscriptEpub: "Download manuscript EPUB",
   manuscriptFormats: "Manuscript export formats",
   manuscriptFormatsNote:
-    "DOCX and EPUB use the same chapter order, draft, scene-title option, and compile profile as the PDF. Reference documents stay PDF-only for now.",
+    "DOCX and EPUB use the same chapter order, draft, scene-title option, and compile profile as the PDF.",
+  downloadReferencesDocx: (n: Count) => `Download DOCX (${n})`,
+  downloadReferencesEpub: (n: Count) => `Download EPUB (${n})`,
+  downloadReferencesMarkdown: (n: Count) => `Download Markdown (${n})`,
   noManuscript: "This project has no chapters yet.",
   referencesHeading: "References",
   referencesNote:
@@ -1534,6 +1780,24 @@ export const COMPILE_PROFILE = {
   headingLeft: "Left",
   includeSynopses: "Include synopsis cards before each chapter or scene body",
   includeMarginComments: "Include unresolved margin comments after each chapter or scene body",
+  trimSize: "Trim size",
+  marginInches: "Margin (inches)",
+  runningHeader: "Running header",
+  runningFooter: "Running footer",
+  fontPreset: "Font",
+  fontSerif: "Serif",
+  fontSans: "Sans",
+  fontMono: "Mono",
+  spacingPreset: "Spacing",
+  spacingNovel: "Novel",
+  spacingTight: "Tight",
+  spacingLoose: "Loose",
+  firstParagraphNoIndent: "Do not indent the first paragraph of a chapter",
+  dropCap: "Larger first letter on each chapter in the PDF",
+  includeToc: "Clickable contents page in the PDF",
+  backMatter: "Back matter (Markdown)",
+  includeInCompile: "Include in compile",
+  includeInCompileNote: "Untick a chapter or scene to leave it out of PDF, DOCX, and EPUB. This does not change the manuscript.",
   save: "Save compile profile",
 } as const;
 

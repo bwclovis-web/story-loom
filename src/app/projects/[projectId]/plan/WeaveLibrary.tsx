@@ -15,6 +15,7 @@ import type { WeaveViewKind } from "@/server/services/weaveService";
 import type { SpellingLanguage } from "@/writing/spelling";
 import { NewRecordForm } from "../NewRecordForm";
 import { CreateWeaveGridForm } from "./weave/CreateWeaveGridForm";
+import { StarterBeatSheets } from "./weave/StarterBeatSheets";
 
 const SCOPE_HELP: Record<WeaveViewKind, string> = {
   original: WEAVE.scopeHelpOriginal,
@@ -181,6 +182,7 @@ export function WeaveLibrary({
             <p>{WEAVE.movingBeatsNote}</p>
             <HelpPopover label={WEAVE.movingBeatsHelp}>{WEAVE.dragBeatHint}</HelpPopover>
           </div>
+          <StarterBeatSheets projectId={projectId} compact />
         </section>
 
         <PlanningReferences base={base} projectId={projectId} references={references} spellingLanguage={spellingLanguage} />

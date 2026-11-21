@@ -5,6 +5,18 @@ what an upgraded app must keep reading, and how to return to the matching
 pre-migration code and database. No schema, route, format or behavior change
 was made in this pass.
 
+## Completed after this baseline
+
+This file stays the Nov 14 contract. Later work did not replace that contract.
+`Record.worldScope = "series"` is now used. A reference with that scope can be
+read in sibling books that share `Project.seriesName`, and it can be edited
+only in the book that owns it. Older backups omit `worldScope` and restore the
+record as unassigned. Series sharing, premade Weave beat sheets, custom
+worldbuilding field lists, and timeline notes are described in
+[world-and-weave.md](world-and-weave.md). Optional backup keys, including
+`worldKindTemplates` and compile-profile layout fields, are in
+[backup-format.md](backup-format.md).
+
 ## Code and database baseline
 
 | Item | Value |

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { SectionTagBadge, StatusBadge } from "@/components/Badges";
 import { TargetStatus, xrefHref } from "@/components/CrossRefsPanel";
+import { ProjectPageHeader } from "@/components/library/ProjectPageHeader";
 import { HelpHint } from "@/components/HelpHint";
 import { RECORD_TYPE_LABELS, isRecordType } from "@/domain/recordTypes";
 import { getDb } from "@/server/db";
@@ -40,8 +41,7 @@ export default async function CrossReferenceCheckPage({ params }: { params: Prom
 
   return (
     <div className="xref-report">
-      <h1>{XREF_CHECK.heading}</h1>
-      <p className="page-lead">{XREF_CHECK.lead}</p>
+      <ProjectPageHeader projectId={projectId} title={XREF_CHECK.heading} description={XREF_CHECK.lead} />
       <HelpHint anchor="cross-reference-check" topic="the cross-reference check">
         {report.supersededSkipped ? XREF_CHECK.supersededSkipped(report.supersededSkipped) : null}
       </HelpHint>

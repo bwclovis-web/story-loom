@@ -1,6 +1,6 @@
 import { errorIssue } from "@/domain/issues";
 import type { RecordType } from "@/domain/recordTypes";
-import { applySelectedReplacements, findMatches, matchId, type Match } from "@/writing/findReplace";
+import { applySelectedReplacements, findMatches, findRegexMatches, matchId, type Match, type RegexPreviewError } from "@/writing/findReplace";
 import type { Db } from "../db";
 import { MutationRejectedError } from "./errors";
 import { applyMutations } from "./mutationService";
@@ -29,6 +29,8 @@ export interface ManuscriptReplacePreview {
   replace: string;
   matchCase: boolean;
   wholeWord: boolean;
+  regex: boolean;
+  regexError: RegexPreviewError | null;
   matches: ManuscriptReplaceMatch[];
 }
 
@@ -53,11 +55,17 @@ function collectMatches(
   },
   find: string,
   replace: string,
-  options: { matchCase: boolean; wholeWord: boolean },
-): ManuscriptReplaceMatch[] {
+  options: { matchCase: boolean; wholeWord: boolean; regex: boolean },
+): { matches: ManuscriptReplaceMatch[]; error: RegexPreviewError | null } {
   const out: ManuscriptReplaceMatch[] = [];
+  let error: RegexPreviewError | null = null;
   const addField = (field: "title" | "body", text: string) => {
-    for (const m of findMatches(text, find, options)) {
+    const found = options.regex ? findRegexMatches(text, find, options) : { matches: findMatches(text, find, options), error: null };
+    if (found.error) {
+      error = found.error;
+      return;
+    }
+    for (const m of found.matches) {
       const { before, after } = excerptAround(text, m.start, m.end);
       out.push({
         id: matchId(row.id, field, m.start, m.end),
@@ -77,8 +85,8 @@ function collectMatches(
     }
   };
   addField("title", row.title);
-  addField("body", row.body);
-  return out;
+  if (!error) addField("body", row.body);
+  return { matches: error ? [] : out, error };
 }
 
 export async function previewManuscriptReplace(
@@ -89,22 +97,23 @@ export async function previewManuscriptReplace(
     replace: string;
     matchCase: boolean;
     wholeWord: boolean;
+    regex?: boolean;
     draftId?: string | null;
     hasDrafts?: boolean;
   },
 ): Promise<ManuscriptReplacePreview> {
   const find = input.find;
   const replace = input.replace;
-  const options = { matchCase: input.matchCase, wholeWord: input.wholeWord };
+  const options = { matchCase: input.matchCase, wholeWord: input.wholeWord, regex: input.regex === true };
   const rows = await listManuscriptInBookOrder(db, {
     projectId: input.projectId,
     draftId: input.draftId,
     hasDrafts: input.hasDrafts,
   });
-  const matches = find.trim()
-    ? rows.flatMap((row) => collectMatches(row, find, replace, options))
-    : [];
-  return { find, replace, matchCase: input.matchCase, wholeWord: input.wholeWord, matches };
+  const collected = find.trim() ? rows.map((row) => collectMatches(row, find, replace, options)) : [];
+  const regexError = collected.find((row) => row.error)?.error ?? null;
+  const matches = regexError ? [] : collected.flatMap((row) => row.matches);
+  return { find, replace, matchCase: input.matchCase, wholeWord: input.wholeWord, regex: options.regex, regexError, matches };
 }
 
 export async function applyManuscriptReplace(
@@ -115,6 +124,7 @@ export async function applyManuscriptReplace(
     replace: string;
     matchCase: boolean;
     wholeWord: boolean;
+    regex?: boolean;
     selectedMatchIds: readonly string[];
     /** Expected revision per record from the preview the author reviewed (recordId → revision). */
     recordRevisions: Readonly<Record<string, number>>;
@@ -124,6 +134,9 @@ export async function applyManuscriptReplace(
   },
 ) {
   const preview = await previewManuscriptReplace(db, input);
+  if (preview.regexError) {
+    throw new MutationRejectedError([errorIssue("INVALID_CHANGE", "That regular expression was not run. Review the preview and try a simpler pattern.")]);
+  }
   if (!preview.find.trim()) {
     throw new MutationRejectedError([errorIssue("INVALID_CHANGE", "Type something to find.")]);
   }

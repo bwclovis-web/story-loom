@@ -2,9 +2,9 @@ import Link from "next/link";
 import type { ReferenceInfoboxModel } from "@/world/referenceInfobox";
 import { INFOBOX } from "@/ui/labels";
 
-export function ReferenceInfobox({ model }: { model: ReferenceInfoboxModel }) {
+export function ReferenceInfobox({ model, factsOnly = false }: { model: ReferenceInfoboxModel; factsOnly?: boolean }) {
   return (
-    <aside className="panel reference-infobox" aria-labelledby="reference-infobox-heading">
+    <aside className="reference-infobox" aria-labelledby="reference-infobox-heading">
       <h2 id="reference-infobox-heading">{INFOBOX.heading}</h2>
       {model.rows.length ? (
         <dl className="reference-infobox-grid">
@@ -22,7 +22,7 @@ export function ReferenceInfobox({ model }: { model: ReferenceInfoboxModel }) {
           ))}
         </dl>
       ) : null}
-      {model.relationships.length ? (
+      {factsOnly ? null : model.relationships.length ? (
         <section>
           <h3 className="reference-infobox-sub">{INFOBOX.relationships}</h3>
           <ul className="context-list">

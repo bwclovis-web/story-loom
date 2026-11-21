@@ -1,3 +1,4 @@
+import { ProjectPageHeader } from "@/components/library/ProjectPageHeader";
 import { HelpHint } from "@/components/HelpHint";
 import { CHAPTER_IMPORT, NAV } from "@/ui/labels";
 import { ChapterImportClient } from "./ChapterImportClient";
@@ -6,8 +7,7 @@ export default async function ImportChaptersPage({ params }: { params: Promise<{
   const { projectId } = await params;
   return (
     <>
-      <h1>{NAV.importChapters}</h1>
-      <p className="page-lead">{CHAPTER_IMPORT.lead}</p>
+      <ProjectPageHeader projectId={projectId} title={NAV.importChapters} description={CHAPTER_IMPORT.lead} />
       <p className="muted small">
         {CHAPTER_IMPORT.nothingYet} A file that matches an existing chapter (same filename, another version of the same file,
         same title or same text) needs your choice: a new chapter, replace that chapter&apos;s text as a new saved version, or

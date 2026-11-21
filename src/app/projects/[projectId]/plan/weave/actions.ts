@@ -37,6 +37,11 @@ import {
   type WeaveViewKind,
 } from "@/server/services/weaveService";
 import {
+  createSceneFromWeaveBeat,
+  importWeavePresetAsTemplate,
+  instantiateWeavePresetGrid,
+} from "@/server/services/weavePresetService";
+import {
   applyWeaveBuild,
   getWeaveBuildRun,
   saveWeaveBuildDecisions,
@@ -429,6 +434,47 @@ export async function getWeaveBuildRunAction(projectId: string, runId: string) {
   try {
     const run = await getWeaveBuildRun(getDb(), projectId, runId);
     return { ok: true as const, run };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+export async function importWeavePresetTemplateAction(projectId: string, presetId: string) {
+  try {
+    const template = await importWeavePresetAsTemplate(getDb(), projectId, presetId);
+    revalidateWeave(projectId);
+    return { ok: true as const, templateId: template.id };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+export async function instantiateWeavePresetAction(
+  projectId: string,
+  presetId: string,
+  input: { viewKind: string; title?: string },
+) {
+  try {
+    if (!isWeaveViewKind(input.viewKind)) {
+      return { ok: false as const, issues: [errorIssue("INVALID_REFERENCE", "Unknown Weave view.")] };
+    }
+    const grid = await instantiateWeavePresetGrid(getDb(), projectId, presetId, {
+      viewKind: input.viewKind,
+      title: input.title,
+    });
+    revalidateWeave(projectId, grid.id);
+    return { ok: true as const, gridId: grid.id };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+export async function createSceneFromWeaveBeatAction(projectId: string, beatId: string, chapterId: string) {
+  try {
+    const beat = await createSceneFromWeaveBeat(getDb(), projectId, beatId, { chapterId });
+    revalidateWeave(projectId, beat.gridId);
+    revalidatePath(`/projects/${projectId}/write`);
+    return { ok: true as const, beat };
   } catch (error) {
     return failure(error);
   }

@@ -7,6 +7,7 @@ import {
 } from "./compileProfileService";
 import { buildManuscriptExportModel, type ManuscriptExportModel } from "./manuscriptExportModel";
 import { listExportMarginCommentsForRecords, listSynopsesForRecords } from "./manuscriptAnnotationService";
+import { filterCompileTree } from "@/writing/compileLayout";
 import type { DbOrTx } from "../db";
 
 export interface ManuscriptExportBuildOptions {
@@ -48,14 +49,25 @@ export async function buildManuscriptExportContext(
     buildManuscriptExportModel(db, projectId, options, now),
     getCompileProfile(db, projectId),
   ]);
-  const recordIds = recordIdsFromModel(model);
+  const excluded = new Set(compile.excludedRecordIds);
+  const filtered = filterCompileTree(
+    model.chapters.map((chapter) => ({
+      ...chapter,
+      id: chapter.record.id,
+      scenes: chapter.scenes.map((scene) => ({ ...scene, id: scene.record.id })),
+    })),
+    model.unplacedScenes.map((scene) => ({ ...scene, id: scene.record.id })),
+    excluded,
+  );
+  const visible = { ...model, chapters: filtered.chapters, unplacedScenes: filtered.unplaced };
+  const recordIds = recordIdsFromModel(visible);
   const [synopses, comments] = await Promise.all([
     compile.includeSynopses ? listSynopsesForRecords(db, projectId, recordIds) : Promise.resolve(new Map<string, string>()),
     compile.includeMarginComments
       ? listExportMarginCommentsForRecords(db, projectId, recordIds)
       : Promise.resolve(new Map<string, ExportMarginComment[]>()),
   ]);
-  return { model, compile, synopses, comments };
+  return { model: visible, compile, synopses, comments };
 }
 
 export function chapterHeadingAlign(style: ChapterHeadingStyle): "center" | "left" {
@@ -75,6 +87,7 @@ export function matterSections(compile: CompileProfileView): { key: string; body
   if (compile.dedicationBody.trim()) sections.push({ key: "dedication", body: compile.dedicationBody });
   if (compile.copyrightPageBody.trim()) sections.push({ key: "copyright", body: compile.copyrightPageBody });
   if (compile.acknowledgementsBody.trim()) sections.push({ key: "acknowledgements", body: compile.acknowledgementsBody });
+  if (compile.backMatterBody.trim()) sections.push({ key: "back-matter", body: compile.backMatterBody });
   return sections;
 }
 

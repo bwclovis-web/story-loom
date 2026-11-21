@@ -12,6 +12,7 @@ import {
 import type { ContentClass } from "@/domain/recordTypes";
 import type { AuthorityStatus } from "@/domain/statuses";
 import { cn } from "@/ui/cn";
+import { SERIES } from "@/ui/labels";
 import { formatWordCount } from "@/writing/wordCount";
 
 function recordHref(projectId: string, recordId: string) {
@@ -66,6 +67,7 @@ export function WorldRecordTableRow({
   authorityStatus,
   currentRevision,
   isProtected,
+  homeBook,
 }: {
   projectId: string;
   recordId: string;
@@ -74,11 +76,19 @@ export function WorldRecordTableRow({
   authorityStatus: AuthorityStatus;
   currentRevision: number;
   isProtected: boolean;
+  /** Series reference opened from a sibling book. */
+  homeBook?: { label: string; editHref: string } | null;
 }) {
   return (
     <tr>
       <td>
         <Link href={recordHref(projectId, recordId)}>{title}</Link>
+        {homeBook ? (
+          <p className="small">
+            <span className="muted">{SERIES.homeBadge(homeBook.label)}</span>{" "}
+            <Link href={homeBook.editHref}>{SERIES.editIn(homeBook.label)}</Link>
+          </p>
+        ) : null}
       </td>
       {typeLabel !== undefined ? <td className="small">{typeLabel}</td> : null}
       <td>

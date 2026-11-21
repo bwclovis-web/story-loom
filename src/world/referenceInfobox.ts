@@ -5,8 +5,11 @@ import type { EstablishedFactView } from "@/server/services/establishedFactServi
 import type { PlaceRelationView } from "@/server/services/placeRelationService";
 import type { RecordRelationView } from "@/server/services/recordRelationService";
 import type { RecordPlacement } from "@/world/inspectorModel";
+import type { KindTemplateField } from "@/world/kindTemplates";
+import { INFOBOX } from "@/ui/labels";
 import {
   formatWorldKindFieldValue,
+  worldbuildingCustomKind,
   worldbuildingKindFromFields,
   WORLD_KIND_FIELD_SPECS,
 } from "@/world/worldKinds";
@@ -42,6 +45,8 @@ export interface BuildReferenceInfoboxInput {
   placeRelations: { outgoing: PlaceRelationView[]; incoming: PlaceRelationView[] } | null;
   recordRelations: { outgoing: RecordRelationView[]; incoming: RecordRelationView[] } | null;
   placements: readonly RecordPlacement[];
+  /** Custom kind field labels for this book. Built-in kinds ignore this. */
+  kindTemplates?: readonly { kind: string; fields: readonly KindTemplateField[] }[];
 }
 
 const OPEN_QUESTIONS = "open questions";
@@ -57,7 +62,7 @@ function nameField(fields: Record<string, unknown>): string | null {
   return typeof name === "string" && name.trim() ? name.trim() : null;
 }
 
-function openQuestionsExcerpt(body: string): string | null {
+export function openQuestionsExcerpt(body: string): string | null {
   const section = listSections(body).find((item) => {
     const { title } = splitStatusTag(item.title);
     return title.trim().toLowerCase() === OPEN_QUESTIONS;
@@ -104,15 +109,26 @@ function parentPlaceRow(
   return text ? { label: "Parent place", value: text } : null;
 }
 
-function kindFieldRows(fields: Record<string, unknown>): InfoboxRow[] {
-  const kind = worldbuildingKindFromFields(fields);
-  if (!kind) return [];
-  const specs = WORLD_KIND_FIELD_SPECS[kind];
+function rowsForSpecs(
+  fields: Record<string, unknown>,
+  specs: readonly { key: string; label: string }[],
+): InfoboxRow[] {
   return specs.flatMap((spec) => {
     if (spec.key === "parentPlace") return [];
     const value = formatWorldKindFieldValue(fields[spec.key] as never);
     return value ? [{ label: spec.label, value }] : [];
   });
+}
+
+function kindFieldRows(
+  fields: Record<string, unknown>,
+  templates: readonly { kind: string; fields: readonly KindTemplateField[] }[] | undefined,
+): InfoboxRow[] {
+  const kind = worldbuildingKindFromFields(fields);
+  if (kind) return rowsForSpecs(fields, WORLD_KIND_FIELD_SPECS[kind]);
+  const custom = worldbuildingCustomKind(fields);
+  const template = custom ? templates?.find((item) => item.kind === custom) : undefined;
+  return template ? rowsForSpecs(fields, template.fields) : [];
 }
 
 function relationRows(
@@ -187,7 +203,12 @@ export function buildReferenceInfobox(input: BuildReferenceInfoboxInput): Refere
     rows.push({ label: "Aliases", value: aliases.join(", ") });
   }
 
-  rows.push(...kindFieldRows(fields));
+  const role = typeof fields.role === "string" ? fields.role.trim() : "";
+  if (role) rows.push({ label: INFOBOX.role, value: role });
+  const summary = typeof fields.summary === "string" ? fields.summary.trim() : "";
+  if (summary) rows.push({ label: INFOBOX.summary, value: summary });
+
+  rows.push(...kindFieldRows(fields, input.kindTemplates));
 
   const parent = parentPlaceRow(projectId, record.id, fields, input.placeRelations);
   if (parent) rows.push(parent);

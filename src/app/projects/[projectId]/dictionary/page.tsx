@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { ProjectPageHeader } from "@/components/library/ProjectPageHeader";
 import { HelpHint } from "@/components/HelpHint";
 import { getDb } from "@/server/db";
 import { listDictionary } from "@/server/services/dictionaryService";
@@ -18,7 +19,7 @@ export default async function DictionaryPage({ params }: { params: Promise<{ pro
 
   return (
     <>
-      <h1>{DICTIONARY.heading}</h1>
+      <ProjectPageHeader projectId={projectId} title={DICTIONARY.heading} />
       <p className="muted small">{DICTIONARY.intro}</p>
       <HelpHint anchor="dictionary" topic="the dictionary">
         Project words apply to this book only. Workspace words apply to every project in {project.workspace.name}.

@@ -12,6 +12,7 @@ import {
   type RecordType,
 } from "@/domain/recordTypes";
 import type { AuthorityStatus, MutationScope, SourceKind } from "@/domain/statuses";
+import { mergeManuscriptBodies, splitManuscriptBody } from "@/writing/manuscriptStructure";
 import type { Db, DbOrTx, Tx } from "../db";
 import { writeAudit } from "./auditService";
 import { MutationRejectedError, NotFoundError, StaleRevisionError } from "./errors";
@@ -21,6 +22,7 @@ import {
   markEvidenceNeedsRecheckForSourceInTx,
 } from "./establishedFactService";
 import {
+  ANNOTATION_KIND,
   deleteAnnotationsForRecordsInTx,
   markAnnotationNeedsRecheckForSourceInTx,
 } from "./manuscriptAnnotationService";
@@ -907,4 +909,380 @@ export async function deleteRecordRowsInTx(tx: Tx, recordIds: readonly string[])
   await tx.proofreadRun.deleteMany({ where: { recordId: ids } });
   await tx.revision.deleteMany({ where: { recordId: ids } });
   await tx.record.deleteMany({ where: { id: ids } });
+}
+
+/*
+ * Split, merge, and convert. Text changes go through applyMutationsInTx.
+ * Changing a chapter into a scene, or a scene into a chapter, updates type
+ * here and then moveInBookInTx. Neither writes a revision when the text is
+ * unchanged. Scene notes are reparented here before a merged scene is trashed.
+ */
+
+const STRUCTURE_ACTOR = "author";
+
+function structureContext(projectId: string, unlockIds: readonly string[]): MutationContext {
+  return {
+    projectId,
+    actor: STRUCTURE_ACTOR,
+    source: { kind: "ui", conversationLabel: "manuscript structure" },
+    scope: "manuscript",
+    protectedOverrides: new Set(unlockIds),
+  };
+}
+
+function rejectStructure(
+  code: "PROTECTED_RECORD" | "STALE_REVISION" | "INVALID_CHANGE" | "INVALID_PARENT",
+  message: string,
+  recordId?: string,
+): never {
+  throw new MutationRejectedError([errorIssue(code, message, recordId ? { recordId } : {})]);
+}
+
+function requireStructureUnlock(isProtected: boolean, unlock: boolean, title: string, recordId: string) {
+  if (isProtected && !unlock) {
+    rejectStructure("PROTECTED_RECORD", `"${title}" is protected. Confirm that you are intentionally changing it.`, recordId);
+  }
+}
+
+async function setManuscriptTypeInTx(tx: Tx, recordId: string, type: "manuscript_chapter" | "manuscript_scene") {
+  await tx.record.update({ where: { id: recordId }, data: { type } });
+}
+
+async function reparentSceneNotesInTx(tx: Tx, projectId: string, fromRecordId: string, toRecordId: string) {
+  await tx.record.updateMany({
+    where: { projectId, parentRecordId: fromRecordId, type: "scene_note", trashedAt: null },
+    data: { parentRecordId: toRecordId },
+  });
+}
+
+async function placeAfterSource(tx: Tx, projectId: string, sourceId: string, createdId: string, parentRecordId: string | null) {
+  const created = await tx.record.findFirst({ where: { id: createdId, projectId, trashedAt: null } });
+  if (!created) throw new NotFoundError(`Record ${createdId} not found`);
+  const siblings = await tx.record.findMany({
+    where: { projectId, type: created.type, parentRecordId, trashedAt: null, draftId: created.draftId },
+    select: { id: true, position: true, createdAt: true },
+  });
+  const order = siblings
+    .map((row) => ({ id: row.id, position: row.position, createdAt: row.createdAt.toISOString() }))
+    .sort(compareBookOrder)
+    .map((row) => row.id)
+    .filter((id) => id !== createdId);
+  const sourceIndex = order.indexOf(sourceId);
+  await moveInBookInTx(tx, {
+    projectId,
+    recordId: createdId,
+    parentRecordId,
+    index: sourceIndex < 0 ? order.length : sourceIndex + 1,
+    actor: STRUCTURE_ACTOR,
+  });
+}
+
+async function copySplitAttachments(tx: Tx, projectId: string, fromId: string, toId: string, splitAt: number, tailOffset: number) {
+  const links = await tx.recordLink.findMany({ where: { projectId, fromRecordId: fromId } });
+  for (const link of links) {
+    await tx.recordLink.create({
+      data: { id: newId("lnk"), projectId, fromRecordId: toId, toRecordId: link.toRecordId },
+    });
+  }
+  const events = await tx.storyEventScene.findMany({ where: { projectId, manuscriptRecordId: fromId } });
+  for (const event of events) {
+    await tx.storyEventScene.create({
+      data: { id: newId("evs"), projectId, eventId: event.eventId, manuscriptRecordId: toId },
+    });
+  }
+  const comments = await tx.manuscriptAnnotation.findMany({
+    where: { projectId, recordId: fromId, kind: ANNOTATION_KIND.comment },
+  });
+  for (const comment of comments) {
+    const start = comment.passageStart ?? 0;
+    if (start < splitAt) continue;
+    await tx.manuscriptAnnotation.update({
+      where: { id: comment.id },
+      data: {
+        recordId: toId,
+        passageStart: Math.max(0, start - tailOffset),
+        passageEnd: Math.max(0, (comment.passageEnd ?? start) - tailOffset),
+        needsRecheck: true,
+      },
+    });
+  }
+}
+
+export async function splitManuscriptRecord(
+  db: Db,
+  input: {
+    projectId: string;
+    recordId: string;
+    expectedRevision: number;
+    splitAt: number;
+    newTitle: string;
+    unlockProtected: boolean;
+  },
+) {
+  const title = input.newTitle.trim();
+  if (!title) rejectStructure("INVALID_CHANGE", "The new part needs a title.", input.recordId);
+  return db.$transaction(async (tx) => {
+    const record = await tx.record.findFirst({ where: { id: input.recordId, projectId: input.projectId, trashedAt: null } });
+    if (!record) throw new NotFoundError(`Record ${input.recordId} not found`);
+    if (record.type !== "manuscript_chapter" && record.type !== "manuscript_scene") {
+      rejectStructure("INVALID_CHANGE", "Only a chapter or a scene can be split.", record.id);
+    }
+    if (record.currentRevision !== input.expectedRevision) {
+      rejectStructure("STALE_REVISION", "This chapter or scene was saved elsewhere. Reload it, then split again.", record.id);
+    }
+    requireStructureUnlock(record.protected, input.unlockProtected, record.title, record.id);
+    const parts = splitManuscriptBody(record.body, input.splitAt);
+    if (!parts) rejectStructure("INVALID_CHANGE", "Put the cursor in the middle of the text, with words on both sides.", record.id);
+    const createdId = newId("rec");
+    const isScene = record.type === "manuscript_scene";
+    const parentRecordId = isScene ? record.parentRecordId : null;
+    const batch = await applyMutationsInTx(
+      tx,
+      structureContext(input.projectId, [record.id]),
+      [
+        { kind: "update_record", recordId: record.id, expectedRevision: record.currentRevision, changes: { body: parts.head } },
+        {
+          kind: "create_record",
+          recordId: createdId,
+          type: isScene ? "manuscript_scene" : "manuscript_chapter",
+          title,
+          body: parts.tail,
+          fields: {},
+          authorityStatus: "draft",
+          parentRecordId,
+          draftId: record.draftId,
+        },
+      ],
+      { action: "record.split", summary: `Split "${record.title}" into "${title}"` },
+    );
+    await placeAfterSource(tx, input.projectId, record.id, createdId, parentRecordId);
+    await copySplitAttachments(tx, input.projectId, record.id, createdId, input.splitAt, parts.tailOffset);
+    const updated = batch.outcomes.find((outcome) => outcome.recordId === record.id);
+    return { newRecordId: createdId, head: parts.head, revision: updated?.newRevision ?? record.currentRevision + 1 };
+  });
+}
+
+async function moveMergedChildren(tx: Tx, projectId: string, fromId: string, toId: string, passageShift: number) {
+  await reparentSceneNotesInTx(tx, projectId, fromId, toId);
+
+  const locations = await tx.sceneLocation.findMany({ where: { projectId, manuscriptRecordId: fromId } });
+  for (const row of locations) {
+    const clash = await tx.sceneLocation.findUnique({
+      where: { manuscriptRecordId_locationRecordId: { manuscriptRecordId: toId, locationRecordId: row.locationRecordId } },
+    });
+    if (clash) {
+      if (row.isPrimary && !clash.isPrimary) {
+        await tx.sceneLocation.update({ where: { id: clash.id }, data: { isPrimary: true, revision: { increment: 1 } } });
+      }
+      await tx.sceneLocation.delete({ where: { id: row.id } });
+      continue;
+    }
+    const keeperPrimary = await tx.sceneLocation.findFirst({
+      where: { projectId, manuscriptRecordId: toId, isPrimary: true },
+      select: { id: true },
+    });
+    await tx.sceneLocation.update({
+      where: { id: row.id },
+      data: { manuscriptRecordId: toId, isPrimary: row.isPrimary && !keeperPrimary, revision: { increment: 1 } },
+    });
+  }
+
+  const links = await tx.recordLink.findMany({ where: { projectId, fromRecordId: fromId } });
+  for (const link of links) {
+    const clash = await tx.recordLink.findUnique({
+      where: { fromRecordId_toRecordId: { fromRecordId: toId, toRecordId: link.toRecordId } },
+    });
+    if (clash) await tx.recordLink.delete({ where: { id: link.id } });
+    else await tx.recordLink.update({ where: { id: link.id }, data: { fromRecordId: toId } });
+  }
+
+  const events = await tx.storyEventScene.findMany({ where: { projectId, manuscriptRecordId: fromId } });
+  for (const event of events) {
+    const clash = await tx.storyEventScene.findUnique({
+      where: { eventId_manuscriptRecordId: { eventId: event.eventId, manuscriptRecordId: toId } },
+    });
+    if (clash) await tx.storyEventScene.delete({ where: { id: event.id } });
+    else await tx.storyEventScene.update({ where: { id: event.id }, data: { manuscriptRecordId: toId } });
+  }
+
+  await tx.weaveBeat.updateMany({ where: { projectId, manuscriptRecordId: fromId }, data: { manuscriptRecordId: toId } });
+
+  const notes = await tx.manuscriptAnnotation.findMany({ where: { projectId, recordId: fromId } });
+  const keptSynopsis = await tx.manuscriptAnnotation.findFirst({
+    where: { projectId, recordId: toId, kind: ANNOTATION_KIND.synopsis },
+    select: { id: true },
+  });
+  for (const note of notes) {
+    if (note.kind === ANNOTATION_KIND.synopsis) {
+      if (keptSynopsis) await tx.manuscriptAnnotation.delete({ where: { id: note.id } });
+      else await tx.manuscriptAnnotation.update({ where: { id: note.id }, data: { recordId: toId } });
+      continue;
+    }
+    const start = note.passageStart ?? 0;
+    const end = note.passageEnd ?? start;
+    await tx.manuscriptAnnotation.update({
+      where: { id: note.id },
+      data: {
+        recordId: toId,
+        passageStart: start + passageShift,
+        passageEnd: end + passageShift,
+        needsRecheck: true,
+      },
+    });
+  }
+}
+
+export async function mergeManuscriptScenes(
+  db: Db,
+  input: {
+    projectId: string;
+    keepRecordId: string;
+    dropRecordId: string;
+    expectedKeepRevision: number;
+    expectedDropRevision: number;
+    unlockProtected: boolean;
+  },
+) {
+  if (input.keepRecordId === input.dropRecordId) rejectStructure("INVALID_CHANGE", "Choose two different scenes to merge.");
+  return db.$transaction(async (tx) => {
+    const keep = await tx.record.findFirst({ where: { id: input.keepRecordId, projectId: input.projectId, trashedAt: null } });
+    const drop = await tx.record.findFirst({ where: { id: input.dropRecordId, projectId: input.projectId, trashedAt: null } });
+    if (!keep) throw new NotFoundError(`Record ${input.keepRecordId} not found`);
+    if (!drop) throw new NotFoundError(`Record ${input.dropRecordId} not found`);
+    if (keep.type !== "manuscript_scene" || drop.type !== "manuscript_scene") {
+      rejectStructure("INVALID_CHANGE", "Only two scenes can be merged.", keep.id);
+    }
+    if (keep.parentRecordId !== drop.parentRecordId || (keep.draftId ?? null) !== (drop.draftId ?? null)) {
+      rejectStructure("INVALID_PARENT", "Scenes can be merged only when they are in the same chapter and the same draft.", keep.id);
+    }
+    if (keep.currentRevision !== input.expectedKeepRevision || drop.currentRevision !== input.expectedDropRevision) {
+      rejectStructure("STALE_REVISION", "One of these scenes was saved elsewhere. Reload, then merge again.", keep.id);
+    }
+    requireStructureUnlock(keep.protected, input.unlockProtected, keep.title, keep.id);
+    requireStructureUnlock(drop.protected, input.unlockProtected, drop.title, drop.id);
+    const extras = await tx.record.count({
+      where: { projectId: input.projectId, parentRecordId: drop.id, trashedAt: null, NOT: { type: "scene_note" } },
+    });
+    if (extras > 0) rejectStructure("INVALID_CHANGE", "Move anything inside this scene out before merging it.", drop.id);
+    const merged = mergeManuscriptBodies(keep.body, drop.body);
+    if (merged.body !== keep.body) {
+      await applyMutationsInTx(
+        tx,
+        structureContext(input.projectId, [keep.id]),
+        [{ kind: "update_record", recordId: keep.id, expectedRevision: keep.currentRevision, changes: { body: merged.body } }],
+        { action: "record.merge", summary: `Merged "${drop.title}" into "${keep.title}"` },
+      );
+    } else {
+      await writeAudit(tx, {
+        projectId: input.projectId,
+        action: "record.merge",
+        actor: STRUCTURE_ACTOR,
+        summary: `Merged empty scene "${drop.title}" into "${keep.title}"`,
+        details: { keepRecordId: keep.id, dropRecordId: drop.id },
+      });
+    }
+    await moveMergedChildren(tx, input.projectId, drop.id, keep.id, merged.dropOffset);
+    await trashRecordInTx(tx, { projectId: input.projectId, recordId: drop.id, actor: STRUCTURE_ACTOR, unlockProtected: true });
+    return { keepRecordId: keep.id, body: merged.body };
+  });
+}
+
+export async function convertChapterScene(
+  db: Db,
+  input: {
+    projectId: string;
+    recordId: string;
+    to: "chapter" | "scene";
+    parentRecordId?: string | null;
+    unlockProtected: boolean;
+  },
+) {
+  return db.$transaction(async (tx) => {
+    const record = await tx.record.findFirst({ where: { id: input.recordId, projectId: input.projectId, trashedAt: null } });
+    if (!record) throw new NotFoundError(`Record ${input.recordId} not found`);
+    requireStructureUnlock(record.protected, input.unlockProtected, record.title, record.id);
+    const revision = record.currentRevision;
+
+    if (input.to === "chapter") {
+      if (record.type !== "manuscript_scene") rejectStructure("INVALID_CHANGE", "That record is already a chapter.", record.id);
+      const formerParent = record.parentRecordId;
+      await setManuscriptTypeInTx(tx, record.id, "manuscript_chapter");
+      const chapters = await tx.record.findMany({
+        where: {
+          projectId: input.projectId,
+          type: "manuscript_chapter",
+          parentRecordId: null,
+          trashedAt: null,
+          draftId: record.draftId,
+        },
+        select: { id: true, position: true, createdAt: true },
+      });
+      const order = chapters
+        .map((row) => ({ id: row.id, position: row.position, createdAt: row.createdAt.toISOString() }))
+        .sort(compareBookOrder)
+        .map((row) => row.id)
+        .filter((id) => id !== record.id);
+      const parentIndex = formerParent ? order.indexOf(formerParent) : -1;
+      await moveInBookInTx(tx, {
+        projectId: input.projectId,
+        recordId: record.id,
+        parentRecordId: null,
+        index: parentIndex < 0 ? order.length : parentIndex + 1,
+        actor: STRUCTURE_ACTOR,
+      });
+      await writeAudit(tx, {
+        projectId: input.projectId,
+        action: "record.convert",
+        actor: STRUCTURE_ACTOR,
+        summary: `Turned scene "${record.title}" into a chapter`,
+        details: { recordId: record.id, from: "manuscript_scene", to: "manuscript_chapter" },
+      });
+      return { recordId: record.id, type: "manuscript_chapter" as const, revision };
+    }
+
+    if (record.type !== "manuscript_chapter") rejectStructure("INVALID_CHANGE", "That record is already a scene.", record.id);
+    const parentId = input.parentRecordId ?? "";
+    if (!parentId || parentId === record.id) rejectStructure("INVALID_PARENT", "Choose a different chapter to hold this scene.", record.id);
+    const childScenes = await tx.record.count({
+      where: { projectId: input.projectId, parentRecordId: record.id, type: "manuscript_scene", trashedAt: null },
+    });
+    if (childScenes > 0) {
+      rejectStructure("INVALID_PARENT", "Move this chapter's scenes into another chapter before turning it into a scene.", record.id);
+    }
+    const parent = await tx.record.findFirst({
+      where: { id: parentId, projectId: input.projectId, trashedAt: null },
+      select: { id: true, type: true, title: true, draftId: true },
+    });
+    if (!parent || parent.type !== "manuscript_chapter") {
+      rejectStructure("INVALID_PARENT", "A scene can only go inside a chapter of this project.", record.id);
+    }
+    if ((parent.draftId ?? null) !== (record.draftId ?? null)) {
+      rejectStructure("INVALID_PARENT", "A scene can only go inside a chapter of the same draft.", record.id);
+    }
+    await setManuscriptTypeInTx(tx, record.id, "manuscript_scene");
+    const siblings = await tx.record.count({
+      where: {
+        projectId: input.projectId,
+        type: "manuscript_scene",
+        parentRecordId: parent.id,
+        trashedAt: null,
+        draftId: record.draftId,
+      },
+    });
+    await moveInBookInTx(tx, {
+      projectId: input.projectId,
+      recordId: record.id,
+      parentRecordId: parent.id,
+      index: siblings,
+      actor: STRUCTURE_ACTOR,
+    });
+    await writeAudit(tx, {
+      projectId: input.projectId,
+      action: "record.convert",
+      actor: STRUCTURE_ACTOR,
+      summary: `Turned chapter "${record.title}" into a scene in "${parent.title}"`,
+      details: { recordId: record.id, from: "manuscript_chapter", to: "manuscript_scene", parentRecordId: parent.id },
+    });
+    return { recordId: record.id, type: "manuscript_scene" as const, revision };
+  });
 }

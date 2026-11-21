@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useState, useTransition, type KeyboardEvent } from "react";
 import { IssueList } from "@/components/IssueList";
+import { TimelineBoard } from "@/components/world/TimelineBoard";
 import { ContextRail, ContextRailToggle, useContextRail } from "@/components/shell/ContextRail";
 import { CloseIcon } from "@/components/shell/icons";
 import { IconButton } from "@/components/ui/IconButton";
@@ -116,6 +117,9 @@ export function EventTimeline({ projectId, timeline }: { projectId: string; time
           }
         />
         </details>
+        {timeline.events.length > 0 ? (
+          <TimelineBoard board={timeline.board} selectedId={selected?.id ?? null} onSelect={openEvent} />
+        ) : null}
         {timeline.events.length === 0 ? (
           <p className="muted">{WORLD.noStoryEvents}</p>
         ) : (

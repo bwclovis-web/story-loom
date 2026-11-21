@@ -1,5 +1,7 @@
 import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
+import { ProjectPageHeader } from "@/components/library/ProjectPageHeader";
+import { SeriesSharedRecord } from "@/components/world/SeriesSharedRecord";
 import { WritingProgressStrip } from "@/components/writing/WritingProgressStrip";
 import { ContentClassBadge, ProtectionBadge, RevisionBadge, StatusBadge } from "@/components/Badges";
 import type { RecordView } from "@/domain/records";
@@ -33,7 +35,10 @@ import {
   listRevisions,
   type RevisionWithSource,
 } from "@/server/services/recordService";
+import { listProjectCoverHashes } from "@/server/services/coverService";
 import { findProject } from "@/server/services/projectService";
+import { getSeriesSharedRecord } from "@/server/services/seriesBibleService";
+import { listWorldKindTemplates } from "@/server/services/worldKindTemplateService";
 import { listOpenReviewItemsForRecord } from "@/server/services/reviewService";
 import {
   listAttachableRewriteSources,
@@ -49,7 +54,8 @@ import { listMentionedBy } from "@/server/services/mentionedByService";
 import { buildWritingProgress } from "@/server/services/writingProgressService";
 import { getSynopsis, listMarginComments } from "@/server/services/manuscriptAnnotationService";
 import { listWeaveBeatsForManuscript } from "@/server/services/weaveService";
-import { RECORD, WRITE, XREF } from "@/ui/labels";
+import { manuscriptEyebrow } from "@/ui/library";
+import { RECORD, SHELL, WRITE, XREF } from "@/ui/labels";
 import { buildManuscriptTree, manuscriptIdsInBookOrder } from "@/ui/manuscriptTree";
 import { buildReferenceInfobox } from "@/world/referenceInfobox";
 import { crossRefsFor, type RecordCrossRefs } from "@/writing/crossRefs";
@@ -73,10 +79,29 @@ export default async function RecordPage({
   const query = await searchParams;
   const db = getDb();
 
-  const record = await getRecord(db, projectId, recordId).catch((e) => {
-    if (e instanceof NotFoundError) notFound();
+  const owned = await getRecord(db, projectId, recordId).catch((e) => {
+    if (e instanceof NotFoundError) return null;
     throw e;
   });
+  if (!owned) {
+    const shared = await getSeriesSharedRecord(db, projectId, recordId);
+    if (!shared) notFound();
+    const kindTemplates = await listWorldKindTemplates(db, shared.home.projectId);
+    return (
+      <>
+        <ProjectPageHeader
+          projectId={projectId}
+          title={shared.record.title}
+          crumbs={[
+            { href: `/projects/${encodeURIComponent(projectId)}/world`, label: SHELL.world },
+            { label: shared.record.title, current: true },
+          ]}
+        />
+        <SeriesSharedRecord record={shared.record} home={shared.home} kindTemplates={kindTemplates} />
+      </>
+    );
+  }
+  const record = owned;
   const manuscript = isManuscriptType(record.type);
   const drafts = await listManuscriptDrafts(db, projectId);
   const recordDraftId = (await db.record.findFirst({
@@ -363,6 +388,10 @@ export default async function RecordPage({
       ];
     }),
   );
+  const [kindTemplates, scopeRow] = await Promise.all([
+    listWorldKindTemplates(db, projectId),
+    db.record.findFirst({ where: { id: record.id, projectId }, select: { worldScope: true } }),
+  ]);
   const infobox = buildReferenceInfobox({
     projectId,
     record,
@@ -372,15 +401,23 @@ export default async function RecordPage({
     placeRelations,
     recordRelations: showRecordRelations ? recordRelations : null,
     placements,
+    kindTemplates,
   });
 
   const codexEntries = await listCodexEntries(db, projectId);
+  const coverHash = (await listProjectCoverHashes(db, [projectId])).get(projectId) ?? null;
+  const recordBase = `/projects/${encodeURIComponent(projectId)}`;
 
   return (
     <ReferenceView
       key={record.id}
       codexEntries={codexEntries}
       projectId={projectId}
+      header={{
+        eyebrow: manuscriptEyebrow(project?.seriesName, project?.workspace.name ?? ""),
+        coverTitle: project?.title ?? record.title,
+        coverSrc: coverHash ? `${recordBase}/cover?v=${coverHash}` : null,
+      }}
       record={record}
       editing={query.edit === "1"}
       query={query}
@@ -422,6 +459,8 @@ export default async function RecordPage({
       editor={{ spellingLanguage, spellChecker, dictionaryWords, proofread }}
       mentionedBy={mentionedBy}
       infobox={infobox}
+      kindTemplates={kindTemplates}
+      seriesShared={scopeRow?.worldScope === "series"}
     />
   );
 }

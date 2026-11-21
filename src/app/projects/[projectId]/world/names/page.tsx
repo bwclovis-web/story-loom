@@ -17,6 +17,7 @@ export default async function WorldNamesPage({ params }: { params: Promise<{ pro
   return (
     <>
       <WorldToolHeader
+        projectId={projectId}
         items={worldSurfaceCrumbs(projectId, "names")}
         title={WORLD.nameGenerator}
         lead={WORLD.nameGeneratorPageLead}

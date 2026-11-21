@@ -15,7 +15,8 @@ import { submitWithoutReset } from "@/components/submitWithoutReset";
 import type { Issue } from "@/domain/issues";
 import { RECORD_TYPE_LABELS, type RecordType } from "@/domain/recordTypes";
 import type { AuthorityStatus } from "@/domain/statuses";
-import { ASSISTANT, DRAFT, RECORD, WEAVE, WRITE } from "@/ui/labels";
+import { ASSISTANT, DRAFT, RECORD, SERIES, WEAVE, WRITE } from "@/ui/labels";
+import { seriesBookLabel, seriesRecordHref } from "@/world/seriesHome";
 import {
   attachRewriteSourceAction,
   detachRewriteSourceAction,
@@ -723,9 +724,13 @@ function References({
               <h3 id={`${idPrefix}-preview`}>{preview.title}</h3>
               <p className="row small muted">
                 {preview.typeLabel} <StatusBadge status={preview.authorityStatus} /> revision {preview.revision}
+                {preview.seriesHome ? ` · ${SERIES.homeBadge(seriesBookLabel(preview.seriesHome))}` : ""}
               </p>
+              {preview.seriesHome ? <p className="small">{SERIES.contextNote}</p> : null}
               <div className="row reference-preview-actions">
-                {pinnedIds.has(preview.id) ? (
+                {preview.seriesHome ? (
+                  <Link href={seriesRecordHref(preview.seriesHome.projectId, preview.id)}>{SERIES.editIn(seriesBookLabel(preview.seriesHome))}</Link>
+                ) : pinnedIds.has(preview.id) ? (
                   <Button type="button" disabled={pending} onClick={() => unpinRecord(preview.id)} variant="secondary" size="sm">
                     {WRITE.unpinReference}
                   </Button>
@@ -734,7 +739,7 @@ function References({
                     {WRITE.pinReference}
                   </Button>
                 )}
-                {linkedIds.has(preview.id) ? (
+                {!preview.seriesHome && linkedIds.has(preview.id) ? (
                   <Button
                     type="button"
                    
@@ -743,7 +748,7 @@ function References({
                    variant="secondary" size="sm">
                     {WRITE.unlinkFromScene}
                   </Button>
-                ) : (
+                ) : preview.seriesHome ? null : (
                   <Button
                     type="button"
                    
@@ -959,6 +964,7 @@ function References({
                           </span>
                           <span className="small muted">
                             {RECORD_TYPE_LABELS[hit.type]} · {matchLabel(hit.matchedIn)}
+                            {hit.seriesHome ? ` · ${SERIES.homeBadge(seriesBookLabel(hit.seriesHome))}` : ""}
                             {hit.sectionTitle ? `: ${hit.sectionTitle}` : ""}
                             {linkedIds.has(hit.id) ? ` · ${WRITE.linkToScene}` : ""}
                             {pinnedIds.has(hit.id) ? ` · ${WRITE.pinReference}` : ""}

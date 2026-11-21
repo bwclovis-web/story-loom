@@ -21,6 +21,7 @@ import {
   type PdfImage,
   type RenderContext,
 } from "@/server/pdf/pdfRender";
+import { marginPoints, spacingMetrics, TRIM_SIZES } from "@/writing/compileLayout";
 import { parseMarkdown } from "@/writing/markdownParse";
 import type { DbOrTx } from "../db";
 import { NotFoundError } from "./errors";
@@ -54,6 +55,14 @@ export interface PdfFile {
 }
 
 const EMPTY_IMAGES: ReadonlyMap<string, PdfImage> = new Map();
+
+/** Puts the first letter on its own larger line. The PDF labels this as a drop cap, not a surveyed layout. */
+function dropCapBody(body: string): string {
+  const match = body.match(/^(\s*)([\p{L}\p{M}])/u);
+  if (!match) return body;
+  const letter = match[2]!;
+  return `# ${letter}\n\n${body.slice(match[0].length)}`;
+}
 
 async function projectTitle(db: DbOrTx, projectId: string): Promise<string> {
   const project = await db.project.findFirst({ where: { id: projectId, ...LIVE_PROJECT }, select: { title: true } });
@@ -218,9 +227,25 @@ export async function buildManuscriptPdf(
   const headingAlign = chapterHeadingAlign(exportCtx.compile.chapterHeadingStyle);
   const sceneGlyph = sceneBreakText(exportCtx.compile);
 
-  const doc = createPdf({ title: project, subject: "Manuscript exported from Story Loom" });
+  const trim = TRIM_SIZES[exportCtx.compile.trimSize];
+  const spacing = spacingMetrics(exportCtx.compile.spacingPreset);
+  const doc = createPdf(
+    { title: project, subject: "Manuscript exported from Story Loom" },
+    {
+      width: trim.width,
+      height: trim.height,
+      margin: marginPoints(exportCtx.compile.marginInches),
+      fontPreset: exportCtx.compile.fontPreset,
+    },
+  );
   const generated = defaultTitleSubtitle(model.generatedAt);
-  const ctx: RenderContext = { images: EMPTY_IMAGES, embedded: 0 };
+  const ctx: RenderContext = {
+    images: EMPTY_IMAGES,
+    embedded: 0,
+    lineGap: spacing.lineGap,
+    paragraphGap: spacing.paragraphGap,
+    novelIndent: exportCtx.compile.firstParagraphNoIndent ? spacing.indent : 0,
+  };
 
   const drawText = (body: string) => {
     const trimmed = body.trim();
@@ -242,8 +267,27 @@ export async function buildManuscriptPdf(
     drawText(body);
   };
 
-  for (const section of matterSections(exportCtx.compile)) {
+  for (const section of matterSections(exportCtx.compile).filter((section) => section.key !== "back-matter")) {
     drawMatterPage(section.body);
+  }
+
+  if (exportCtx.compile.includeToc && model.chapters.length) {
+    doc.addPage();
+    doc.outline.addItem("Contents");
+    doc.font("sansBold").fontSize(18).fillColor(COLORS.text).text("Contents", contentLeft(doc), doc.page.margins.top, {
+      width: contentWidth(doc),
+    });
+    doc.y += 16;
+    for (const chapter of model.chapters) {
+      const name = `chapter-${chapter.record.id}`;
+      doc.fillColor(COLORS.link).text(chapter.record.title, contentLeft(doc), doc.y, {
+        width: contentWidth(doc),
+        underline: true,
+        goTo: name,
+      });
+      doc.moveDown(0.3);
+    }
+    doc.fillColor(COLORS.text);
   }
 
   const drawScenes = (
@@ -260,24 +304,30 @@ export async function buildManuscriptPdf(
     }
   };
 
-  const chapterHeading = (title: string) => {
+  const chapterHeading = (title: string, destination?: string) => {
     doc.addPage();
     doc.outline.addItem(title);
+    ctx.firstParagraphFree = exportCtx.compile.firstParagraphNoIndent;
     doc.y = doc.page.margins.top + 60;
     doc
       .font("sansBold")
       .fontSize(18)
       .fillColor(COLORS.text)
-      .text(title, contentLeft(doc), doc.y, { width: contentWidth(doc), align: headingAlign });
+      .text(title, contentLeft(doc), doc.y, {
+        width: contentWidth(doc),
+        align: headingAlign,
+        destination,
+      });
     doc.y += 28;
   };
 
   let chapters = 0;
   for (const chapter of model.chapters) {
     chapters += 1;
-    chapterHeading(chapter.record.title);
+    chapterHeading(chapter.record.title, `chapter-${chapter.record.id}`);
     drawText(recordExportPrefix(chapter.record.id, exportCtx));
-    drawScenes(chapter.scenes, drawText(chapter.record.body));
+    const body = exportCtx.compile.dropCap ? dropCapBody(chapter.record.body) : chapter.record.body;
+    drawScenes(chapter.scenes, drawText(body));
     drawText(recordExportSuffix(chapter.record.id, exportCtx));
   }
   if (model.unplacedScenes.length) {
@@ -285,7 +335,13 @@ export async function buildManuscriptPdf(
     drawScenes(model.unplacedScenes, false);
   }
 
-  drawFooters(doc, project);
+  const backMatter = matterSections(exportCtx.compile).find((section) => section.key === "back-matter");
+  if (backMatter) drawMatterPage(backMatter.body);
+
+  drawFooters(doc, project, {
+    header: exportCtx.compile.runningHeader,
+    footer: exportCtx.compile.runningFooter,
+  });
   const pageCount = doc.bufferedPageRange().count;
   const bytes = await pdfToBuffer(doc);
   return {

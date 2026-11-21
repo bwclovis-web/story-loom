@@ -17,11 +17,19 @@ export const WRITE_DRAFT_COOKIE = "wordly-write-draft";
  * - missing / empty → checklist open at task 0
  * - `open:N` or legacy `step:N` → checklist open at task N
  * - `paused:N` → Skip for now; Resume restores open at N
- * - `dismissed`, `done`, or a legacy version string → permanent dismiss
+ * - `dismissed:<current version>` → permanent dismiss for this tour
+ * - an earlier `dismissed` or version string → the new tour opens at task 0 once
  */
 export const ONBOARDING_COOKIE = "wordly-onboarding";
-/** Bump when walkthrough tasks change so authors see the new guide once. */
-export const ONBOARDING_VERSION = "storyloom-simple-2026-11";
+/** Bump when walkthrough tasks change so a previous dismissal shows the new guide once. */
+export const ONBOARDING_VERSION = "storyloom-tour-2026-11-21";
+const EARLIER_ONBOARDING = new Set([
+  "dismissed",
+  "done",
+  "storyloom-simple-2026-11",
+  "storyloom-walk-2026-11",
+  "storyloom-2026-11",
+]);
 
 export type WalkthroughState =
   | { kind: "open"; step: number }
@@ -36,14 +44,11 @@ export function parseWalkthroughCookie(raw: string | undefined): WalkthroughStat
   } catch {
     /* keep raw */
   }
-  if (
-    value === "dismissed" ||
-    value === "done" ||
-    value === ONBOARDING_VERSION ||
-    value === "storyloom-walk-2026-11" ||
-    value === "storyloom-2026-11"
-  ) {
+  if (value === `dismissed:${ONBOARDING_VERSION}` || value === ONBOARDING_VERSION) {
     return { kind: "dismissed" };
+  }
+  if (EARLIER_ONBOARDING.has(value) || value.startsWith("dismissed:")) {
+    return { kind: "open", step: 0 };
   }
   const openMatch = /^(?:open|step):(\d+)$/.exec(value);
   if (openMatch) {
@@ -57,7 +62,7 @@ export function parseWalkthroughCookie(raw: string | undefined): WalkthroughStat
 }
 
 export function walkthroughCookieValue(state: WalkthroughState): string {
-  if (state.kind === "dismissed") return "dismissed";
+  if (state.kind === "dismissed") return `dismissed:${ONBOARDING_VERSION}`;
   if (state.kind === "paused") return `paused:${state.step}`;
   return `open:${state.step}`;
 }

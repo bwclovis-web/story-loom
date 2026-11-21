@@ -9,9 +9,9 @@ import {
 import { RECORD_GROUPS, type RecordNavEntry } from "./navigation";
 
 /*
- * World categories are the five World document types. Optional `fields.kind` on
+ * World categories are the World document types. Optional `fields.kind` on
  * Worldbuilding records sub-groups places, magic, and the other outline kinds
- * in navigation without new record types.
+ * in navigation without turning a kind into a document type.
  */
 
 export type WorldType = (typeof RECORD_GROUPS.world)[number];
@@ -19,6 +19,8 @@ export type WorldType = (typeof RECORD_GROUPS.world)[number];
 export const WORLD_CATEGORY_LABELS: Record<WorldType, string> = {
   character_dossier: "Characters",
   worldbuilding: "Worldbuilding",
+  rules_glossary: "Rules & glossary",
+  research_note: "Research notes",
   canon_decision: "Decisions",
   continuity_note: "Continuity notes",
   reference_note: "Reference notes",

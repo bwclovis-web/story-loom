@@ -28,6 +28,13 @@ import {
   type ShapeDraft,
 } from "@/world/mapGeometry";
 import {
+  annotatedMapSvg,
+  distanceFromScale,
+  formatScaleValue,
+  hiddenLayerIdsForPreset,
+  normalizedLength,
+} from "@/world/mapScale";
+import {
   clampMapZoom,
   pushMapTrail,
   readHiddenLayers,
@@ -139,6 +146,8 @@ export function MapCanvas({
   const [view, setView] = useState<MapViewState>({ zoom: 1, x: 0, y: 0 });
   const [trail, setTrail] = useState<MapTrailItem[]>([]);
   const [hiddenLayerIds, setHiddenLayerIds] = useState<string[]>([]);
+  const [measuring, setMeasuring] = useState(false);
+  const [measurePoints, setMeasurePoints] = useState<{ x: number; y: number }[]>([]);
   const [query, setQuery] = useState("");
   const [pendingPlaceId, setPendingPlaceId] = useState("");
   const [pendingMapId, setPendingMapId] = useState("");
@@ -277,6 +286,92 @@ export function MapCanvas({
       writeHiddenLayers(map.id, next);
       return next;
     });
+  };
+
+  const applyLayerPreset = (preset: "all" | "none" | { group: string }) => {
+    const next = hiddenLayerIdsForPreset(map.layers, preset);
+    setHiddenLayerIds(next);
+    writeHiddenLayers(map.id, next);
+  };
+
+  const measureReading =
+    measurePoints.length === 2
+      ? distanceFromScale(
+          normalizedLength(measurePoints, { width: map.imageWidth, height: map.imageHeight }),
+          map.scaleBarLength,
+          map.scaleLabel,
+        )
+      : null;
+  const routeReading =
+    selected && selected.kind === "route" && selected.points.length >= 2
+      ? distanceFromScale(
+          normalizedLength(selected.points, { width: map.imageWidth, height: map.imageHeight }),
+          map.scaleBarLength,
+          map.scaleLabel,
+        )
+      : null;
+
+  const exportAnnotatedSvg = () => {
+    const svg = annotatedMapSvg({
+      title: map.title,
+      pins: shown.map((pin) => ({ title: pin.title, kind: pin.kind, x: pin.xNorm, y: pin.yNorm, points: pin.points })),
+      scaleLabel: map.scaleLabel,
+      scaleBarLength: map.scaleBarLength,
+    });
+    downloadText(`${map.title}.svg`, svg, "image/svg+xml");
+  };
+
+  const exportAnnotatedPng = () => {
+    const image = imageRef.current;
+    if (!image) return;
+    const canvas = document.createElement("canvas");
+    canvas.width = map.imageWidth || image.naturalWidth || 1000;
+    canvas.height = map.imageHeight || image.naturalHeight || 1000;
+    const context = canvas.getContext("2d");
+    if (!context) return;
+    try {
+      context.drawImage(image, 0, 0, canvas.width, canvas.height);
+      context.strokeStyle = "#1c1917";
+      context.fillStyle = "#1c1917";
+      context.lineWidth = Math.max(2, canvas.width / 400);
+      for (const pin of shown) {
+        if ((pin.kind === "route" || pin.kind === "area") && pin.points.length >= 2) {
+          context.beginPath();
+          pin.points.forEach((point, index) => {
+            const x = point.x * canvas.width;
+            const y = point.y * canvas.height;
+            if (index === 0) context.moveTo(x, y);
+            else context.lineTo(x, y);
+          });
+          if (pin.kind === "area") context.closePath();
+          context.stroke();
+        } else {
+          context.beginPath();
+          context.arc(pin.xNorm * canvas.width, pin.yNorm * canvas.height, Math.max(4, canvas.width / 150), 0, Math.PI * 2);
+          context.fill();
+          context.font = `${Math.max(12, Math.round(canvas.width / 50))}px sans-serif`;
+          context.fillText(pin.title, pin.xNorm * canvas.width + 8, pin.yNorm * canvas.height);
+        }
+      }
+      if (map.scaleLabel && map.scaleBarLength != null) {
+        const y = canvas.height - 24;
+        context.beginPath();
+        context.moveTo(16, y);
+        context.lineTo(16 + map.scaleBarLength * canvas.width, y);
+        context.stroke();
+        context.font = `${Math.max(12, Math.round(canvas.width / 60))}px sans-serif`;
+        context.fillText(`${map.scaleLabel} · ${WORLD.mapMeasureDerived}`, 16, y - 8);
+      }
+      canvas.toBlob((blob) => {
+        if (!blob) {
+          setIssues([errorIssue("INVALID_REFERENCE", WORLD.mapExportPngFailed)]);
+          return;
+        }
+        downloadBlob(`${map.title}.png`, blob);
+      });
+    } catch {
+      setIssues([errorIssue("INVALID_REFERENCE", WORLD.mapExportPngFailed)]);
+    }
   };
 
   const jumpToPin = (pinId: string) => {
@@ -450,7 +545,7 @@ export function MapCanvas({
   const onSurfacePointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
     if (e.button !== 0) return;
     if ((e.target as HTMLElement).closest("[data-pin-id]")) return;
-    if (mode !== "browse") return;
+    if (measuring || mode !== "browse") return;
     e.currentTarget.setPointerCapture(e.pointerId);
     panRef.current = {
       startX: e.clientX,
@@ -562,6 +657,24 @@ export function MapCanvas({
             </Button>
             <Button type="button" size="sm" variant="secondary" onClick={() => setView({ zoom: 1, x: 0, y: 0 })}>
               {WORLD.mapZoomReset}
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={measuring ? "primary" : "secondary"}
+              aria-pressed={measuring}
+              onClick={() => {
+                setMeasuring((current) => !current);
+                setMeasurePoints([]);
+              }}
+            >
+              {WORLD.mapMeasure}
+            </Button>
+            <Button type="button" size="sm" variant="secondary" onClick={exportAnnotatedSvg}>
+              {WORLD.mapExportSvg}
+            </Button>
+            <Button type="button" size="sm" variant="secondary" onClick={exportAnnotatedPng}>
+              {WORLD.mapExportPng}
             </Button>
           </CanvasToolbarGroup>
           {mode === "edit" ? (
@@ -720,6 +833,20 @@ export function MapCanvas({
               )}
           </BoardOverflowMenu>
         </CanvasToolbar>
+        {measuring ? <p className="small muted map-measure-readout">{WORLD.mapMeasureHint}</p> : null}
+        {measurePoints.length === 2 ? (
+          <p className="small map-measure-readout">
+            {measureReading
+              ? `${formatScaleValue(measureReading.value)} ${measureReading.unit}`.trim()
+              : WORLD.mapMeasureNeedScale}
+            {measureReading ? ` · ${WORLD.mapMeasureDerived}` : ""}
+          </p>
+        ) : null}
+        {routeReading ? (
+          <p className="small map-measure-readout">
+            {WORLD.mapRouteLength}: {formatScaleValue(routeReading.value)} {routeReading.unit} · {WORLD.mapMeasureDerived}
+          </p>
+        ) : null}
         {draft ? (
           <MapShapeEditor
             draft={draft}
@@ -733,6 +860,27 @@ export function MapCanvas({
 
         <fieldset className="map-legend">
           <legend>{WORLD.mapLayerLegend}</legend>
+          <div className="map-layer-presets">
+            <Button type="button" size="sm" variant="secondary" onClick={() => applyLayerPreset("all")}>
+              {WORLD.mapLayersShowAll}
+            </Button>
+            <Button type="button" size="sm" variant="secondary" onClick={() => applyLayerPreset("none")}>
+              {WORLD.mapLayersHideAll}
+            </Button>
+            {map.layers
+              .filter((layer, index, all) => layer.legacyGroup && all.findIndex((item) => item.legacyGroup === layer.legacyGroup) === index)
+              .map((layer) => (
+                <Button
+                  key={layer.legacyGroup}
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => applyLayerPreset({ group: layer.legacyGroup! })}
+                >
+                  {WORLD.mapLayerPreset(layer.title)}
+                </Button>
+              ))}
+          </div>
           {map.layers.map((layer, index) => (
             <label key={layer.id}>
               <input type="checkbox" checked={!hiddenLayerIds.includes(layer.id)} onChange={() => toggleLayer(layer.id)} />
@@ -823,6 +971,12 @@ export function MapCanvas({
               role="region"
               aria-label={WORLD.mapCanvas}
               onClick={(e) => {
+                if (measuring) {
+                  const { xNorm, yNorm } = normFromClient(e.clientX, e.clientY);
+                  const point = { x: xNorm, y: yNorm };
+                  setMeasurePoints((current) => (current.length >= 2 ? [point] : [...current, point]));
+                  return;
+                }
                 if (mode !== "edit") return;
                 if ((e.target as HTMLElement).closest("[data-pin-id], .map-shape")) return;
                 const { xNorm, yNorm } = normFromClient(e.clientX, e.clientY);
@@ -887,6 +1041,12 @@ export function MapCanvas({
                   <polyline
                     className="map-shape draft"
                     points={draft.points.map((point) => `${point.x * 100},${point.y * 100}`).join(" ")}
+                  />
+                ) : null}
+                {measurePoints.length === 2 ? (
+                  <polyline
+                    className="map-shape map-measure"
+                    points={measurePoints.map((point) => `${point.x * 100},${point.y * 100}`).join(" ")}
                   />
                 ) : null}
               </svg>
@@ -1256,4 +1416,17 @@ function MarkerRail({
       </Button>
     </div>
   );
+}
+
+function downloadText(filename: string, text: string, type: string) {
+  downloadBlob(filename, new Blob([text], { type }));
+}
+
+function downloadBlob(filename: string, blob: Blob) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
 }

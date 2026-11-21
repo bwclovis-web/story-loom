@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseStyleRangeQuery, runStyleCheck } from "@/writing/styleCheck";
+import { dialogueRatio, parseStyleRangeQuery, povCounts, runStyleCheck } from "@/writing/styleCheck";
 
 describe("parseStyleRangeQuery", () => {
   it("reads style deep-link offsets", () => {
@@ -23,6 +23,16 @@ describe("runStyleCheck", () => {
     const echoes = runStyleCheck(text, { echoMinLetters: 3 }).filter((i) => i.kind === "echo");
     expect(new Set(echoes.map((i) => i.start)).size).toBe(echoes.length);
     expect(echoes.length).toBe(4);
+  });
+
+  it("flags a passive construction and counts dialogue against narration", () => {
+    const text = 'The door was opened. "Come in," she said.';
+    expect(runStyleCheck(text).some((issue) => issue.kind === "passive")).toBe(true);
+    const ratio = dialogueRatio(text);
+    expect(ratio.dialogueWords).toBeGreaterThan(0);
+    expect(ratio.narrationWords).toBeGreaterThan(0);
+    expect(povCounts(text, ["she"])).toEqual([{ name: "she", count: 1 }]);
+    expect(povCounts("Mara waited. Mara left.", ["Mara"])).toEqual([{ name: "Mara", count: 2 }]);
   });
 
   it("flags repeated character names within a word window", () => {

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { ProjectPageHeader } from "@/components/library/ProjectPageHeader";
 import { HelpHint } from "@/components/HelpHint";
 import { SearchPanel } from "@/components/ui/SearchPanel";
 import { findProject } from "@/server/services/projectService";
@@ -59,8 +60,7 @@ export default async function ProjectSearchPage({
 
   return (
     <>
-      <h1>{PROJECT_SEARCH.heading}</h1>
-      <p className="page-lead">{PROJECT_SEARCH.lead}</p>
+      <ProjectPageHeader projectId={projectId} title={PROJECT_SEARCH.heading} description={PROJECT_SEARCH.lead} />
       <HelpHint anchor="project-search" topic="project search">
         {PROJECT_SEARCH.hint}
       </HelpHint>

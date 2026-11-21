@@ -37,6 +37,8 @@ import {
 } from "@/server/services/weaveService";
 import { previewRewriteSourceAction } from "@/app/projects/[projectId]/drafts/actions";
 import { DRAFT, SHELL, WEAVE, WRITE } from "@/ui/labels";
+import { beatMatchesLinkFilter, type WeaveLinkFilter } from "@/weave/beatLinkFilter";
+import { CreateSceneFromBeat } from "./CreateSceneFromBeat";
 import {
   addWeaveBeatAction,
   addWeaveBeatWorldRefAction,
@@ -180,6 +182,8 @@ export function WeaveCanvas({
   const [layoutMode, setLayoutMode] = useState<WeaveLayoutMode>(initial.layoutMode);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [decisionFilter, setDecisionFilter] = useState<string>("all");
+  const [linkKind, setLinkKind] = useState<WeaveLinkFilter["kind"]>("all");
+  const [linkPov, setLinkPov] = useState("");
   const [density, setDensity] = useState<PlotDensity>("compact");
   const [hiddenThreadIds, setHiddenThreadIds] = useState<string[]>([]);
   const [mobileThreadId, setMobileThreadId] = useState<string | null>(null);
@@ -242,11 +246,41 @@ export function WeaveCanvas({
 
   const selected = beats.find((b) => b.id === selectedId) ?? null;
 
+  const linkFilter: WeaveLinkFilter = linkKind === "pov" ? { kind: "pov", pov: linkPov } : { kind: linkKind };
+  const povChoices = useMemo(() => {
+    const names = new Set<string>();
+    for (const beat of beats) {
+      const pov = beat.manuscriptPov.trim();
+      if (pov) names.add(pov);
+    }
+    return [...names].sort((a, b) => a.localeCompare(b));
+  }, [beats]);
   const visibleBeats = useMemo(() => {
-    if (decisionFilter === "all") return beats;
-    if (decisionFilter === "unset") return beats.filter((b) => !b.decision);
-    return beats.filter((b) => b.decision === decisionFilter);
-  }, [beats, decisionFilter]);
+    return beats.filter((beat) => {
+      if (!beatMatchesLinkFilter(beat, linkFilter)) return false;
+      if (decisionFilter === "all") return true;
+      if (decisionFilter === "unset") return !beat.decision;
+      return beat.decision === decisionFilter;
+    });
+  }, [beats, decisionFilter, linkKind, linkPov]);
+
+  const canvasSize = useMemo(() => {
+    let width = 960;
+    let height = 720;
+    for (const beat of beats) {
+      width = Math.max(width, beat.x + beat.width + 96);
+      height = Math.max(height, beat.y + beat.height + 96);
+    }
+    return { width, height };
+  }, [beats]);
+
+  const sceneChapters = useMemo(
+    () =>
+      manuscriptChapters
+        .filter((chapter) => chapter.id !== "__unplaced_scenes__")
+        .map((chapter) => ({ id: chapter.id, title: chapter.title })),
+    [manuscriptChapters],
+  );
 
   const visibleIds = useMemo(() => new Set(visibleBeats.map((b) => b.id)), [visibleBeats]);
 
@@ -617,6 +651,34 @@ export function WeaveCanvas({
             </label>
             {isPlotGrid ? (
               <label className="small board-toolbar-select">
+                <span className="sr-only">{WEAVE.filterLinks}</span>
+                <select
+                  value={linkKind}
+                  aria-label={WEAVE.filterLinks}
+                  onChange={(e) => setLinkKind(e.target.value as WeaveLinkFilter["kind"])}
+                >
+                  <option value="all">{WEAVE.filterLinksAll}</option>
+                  <option value="character">{WEAVE.filterCharacters}</option>
+                  <option value="location">{WEAVE.filterLocations}</option>
+                  <option value="pov">{WEAVE.filterPov}</option>
+                </select>
+              </label>
+            ) : null}
+            {isPlotGrid && linkKind === "pov" ? (
+              <label className="small board-toolbar-select">
+                <span className="sr-only">{WEAVE.filterPov}</span>
+                <select value={linkPov} aria-label={WEAVE.filterPov} onChange={(e) => setLinkPov(e.target.value)}>
+                  <option value="">{WEAVE.filterPovAny}</option>
+                  {povChoices.map((pov) => (
+                    <option key={pov} value={pov}>
+                      {pov}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
+            {isPlotGrid ? (
+              <label className="small board-toolbar-select">
                 <span className="sr-only">{WEAVE.density}</span>
                 <select
                   value={density}
@@ -820,6 +882,7 @@ export function WeaveCanvas({
             otherDraftRowByRecordId={otherDraftRowByRecordId}
             selectedId={selectedId}
             decisionFilter={decisionFilter}
+            linkFilter={linkFilter}
             density={density}
             hiddenThreadIds={hiddenThreadIds}
             mobileThreadId={narrow ? mobileThreadId ?? threads[0]?.id ?? null : null}
@@ -845,7 +908,25 @@ export function WeaveCanvas({
           onClick={() => setSelectedId(null)}
           onKeyDown={onSurfaceKeyDown}
         >
-          <svg className="board-links-layer" aria-hidden="true">
+          <div className="board-canvas-size" style={{ width: canvasSize.width, height: canvasSize.height }}>
+          <svg
+            className="board-links-layer sized"
+            width={canvasSize.width}
+            height={canvasSize.height}
+            aria-hidden="true"
+          >
+            <defs>
+              <marker
+                id={`${idPrefix}-payoff-arrow`}
+                markerWidth="8"
+                markerHeight="8"
+                refX="7"
+                refY="4"
+                orient="auto"
+              >
+                <path d="M0,0 L8,4 L0,8 Z" className="board-link-arrow" />
+              </marker>
+            </defs>
             {localLinks.map((link) => {
               const from = beats.find((b) => b.id === link.fromBeatId);
               const to = beats.find((b) => b.id === link.toBeatId);
@@ -857,6 +938,7 @@ export function WeaveCanvas({
                 <line
                   key={link.id}
                   className={`board-link-line${active ? " active" : ""}`}
+                  markerEnd={`url(#${idPrefix}-payoff-arrow)`}
                   x1={a.x}
                   y1={a.y}
                   x2={b.x}
@@ -925,6 +1007,7 @@ export function WeaveCanvas({
               </div>
             );
           })}
+          </div>
         </div>
         ) : null}
 
@@ -1263,6 +1346,16 @@ export function WeaveCanvas({
               ) : (
                 <p className="rail-empty">{WEAVE.noSceneLinked}</p>
               )}
+              <CreateSceneFromBeat
+                projectId={projectId}
+                beat={selected}
+                chapters={sceneChapters}
+                onIssues={setIssues}
+                onCreated={(beat) => {
+                  setBeats((list) => list.map((row) => (row.id === beat.id ? beat : row)));
+                  router.refresh();
+                }}
+              />
             </div>
             ) : null}
 

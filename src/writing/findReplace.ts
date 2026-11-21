@@ -123,3 +123,56 @@ export function applyEdit(text: string, edit: TextEdit): string {
 export function invertEdit(original: string, edit: TextEdit): TextEdit {
   return { start: edit.start, end: edit.start + edit.text.length, text: original.slice(edit.start, edit.end) };
 }
+
+export type RegexPreviewError = "too_long" | "nested" | "invalid" | "slow";
+
+const MAX_REGEX_LENGTH = 200;
+const MAX_REGEX_MATCHES = 500;
+const MAX_REGEX_MS = 40;
+
+/** Rejects patterns that are invalid or likely to hang a preview. Does not run the search. */
+export function regexPreviewError(pattern: string): RegexPreviewError | null {
+  if (!pattern) return null;
+  if (pattern.length > MAX_REGEX_LENGTH) return "too_long";
+  if (/\([^)]*[+*][^)]*\)[+*{]/.test(pattern) || /\(\?:[^)]*[+*][^)]*\)[+*{]/.test(pattern)) return "nested";
+  try {
+    const re = new RegExp(pattern, "u");
+    re.test("");
+  } catch {
+    return "invalid";
+  }
+  return null;
+}
+
+/**
+ * Finds matches for an author-written pattern. The replacement stays literal:
+ * `$1` is not expanded. Returns an error instead of hanging on a bad pattern.
+ */
+export function findRegexMatches(
+  text: string,
+  pattern: string,
+  options: FindOptions,
+): { matches: Match[]; error: RegexPreviewError | null } {
+  const error = regexPreviewError(pattern);
+  if (error || !pattern) return { matches: [], error };
+  let re: RegExp;
+  try {
+    re = new RegExp(pattern, options.matchCase ? "gu" : "giu");
+  } catch {
+    return { matches: [], error: "invalid" };
+  }
+  const matches: Match[] = [];
+  const started = Date.now();
+  for (const match of text.matchAll(re)) {
+    if (Date.now() - started > MAX_REGEX_MS) return { matches: [], error: "slow" };
+    if (match[0].length === 0) {
+      re.lastIndex += 1;
+      continue;
+    }
+    const found = { start: match.index!, end: match.index! + match[0].length };
+    if (options.wholeWord && !isWholeWord(text, found.start, found.end)) continue;
+    matches.push(found);
+    if (matches.length >= MAX_REGEX_MATCHES) break;
+  }
+  return { matches, error: null };
+}

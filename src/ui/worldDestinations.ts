@@ -1,4 +1,4 @@
-import { SHELL, WORLD } from "@/ui/labels";
+import { CONTINUITY, SHELL, WORLD } from "@/ui/labels";
 import { parseProjectPath } from "@/ui/navigation";
 
 /**
@@ -14,7 +14,8 @@ export type WorldDestinationKey =
   | "boards"
   | "events"
   | "calendar"
-  | "names";
+  | "names"
+  | "continuity";
 
 export type WorldDestinationGroupId = "lore" | "visual" | "time" | "tools";
 
@@ -83,6 +84,13 @@ const DESTINATIONS: readonly WorldDestination[] = [
     label: WORLD.nameGenerator,
     hint: WORLD.nameGeneratorNavHint,
   },
+  {
+    key: "continuity",
+    group: "time",
+    segment: "continuity",
+    label: CONTINUITY.nav,
+    hint: CONTINUITY.navHint,
+  },
 ];
 
 export const WORLD_DESTINATIONS: readonly WorldDestination[] = DESTINATIONS;
@@ -90,7 +98,7 @@ export const WORLD_DESTINATIONS: readonly WorldDestination[] = DESTINATIONS;
 export const WORLD_DESTINATION_GROUPS: readonly WorldDestinationGroup[] = [
   { id: "lore", heading: WORLD.loreAndCodex, keys: ["references", "relationships"] },
   { id: "visual", heading: WORLD.visualSpaces, keys: ["maps", "boards"] },
-  { id: "time", heading: WORLD.timeAndContinuity, keys: ["events", "calendar"] },
+  { id: "time", heading: WORLD.timeAndContinuity, keys: ["events", "calendar", "continuity"] },
   { id: "tools", heading: WORLD.toolsHeading, keys: ["names"] },
 ];
 
@@ -106,6 +114,7 @@ export function worldDestinationsInGroup(group: WorldDestinationGroup): WorldDes
 
 export function worldDestinationHref(projectId: string, key: WorldDestinationKey): string {
   const destination = worldDestinationByKey(key);
+  if (destination.key === "continuity") return `/projects/${encodeURIComponent(projectId)}/continuity`;
   const base = `/projects/${encodeURIComponent(projectId)}/world`;
   return destination.segment ? `${base}/${destination.segment}` : base;
 }
@@ -132,6 +141,7 @@ export function matchWorldDestination(
   if (first === "records" && second) {
     return options.recordIsWorld ? { key: "references", exact: false } : null;
   }
+  if (first === "continuity") return { key: "continuity", exact: true };
   if (first !== "world") return null;
   if (!second) return { key: "references", exact: true };
   const destination = DESTINATIONS.find((item) => item.segment === second);

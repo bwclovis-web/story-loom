@@ -1,3 +1,4 @@
+import { ProjectPageHeader } from "@/components/library/ProjectPageHeader";
 import { Button } from "@/components/ui/Button";
 import Link from "next/link";
 import { VisitDraftSwitcher, type DraftOption } from "@/components/drafts/DraftControls";
@@ -45,7 +46,7 @@ export default async function HistoryPage({
 
   return (
     <>
-      <h1>{HISTORY.heading}</h1>
+      <ProjectPageHeader projectId={projectId} title={HISTORY.heading} />
       {hasDrafts ? (
         <section className="panel">
           <VisitDraftSwitcher

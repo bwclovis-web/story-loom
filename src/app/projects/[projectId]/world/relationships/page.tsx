@@ -24,6 +24,7 @@ export default async function RelationshipsPage({
   return (
     <>
       <WorldToolHeader
+        projectId={projectId}
         items={worldSurfaceCrumbs(projectId, "relationships")}
         title={WORLD.relationships}
         lead={WORLD.relationshipsLead}

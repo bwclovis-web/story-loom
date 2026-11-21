@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useId } from "react";
+import { WorldDestinationIcon } from "@/components/world/WorldDestinationIcon";
 import { WORLD } from "@/ui/labels";
 import { parseProjectPath, type RecordNavEntry } from "@/ui/navigation";
 import { isWorldType } from "@/ui/world";
@@ -48,7 +49,10 @@ export function WorldNav({
                 return (
                   <li key={destination.key}>
                     <Link href={worldDestinationHref(projectId, destination.key)} aria-current={currentState}>
-                      {destination.label}
+                      <span className="world-nav-item">
+                        <WorldDestinationIcon destination={destination.key} />
+                        {destination.label}
+                      </span>
                     </Link>
                   </li>
                 );

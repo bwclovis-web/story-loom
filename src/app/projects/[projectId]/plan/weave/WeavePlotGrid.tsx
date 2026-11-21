@@ -15,6 +15,8 @@ import type { Issue } from "@/domain/issues";
 import type { WeaveBeatView, WeaveThreadView } from "@/server/services/weaveService";
 import { WEAVE } from "@/ui/labels";
 import { plotRowForManuscript } from "@/ui/plotGridPlacement";
+import { beatLinkTagClass, beatMatchesLinkFilter, type WeaveLinkFilter } from "@/weave/beatLinkFilter";
+import { CreateSceneFromBeat } from "./CreateSceneFromBeat";
 import {
   addWeaveBeatAction,
   addWeaveThreadAction,
@@ -99,6 +101,7 @@ export function WeavePlotGrid({
   otherDraftRowByRecordId = {},
   selectedId,
   decisionFilter,
+  linkFilter,
   density,
   hiddenThreadIds = [],
   mobileThreadId,
@@ -116,6 +119,7 @@ export function WeavePlotGrid({
   otherDraftRowByRecordId?: Record<string, string>;
   selectedId: string | null;
   decisionFilter: string;
+  linkFilter: WeaveLinkFilter;
   density: PlotDensity;
   hiddenThreadIds?: string[];
   /** When set (narrow), only this thread column is shown as a scene list. */
@@ -190,6 +194,7 @@ export function WeavePlotGrid({
   }, [threads, mobileThreadId, hiddenThreadIds]);
 
   const matchesFilter = (beat: WeaveBeatView) => {
+    if (!beatMatchesLinkFilter(beat, linkFilter)) return false;
     if (decisionFilter === "all") return true;
     if (decisionFilter === "unset") return !beat.decision;
     return beat.decision === decisionFilter;
@@ -210,7 +215,7 @@ export function WeavePlotGrid({
         return plotRowForManuscript(b.manuscriptRecordId, rowIds, otherDraftRows) === null;
       })
       .sort((a, b) => a.zIndex - b.zIndex || a.id.localeCompare(b.id));
-  }, [beats, rowIds, otherDraftRows, decisionFilter]);
+  }, [beats, rowIds, otherDraftRows, decisionFilter, linkFilter]);
 
   const addInCell = (row: PlotGridRow, thread: WeaveThreadView) => {
     startTransition(async () => {
@@ -468,6 +473,7 @@ export function WeavePlotGrid({
   };
 
   const sceneCount = chapters.reduce((n, c) => n + c.rows.length, 0);
+  const selectedBeat = beats.find((beat) => beat.id === selectedId) ?? null;
   const activeDropKey = dropTargetKey(dropTarget);
 
   return (
@@ -483,6 +489,20 @@ export function WeavePlotGrid({
           <span className="plot-grid-beat-bar" />
           <span className="plot-grid-beat-title">{ghost.title}</span>
         </div>
+      ) : null}
+      {selectedBeat && !selectedBeat.manuscriptRecordId ? (
+        <CreateSceneFromBeat
+          projectId={projectId}
+          beat={selectedBeat}
+          chapters={chapters
+            .filter((chapter) => chapter.id !== "__unplaced_scenes__")
+            .map((chapter) => ({ id: chapter.id, title: chapter.title }))}
+          onIssues={onIssues}
+          onCreated={(beat) => {
+            onBeatsChange?.(beats.map((row) => (row.id === beat.id ? beat : row)));
+            router.refresh();
+          }}
+        />
       ) : null}
       {!threads.length ? (
         <div className="plot-grid-empty-threads">
@@ -726,7 +746,7 @@ export function WeavePlotGrid({
                   <button
                     type="button"
                     data-beat-id={beat.id}
-                    className={`plot-grid-beat${selectedId === beat.id ? " selected" : ""}${draggingId === beat.id ? " dragging" : ""}${settlingId === beat.id ? " settling" : ""}`}
+                    className={`plot-grid-beat${beatLinkTagClass(beat)}${selectedId === beat.id ? " selected" : ""}${draggingId === beat.id ? " dragging" : ""}${settlingId === beat.id ? " settling" : ""}`}
                     onPointerDown={(e) => onBeatPointerDown(e, beat)}
                     onClick={(e) => onBeatClick(e, beat)}
                   >
@@ -903,7 +923,7 @@ function ChapterBlock({
                               <button
                                 type="button"
                                 data-beat-id={beat.id}
-                                className={`plot-grid-beat${selectedId === beat.id ? " selected" : ""}${draggingId === beat.id ? " dragging" : ""}${settlingId === beat.id ? " settling" : ""}`}
+                                className={`plot-grid-beat${beatLinkTagClass(beat)}${selectedId === beat.id ? " selected" : ""}${draggingId === beat.id ? " dragging" : ""}${settlingId === beat.id ? " settling" : ""}`}
                                 onPointerDown={(e) => onBeatPointerDown(e, beat)}
                                 onClick={(e) => onBeatClick(e, beat)}
                               >
@@ -936,7 +956,7 @@ function ChapterBlock({
                               <button
                                 type="button"
                                 data-beat-id={beat.id}
-                                className={`plot-grid-beat plot-grid-beat-mirror${selectedId === beat.id ? " selected" : ""}`}
+                                className={`plot-grid-beat plot-grid-beat-mirror${beatLinkTagClass(beat)}${selectedId === beat.id ? " selected" : ""}`}
                                 title={WEAVE.otherDraftBeatHint}
                                 onClick={(e) => onBeatClick(e, beat)}
                               >

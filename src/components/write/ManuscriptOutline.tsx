@@ -6,6 +6,7 @@ import { BookOpen, Download, Layers, Plus } from "lucide-react";
 import { LandingHeader } from "@/components/library/LandingHeader";
 import { ChevronRightIcon, SearchIcon } from "@/components/shell/icons";
 import { ManuscriptCreateForm } from "@/components/shell/ManuscriptTree";
+import { Corkboard, type CorkboardCard, type CorkboardGroup } from "@/components/write/Corkboard";
 import { Button, ButtonLink } from "@/components/ui/Button";
 import { RECORD_TYPE_LABELS } from "@/domain/recordTypes";
 import { MANUSCRIPT_ANNOTATIONS, MANUSCRIPT_SEARCH, NAV, WRITE } from "@/ui/labels";
@@ -25,12 +26,7 @@ export type OutlineChapter = {
 
 type Tab = "chapters" | "scenes" | "corkboard";
 
-export type CorkboardCard = {
-  recordId: string;
-  title: string;
-  type: string;
-  body: string;
-};
+export type { CorkboardCard, CorkboardGroup };
 
 /**
  * Write landing: one ordered outline. Chapter and scene titles open the editor.
@@ -53,7 +49,8 @@ export function ManuscriptOutline({
   results,
   gettingStarted,
   synopsisById = new Map<string, string>(),
-  corkboardCards = [],
+  corkboardGroups = [],
+  corkboardUnplaced = [],
 }: {
   projectId: string;
   title: string;
@@ -71,7 +68,8 @@ export function ManuscriptOutline({
   results: ReactNode;
   gettingStarted: ReactNode;
   synopsisById?: Map<string, string>;
-  corkboardCards?: CorkboardCard[];
+  corkboardGroups?: CorkboardGroup[];
+  corkboardUnplaced?: CorkboardCard[];
 }) {
   const uid = useId();
   const base = `/projects/${encodeURIComponent(projectId)}`;
@@ -346,26 +344,7 @@ export function ManuscriptOutline({
 
       <div role="tabpanel" id={`${uid}-panel-corkboard`} aria-labelledby={`${uid}-tab-corkboard`} hidden={tab !== "corkboard"}>
         <p className="small muted corkboard-lead">{MANUSCRIPT_ANNOTATIONS.corkboardLead}</p>
-        {corkboardCards.length === 0 ? (
-          <p className="outline-empty">{MANUSCRIPT_ANNOTATIONS.corkboardEmpty}</p>
-        ) : (
-          <ul className="manuscript-corkboard">
-            {corkboardCards.map((card) => (
-              <li key={card.recordId} className="manuscript-corkboard-card panel">
-                <div className="row" style={{ justifyContent: "space-between", gap: "0.5rem" }}>
-                  <div>
-                    <p className="small muted">{RECORD_TYPE_LABELS[card.type as keyof typeof RECORD_TYPE_LABELS] ?? card.type}</p>
-                    <h3 className="manuscript-corkboard-title">{card.title}</h3>
-                  </div>
-                  <Link className="small" href={recordHref(base, card.recordId)}>
-                    {MANUSCRIPT_ANNOTATIONS.openRecord}
-                  </Link>
-                </div>
-                <p className="manuscript-corkboard-body">{card.body}</p>
-              </li>
-            ))}
-          </ul>
-        )}
+        <Corkboard projectId={projectId} groups={corkboardGroups} unplaced={corkboardUnplaced} />
       </div>
       </div>
       {selected ? (

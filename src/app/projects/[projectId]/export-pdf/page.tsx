@@ -1,3 +1,4 @@
+import { ProjectPageHeader } from "@/components/library/ProjectPageHeader";
 import { DraftDefaultsPanel, VisitDraftSwitcher, type DraftOption } from "@/components/drafts/DraftControls";
 import { HelpHint } from "@/components/HelpHint";
 import { Banner } from "@/components/ui/Banner";
@@ -56,6 +57,7 @@ export default async function ExportPdfPage({
   const pdfHref = `/projects/${encodeURIComponent(projectId)}/pdf`;
   const docxHref = `/projects/${encodeURIComponent(projectId)}/docx`;
   const epubHref = `/projects/${encodeURIComponent(projectId)}/epub`;
+  const markdownHref = `/projects/${encodeURIComponent(projectId)}/markdown`;
   const base = `/projects/${encodeURIComponent(projectId)}`;
 
   // Preselection from a "Export PDF" link; the author can still change every tick.
@@ -86,7 +88,7 @@ export default async function ExportPdfPage({
 
   return (
     <>
-      <h1>{PDF.heading}</h1>
+      <ProjectPageHeader projectId={projectId} title={PDF.heading} />
       <p className="muted small">{PDF.intro}</p>
       <HelpHint anchor="pdf-export" topic="PDF export">
         {PDF.imagesNote}
@@ -94,7 +96,17 @@ export default async function ExportPdfPage({
 
       <section className="panel stack" aria-labelledby="compile-profile-heading">
         <h2 id="compile-profile-heading">{COMPILE_PROFILE.heading}</h2>
-        <CompileProfileForm projectId={projectId} profile={compileProfile} />
+        <CompileProfileForm
+          projectId={projectId}
+          profile={compileProfile}
+          manuscript={[
+            ...tree.chapters.flatMap((chapter) => [
+              { id: chapter.id, title: chapter.title },
+              ...chapter.scenes.map((scene) => ({ id: scene.id, title: scene.title })),
+            ]),
+            ...tree.unplaced.map((scene) => ({ id: scene.id, title: scene.title })),
+          ]}
+        />
       </section>
 
       <section className="panel stack" aria-labelledby="pdf-manuscript-heading">
@@ -169,7 +181,14 @@ export default async function ExportPdfPage({
           <Banner tone="info">{PDF.preselected(initialSelection.length)}</Banner>
         ) : null}
         {groups.length ? (
-          <PdfReferencePicker action={pdfHref} groups={groups} initialSelection={initialSelection} />
+          <PdfReferencePicker
+            action={pdfHref}
+            docxAction={docxHref}
+            epubAction={epubHref}
+            markdownAction={markdownHref}
+            groups={groups}
+            initialSelection={initialSelection}
+          />
         ) : (
           <p className="muted">{PDF.noReferences}</p>
         )}

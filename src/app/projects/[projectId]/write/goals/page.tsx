@@ -1,5 +1,5 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
+import { ProjectPageHeader } from "@/components/library/ProjectPageHeader";
 import { HelpHint } from "@/components/HelpHint";
 import { WritingProgressStrip } from "@/components/writing/WritingProgressStrip";
 import { WritingSessionInit } from "@/components/writing/WritingSessionInit";
@@ -9,6 +9,7 @@ import { listManuscriptDrafts } from "@/server/services/draftService";
 import { findProject } from "@/server/services/projectService";
 import { listRecordNav } from "@/server/services/recordService";
 import { getProjectWritingGoal, listChapterWritingGoals } from "@/server/services/writingGoalService";
+import { buildWritingPace } from "@/server/services/writingPaceService";
 import { buildWritingProgress } from "@/server/services/writingProgressService";
 import { SHELL, WRITING_GOALS } from "@/ui/labels";
 import { cookies } from "next/headers";
@@ -35,6 +36,14 @@ export default async function WritingGoalsPage({ params }: { params: Promise<{ p
     listRecordNav(db, projectId, { hasDrafts, draftId }),
     buildWritingProgress(db, { projectId, hasDrafts, draftId, sessionSince: sessionSince && !Number.isNaN(sessionSince.getTime()) ? sessionSince : null }),
   ]);
+  const pace = await buildWritingPace(db, {
+    projectId,
+    hasDrafts,
+    draftId,
+    bookWords: progress.bookWords,
+    projectTarget: progress.projectTarget,
+    projectDeadline: progress.projectDeadline,
+  });
   const chapters = nav
     .filter((row) => row.type === "manuscript_chapter")
     .map((row) => ({ id: row.id, title: row.title }));
@@ -42,15 +51,39 @@ export default async function WritingGoalsPage({ params }: { params: Promise<{ p
   return (
     <>
       <WritingSessionInit />
-      <p className="small muted">
-        <Link href={`/projects/${encodeURIComponent(projectId)}/write`}>{SHELL.write}</Link>
-      </p>
-      <h1>{WRITING_GOALS.heading}</h1>
-      <p className="page-lead">{WRITING_GOALS.lead}</p>
+      <ProjectPageHeader
+        projectId={projectId}
+        title={WRITING_GOALS.heading}
+        description={WRITING_GOALS.lead}
+        crumbs={[
+          { href: `/projects/${encodeURIComponent(projectId)}/write`, label: SHELL.write },
+          { label: WRITING_GOALS.heading, current: true },
+        ]}
+      />
       <HelpHint anchor="writing-goals" topic="writing goals">
         {WRITING_GOALS.lead}
       </HelpHint>
       <WritingProgressStrip projectId={projectId} progress={progress} />
+      <section className="panel" aria-labelledby="pace-heading">
+        <h2 id="pace-heading" style={{ marginTop: 0 }}>
+          {WRITING_GOALS.dailyPace}
+        </h2>
+        <p>{pace.dailyTarget == null ? WRITING_GOALS.paceNone : WRITING_GOALS.dailyPaceValue(pace.dailyTarget)}</p>
+        <p>
+          {WRITING_GOALS.streak}: {WRITING_GOALS.streakDays(pace.streak)}
+        </p>
+        <h3>{WRITING_GOALS.chartHeading}</h3>
+        <div className="pace-chart" aria-label={WRITING_GOALS.chartHeading}>
+          {pace.days.map((day) => {
+            const max = Math.max(...pace.days.map((item) => item.words), 1);
+            return (
+              <div key={day.iso} className="pace-chart-col" title={`${day.iso}: ${day.words}`}>
+                <div className="pace-chart-bar" style={{ height: `${Math.max(day.words ? 4 : 0, (day.words / max) * 100)}%` }} />
+              </div>
+            );
+          })}
+        </div>
+      </section>
       <WritingGoalsForm
         projectId={projectId}
         projectGoal={projectGoal}

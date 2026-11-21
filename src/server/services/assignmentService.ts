@@ -12,7 +12,7 @@ import {
 import { newId } from "@/domain/ids";
 import { errorIssue, hasErrors, type Issue } from "@/domain/issues";
 import { sha256, stableStringify, type JsonValue } from "@/domain/json";
-import { isWorldType } from "@/ui/world";
+import { isWorldType, WORLD_TYPES } from "@/ui/world";
 import type { Db, DbOrTx, Tx } from "../db";
 import { writeAudit } from "./auditService";
 import { MutationRejectedError, NotFoundError } from "./errors";
@@ -136,7 +136,7 @@ async function loadLive(db: DbOrTx, projectId: string): Promise<LiveRows> {
       where: {
         projectId,
         trashedAt: null,
-        type: { in: ["character_dossier", "worldbuilding", "canon_decision", "continuity_note", "reference_note"] },
+        type: { in: [...WORLD_TYPES] },
       },
       orderBy: [{ title: "asc" }, { id: "asc" }],
       select: { id: true, title: true, type: true, worldScope: true },

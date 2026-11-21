@@ -47,12 +47,45 @@ export interface RenderContext {
   images: ReadonlyMap<string, PdfImage>;
   /** Counts images actually embedded, across the whole document. */
   embedded: number;
+  /** Points of extra space between body lines. */
+  lineGap?: number;
+  /** Gap after a body paragraph. */
+  paragraphGap?: number;
+  /** Indent for body paragraphs after the first in a chapter. */
+  novelIndent?: number;
+  /** When true, the next body paragraph is not indented. */
+  firstParagraphFree?: boolean;
 }
 
-export function createPdf(info: { title: string; subject: string }): PDFKit.PDFDocument {
+export interface PdfPageLayout {
+  width: number;
+  height: number;
+  margin: number;
+  fontPreset: "serif" | "sans" | "mono";
+}
+
+function fontsFor(preset: PdfPageLayout["fontPreset"]): Record<FontName, string> {
+  if (preset === "sans") {
+    return { ...FONTS, body: FONTS.sans, bodyBold: FONTS.sansBold, bodyItalic: FONTS.sansItalic, bodyBoldItalic: FONTS.sansBold };
+  }
+  if (preset === "mono") {
+    return {
+      ...FONTS,
+      body: FONTS.mono,
+      bodyBold: FONTS.mono,
+      bodyItalic: FONTS.mono,
+      bodyBoldItalic: FONTS.mono,
+    };
+  }
+  return { ...FONTS };
+}
+
+export function createPdf(info: { title: string; subject: string }, layout?: PdfPageLayout): PDFKit.PDFDocument {
   const doc = new PDFDocument({
-    size: "A4",
-    margins: { top: 64, bottom: 64, left: 66, right: 66 },
+    size: layout ? [layout.width, layout.height] : "A4",
+    margins: layout
+      ? { top: layout.margin, bottom: layout.margin, left: layout.margin, right: layout.margin }
+      : { top: 64, bottom: 64, left: 66, right: 66 },
     bufferPages: true,
     autoFirstPage: true,
     font: fontPath(FONTS.body),
@@ -60,7 +93,7 @@ export function createPdf(info: { title: string; subject: string }): PDFKit.PDFD
     displayTitle: true,
     lang: "en",
   });
-  for (const [name, file] of Object.entries(FONTS)) doc.registerFont(name, fontPath(file));
+  for (const [name, file] of Object.entries(fontsFor(layout?.fontPreset ?? "serif"))) doc.registerFont(name, fontPath(file));
   doc.font("body").fontSize(SIZES.body).fillColor(COLORS.text);
   return doc;
 }
@@ -151,6 +184,7 @@ interface TextBox {
   color?: string;
   align?: "left" | "center" | "right" | "justify";
   gapAfter?: number;
+  lineGap?: number;
 }
 
 function drawRuns(doc: PDFKit.PDFDocument, runs: Run[], box: TextBox) {
@@ -165,7 +199,7 @@ function drawRuns(doc: PDFKit.PDFDocument, runs: Run[], box: TextBox) {
       link: run.link ?? undefined,
       underline: Boolean(run.link),
       strike: run.strike,
-      lineGap: 2.5,
+      lineGap: box.lineGap ?? 2.5,
     };
     if (i === 0) doc.text(run.text, box.x, doc.y, { ...options, width: box.width, align: box.align ?? "left" });
     else doc.text(run.text, options);
@@ -293,9 +327,23 @@ export function drawBlocks(doc: PDFKit.PDFDocument, blocks: readonly Block[], ct
       case "heading":
         drawHeading(doc, block.text || " ", block.level + 1, x, width);
         break;
-      case "paragraph":
-        drawInlineBlock(doc, block.children, { x, width, size: SIZES.body, gapAfter: tight ? 2 : 7 }, ctx);
+      case "paragraph": {
+        const indent = ctx.novelIndent && !ctx.firstParagraphFree ? ctx.novelIndent : 0;
+        if (ctx.firstParagraphFree) ctx.firstParagraphFree = false;
+        drawInlineBlock(
+          doc,
+          block.children,
+          {
+            x: x + indent,
+            width: width - indent,
+            size: SIZES.body,
+            gapAfter: tight ? 2 : (ctx.paragraphGap ?? 7),
+            lineGap: ctx.lineGap,
+          },
+          ctx,
+        );
         break;
+      }
       case "list": {
         const indent = 16;
         block.items.forEach((item, i) => {
@@ -350,17 +398,25 @@ export function drawSceneBreak(doc: PDFKit.PDFDocument, glyph = "* * *") {
 }
 
 /** Page numbers and a running title on every page after the first. */
-export function drawFooters(doc: PDFKit.PDFDocument, title: string) {
+export function drawFooters(doc: PDFKit.PDFDocument, title: string, chrome?: { header?: string; footer?: string }) {
+  const header = chrome?.header?.trim() || title;
+  const footer = chrome?.footer?.trim() || "";
   const range = doc.bufferedPageRange();
   for (let i = range.start + 1; i < range.start + range.count; i++) {
     doc.switchToPage(i);
     const bottom = doc.page.margins.bottom;
+    const top = doc.page.margins.top;
     doc.page.margins.bottom = 0;
+    doc.page.margins.top = 0;
     const y = doc.page.height - 40;
     doc.font("sans").fontSize(8.5).fillColor(COLORS.muted);
-    doc.text(title, contentLeft(doc), y, { width: contentWidth(doc) * 0.75, lineBreak: false, ellipsis: true });
+    if (chrome?.header?.trim()) {
+      doc.text(header, contentLeft(doc), 28, { width: contentWidth(doc), lineBreak: false, ellipsis: true });
+    }
+    doc.text(footer || title, contentLeft(doc), y, { width: contentWidth(doc) * 0.75, lineBreak: false, ellipsis: true });
     doc.text(`${i + 1 - range.start} / ${range.count}`, contentLeft(doc), y, { width: contentWidth(doc), align: "right", lineBreak: false });
     doc.page.margins.bottom = bottom;
+    doc.page.margins.top = top;
   }
   doc.fillColor(COLORS.text);
 }

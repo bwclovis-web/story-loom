@@ -1,3 +1,4 @@
+import { ProjectPageHeader } from "@/components/library/ProjectPageHeader";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -5,7 +6,7 @@ import { VisitDraftSwitcher } from "@/components/drafts/DraftControls";
 import { HelpHint } from "@/components/HelpHint";
 import { ButtonLink } from "@/components/ui/Button";
 import { RECORD_TYPE_LABELS } from "@/domain/recordTypes";
-import { DRAFT, NAV, STYLE_CHECK } from "@/ui/labels";
+import { DRAFT, NAV, SHELL, STYLE_CHECK } from "@/ui/labels";
 import { getDb } from "@/server/db";
 import { readWriteDraftCookie, resolveWriteDraftId } from "@/server/draftSelection";
 import { listManuscriptDrafts } from "@/server/services/draftService";
@@ -21,6 +22,8 @@ const KIND_LABEL: Record<StyleCheckKind, string> = {
   adverb: STYLE_CHECK.kindAdverb,
   long_sentence: STYLE_CHECK.kindLongSentence,
   name_repeat: STYLE_CHECK.kindName,
+  passive: STYLE_CHECK.kindPassive,
+  weak_verb: STYLE_CHECK.kindWeakVerb,
 };
 
 export async function generateMetadata({ params }: { params: Promise<{ projectId: string }> }): Promise<Metadata> {
@@ -43,8 +46,15 @@ export default async function ManuscriptStylePage({ params }: { params: Promise<
 
   return (
     <>
-      <h1>{STYLE_CHECK.heading}</h1>
-      <p className="page-lead">{STYLE_CHECK.lead}</p>
+      <ProjectPageHeader
+        projectId={projectId}
+        title={STYLE_CHECK.heading}
+        description={STYLE_CHECK.lead}
+        crumbs={[
+          { href: `${base}/write`, label: SHELL.write },
+          { label: STYLE_CHECK.heading, current: true },
+        ]}
+      />
       <HelpHint anchor="manuscript-style-check" topic="local style checks">
         {STYLE_CHECK.panelNote}
       </HelpHint>
@@ -70,6 +80,42 @@ export default async function ManuscriptStylePage({ params }: { params: Promise<
           />
         </section>
       ) : null}
+
+      <section className="panel" aria-labelledby="style-pacing">
+        <h2 id="style-pacing" style={{ marginTop: 0 }}>
+          {STYLE_CHECK.pacing}
+        </h2>
+        {result.pacing.length === 0 ? (
+          <p className="muted">{STYLE_CHECK.noResults}</p>
+        ) : (
+          <div className="pace-chart" aria-label={STYLE_CHECK.pacing}>
+            {result.pacing.map((bar) => {
+              const max = Math.max(...result.pacing.map((item) => item.words), 1);
+              return (
+                <div key={bar.id} className="pace-chart-col" title={`${bar.title}: ${bar.words}`}>
+                  <div className="pace-chart-bar" style={{ height: `${Math.max(4, (bar.words / max) * 100)}%` }} />
+                  <span className="small">{bar.words}</span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+        <p>
+          {STYLE_CHECK.dialogue}: {STYLE_CHECK.dialogueRatio(result.dialogue.dialogueWords, result.dialogue.narrationWords)}
+        </p>
+        <h3>{STYLE_CHECK.pov}</h3>
+        {result.pov.length === 0 ? (
+          <p className="muted">{STYLE_CHECK.povEmpty}</p>
+        ) : (
+          <ul>
+            {result.pov.map((row) => (
+              <li key={row.name}>
+                {row.name}: {row.count}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
 
       <section className="panel" aria-labelledby="style-results">
         <h2 id="style-results" style={{ marginTop: 0 }}>

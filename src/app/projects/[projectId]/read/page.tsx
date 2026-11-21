@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { ProjectPageHeader } from "@/components/library/ProjectPageHeader";
 import { DraftDefaultsPanel, VisitDraftSwitcher, type DraftOption } from "@/components/drafts/DraftControls";
 import { MarkdownView } from "@/components/MarkdownView";
 import { TextAppearanceMenu } from "@/components/TextAppearanceMenu";
@@ -81,13 +82,12 @@ export default async function ReadBookPage({
 
   return (
     <div className={`book-view${beside ? " is-beside" : ""}`}>
-      <div className="book-top">
-        <div>
-          <h1>{NAV.readBook}</h1>
-          <p className="page-lead">{READ_BOOK.lead}</p>
-        </div>
-        <TextAppearanceMenu />
-      </div>
+      <ProjectPageHeader
+        projectId={projectId}
+        title={NAV.readBook}
+        description={READ_BOOK.lead}
+        actions={<TextAppearanceMenu />}
+      />
       {drafts.length >= 2 ? (
         <p className="row">
           {beside ? (

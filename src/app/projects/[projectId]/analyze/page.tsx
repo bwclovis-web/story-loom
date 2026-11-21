@@ -1,6 +1,5 @@
 import Link from "next/link";
-import { Breadcrumbs } from "@/components/ui/Breadcrumbs";
-import { PageHeader } from "@/components/ui/PageHeader";
+import { ProjectPageHeader } from "@/components/library/ProjectPageHeader";
 import { getAssistantConfig } from "@/server/assistantConfig";
 import { getDb } from "@/server/db";
 import { listChapterAnalyses, manuscriptCountsByDraft } from "@/server/services/chapterAnalysisService";
@@ -51,14 +50,15 @@ export default async function AnalyzeChapterPage({
 
   return (
     <>
-      <Breadcrumbs
-        label="Breadcrumb"
-        items={[
+      <ProjectPageHeader
+        projectId={projectId}
+        title={ANALYZE.heading}
+        description={ANALYZE.lead}
+        crumbs={[
           { href: `${base}/plan`, label: SHELL.plan },
           { label: ANALYZE.heading, current: true },
         ]}
       />
-      <PageHeader title={ANALYZE.heading} lead={ANALYZE.lead} />
       <h2>{ANALYZE.counts}</h2>
       <table>
         <thead>

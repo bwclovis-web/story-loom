@@ -9,6 +9,8 @@ import { listSections } from "@/writing/sections";
 import { NotFoundError } from "./errors";
 import { linkedIdsByRecord } from "./linkService";
 import { LIVE_PROJECT } from "./trashFilters";
+import { listSeriesSharedRecords } from "./seriesBibleService";
+import type { SeriesHomeRef } from "@/world/seriesHome";
 
 export const CONTEXT_BUNDLE_FORMAT = "wordly.context-bundle";
 export const CONTEXT_BUNDLE_FORMAT_VERSION = 1;
@@ -31,6 +33,8 @@ export interface ContextBundleRecord {
   updatedAt: string;
   /** Present only when headings in the body carry status tags: each tagged heading, tag word for word. */
   sectionStatus?: { heading: string; level: number; statusTag: string }[];
+  /** Present when this reference is shared from another book in the series. Read it here; edit it there. */
+  seriesHome?: SeriesHomeRef;
 }
 
 export interface ContextBundle {
@@ -73,6 +77,7 @@ export const CHANGE_PACKAGE_INSTRUCTIONS: string[] = [
   "Scenes and scene notes cannot be created by a change package; the author adds them in the app. parentRecordId and linkedRecordIds are read-only context.",
   "Records with protected: true must not be changed unless the author explicitly authorized it; list such record ids in protectedOverrides.",
   "Do not propagate a change into other records that merely mention it. List them in relatedRecords with a note for later review instead.",
+  "Records with seriesHome are read-only context from another book in the series. Do not update them in this project's change package; edit them in that home book.",
   "Supported operations: create_record, update_record (title.replace, body.replace, fields.set, fields.unset), set_authority_status (optionally supersededBy). There is no delete.",
   "Add source.conversationLabel (and source.url when available) identifying this conversation.",
 ];
@@ -119,6 +124,34 @@ export async function exportContextBundle(
       ...(tagged.length ? { sectionStatus: tagged } : {}),
     };
   });
+
+  const shared = await listSeriesSharedRecords(db, projectId);
+  const included = new Set(records.map((record) => record.id));
+  for (const item of shared) {
+    if (included.has(item.record.id)) continue;
+    if (selection.recordIds && !selection.recordIds.includes(item.record.id)) continue;
+    if (selection.types && !selection.types.includes(item.record.type)) continue;
+    const tagged = listSections(item.record.body).flatMap((section) =>
+      section.statusTag ? [{ heading: section.title, level: section.level, statusTag: section.statusTag }] : [],
+    );
+    records.push({
+      id: item.record.id,
+      type: item.record.type,
+      contentClass: item.record.contentClass,
+      title: item.record.title,
+      revision: item.record.currentRevision,
+      authorityStatus: item.record.authorityStatus,
+      supersededByRecordId: item.record.supersededByRecordId,
+      protected: item.record.protected,
+      parentRecordId: item.record.parentRecordId,
+      linkedRecordIds: [],
+      body: item.record.body,
+      fields: item.record.fields,
+      updatedAt: item.record.updatedAt.toISOString(),
+      seriesHome: item.home,
+      ...(tagged.length ? { sectionStatus: tagged } : {}),
+    });
+  }
 
   return {
     format: CONTEXT_BUNDLE_FORMAT,

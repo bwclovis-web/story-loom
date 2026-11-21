@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
 import { ButtonLink } from "@/components/ui/Button";
 import { FileInput } from "@/components/ui/FileInput";
+import { RadioGroup } from "@/components/ui/RadioGroup";
 import { IssueList } from "@/components/IssueList";
 import type { Issue } from "@/domain/issues";
 import { WORLD } from "@/ui/labels";
@@ -76,28 +77,19 @@ export function CreateMapForm({
         {WORLD.mapTitle}
         <input value={title} onChange={(e) => setTitle(e.target.value)} required maxLength={200} />
       </label>
-      <fieldset className="stack">
-        <legend>{WORLD.mapImage}</legend>
-        <label className="map-source-choice">
-          <input
-            type="radio"
-            name="map-source"
-            checked={source === "upload"}
-            onChange={() => setSource("upload")}
-          />
-          {WORLD.mapSourceUpload}
-        </label>
-        <label className="map-source-choice">
-          <input
-            type="radio"
-            name="map-source"
-            checked={source === "existing"}
-            onChange={() => setSource("existing")}
-            disabled={images.length === 0}
-          />
-          {WORLD.mapSourceExisting}
-        </label>
-      </fieldset>
+      <RadioGroup
+        layout="stack"
+        legend={WORLD.mapImage}
+        name="map-source"
+        value={source}
+        onValueChange={(value) => {
+          if (value === "upload" || value === "existing") setSource(value);
+        }}
+        options={[
+          { value: "upload", label: WORLD.mapSourceUpload },
+          { value: "existing", label: WORLD.mapSourceExisting, disabled: images.length === 0 },
+        ]}
+      />
       {source === "existing" ? (
         <label>
           {WORLD.mapImage}

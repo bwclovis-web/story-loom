@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useRef, useState } from "react";
+import { useActionState, useCallback, useRef, useState } from "react";
 import { WorldKindFields } from "@/components/world/WorldKindFields";
 import { HelpHint } from "@/components/HelpHint";
 import { IssueList } from "@/components/IssueList";
@@ -30,16 +30,31 @@ export function NewRecordForm({
   const lastScaffold = useRef("");
   const [recordType, setRecordType] = useState<RecordType>(defaultType);
   const [fieldsJson, setFieldsJson] = useState("{}");
+  const [fieldsValid, setFieldsValid] = useState(true);
+  const onValidity = useCallback((valid: boolean) => setFieldsValid(valid), []);
 
   return (
-    <form onSubmit={submitWithoutReset(action)} className="stack">
+    <form
+      onSubmit={(event) => {
+        if (!fieldsValid) {
+          event.preventDefault();
+          return;
+        }
+        submitWithoutReset(action)(event);
+      }}
+      className="stack"
+    >
       <div className="row">
         <label>
           Type
           <select
             name="type"
             defaultValue={defaultType}
-            onChange={(event) => isRecordType(event.target.value) && setRecordType(event.target.value)}
+            onChange={(event) => {
+              if (!isRecordType(event.target.value)) return;
+              setRecordType(event.target.value);
+              setFieldsValid(true);
+            }}
           >
             {RECORD_TYPES.filter((t) => !requiresParent(t)).map((t) => (
               <option key={t} value={t}>
@@ -96,7 +111,9 @@ export function NewRecordForm({
         {RECORD.bodyLabel}
         <textarea ref={bodyRef} name="body" className="document" spellCheck lang={spellingLanguage} />
       </label>
-      {recordType === "worldbuilding" ? <WorldKindFields fieldsJson={fieldsJson} onFieldsJsonChange={setFieldsJson} /> : null}
+      {recordType === "worldbuilding" ? (
+        <WorldKindFields fieldsJson={fieldsJson} onFieldsJsonChange={setFieldsJson} onValidityChange={onValidity} />
+      ) : null}
       <label>
         {RECORD.newFieldsLabel}
         <textarea
@@ -112,7 +129,7 @@ export function NewRecordForm({
       {state.message ? <Banner tone="error">{state.message}</Banner> : null}
       <IssueList issues={state.issues ?? []} />
       <div>
-        <button type="submit" disabled={pending}>
+        <button type="submit" disabled={pending || !fieldsValid}>
           {RECORD.createRecord}
         </button>
       </div>

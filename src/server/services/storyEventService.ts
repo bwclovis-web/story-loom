@@ -3,11 +3,15 @@ import { sha256 } from "@/domain/json";
 import { errorIssue } from "@/domain/issues";
 import { isLinkableReferenceType, isRecordType } from "@/domain/recordTypes";
 import {
+  dateSortKey,
   formatStructuredDate,
   structuredDateFromRow,
   structuredDateIsComplete,
   type StructuredDateParts,
 } from "@/world/calendarDate";
+import { buildTimelineBoard, referenceLane, type TimelineBoard } from "@/world/timelineBoard";
+import { manuscriptIdsInBookOrder } from "@/ui/manuscriptTree";
+import type { RecordNavEntry } from "@/ui/navigation";
 import { dateConflictWarningsForEvent, type DateConflictWarning } from "@/world/storyEventDates";
 import { chronologicalIds, orderWouldCycle, type OrderEdge } from "@/world/storyOrder";
 import {
@@ -135,6 +139,7 @@ export interface StoryTimeline {
   locationChoices: StoryChoice[];
   sceneChoices: StoryChoice[];
   sourceChoices: StorySourceChoice[];
+  board: TimelineBoard;
 }
 
 export interface PlaceEventItem {
@@ -248,7 +253,7 @@ export async function loadStoryTimeline(
   await refreshStaleStoryEvidence(db, projectId);
   const calendar = await loadWorldCalendar(db, projectId);
   const { months, eras } = calendarDefs(calendar);
-  const [events, drafts, locations, scenes, sources, orders] = await Promise.all([
+  const [events, drafts, locations, scenes, sources, orders, eventLocations, eventScenes] = await Promise.all([
     db.storyEvent.findMany({ where: { projectId }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] }),
     db.manuscriptDraft.findMany({
       where: { projectId },
@@ -262,7 +267,7 @@ export async function loadStoryTimeline(
     }),
     db.record.findMany({
       where: { projectId, trashedAt: null, type: { in: ["manuscript_chapter", "manuscript_scene"] } },
-      select: { id: true, title: true },
+      select: { id: true, title: true, type: true, parentRecordId: true, position: true, createdAt: true, draftId: true },
       orderBy: [{ title: "asc" }, { id: "asc" }],
     }),
     db.record.findMany({
@@ -275,6 +280,20 @@ export async function loadStoryTimeline(
       orderBy: [{ title: "asc" }, { id: "asc" }],
     }),
     db.storyEventOrder.findMany({ where: { projectId }, select: { earlierEventId: true, laterEventId: true } }),
+    db.storyEventLocation.findMany({
+      where: { projectId },
+      select: {
+        eventId: true,
+        location: { select: { id: true, title: true, type: true, fields: true, trashedAt: true } },
+      },
+    }),
+    db.storyEventScene.findMany({
+      where: { projectId },
+      select: {
+        eventId: true,
+        manuscript: { select: { id: true, title: true, draftId: true, trashedAt: true } },
+      },
+    }),
   ]);
   const draftNames = new Map(drafts.map((item) => [item.id, item.label]));
   const edges: OrderEdge[] = orders.map((order) => ({ earlierId: order.earlierEventId, laterId: order.laterEventId }));
@@ -318,7 +337,94 @@ export async function loadStoryTimeline(
       if (!isRecordType(record.type)) return [];
       return [{ id: record.id, title: record.title, bodyLength: record.body.length }];
     }),
+    board: timelineBoard(list, events, eventLocations, eventScenes, scenes, orders, months, eras),
   };
+}
+
+function timelineBoard(
+  list: StoryEventListItem[],
+  events: ({ id: string } & Parameters<typeof structuredDateFromRow>[0])[],
+  eventLocations: {
+    eventId: string;
+    location: { id: string; title: string; type: string; fields: string; trashedAt: Date | null };
+  }[],
+  eventScenes: { eventId: string; manuscript: { id: string; title: string; draftId: string | null; trashedAt: Date | null } }[],
+  scenes: {
+    id: string;
+    title: string;
+    type: string;
+    parentRecordId: string | null;
+    position: number | null;
+    createdAt: Date;
+    draftId: string | null;
+  }[],
+  orders: { earlierEventId: string; laterEventId: string }[],
+  months: ReturnType<typeof calendarDefs>["months"],
+  eras: ReturnType<typeof calendarDefs>["eras"],
+): TimelineBoard {
+  const visible = new Set(list.map((event) => event.id));
+  const orderIndex = new Map(list.map((event, index) => [event.id, index]));
+  const byId = new Map(events.map((event) => [event.id, event]));
+  const bookIndex = new Map<string, number>();
+  const byDraft = new Map<string, RecordNavEntry[]>();
+  for (const scene of scenes) {
+    if (!isRecordType(scene.type)) continue;
+    const key = scene.draftId ?? "";
+    const rows = byDraft.get(key) ?? [];
+    rows.push({
+      id: scene.id,
+      title: scene.title,
+      type: scene.type,
+      parentRecordId: scene.parentRecordId,
+      position: scene.position,
+      createdAt: scene.createdAt.toISOString(),
+      draftId: scene.draftId,
+    });
+    byDraft.set(key, rows);
+  }
+  for (const rows of byDraft.values()) {
+    manuscriptIdsInBookOrder(rows).forEach((id, index) => bookIndex.set(id, index));
+  }
+  return buildTimelineBoard({
+    events: list.map((event) => {
+      const row = byId.get(event.id);
+      const parts = row ? structuredDateFromRow(row) : null;
+      return {
+        id: event.id,
+        title: event.title,
+        summary: event.summary,
+        dateKey: parts ? dateSortKey(parts, months, eras) : null,
+        orderIndex: orderIndex.get(event.id) ?? 0,
+      };
+    }),
+    links: eventLocations.flatMap((row) => {
+      if (row.location.trashedAt || !visible.has(row.eventId)) return [];
+      let fields: unknown = {};
+      try {
+        fields = JSON.parse(row.location.fields);
+      } catch {
+        fields = {};
+      }
+      const lane = referenceLane(row.location.type, fields);
+      if (!lane) return [];
+      return [{ eventId: row.eventId, recordId: row.location.id, title: row.location.title, laneKind: lane.kind, place: lane.place }];
+    }),
+    reveals: eventScenes.flatMap((row) => {
+      if (row.manuscript.trashedAt || !visible.has(row.eventId)) return [];
+      const index = bookIndex.get(row.manuscript.id);
+      if (index === undefined) return [];
+      return [
+        {
+          eventId: row.eventId,
+          recordId: row.manuscript.id,
+          title: row.manuscript.title,
+          bookIndex: index,
+          draftId: row.manuscript.draftId ?? "",
+        },
+      ];
+    }),
+    edges: orders.map((order) => ({ earlierId: order.earlierEventId, laterId: order.laterEventId })),
+  });
 }
 
 async function eventDetail(

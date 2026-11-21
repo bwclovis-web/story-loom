@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { Breadcrumbs } from "@/components/ui/Breadcrumbs";
+import { ProjectPageHeader } from "@/components/library/ProjectPageHeader";
 import { isLinkableReferenceType, isManuscriptType, RECORD_TYPE_LABELS } from "@/domain/recordTypes";
 import { getDb } from "@/server/db";
 import { readWriteDraftCookie, resolveWriteDraftId } from "@/server/draftSelection";
@@ -8,7 +8,7 @@ import { NotFoundError } from "@/server/services/errors";
 import { listManuscriptNav, listRecords } from "@/server/services/recordService";
 import { getProject, listSeriesBookProjects } from "@/server/services/projectService";
 import { getWeaveGrid, listSeriesWeaveBeats } from "@/server/services/weaveService";
-import { SHELL, WEAVE, WORLD } from "@/ui/labels";
+import { SHELL, WEAVE } from "@/ui/labels";
 import { buildManuscriptTree } from "@/ui/manuscriptTree";
 import { otherDraftRowByRecord } from "@/ui/plotGridPlacement";
 import { WeaveCanvas } from "../WeaveCanvas";
@@ -114,9 +114,10 @@ export default async function WeaveGridPage({
 
   return (
     <>
-      <Breadcrumbs
-        label={WORLD.breadcrumb}
-        items={[
+      <ProjectPageHeader
+        projectId={projectId}
+        title={grid.title}
+        crumbs={[
           { href: `${base}/plan`, label: SHELL.plan },
           { label: grid.title, current: true },
         ]}
