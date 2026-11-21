@@ -48,6 +48,7 @@ import {
 } from "./RecordSections";
 import type { EstablishedFactView } from "@/server/services/establishedFactService";
 import type { PlaceRelationView } from "@/server/services/placeRelationService";
+import type { RecordRelationView } from "@/server/services/recordRelationService";
 import type { ReadingPinView } from "@/server/services/readingPinService";
 import { type DraftChoice, type EvidenceSourceChoice, type SceneChoice } from "./EstablishedInRail";
 import { ReferenceInspector } from "@/components/world/ReferenceInspector";
@@ -55,6 +56,7 @@ import { PlaceEvents } from "@/app/projects/[projectId]/world/maps/PlaceEvents";
 import { buildReferenceInspectorModel, type RecordPlacement } from "@/world/inspectorModel";
 import { OutlineReview } from "./OutlineReview";
 import { PlaceRelations } from "./PlaceRelations";
+import { RecordRelations } from "./RecordRelations";
 import { WorldContextAside, WorldContextProvider, WorldContextToggle } from "./WorldContextRail";
 import { WorldPins } from "./WorldPins";
 
@@ -105,6 +107,8 @@ export interface ReferenceViewProps {
   draftScopeId: string | null;
   initialPins: ReadingPinView[];
   placeRelations: { outgoing: PlaceRelationView[]; incoming: PlaceRelationView[] } | null;
+  recordRelations: { outgoing: RecordRelationView[]; incoming: RecordRelationView[] } | null;
+  recordRelationChoices: Array<{ id: string; title: string; typeLabel: string }>;
   placeChoices: Array<{ id: string; title: string; typeLabel: string }>;
   establishedFacts: EstablishedFactView[] | null;
   evidenceSources: EvidenceSourceChoice[];
@@ -225,6 +229,7 @@ export function ReferenceView(props: ReferenceViewProps) {
     height: img.height,
     caption: img.caption,
     altText: img.altText,
+    isPrimary: img.isPrimary,
   }));
   const attached: AttachedImages = new Map(gallery.map((g) => [g.name, g]));
   const namesInText = imageNamesInText(record.body);
@@ -247,7 +252,7 @@ export function ReferenceView(props: ReferenceViewProps) {
     })),
     relations: [
       ...(props.placeRelations?.outgoing ?? []).map((relation) => ({
-        id: relation.id,
+        id: `plr-out-${relation.id}`,
         direction: "from" as const,
         kindLabel: relation.kindLabel,
         otherRecordId: relation.toRecordId,
@@ -255,7 +260,23 @@ export function ReferenceView(props: ReferenceViewProps) {
         otherTypeLabel: relation.toTypeLabel,
       })),
       ...(props.placeRelations?.incoming ?? []).map((relation) => ({
-        id: relation.id,
+        id: `plr-in-${relation.id}`,
+        direction: "to" as const,
+        kindLabel: relation.kindLabel,
+        otherRecordId: relation.fromRecordId,
+        otherTitle: relation.fromTitle,
+        otherTypeLabel: relation.fromTypeLabel,
+      })),
+      ...(props.recordRelations?.outgoing ?? []).map((relation) => ({
+        id: `rrl-out-${relation.id}`,
+        direction: "from" as const,
+        kindLabel: relation.kindLabel,
+        otherRecordId: relation.toRecordId,
+        otherTitle: relation.toTitle,
+        otherTypeLabel: relation.toTypeLabel,
+      })),
+      ...(props.recordRelations?.incoming ?? []).map((relation) => ({
+        id: `rrl-in-${relation.id}`,
         direction: "to" as const,
         kindLabel: relation.kindLabel,
         otherRecordId: relation.fromRecordId,
@@ -463,6 +484,16 @@ export function ReferenceView(props: ReferenceViewProps) {
               outgoing={props.placeRelations.outgoing}
               incoming={props.placeRelations.incoming}
               choices={props.placeChoices}
+            />
+          ) : null}
+
+          {linkable && props.recordRelations ? (
+            <RecordRelations
+              projectId={projectId}
+              recordId={record.id}
+              outgoing={props.recordRelations.outgoing}
+              incoming={props.recordRelations.incoming}
+              choices={props.recordRelationChoices}
             />
           ) : null}
         </div>

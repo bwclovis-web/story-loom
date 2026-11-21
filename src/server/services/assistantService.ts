@@ -501,6 +501,21 @@ function sectionDocuments(base: Omit<ContextDocument, "kind" | "text">, ref: Ite
   }));
 }
 
+/** Whole reference records at pinned revisions, for selection assist beside the manuscript. */
+export async function loadAuthorReferenceDocuments(
+  db: Db,
+  projectId: string,
+  refs: { recordId: string; revision: number }[],
+): Promise<ContextDocument[]> {
+  if (!refs.length) return [];
+  return loadDocuments(
+    db,
+    projectId,
+    refs.map((r) => ({ recordId: r.recordId, revision: r.revision, kind: "reference" as const })),
+    true,
+  );
+}
+
 async function loadDocuments(db: Db, projectId: string, refs: ItemRef[], requireCurrent: boolean): Promise<ContextDocument[]> {
   const whole = refs.filter((r) => r.kind !== "section").map((r) => r.recordId);
   const sectioned = new Set(refs.filter((r) => r.kind === "section").map((r) => r.recordId));

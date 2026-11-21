@@ -33,6 +33,7 @@ import { EditorToolbar, linkSeedFrom, shortcutHint, type FormatCommand, type Lin
 import { FindReplace, type DirectUndo } from "@/components/writing/FindReplace";
 import { StyleCheckPanel } from "@/components/writing/StyleCheckPanel";
 import { Proofreader, type ProofreadConfig } from "@/components/writing/Proofreader";
+import { SelectionAssister } from "@/components/writing/SelectionAssister";
 import { SpellingLanguageSelect } from "@/components/writing/SpellingLanguageSelect";
 import { SpellOverlay } from "@/components/writing/SpellOverlay";
 import { applyTextareaEdit, scrollTextareaToSelection, selectRange } from "@/components/writing/textareaEdit";
@@ -767,18 +768,34 @@ export function WriteEditor(props: {
           overlay={!rail.wide}
           onClose={rail.close}
           proofreader={
-            <Proofreader
-              projectId={props.projectId}
-              recordId={props.recordId}
-              revision={props.revision}
-              savedText={savedText}
-              text={text}
-              selection={selection}
-              textareaRef={bodyRef}
-              editable={editable}
-              onUnlock={() => setUnlocked(true)}
-              config={props.proofread}
-            />
+            <>
+              <SelectionAssister
+                projectId={props.projectId}
+                recordId={props.recordId}
+                revision={props.revision}
+                savedText={savedText}
+                text={text}
+                selection={selection}
+                scopeDraftId={props.draftScopeId ?? ""}
+                textareaRef={bodyRef}
+                editable={editable}
+                onUnlock={() => setUnlocked(true)}
+                onTextChange={setText}
+                config={props.proofread}
+              />
+              <Proofreader
+                projectId={props.projectId}
+                recordId={props.recordId}
+                revision={props.revision}
+                savedText={savedText}
+                text={text}
+                selection={selection}
+                textareaRef={bodyRef}
+                editable={editable}
+                onUnlock={() => setUnlocked(true)}
+                config={props.proofread}
+              />
+            </>
           }
         />
       </ContextRail>

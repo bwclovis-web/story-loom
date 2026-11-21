@@ -11,7 +11,7 @@ export function escapeHtml(text: string): string {
     .replace(/"/g, "&quot;");
 }
 
-const SCENE_BREAK = "***";
+const DEFAULT_SCENE_BREAK = "***";
 
 function blockToParagraphs(block: Block): Paragraph[] {
   switch (block.kind) {
@@ -147,16 +147,18 @@ function blockToEpubHtml(block: Block): string {
   }
 }
 
-export function sceneBreakParagraph(): Paragraph {
-  return new Paragraph({ children: [new TextRun(SCENE_BREAK)], alignment: AlignmentType.CENTER });
+export function sceneBreakParagraph(glyph = DEFAULT_SCENE_BREAK): Paragraph {
+  const text = glyph.trim() || DEFAULT_SCENE_BREAK;
+  return new Paragraph({ children: [new TextRun(text)], alignment: AlignmentType.CENTER });
 }
 
-export function sceneBreakHtml(): string {
-  return `<p style="text-align:center">${escapeHtml(SCENE_BREAK)}</p>`;
+export function sceneBreakHtml(glyph = DEFAULT_SCENE_BREAK): string {
+  const text = glyph.trim() || DEFAULT_SCENE_BREAK;
+  return `<p style="text-align:center">${escapeHtml(text)}</p>`;
 }
 
 export function chapterBreak(): Paragraph {
   return new Paragraph({ children: [new PageBreak()] });
 }
 
-export { SCENE_BREAK };
+export { DEFAULT_SCENE_BREAK };

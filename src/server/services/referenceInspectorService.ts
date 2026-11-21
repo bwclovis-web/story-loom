@@ -9,6 +9,7 @@ import { listEstablishedFactsForSubject } from "./establishedFactService";
 import { listRecordImages } from "./imageService";
 import { listLinkingRecords } from "./linkService";
 import { listPlaceRelationsForRecord } from "./placeRelationService";
+import { listRecordRelationsForRecord, recordShowsRecordRelations } from "./recordRelationService";
 import { listRecordPlacements } from "./referencePlacementService";
 import { getRecord } from "./recordService";
 
@@ -78,9 +79,13 @@ export async function loadReferenceInspector(db: DbOrTx, projectId: string, reco
   if (!isLinkableReferenceType(record.type) || !isAuthorityStatus(record.authorityStatus)) {
     return { ok: false, message: "Only reference records open here." };
   }
-  const [images, relations, linking, placements, facts] = await Promise.all([
+  const showRecordRelations = recordShowsRecordRelations(record.type, record.fields);
+  const [images, placeRelations, recordRelations, linking, placements, facts] = await Promise.all([
     listRecordImages(db, projectId, record.id),
     listPlaceRelationsForRecord(db, projectId, record.id).catch(() => ({ outgoing: [], incoming: [] })),
+    showRecordRelations
+      ? listRecordRelationsForRecord(db, projectId, record.id)
+      : Promise.resolve({ outgoing: [], incoming: [] }),
     listLinkingRecords(db, projectId, record.id),
     listRecordPlacements(db, projectId, record.id).catch(() => []),
     listEstablishedFactsForSubject(db, projectId, record.id).catch(() => [] as EstablishedFactView[]),
@@ -110,16 +115,32 @@ export async function loadReferenceInspector(db: DbOrTx, projectId: string, reco
       caption: image.caption,
     })),
     relations: [
-      ...relations.outgoing.map((relation) => ({
-        id: relation.id,
+      ...placeRelations.outgoing.map((relation) => ({
+        id: `plr-out-${relation.id}`,
         direction: "from" as const,
         kindLabel: relation.kindLabel,
         otherRecordId: relation.toRecordId,
         otherTitle: relation.toTitle,
         otherTypeLabel: relation.toTypeLabel,
       })),
-      ...relations.incoming.map((relation) => ({
-        id: relation.id,
+      ...placeRelations.incoming.map((relation) => ({
+        id: `plr-in-${relation.id}`,
+        direction: "to" as const,
+        kindLabel: relation.kindLabel,
+        otherRecordId: relation.fromRecordId,
+        otherTitle: relation.fromTitle,
+        otherTypeLabel: relation.fromTypeLabel,
+      })),
+      ...recordRelations.outgoing.map((relation) => ({
+        id: `rrl-out-${relation.id}`,
+        direction: "from" as const,
+        kindLabel: relation.kindLabel,
+        otherRecordId: relation.toRecordId,
+        otherTitle: relation.toTitle,
+        otherTypeLabel: relation.toTypeLabel,
+      })),
+      ...recordRelations.incoming.map((relation) => ({
+        id: `rrl-in-${relation.id}`,
         direction: "to" as const,
         kindLabel: relation.kindLabel,
         otherRecordId: relation.fromRecordId,

@@ -4,7 +4,13 @@ import { revalidatePath } from "next/cache";
 import { errorIssue } from "@/domain/issues";
 import { getDb } from "@/server/db";
 import { MutationRejectedError } from "@/server/services/errors";
-import { addRecordImages, isImagesTableMissing, removeRecordImage, updateRecordImage } from "@/server/services/imageService";
+import {
+  addRecordImages,
+  isImagesTableMissing,
+  removeRecordImage,
+  setRecordImagePrimary,
+  updateRecordImage,
+} from "@/server/services/imageService";
 import { IMAGES } from "@/ui/labels";
 import type { FormResult } from "../../actions";
 
@@ -50,6 +56,23 @@ export async function updateImageAction(
     );
     revalidatePath(`/projects/${projectId}/records/${recordId}`);
     return { ok: true, message: "Saved." };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+export async function setPrimaryImageAction(
+  projectId: string,
+  recordId: string,
+  imageId: string,
+  _prev: FormResult,
+  formData: FormData,
+): Promise<FormResult> {
+  try {
+    await setRecordImagePrimary(getDb(), projectId, recordId, imageId, { confirmProtected: confirmed(formData) });
+    revalidatePath(`/projects/${projectId}/records/${recordId}`);
+    revalidatePath(`/projects/${projectId}/world/relationships`);
+    return { ok: true, message: IMAGES.profileImageSet };
   } catch (error) {
     return failure(error);
   }

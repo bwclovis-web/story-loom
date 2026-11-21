@@ -14,6 +14,11 @@ import { listSceneLocationsForManuscript } from "@/server/services/sceneLocation
 import { listRecordImages } from "@/server/services/imageService";
 import { listEstablishedFactsForSubject } from "@/server/services/establishedFactService";
 import { listPlaceRelationsForRecord } from "@/server/services/placeRelationService";
+import {
+  listRecordRelationEndpointChoices,
+  listRecordRelationsForRecord,
+  recordShowsRecordRelations,
+} from "@/server/services/recordRelationService";
 import { listRecordPlacements } from "@/server/services/referencePlacementService";
 import { listReadingPins, resolvePinScope } from "@/server/services/readingPinService";
 import { listImportedFilesForRecord } from "@/server/services/markdownImportService";
@@ -232,7 +237,8 @@ export default async function RecordPage({
     projectId,
     drafts.find((d) => d.kind === "author_manuscript")?.id ?? drafts[0]?.id ?? null,
   );
-  const [linking, reviewItems, proposals, importedFiles, images, supersededBy, worldPins, placeRelations, referenceChoices, establishedFacts, placements, mentionedBy] =
+  const showRecordRelations = recordShowsRecordRelations(record.type, record.fields);
+  const [linking, reviewItems, proposals, importedFiles, images, supersededBy, worldPins, placeRelations, recordRelations, recordRelationChoices, referenceChoices, establishedFacts, placements, mentionedBy] =
     await Promise.all([
       listLinkingRecords(db, projectId, record.id),
       listOpenReviewItemsForRecord(db, projectId, record.id),
@@ -244,6 +250,10 @@ export default async function RecordPage({
         : null,
       listReadingPins(db, projectId, worldPinScope),
       listPlaceRelationsForRecord(db, projectId, record.id).catch(() => ({ outgoing: [], incoming: [] })),
+      showRecordRelations
+        ? listRecordRelationsForRecord(db, projectId, record.id)
+        : Promise.resolve({ outgoing: [], incoming: [] }),
+      showRecordRelations ? listRecordRelationEndpointChoices(db, projectId) : Promise.resolve([]),
       listReferenceChoices(db, projectId),
       listEstablishedFactsForSubject(db, projectId, record.id).catch(() => [] as Awaited<ReturnType<typeof listEstablishedFactsForSubject>>),
       listRecordPlacements(db, projectId, record.id).catch(() => []),
@@ -347,6 +357,8 @@ export default async function RecordPage({
       draftScopeId={worldPinScope === "" ? null : worldPinScope}
       initialPins={worldPins}
       placeRelations={placeRelations}
+      recordRelations={showRecordRelations ? recordRelations : null}
+      recordRelationChoices={recordRelationChoices}
       placeChoices={referenceChoices.map((c) => ({
         id: c.id,
         title: c.title,

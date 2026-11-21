@@ -1,5 +1,70 @@
 # Progress
 
+## Relationship graph and trees (Nov 21, 2026)
+
+World → **Relationships** page: SVG graph with focus, hop limit, and kind filters; family, organization, and geography trees from record and place relations only. List presentation for accessibility. No schema change.
+
+| Check | Result |
+| --- | --- |
+| `pnpm typecheck` | pass |
+| `pnpm exec vitest run tests/unit/relationship-graph.test.ts tests/acceptance/relationship-views.test.ts tests/unit/help.test.ts` | 9/9 passed |
+
+### Rollback
+
+Revert code only.
+
+## Record relationships (Nov 21, 2026)
+
+`RecordRelation` table for explicit edges between character dossiers, organizations, and places (parent of, member of, rival of, custom label, and the rest). Audited add/remove via `recordRelationService`. UI on reference pages and the inspector Relationships tab. Optional `recordRelations` in workspace backup. `PlaceRelation` unchanged.
+
+| Check | Result |
+| --- | --- |
+| `pnpm typecheck` | pass |
+| `pnpm exec vitest run tests/acceptance/record-relations.test.ts tests/unit/help.test.ts` | 8/8 passed |
+
+### Rollback
+
+After your own DB backup: remove migration `20261121130000_record_relations` and restore, or revert code and leave the table.
+
+## Multi-word dictionary phrases (Nov 20, 2026)
+
+Project and workspace dictionary entries may be phrases (for example invented place names). The spell checker and proofreading accept only the exact phrase at word boundaries, not the same words separately. No schema change.
+
+| Check | Result |
+| --- | --- |
+| `pnpm typecheck` | pass |
+| `pnpm exec vitest run tests/unit/spelling.test.ts tests/acceptance/dictionary.test.ts tests/unit/help.test.ts` | 40/40 passed |
+
+### Rollback
+
+Revert code only.
+
+## Inline AI writing assist on a selection (Nov 20, 2026)
+
+Rewrite, expand, and describe on a saved text selection. Codex context from reading pins on the References tab. Suggestion-only in the editor; runs stored as `ProofreadRun` with `mode: selection_assist`. API at `/api/projects/:id/selection-assist`. `PROJECT_RULES.md` updated.
+
+| Check | Result |
+| --- | --- |
+| `pnpm typecheck` | pass |
+| `pnpm exec vitest run tests/acceptance/selection-assist.test.ts tests/unit/help.test.ts` | 6/6 passed |
+
+### Rollback
+
+Revert code. No migration (reuses `ProofreadRun`).
+
+## Compile profiles and front/back matter (Nov 20, 2026)
+
+`CompileProfile` table (one row per project). Export PDF page form saves title, copyright, dedication, acknowledgements, scene-break glyph, chapter heading alignment, and optional synopses or margin comments. PDF, DOCX, and EPUB share the same profile via `buildManuscriptExportContext`. Optional `compileProfiles` in workspace backup.
+
+| Check | Result |
+| --- | --- |
+| `pnpm typecheck` | pass |
+| `pnpm exec vitest run tests/acceptance/compile-profiles.test.ts tests/acceptance/manuscript-export-formats.test.ts tests/unit/help.test.ts` | 6/6 passed |
+
+### Rollback
+
+After your own DB backup: remove migration `20261120190000_compile_profiles` and restore, or revert code and leave the table.
+
 ## Manuscript DOCX and EPUB export (Nov 20, 2026)
 
 Shared `buildManuscriptExportModel` for PDF, DOCX (`docx`), and EPUB (`jszip`). Download routes at `/projects/:id/docx` and `/projects/:id/epub` beside `/pdf`, same draft and scene-title options on Export PDF. Reference exports remain PDF-only.
@@ -1173,6 +1238,9 @@ panel says a database update is needed and the rest of the app works.
   for screen readers. Remove asks for confirmation and is not offered while
   the text shows the image. A "Not attached" list names references in the
   text that match no image.
+- **Profile image** (migration `20261121140000_record_image_primary`): one
+  gallery image per reference may be marked primary; relationship graph and
+  tree dots use it, otherwise initials. Backups store optional `isPrimary`.
 - **In the text**: `![description](image:name)` shows the image with its
   caption. The editor has Insert image, which places the reference at the
   cursor and can be undone with Ctrl+Z. Older revisions that showed a

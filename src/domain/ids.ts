@@ -27,11 +27,13 @@ export type IdPrefix =
   | "pin" // reading pin (reference beside prose)
   | "wgoal" // writing goal (word target)
   | "man" // manuscript annotation (synopsis or margin comment)
+  | "cprof" // manuscript compile profile (export front/back matter)
   | "brd" // world board
   | "bcd" // board card
   | "wmp" // world map
   | "wpn" // world map pin
   | "plr" // place relation
+  | "rrl" // record relationship (character / organization)
   | "wvg" // weave grid
   | "wvb" // weave beat
   | "wth" // weave story thread (plot-grid column)

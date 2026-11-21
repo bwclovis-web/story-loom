@@ -906,7 +906,7 @@ export const WORLD = {
   recentReferences: "Recent references",
   noRecent: "No references yet.",
   allReferencesList: "All references",
-  worldSurfaces: "References, maps, boards, and the timeline",
+  worldSurfaces: "References, maps, boards, timeline, and relationships",
   referencesHint: "Search and open dossiers, places, and notes.",
   mapsNavHint: "Upload a backdrop or use an image you already attached.",
   boardsNavHint: "Place records, images, and notes on a board.",
@@ -1137,6 +1137,34 @@ export const WORLD = {
   storyTimeline: "Timeline",
   storyTimelineLead: "Events in the order you set. That order is not the manuscript order, and an event can leave its time unknown.",
   storyTimelineHint: "Record events, who reveals them, and where they happen.",
+  relationships: "Relationships",
+  relationshipsLead:
+    "Explore explicit place and record relationships only. Mentions and links in prose are not shown here.",
+  relationshipsNavHint: "Graph and trees from place and record relationships you added on reference pages.",
+  relationshipExplorerControls: "Relationship view controls",
+  relationshipViewTabs: "Relationship views",
+  relationshipPresentationTabs: "Diagram or list",
+  relationshipGraphView: "Graph",
+  relationshipFamilyView: "Family",
+  relationshipOrganizationView: "Organization",
+  relationshipGeographyView: "Geography",
+  relationshipDiagram: "Diagram",
+  relationshipListView: "List",
+  relationshipFocus: "Focus on",
+  relationshipFocusAll: "Whole graph",
+  relationshipSteps: "Steps",
+  relationshipKindFilters: "Kinds to show",
+  relationshipNoData:
+    "No relationships yet. Add place relationships on World places, and character or organization relationships on eligible reference pages.",
+  relationshipSubgraphEmpty: "Nothing matches this focus, step count, and kind filters.",
+  relationshipSourceNote:
+    "Built from PlaceRelationship and RecordRelationship rows only. Board positions and map pins do not add edges.",
+  relationshipGraphSvgLabel: "Relationship graph diagram",
+  relationshipTreeSvgLabel: "Relationship tree diagram",
+  relationshipEdgeListLabel: "Relationship list",
+  relationshipTreeListLabel: "Tree list",
+  relationshipFamilyLoose: "Sibling and spouse relationships",
+  relationshipTreeEmpty: "No tree for this view yet. Add the matching relationship kinds on reference pages.",
   storyEventNote:
     "A story event is not a scene location, a mention, or an established fact. A planned event stays marked. Several scenes can reveal one event.",
   storyEventRail: "Selected event",
@@ -1203,6 +1231,19 @@ export const WORLD = {
   relationGovernedBy: "Governed by",
   relationOutgoing: "From this place",
   relationIncoming: "To this place",
+  recordRelations: "Character and organization relationships",
+  recordRelationsNote:
+    "Explicit relationships such as parent of, member of, and rival of. Moving map pins or board cards never creates or changes these.",
+  noRecordRelations: "No record relationships yet.",
+  addRecordRelation: "Add relationship",
+  removeRecordRelation: "Remove relationship",
+  recordRelationOutgoing: "From this record",
+  recordRelationIncoming: "To this record",
+  recordRelationTo: "Related record",
+  chooseRecordRelationTarget: "Choose a character, organization, or place…",
+  recordRelationCustomKind: "Custom label…",
+  recordRelationCustomLabel: "Custom label",
+  editRecordRelations: "Add or remove character and organization relationships",
   establishedIn: "Established in",
   establishedInNote:
     "Facts linked to exact manuscript or plan passages. Planned material, zero-draft evidence, and author-rewrite evidence stay distinct. Extracted facts wait for review before they are saved as accepted.",
@@ -1343,6 +1384,9 @@ export const IMAGES = {
   insertLabel: "Insert image",
   insertButton: "Insert at cursor",
   insertHint: "Adds the image's text reference where the cursor is.",
+  profileImage: "Profile image",
+  setProfileImage: "Use as profile image",
+  profileImageSet: "Profile image updated.",
 } as const;
 
 /** The PDF export page and downloads. */
@@ -1358,7 +1402,7 @@ export const PDF = {
   downloadManuscriptEpub: "Download manuscript EPUB",
   manuscriptFormats: "Manuscript export formats",
   manuscriptFormatsNote:
-    "DOCX and EPUB use the same chapter order, draft, and scene-title option as the PDF. Reference documents stay PDF-only for now.",
+    "DOCX and EPUB use the same chapter order, draft, scene-title option, and compile profile as the PDF. Reference documents stay PDF-only for now.",
   noManuscript: "This project has no chapters yet.",
   referencesHeading: "References",
   referencesNote:
@@ -1372,6 +1416,23 @@ export const PDF = {
     `${chapters} chapter${chapters === 1 ? "" : "s"}, ${scenes} scene${scenes === 1 ? "" : "s"}`,
   preselected: (n: Count) => `${n} document${n === 1 ? "" : "s"} ticked from the page you came from. Change the ticks as needed.`,
   imagesNote: "PNG and JPEG images are included at their place in the text, or after the text when the text does not show them. Other formats are listed by name.",
+} as const;
+
+export const COMPILE_PROFILE = {
+  heading: "Compile profile",
+  intro:
+    "These settings apply to manuscript PDF, DOCX, and EPUB downloads. Leave a page blank to omit it. Title page text replaces the default title page when filled in.",
+  titlePage: "Title page (Markdown)",
+  copyright: "Copyright page (Markdown)",
+  dedication: "Dedication (Markdown)",
+  acknowledgements: "Acknowledgements (Markdown)",
+  sceneBreakGlyph: "Scene break glyph",
+  chapterHeadingStyle: "Chapter heading alignment",
+  headingCentered: "Centred",
+  headingLeft: "Left",
+  includeSynopses: "Include synopsis cards before each chapter or scene body",
+  includeMarginComments: "Include unresolved margin comments after each chapter or scene body",
+  save: "Save compile profile",
 } as const;
 
 export const SPELLING = {
@@ -1404,8 +1465,8 @@ export const SPELLING = {
 export const DICTIONARY = {
   heading: "Project dictionary",
   intro:
-    `Words here are accepted by the ${APP_NAME} spell checker and AI proofreading. A word in the dictionary is never underlined, but a similar word is still flagged, so a misspelled name stays visible.`,
-  addHeading: "Add a word",
+    `Words and phrases here are accepted by the ${APP_NAME} spell checker and AI proofreading. An exact match is never underlined, but a similar word is still flagged, so a misspelled name stays visible.`,
+  addHeading: "Add a word or phrase",
   word: "Word",
   scope: "Dictionary",
   scopeProject: "This project",
@@ -1424,7 +1485,7 @@ export const DICTIONARY = {
   exportScope: (label: string) => `Download ${label} dictionary`,
   importHeading: "Import",
   importNote:
-    `Choose a ${APP_NAME} dictionary file (.json) or a plain word list (.txt or .dic, one word per line). Nothing is added until you tick words and choose Add.`,
+    `Choose a ${APP_NAME} dictionary file (.json) or a plain word list (.txt or .dic, one word or phrase per line). Nothing is added until you tick entries and choose Add.`,
   importFile: "Dictionary file",
   selectAllNew: "Select all new words",
   selectNone: "Select none",
@@ -1435,6 +1496,28 @@ export const DICTIONARY = {
   findNames: "Find names",
   noNames: "No unknown names found in reference records.",
   foundIn: "Found in",
+} as const;
+
+export const SELECTION_ASSIST = {
+  heading: "AI writing assist",
+  rewrite: "Rewrite selection",
+  expand: "Expand selection",
+  describe: "Describe selection",
+  saveFirst: "Save the record first. Assist works on the saved text, like proofreading.",
+  needSelection: "Select text in the editor first.",
+  tooLarge: "The selection is over the request limit. Select less text. Nothing is cut automatically.",
+  pinNote: "Codex context comes from references pinned on the References tab beside this scene, in the same order.",
+  privacyNote: "Only the selection, pinned references, and instructions are sent. Nothing is stored except usage counters.",
+  running: "Working…",
+  cancel: "Cancel",
+  accept: "Accept into editor",
+  dismiss: "Dismiss",
+  accepted: "Suggestion applied in the text box. Save when you are ready.",
+  protectedNote: "Tick Unlock protected text to accept the suggestion.",
+  staleNote: "The text or selection changed after the suggestion was made. Dismiss it or run assist again.",
+  suggestionFor: (action: string) => `Suggested ${action} for the saved selection.`,
+  usedPins: (n: number) => `Used ${n} pinned reference${n === 1 ? "" : "s"}.`,
+  noPins: "No references were pinned; the model saw only the selection.",
 } as const;
 
 export const PROOFREAD = {

@@ -340,10 +340,11 @@ export function drawBlocks(doc: PDFKit.PDFDocument, blocks: readonly Block[], ct
 }
 
 /** A centred scene break. */
-export function drawSceneBreak(doc: PDFKit.PDFDocument) {
+export function drawSceneBreak(doc: PDFKit.PDFDocument, glyph = "* * *") {
   ensureSpace(doc, 40);
   doc.y += 6;
-  doc.font("body").fontSize(SIZES.body).fillColor(COLORS.muted).text("* * *", contentLeft(doc), doc.y, { width: contentWidth(doc), align: "center" });
+  const label = glyph.trim() || "* * *";
+  doc.font("body").fontSize(SIZES.body).fillColor(COLORS.muted).text(label, contentLeft(doc), doc.y, { width: contentWidth(doc), align: "center" });
   doc.fillColor(COLORS.text);
   doc.y += 12;
 }

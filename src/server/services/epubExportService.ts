@@ -1,7 +1,18 @@
 import "server-only";
 import JSZip from "jszip";
+import {
+  buildManuscriptExportContext,
+  chapterHeadingAlign,
+  defaultTitleSubtitle,
+  matterSections,
+  recordExportPrefix,
+  recordExportSuffix,
+  sceneBreakText,
+  type ManuscriptExportBuildOptions,
+  usesCustomTitlePage,
+} from "./manuscriptExportCompile";
 import { bodyToEpubSectionHtml, escapeHtml, sceneBreakHtml } from "./manuscriptExportMarkdown";
-import { buildManuscriptExportModel, exportDateStamp, exportSlug } from "./manuscriptExportModel";
+import { exportDateStamp, exportSlug } from "./manuscriptExportModel";
 import type { DbOrTx } from "../db";
 
 export interface ManuscriptEpubFile {
@@ -28,16 +39,30 @@ function escapeAttr(text: string): string {
   return text.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
 }
 
+const MATTER_LABELS: Record<string, string> = {
+  dedication: "Dedication",
+  copyright: "Copyright",
+  acknowledgements: "Acknowledgements",
+};
+
+function appendMarkdown(parts: string[], markdown: string) {
+  const trimmed = markdown.trim();
+  if (trimmed) parts.push(bodyToEpubSectionHtml(trimmed));
+}
+
 export async function buildManuscriptEpub(
   db: DbOrTx,
   projectId: string,
-  options: { sceneTitles: boolean; draftId?: string | null; hasDrafts?: boolean },
+  options: ManuscriptExportBuildOptions,
   now = new Date(),
 ): Promise<ManuscriptEpubFile> {
-  const model = await buildManuscriptExportModel(db, projectId, options, now);
+  const exportCtx = await buildManuscriptExportContext(db, projectId, options, now);
+  const model = exportCtx.model;
   const zip = new JSZip();
   const uid = `story-loom-${exportSlug(model.projectTitle)}-${now.getTime()}`;
-  const generated = model.generatedAt.toLocaleString("en-GB", { dateStyle: "long", timeStyle: "short" });
+  const generated = defaultTitleSubtitle(model.generatedAt);
+  const chapterAlign = chapterHeadingAlign(exportCtx.compile.chapterHeadingStyle);
+  const glyph = sceneBreakText(exportCtx.compile);
 
   const spine: string[] = ["title"];
   const manifest: { id: string; href: string; mime: string }[] = [
@@ -46,7 +71,9 @@ export async function buildManuscriptEpub(
     { id: "title", href: "title.xhtml", mime: "application/xhtml+xml" },
   ];
   const navItems: { label: string; href: string }[] = [{ label: model.projectTitle, href: "title.xhtml" }];
-  const ncxNavPoints: { id: string; label: string; href: string }[] = [{ id: "np-title", label: model.projectTitle, href: "title.xhtml" }];
+  const ncxNavPoints: { id: string; label: string; href: string }[] = [
+    { id: "np-title", label: model.projectTitle, href: "title.xhtml" },
+  ];
 
   zip.file("mimetype", "application/epub+zip", { compression: "STORE" });
   zip.file(
@@ -59,25 +86,46 @@ export async function buildManuscriptEpub(
 </container>`,
   );
 
-  const titleBody = `<h1>${escapeHtml(model.projectTitle)}</h1><p><em>Manuscript</em></p><p>${escapeHtml(generated)}</p>`;
+  const titleBody = usesCustomTitlePage(exportCtx.compile)
+    ? bodyToEpubSectionHtml(exportCtx.compile.titlePageBody)
+    : `<h1>${escapeHtml(model.projectTitle)}</h1><p><em>Manuscript</em></p><p>${escapeHtml(generated)}</p>`;
   zip.file("OEBPS/title.xhtml", xhtmlPage(model.projectTitle, titleBody));
+
+  for (const section of matterSections(exportCtx.compile)) {
+    const id = `matter-${section.key}`;
+    const href = `${id}.xhtml`;
+    const label = MATTER_LABELS[section.key] ?? section.key;
+    zip.file(`OEBPS/${href}`, xhtmlPage(label, bodyToEpubSectionHtml(section.body)));
+    spine.push(id);
+    manifest.push({ id, href, mime: "application/xhtml+xml" });
+    navItems.push({ label, href });
+    ncxNavPoints.push({ id: `np-${id}`, label, href });
+  }
 
   let chapterIndex = 0;
   for (const chapter of model.chapters) {
     chapterIndex += 1;
     const id = `ch-${chapterIndex}`;
     const href = `${id}.xhtml`;
-    let body = `<h1>${escapeHtml(chapter.record.title)}</h1>\n${bodyToEpubSectionHtml(chapter.record.body)}`;
+    const parts: string[] = [
+      `<h1 style="text-align:${chapterAlign}">${escapeHtml(chapter.record.title)}</h1>`,
+    ];
+    appendMarkdown(parts, recordExportPrefix(chapter.record.id, exportCtx));
+    parts.push(bodyToEpubSectionHtml(chapter.record.body));
     let sceneHadText = chapter.record.body.trim().length > 0;
     for (const scene of chapter.scenes) {
       if (model.sceneTitles) {
-        body += `\n<h3>${escapeHtml(scene.record.title)}</h3>`;
+        parts.push(`<h3>${escapeHtml(scene.record.title)}</h3>`);
       } else if (sceneHadText && scene.record.body.trim()) {
-        body += `\n${sceneBreakHtml()}`;
+        parts.push(sceneBreakHtml(glyph));
       }
-      body += `\n${bodyToEpubSectionHtml(scene.record.body)}`;
+      appendMarkdown(parts, recordExportPrefix(scene.record.id, exportCtx));
+      parts.push(bodyToEpubSectionHtml(scene.record.body));
       sceneHadText = sceneHadText || scene.record.body.trim().length > 0;
+      appendMarkdown(parts, recordExportSuffix(scene.record.id, exportCtx));
     }
+    appendMarkdown(parts, recordExportSuffix(chapter.record.id, exportCtx));
+    const body = parts.join("\n");
     zip.file(`OEBPS/${href}`, xhtmlPage(chapter.record.title, body));
     spine.push(id);
     manifest.push({ id, href, mime: "application/xhtml+xml" });
@@ -88,15 +136,17 @@ export async function buildManuscriptEpub(
   if (model.unplacedScenes.length) {
     const id = "unplaced";
     const href = `${id}.xhtml`;
-    let body = `<h1>Scenes not in a chapter</h1>`;
+    const parts: string[] = [`<h1 style="text-align:${chapterAlign}">Scenes not in a chapter</h1>`];
     let sceneHadText = false;
     for (const scene of model.unplacedScenes) {
-      if (model.sceneTitles) body += `\n<h3>${escapeAttr(scene.record.title)}</h3>`;
-      else if (sceneHadText && scene.record.body.trim()) body += `\n${sceneBreakHtml()}`;
-      body += `\n${bodyToEpubSectionHtml(scene.record.body)}`;
+      if (model.sceneTitles) parts.push(`<h3>${escapeHtml(scene.record.title)}</h3>`);
+      else if (sceneHadText && scene.record.body.trim()) parts.push(sceneBreakHtml(glyph));
+      appendMarkdown(parts, recordExportPrefix(scene.record.id, exportCtx));
+      parts.push(bodyToEpubSectionHtml(scene.record.body));
       sceneHadText = sceneHadText || scene.record.body.trim().length > 0;
+      appendMarkdown(parts, recordExportSuffix(scene.record.id, exportCtx));
     }
-    zip.file(`OEBPS/${href}`, xhtmlPage("Scenes not in a chapter", body));
+    zip.file(`OEBPS/${href}`, xhtmlPage("Scenes not in a chapter", parts.join("\n")));
     spine.push(id);
     manifest.push({ id, href, mime: "application/xhtml+xml" });
     navItems.push({ label: "Scenes not in a chapter", href });
@@ -106,7 +156,7 @@ export async function buildManuscriptEpub(
   const navList = navItems.map((item) => `<li><a href="${item.href}">${escapeAttr(item.label)}</a></li>`).join("");
   zip.file(
     "OEBPS/nav.xhtml",
-  xhtmlPage("Contents", `<nav epub:type="toc"><h1>Contents</h1><ol>${navList}</ol></nav>`).replace(
+    xhtmlPage("Contents", `<nav epub:type="toc"><h1>Contents</h1><ol>${navList}</ol></nav>`).replace(
       "<html",
       '<html xmlns:epub="http://www.idpf.org/2007/ops"',
     ),
@@ -136,7 +186,7 @@ export async function buildManuscriptEpub(
 
   const manifestXml = manifest
     .map((item) => `<item id="${item.id}" href="${item.href}" media-type="${item.mime}"/>`)
-  .join("");
+    .join("");
   const spineXml = spine.map((idref) => `<itemref idref="${idref}"/>`).join("");
   zip.file(
     "OEBPS/content.opf",

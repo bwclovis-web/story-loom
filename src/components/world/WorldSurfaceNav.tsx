@@ -8,7 +8,7 @@ export function WorldSurfaceNav({
   current,
 }: {
   projectId: string;
-  current: "references" | "maps" | "boards" | "events";
+  current: "references" | "maps" | "boards" | "events" | "relationships";
 }) {
   const base = `/projects/${encodeURIComponent(projectId)}`;
   const items = [
@@ -16,6 +16,12 @@ export function WorldSurfaceNav({
     { key: "maps" as const, href: `${base}/world/maps`, title: WORLD.maps, hint: WORLD.mapsNavHint },
     { key: "boards" as const, href: `${base}/world/boards`, title: WORLD.boards, hint: WORLD.boardsNavHint },
     { key: "events" as const, href: `${base}/world/events`, title: WORLD.storyTimeline, hint: WORLD.storyTimelineHint },
+    {
+      key: "relationships" as const,
+      href: `${base}/world/relationships`,
+      title: WORLD.relationships,
+      hint: WORLD.relationshipsNavHint,
+    },
   ];
 
   return (

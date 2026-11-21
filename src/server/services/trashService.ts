@@ -253,6 +253,7 @@ async function deleteProjectRowsInTx(tx: Tx, projectId: string) {
   await tx.worldMapPin.deleteMany({ where: { projectId } });
   await tx.worldMap.deleteMany({ where: { projectId } });
   await tx.placeRelation.deleteMany({ where: { projectId } });
+  await tx.recordRelation.deleteMany({ where: { projectId } });
   const weaveBeats = await tx.weaveBeat.findMany({ where: { projectId }, select: { id: true } });
   if (weaveBeats.length) {
     const beatIds = weaveBeats.map((b) => b.id);

@@ -25,7 +25,18 @@ import { parseMarkdown } from "@/writing/markdownParse";
 import type { DbOrTx } from "../db";
 import { NotFoundError } from "./errors";
 import { imageDataByIds, imagesByRecord } from "./imageService";
-import { buildManuscriptExportModel, exportDateStamp, exportSlug } from "./manuscriptExportModel";
+import {
+  buildManuscriptExportContext,
+  chapterHeadingAlign,
+  defaultTitleSubtitle,
+  matterSections,
+  recordExportPrefix,
+  recordExportSuffix,
+  sceneBreakText,
+  type ManuscriptExportBuildOptions,
+  usesCustomTitlePage,
+} from "./manuscriptExportCompile";
+import { exportDateStamp, exportSlug } from "./manuscriptExportModel";
 import { LIVE_PROJECT } from "./trashFilters";
 
 /*
@@ -198,29 +209,54 @@ export async function buildReferencesPdf(db: DbOrTx, projectId: string, recordId
 export async function buildManuscriptPdf(
   db: DbOrTx,
   projectId: string,
-  options: { sceneTitles: boolean; draftId?: string | null; hasDrafts?: boolean },
+  options: ManuscriptExportBuildOptions,
   now = new Date(),
 ): Promise<PdfFile> {
-  const model = await buildManuscriptExportModel(db, projectId, options, now);
+  const exportCtx = await buildManuscriptExportContext(db, projectId, options, now);
+  const model = exportCtx.model;
   const project = model.projectTitle;
+  const headingAlign = chapterHeadingAlign(exportCtx.compile.chapterHeadingStyle);
+  const sceneGlyph = sceneBreakText(exportCtx.compile);
 
   const doc = createPdf({ title: project, subject: "Manuscript exported from Story Loom" });
-  const generated = `Saved versions as of ${now.toLocaleString("en-GB", { dateStyle: "long", timeStyle: "short" })}`;
-  drawTitlePage(doc, project, "Manuscript", generated, []);
+  const generated = defaultTitleSubtitle(model.generatedAt);
   const ctx: RenderContext = { images: EMPTY_IMAGES, embedded: 0 };
 
   const drawText = (body: string) => {
-    const parsed = parseMarkdown(body);
+    const trimmed = body.trim();
+    if (!trimmed) return false;
+    const parsed = parseMarkdown(trimmed);
     if (parsed.blocks.length) drawBlocks(doc, parsed.blocks, ctx, contentLeft(doc), contentWidth(doc));
     return parsed.blocks.length > 0;
   };
 
-  const drawScenes = (scenes: { record: { title: string; body: string } }[], afterText: boolean) => {
+  if (usesCustomTitlePage(exportCtx.compile)) {
+    doc.y = doc.page.margins.top;
+    drawText(exportCtx.compile.titlePageBody);
+  } else {
+    drawTitlePage(doc, project, "Manuscript", generated, []);
+  }
+
+  const drawMatterPage = (body: string) => {
+    doc.addPage();
+    drawText(body);
+  };
+
+  for (const section of matterSections(exportCtx.compile)) {
+    drawMatterPage(section.body);
+  }
+
+  const drawScenes = (
+    scenes: { record: { id: string; title: string; body: string } }[],
+    afterText: boolean,
+  ) => {
     let previousText = afterText;
     for (const scene of scenes) {
-      if (options.sceneTitles) drawHeading(doc, scene.record.title, 3, contentLeft(doc), contentWidth(doc));
-      else if (previousText && scene.record.body.trim()) drawSceneBreak(doc);
+      if (model.sceneTitles) drawHeading(doc, scene.record.title, 3, contentLeft(doc), contentWidth(doc));
+      else if (previousText && scene.record.body.trim()) drawSceneBreak(doc, sceneGlyph);
+      drawText(recordExportPrefix(scene.record.id, exportCtx));
       previousText = drawText(scene.record.body) || previousText;
+      drawText(recordExportSuffix(scene.record.id, exportCtx));
     }
   };
 
@@ -228,7 +264,11 @@ export async function buildManuscriptPdf(
     doc.addPage();
     doc.outline.addItem(title);
     doc.y = doc.page.margins.top + 60;
-    doc.font("sansBold").fontSize(18).fillColor(COLORS.text).text(title, contentLeft(doc), doc.y, { width: contentWidth(doc), align: "center" });
+    doc
+      .font("sansBold")
+      .fontSize(18)
+      .fillColor(COLORS.text)
+      .text(title, contentLeft(doc), doc.y, { width: contentWidth(doc), align: headingAlign });
     doc.y += 28;
   };
 
@@ -236,7 +276,9 @@ export async function buildManuscriptPdf(
   for (const chapter of model.chapters) {
     chapters += 1;
     chapterHeading(chapter.record.title);
+    drawText(recordExportPrefix(chapter.record.id, exportCtx));
     drawScenes(chapter.scenes, drawText(chapter.record.body));
+    drawText(recordExportSuffix(chapter.record.id, exportCtx));
   }
   if (model.unplacedScenes.length) {
     chapterHeading("Scenes not in a chapter");

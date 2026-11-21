@@ -120,6 +120,11 @@ rewritten automatically, so do not put project rules inside it.
   suggestions, never let proofreading unlock a protected record, and locate
   suggestions only on the Markdown source text (offsets in the text box's
   terms), never on rendered text.
+- AI writing assist on a selection (Write and record pages) is another
+  read-only assistant surface on the same connection and limits. It sends the
+  saved selection and reading-pinned codex references only; accepting a
+  suggestion edits the text box only, and saving goes through the normal record
+  save. It never writes records, revisions, or change proposals.
 - The author's dictionary (`docs/spelling.md`) is scoped to one project or to
   its workspace, never shared across workspaces. Entries only suppress
   spelling flags for exact words; never accept or auto-correct similar

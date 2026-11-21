@@ -7,9 +7,11 @@ import { resolveExportDraftId } from "@/server/draftSelection";
 import { getDraftDefaults, listManuscriptDrafts } from "@/server/services/draftService";
 import { imagesByRecord } from "@/server/services/imageService";
 import { listRecordNav, listRecords } from "@/server/services/recordService";
-import { DRAFT, PDF } from "@/ui/labels";
+import { getCompileProfile } from "@/server/services/compileProfileService";
+import { COMPILE_PROFILE, DRAFT, PDF } from "@/ui/labels";
 import { buildManuscriptTree } from "@/ui/manuscriptTree";
 import { RECORD_GROUPS } from "@/ui/navigation";
+import { CompileProfileForm } from "./CompileProfileForm";
 import { PdfReferencePicker, type PdfPickerGroup } from "./PdfReferencePicker";
 
 export const dynamic = "force-dynamic";
@@ -26,7 +28,11 @@ export default async function ExportPdfPage({
   const { projectId } = await params;
   const query = await searchParams;
   const db = getDb();
-  const [drafts, defaults] = await Promise.all([listManuscriptDrafts(db, projectId), getDraftDefaults(db, projectId)]);
+  const [drafts, defaults, compileProfile] = await Promise.all([
+    listManuscriptDrafts(db, projectId),
+    getDraftDefaults(db, projectId),
+    getCompileProfile(db, projectId),
+  ]);
   const hasDrafts = drafts.length > 0;
   const selectedDraftId = resolveExportDraftId(drafts, defaults, query.draft ?? null);
   const draftOptions: DraftOption[] = drafts.map((d) => ({
@@ -85,6 +91,11 @@ export default async function ExportPdfPage({
       <HelpHint anchor="pdf-export" topic="PDF export">
         {PDF.imagesNote}
       </HelpHint>
+
+      <section className="panel stack" aria-labelledby="compile-profile-heading">
+        <h2 id="compile-profile-heading">{COMPILE_PROFILE.heading}</h2>
+        <CompileProfileForm projectId={projectId} profile={compileProfile} />
+      </section>
 
       <section className="panel stack" aria-labelledby="pdf-manuscript-heading">
         <h2 id="pdf-manuscript-heading">{PDF.manuscriptHeading}</h2>

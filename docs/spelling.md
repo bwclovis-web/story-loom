@@ -82,8 +82,9 @@ entered, NFC, straight apostrophes), `wordKey` (lower-case form for lookups),
 - A project sees its own entries and its workspace's; never another
   project's or another workspace's (`src/server/services/dictionaryService.ts`,
   every call is scoped through the project).
-- An entry is one word as the checker sees it (`validateDictionaryWord`, ≤ 64
-  characters). A word cannot be added when an active entry already covers it:
+- An entry is one word or a phrase of words separated by spaces
+  (`validateDictionaryWord`, ≤ 64 characters). Phrases match only as a whole at
+  word boundaries. A word cannot be added when an active entry already covers it:
   the same word, or the same letters where either entry ignores case. Two
   "match case" entries may differ only in capitals.
 - Add, update and remove write `dictionary.add|update|remove` audit entries;
@@ -110,7 +111,7 @@ entered, NFC, straight apostrophes), `wordKey` (lower-case form for lookups),
 ```
 
 Import (`src/spelling/dictionaryFile.ts`, parsed in the browser) accepts this
-JSON (validated strictly with zod) or a plain list: one word per line, `#`
+JSON (validated strictly with zod) or a plain list: one word or phrase per line, `#`
 comment lines, an optional leading count line and `/FLAGS` suffixes as in a
 Hunspell `.dic`. At most 5,000 words and 2 MB. Each word is classified as
 new, duplicate (already accepted, or repeated in the file) or invalid. No word

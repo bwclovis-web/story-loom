@@ -243,8 +243,11 @@ export function ReferenceInspector({
               ))}
             </ul>
           )}
-          <p className="small">
+          <p className="small row" style={{ flexWrap: "wrap", gap: "0.75rem" }}>
             <a href={sectionHref("place-relations")}>{WORLD.editPlaceRelations}</a>
+            {model.supportsRecordRelations ? (
+              <a href={sectionHref("record-relations")}>{WORLD.editRecordRelations}</a>
+            ) : null}
           </p>
           <h3>{WORLD.linkedManuscript}</h3>
           {model.manuscriptLinks.length ? (

@@ -1,0 +1,45 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { errorIssue, type Issue } from "@/domain/issues";
+import { getDb } from "@/server/db";
+import { upsertCompileProfile } from "@/server/services/compileProfileService";
+import { MutationRejectedError } from "@/server/services/errors";
+
+export interface CompileProfileFormResult {
+  ok: boolean;
+  message?: string;
+  issues?: Issue[];
+}
+
+function failure(error: unknown): CompileProfileFormResult {
+  if (error instanceof MutationRejectedError) return { ok: false, issues: error.issues };
+  return { ok: false, issues: [errorIssue("INVALID_CHANGE", (error as Error).message)] };
+}
+
+function checkbox(formData: FormData, name: string): boolean {
+  return formData.get(name) === "1" || formData.get(name) === "on";
+}
+
+export async function saveCompileProfileAction(
+  projectId: string,
+  _prev: CompileProfileFormResult,
+  formData: FormData,
+): Promise<CompileProfileFormResult> {
+  try {
+    await upsertCompileProfile(getDb(), projectId, {
+      titlePageBody: String(formData.get("titlePageBody") ?? ""),
+      copyrightPageBody: String(formData.get("copyrightPageBody") ?? ""),
+      dedicationBody: String(formData.get("dedicationBody") ?? ""),
+      acknowledgementsBody: String(formData.get("acknowledgementsBody") ?? ""),
+      sceneBreakGlyph: String(formData.get("sceneBreakGlyph") ?? ""),
+      chapterHeadingStyle: String(formData.get("chapterHeadingStyle") ?? "centered"),
+      includeSynopses: checkbox(formData, "includeSynopses"),
+      includeMarginComments: checkbox(formData, "includeMarginComments"),
+    });
+    revalidatePath(`/projects/${projectId}/export-pdf`);
+    return { ok: true, message: "Compile profile saved." };
+  } catch (error) {
+    return failure(error);
+  }
+}

@@ -283,6 +283,27 @@ export const workspaceBackupV1Schema = z
           .strict(),
       )
       .optional(),
+  /** Manuscript compile profile per project; omitted in older backups → default at export. */
+    compileProfiles: z
+      .array(
+        z
+          .object({
+            id,
+            projectId: id,
+            titlePageBody: z.string().max(120_000),
+            copyrightPageBody: z.string().max(120_000),
+            dedicationBody: z.string().max(120_000),
+            acknowledgementsBody: z.string().max(120_000),
+            sceneBreakGlyph: z.string().max(80),
+            chapterHeadingStyle: z.enum(["centered", "left"]),
+            includeSynopses: z.boolean(),
+            includeMarginComments: z.boolean(),
+            createdAt: timestamp,
+            updatedAt: timestamp,
+          })
+          .strict(),
+      )
+      .optional(),
   /** Synopsis cards and margin comments; omitted in older backups → none. */
     manuscriptAnnotations: z
       .array(
@@ -409,6 +430,32 @@ export const workspaceBackupV1Schema = z
             fromRecordId: id,
             toRecordId: id,
             kind: z.enum(["part_of", "flows_into", "governed_by"]),
+            createdAt: timestamp,
+          })
+          .strict(),
+      )
+      .optional(),
+    /** Explicit record relationships (characters, organizations, places); omitted → empty. */
+    recordRelations: z
+      .array(
+        z
+          .object({
+            id,
+            projectId: id,
+            fromRecordId: id,
+            toRecordId: id,
+            kind: z.enum([
+              "parent_of",
+              "sibling_of",
+              "spouse_of",
+              "member_of",
+              "leads",
+              "serves",
+              "allied_with",
+              "rival_of",
+              "custom",
+            ]),
+            customLabel: z.string(),
             createdAt: timestamp,
           })
           .strict(),
@@ -781,6 +828,7 @@ export const workspaceBackupV1Schema = z
             caption: z.string().max(MAX_CAPTION_CHARS),
             altText: z.string().max(MAX_ALT_CHARS),
             position: z.number().int(),
+            isPrimary: z.boolean().optional(),
             createdAt: timestamp,
             updatedAt: timestamp,
           })
@@ -862,11 +910,13 @@ export const workspaceBackupV1Schema = z
         readingPins: z.number().int().optional(),
         writingGoals: z.number().int().optional(),
         manuscriptAnnotations: z.number().int().optional(),
+        compileProfiles: z.number().int().optional(),
         boards: z.number().int().optional(),
         boardCards: z.number().int().optional(),
         worldMaps: z.number().int().optional(),
         worldMapPins: z.number().int().optional(),
         placeRelations: z.number().int().optional(),
+        recordRelations: z.number().int().optional(),
         sceneLocations: z.number().int().optional(),
         storyEvents: z.number().int().optional(),
         storyEventLocations: z.number().int().optional(),

@@ -20,7 +20,7 @@ import {
 } from "@/images/imageFormat";
 import { IMAGES, RECORD } from "@/ui/labels";
 import type { FormResult } from "../../actions";
-import { addImagesAction, removeImageAction, updateImageAction } from "./imageActions";
+import { addImagesAction, removeImageAction, setPrimaryImageAction, updateImageAction } from "./imageActions";
 
 export interface GalleryImage {
   id: string;
@@ -32,6 +32,7 @@ export interface GalleryImage {
   height: number;
   caption: string;
   altText: string;
+  isPrimary: boolean;
 }
 
 function Result({ state }: { state: FormResult }) {
@@ -99,6 +100,10 @@ function ImageCard({
   );
   const reference = imageMarkdown(image.name, image.caption || image.altText);
   const pdfOk = PDF_IMAGE_TYPES.includes(image.mimeType);
+  const [primaryState, setPrimary, settingPrimary] = useActionState<FormResult, FormData>(
+    setPrimaryImageAction.bind(null, projectId, recordId, image.id),
+    { ok: true },
+  );
   return (
     <li className="image-card">
       <a href={image.src} target="_blank" rel="noopener" className="image-thumb" aria-label={IMAGES.open(image.name)}>
@@ -107,6 +112,7 @@ function ImageCard({
       <div className="image-meta">
         <div className="row">
           <code>{image.name}</code>
+          {image.isPrimary ? <span className="badge type">{IMAGES.profileImage}</span> : null}
           {inText ? <span className="badge type">{IMAGES.inText}</span> : null}
         </div>
         {image.caption ? <p className="image-caption">{image.caption}</p> : <p className="small muted">{IMAGES.noCaption}</p>}
@@ -115,6 +121,15 @@ function ImageCard({
           {pdfOk ? "" : ` · ${IMAGES.pdfNote(PDF_IMAGE_TYPES.map((t) => IMAGE_FORMAT_LABELS[t]).join(" and "))}`}
         </p>
         <CopyButton text={reference} label={IMAGES.copyReference} />
+        {!image.isPrimary ? (
+          <form action={setPrimary} className="stack">
+            <Unlock isProtected={isProtected} />
+            <Result state={primaryState} />
+            <Button type="submit" disabled={settingPrimary} size="sm" variant="secondary">
+              {IMAGES.setProfileImage}
+            </Button>
+          </form>
+        ) : null}
         <details className="image-edit">
           <summary>{IMAGES.details}</summary>
           <form action={save} className="stack">

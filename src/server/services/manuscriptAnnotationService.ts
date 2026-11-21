@@ -93,6 +93,31 @@ export async function listSynopsesForRecords(
   return new Map(rows.map((r) => [r.recordId, r.body]));
 }
 
+export async function listExportMarginCommentsForRecords(
+  db: DbOrTx,
+  projectId: string,
+  recordIds: readonly string[],
+): Promise<Map<string, { body: string; passageExcerpt: string }[]>> {
+  if (!recordIds.length) return new Map();
+  const rows = await db.manuscriptAnnotation.findMany({
+    where: {
+      projectId,
+      kind: ANNOTATION_KIND.comment,
+      resolvedAt: null,
+      recordId: { in: [...recordIds] },
+    },
+    orderBy: [{ recordId: "asc" }, { passageStart: "asc" }, { createdAt: "asc" }, { id: "asc" }],
+    select: { recordId: true, body: true, passageExcerpt: true },
+  });
+  const map = new Map<string, { body: string; passageExcerpt: string }[]>();
+  for (const row of rows) {
+    const list = map.get(row.recordId) ?? [];
+    list.push({ body: row.body, passageExcerpt: row.passageExcerpt });
+    map.set(row.recordId, list);
+  }
+  return map;
+}
+
 export async function listMarginComments(db: DbOrTx, projectId: string, recordId: string): Promise<MarginCommentView[]> {
   const rows = await db.manuscriptAnnotation.findMany({
     where: { projectId, recordId, kind: ANNOTATION_KIND.comment, resolvedAt: null },

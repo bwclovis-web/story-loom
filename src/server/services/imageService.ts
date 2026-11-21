@@ -45,6 +45,7 @@ export interface RecordImageView {
   caption: string;
   altText: string;
   position: number;
+  isPrimary: boolean;
   createdAt: Date;
 }
 
@@ -66,6 +67,7 @@ const META = {
   caption: true,
   altText: true,
   position: true,
+  isPrimary: true,
   createdAt: true,
 } as const;
 
@@ -304,6 +306,55 @@ export async function updateRecordImage(
         before: { caption: image.caption, altText: image.altText },
         after: { caption, altText },
       },
+    });
+  });
+}
+
+/** Primary profile image per record (for relationship graphs and previews). */
+export async function primaryRecordImagesByRecordId(
+  db: DbOrTx,
+  projectId: string,
+  recordIds: readonly string[],
+): Promise<Map<string, string>> {
+  if (!recordIds.length) return new Map();
+  try {
+    const rows = await db.recordImage.findMany({
+      where: { projectId, recordId: { in: [...recordIds] }, isPrimary: true },
+      select: { recordId: true, id: true },
+    });
+    return new Map(rows.map((r) => [r.recordId, r.id]));
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2022") {
+      return new Map();
+    }
+    throw error;
+  }
+}
+
+export function recordImagePublicPath(projectId: string, imageId: string): string {
+  return `/projects/${encodeURIComponent(projectId)}/images/${encodeURIComponent(imageId)}`;
+}
+
+export async function setRecordImagePrimary(
+  db: Db,
+  projectId: string,
+  recordId: string,
+  imageId: string,
+  options: { confirmProtected: boolean },
+): Promise<void> {
+  await db.$transaction(async (tx) => {
+    const image = await findImage(tx, projectId, imageId);
+    if (image.recordId !== recordId) throw rejected("INVALID_REFERENCE", "That image is not on this record.");
+    const record = await findImageRecord(tx, projectId, recordId);
+    requireUnlock(record, options.confirmProtected);
+    await tx.recordImage.updateMany({ where: { recordId, projectId }, data: { isPrimary: false } });
+    await tx.recordImage.update({ where: { id: imageId }, data: { isPrimary: true } });
+    await writeAudit(tx, {
+      projectId,
+      action: "record.image.set_primary",
+      actor: UI_ACTOR,
+      summary: `Set "${image.name}" as the profile image on "${record.title}"`,
+      details: { recordId, imageId, name: image.name },
     });
   });
 }

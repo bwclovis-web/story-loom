@@ -66,6 +66,7 @@ model Project {
   worldMaps              WorldMap[]
   worldMapPins           WorldMapPin[]
   placeRelations         PlaceRelation[]
+  recordRelations        RecordRelation[]
   weaveGrids             WeaveGrid[]
   weaveBeats             WeaveBeat[]
   weaveBeatWorldRefs     WeaveBeatWorldRef[]
@@ -83,6 +84,7 @@ model Project {
   storyEventEvidence     StoryEventEvidence[]
   writingGoals           WritingGoal[]
   manuscriptAnnotations  ManuscriptAnnotation[]
+  compileProfile         CompileProfile?
 
   @@index([workspaceId])
 }
@@ -204,6 +206,8 @@ model Record {
   worldMapPins          WorldMapPin[]
   placeRelationsFrom    PlaceRelation[] @relation("PlaceFrom")
   placeRelationsTo      PlaceRelation[] @relation("PlaceTo")
+  recordRelationsFrom   RecordRelation[] @relation("RecordRelationFrom")
+  recordRelationsTo     RecordRelation[] @relation("RecordRelationTo")
   weaveBeatsManuscript  WeaveBeat[]           @relation("WeaveManuscript")
   weaveBeatWorldRefs    WeaveBeatWorldRef[]
   establishedFacts      EstablishedFact[]     @relation("FactSubject")
@@ -317,6 +321,26 @@ model ManuscriptAnnotation {
   @@index([recordId, needsRecheck])
 }
 
+/// Saved front/back matter and compile options for manuscript PDF, DOCX, and EPUB.
+model CompileProfile {
+  id                     String   @id
+  projectId              String   @unique
+  project                Project  @relation(fields: [projectId], references: [id])
+  titlePageBody          String   @default("")
+  copyrightPageBody      String   @default("")
+  dedicationBody         String   @default("")
+  acknowledgementsBody   String   @default("")
+  sceneBreakGlyph        String   @default("***")
+  /// centered | left
+  chapterHeadingStyle    String   @default("centered")
+  includeSynopses        Boolean  @default(false)
+  includeMarginComments  Boolean  @default(false)
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  @@index([projectId])
+}
+
 /// Ordered reading pins for references kept open beside prose. Scoped by project
 /// and draft (`scopeDraftId` empty string = legacy project-level). Not revisioned;
 /// pin/unpin never changes RecordLink. A pin alone does not authorize assistant send.
@@ -400,6 +424,8 @@ model RecordImage {
   altText          String   @default("")
   /// Gallery order within the record.
   position         Int
+  /// When true, used as the record's profile image in graphs and previews (at most one per record).
+  isPrimary        Boolean  @default(false)
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
   boardCards       BoardCard[]
@@ -503,6 +529,28 @@ model PlaceRelation {
   createdAt    DateTime @default(now())
 
   @@unique([fromRecordId, toRecordId, kind])
+  @@index([projectId])
+  @@index([toRecordId])
+}
+
+/// Explicit relationship between characters, organizations, and related
+/// references. Not revisioned; independent of board/map positions. Moving cards
+/// or pins never creates or changes these. Kinds: parent_of | sibling_of |
+/// spouse_of | member_of | leads | serves | allied_with | rival_of | custom
+/// (with customLabel). From → to.
+model RecordRelation {
+  id           String   @id
+  projectId    String
+  project      Project  @relation(fields: [projectId], references: [id])
+  fromRecordId String
+  from         Record   @relation("RecordRelationFrom", fields: [fromRecordId], references: [id])
+  toRecordId   String
+  to           Record   @relation("RecordRelationTo", fields: [toRecordId], references: [id])
+  kind         String
+  customLabel  String   @default("")
+  createdAt    DateTime @default(now())
+
+  @@unique([fromRecordId, toRecordId, kind, customLabel])
   @@index([projectId])
   @@index([toRecordId])
 }
@@ -1130,7 +1178,7 @@ model ProofreadRun {
   recordId            String
   record              Record    @relation(fields: [recordId], references: [id])
   revisionNumber      Int
-  /// proofread (the only mode implemented)
+  /// proofread | selection_assist
   mode                String    @default("proofread")
   /// document | selection
   scope               String

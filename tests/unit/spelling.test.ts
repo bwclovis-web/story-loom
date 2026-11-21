@@ -81,6 +81,14 @@ describe("dictionary matching", () => {
     for (const w of ["glimmerfrost", "Glimmerfrost", "GLIMMERFROST"]) expect(matcher.accepts(w), w).toBe(true);
   });
 
+  it("stops flags for an exact phrase only when the whole phrase is in the dictionary", () => {
+    const phraseMatcher = new DictionaryMatcher([{ word: "Korrigane Vexmoor", caseSensitive: true }]);
+    const text = "They met at Korrigane Vexmoor before dawn.";
+    expect(findMisspellings(text, isKnown, phraseMatcher).map((f) => f.word)).toEqual([]);
+    expect(findMisspellings("Korrigane vexmoor", isKnown, phraseMatcher).map((f) => f.word).length).toBeGreaterThan(0);
+    expect(findMisspellings("Korrigan Vexmoor", isKnown, phraseMatcher).map((f) => f.word).length).toBeGreaterThan(0);
+  });
+
   it("stops flags only for entries: a similar name is still flagged", () => {
     const text = "Aldreth met Aldrith in the glimmerfrost. aldreth waved.";
     const flagged = findMisspellings(text, isKnown, matcher).map((f) => f.word);
@@ -104,9 +112,10 @@ describe("dictionary matching", () => {
 });
 
 describe("dictionary entries", () => {
-  it("accepts one word as the checker sees it", () => {
+  it("accepts one word or a phrase as the checker sees it", () => {
     expect(validateDictionaryWord("  Aldreth’s ")).toEqual({ ok: true, word: "Aldreth's" });
-    for (const bad of ["", "Aldreth Vexmoor", "well-known", "R2D2", "x", "a".repeat(65), "Vex!"]) {
+    expect(validateDictionaryWord("  Salt   Quay ")).toEqual({ ok: true, word: "Salt Quay" });
+    for (const bad of ["", "well-known", "R2D2", "x", "a".repeat(65), "Vex!", "a b"]) {
       expect(validateDictionaryWord(bad).ok, bad).toBe(false);
     }
   });
@@ -140,13 +149,14 @@ describe("dictionary import and export", () => {
   });
 
   it("reads word lists and Hunspell .dic files", () => {
-    const parsed = parseDictionaryImport("\uFEFF3\n# invented\nKorrigane/M\nglimmerfrost\n\nnot one word\n");
+    const parsed = parseDictionaryImport("\uFEFF3\n# invented\nKorrigane/M\nglimmerfrost\n\nSalt Quay\nwell-known\n");
     expect(parsed.ok && parsed.kind).toBe("word list");
     if (!parsed.ok) return;
     expect(parsed.candidates.map((c) => [c.word, c.caseSensitive, c.status, c.position])).toEqual([
       ["Korrigane", true, "new", 3],
       ["glimmerfrost", false, "new", 4],
-      ["not one word", false, "invalid", 6],
+      ["Salt Quay", true, "new", 6],
+      ["well-known", false, "invalid", 7],
     ]);
   });
 
@@ -220,6 +230,12 @@ describe("dictionary words in proofreading", () => {
     expect(changesDictionaryWord("Aldreth", "Aldrith", matcher)).toBe(true);
     expect(changesDictionaryWord("Aldreth's cloak", "the cloak", matcher)).toBe(true);
     expect(changesDictionaryWord("Aldrith", "Aldreth", matcher)).toBe(false);
+  });
+
+  it("recognises corrections that would remove a dictionary phrase", () => {
+    const matcher = new DictionaryMatcher([{ word: "Salt Quay", caseSensitive: true }, ...entries]);
+    expect(changesDictionaryWord("At Salt Quay.", "At the quay.", matcher)).toBe(true);
+    expect(changesDictionaryWord("At Salt Quay.", "At Salt Quay!", matcher)).toBe(false);
   });
 });
 

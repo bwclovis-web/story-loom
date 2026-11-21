@@ -8,6 +8,7 @@ import { Banner } from "@/components/ui/Banner";
 import { Button } from "@/components/ui/Button";
 import { FindReplace, type DirectUndo } from "@/components/writing/FindReplace";
 import { Proofreader, type ProofreadConfig } from "@/components/writing/Proofreader";
+import { SelectionAssister } from "@/components/writing/SelectionAssister";
 import { setUnsaved } from "@/components/shell/unsaved";
 import { SpellingLanguageSelect } from "@/components/writing/SpellingLanguageSelect";
 import { SpellOverlay } from "@/components/writing/SpellOverlay";
@@ -229,6 +230,20 @@ export function RecordEditor(props: {
           onUnlock={() => setUnlocked(true)}
           directUndo={directUndo}
           onDirectUndoChange={setDirectUndo}
+        />
+        <SelectionAssister
+          projectId={props.projectId}
+          recordId={props.recordId}
+          revision={props.revision}
+          savedText={savedText}
+          text={text}
+          selection={selection}
+          scopeDraftId=""
+          textareaRef={bodyRef}
+          editable={editable}
+          onUnlock={() => setUnlocked(true)}
+          onTextChange={setText}
+          config={props.proofread}
         />
         <Proofreader
           projectId={props.projectId}

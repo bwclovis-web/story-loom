@@ -86,6 +86,10 @@ function manuscriptAnnotationsOf(b: WorkspaceBackupV1) {
   return b.manuscriptAnnotations ?? [];
 }
 
+function compileProfilesOf(b: WorkspaceBackupV1) {
+  return b.compileProfiles ?? [];
+}
+
 function boardsOf(b: WorkspaceBackupV1) {
   return b.boards ?? [];
 }
@@ -104,6 +108,10 @@ function worldMapPinsOf(b: WorkspaceBackupV1) {
 
 function placeRelationsOf(b: WorkspaceBackupV1) {
   return b.placeRelations ?? [];
+}
+
+function recordRelationsOf(b: WorkspaceBackupV1) {
+  return b.recordRelations ?? [];
 }
 
 function weaveGridsOf(b: WorkspaceBackupV1) {
@@ -217,8 +225,36 @@ async function recordImageRows(db: DbOrTx, projectIds: string[]) {
     return await db.recordImage.findMany({ where: { projectId: { in: projectIds } }, orderBy: { id: "asc" } });
   } catch (error) {
     if (isMissingSchemaError(error, "P2021")) return [];
+    // Pre-migrate backup: `isPrimary` may not exist on disk yet.
+    if (isMissingSchemaError(error, "P2022")) return recordImageRowsBeforeIsPrimary(db, projectIds);
     throw error;
   }
+}
+
+async function recordImageRowsBeforeIsPrimary(db: DbOrTx, projectIds: string[]) {
+  const rows = await db.recordImage.findMany({
+    where: { projectId: { in: projectIds } },
+    orderBy: { id: "asc" },
+    select: {
+      id: true,
+      projectId: true,
+      recordId: true,
+      name: true,
+      originalFilename: true,
+      mimeType: true,
+      byteSize: true,
+      width: true,
+      height: true,
+      contentHash: true,
+      data: true,
+      caption: true,
+      altText: true,
+      position: true,
+      createdAt: true,
+      updatedAt: true,
+    },
+  });
+  return rows.map((row) => ({ ...row, isPrimary: false }));
 }
 
 async function projectCoverRows(db: DbOrTx, projectIds: string[]) {
@@ -371,6 +407,19 @@ async function manuscriptAnnotationRows(db: DbOrTx, projectIds: string[]) {
   }
 }
 
+async function compileProfileRows(db: DbOrTx, projectIds: string[]) {
+  if (!("compileProfile" in db) || !(db as { compileProfile?: { findMany: unknown } }).compileProfile) return [];
+  try {
+    return await db.compileProfile.findMany({
+      where: { projectId: { in: projectIds } },
+      orderBy: [{ projectId: "asc" }, { id: "asc" }],
+    });
+  } catch (error) {
+    if (isMissingSchemaError(error, "P2021")) return [];
+    throw error;
+  }
+}
+
 async function boardRows(db: DbOrTx, projectIds: string[]) {
   if (!("board" in db) || !(db as { board?: { findMany: unknown } }).board) return [];
   try {
@@ -464,6 +513,19 @@ async function placeRelationRows(db: DbOrTx, projectIds: string[]) {
     return await db.placeRelation.findMany({
       where: { projectId: { in: projectIds } },
       orderBy: [{ projectId: "asc" }, { kind: "asc" }, { id: "asc" }],
+    });
+  } catch (error) {
+    if (isMissingSchemaError(error, "P2021")) return [];
+    throw error;
+  }
+}
+
+async function recordRelationRows(db: DbOrTx, projectIds: string[]) {
+  if (!("recordRelation" in db) || !(db as { recordRelation?: { findMany: unknown } }).recordRelation) return [];
+  try {
+    return await db.recordRelation.findMany({
+      where: { projectId: { in: projectIds } },
+      orderBy: [{ projectId: "asc" }, { kind: "asc" }, { customLabel: "asc" }, { id: "asc" }],
     });
   } catch (error) {
     if (isMissingSchemaError(error, "P2021")) return [];
@@ -874,11 +936,13 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
     readingPins,
     writingGoals,
     manuscriptAnnotations,
+    compileProfiles,
     boards,
     boardCards,
     worldMaps,
     worldMapPins,
     placeRelations,
+    recordRelations,
     sceneLocations,
     storyEvents,
     storyEventLocations,
@@ -914,11 +978,13 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
     readingPinRows(db, projectIds),
     writingGoalRows(db, projectIds),
     manuscriptAnnotationRows(db, projectIds),
+    compileProfileRows(db, projectIds),
     boardRows(db, projectIds),
     boardCardRows(db, projectIds),
     worldMapRows(db, projectIds),
     worldMapPinRows(db, projectIds),
     placeRelationRows(db, projectIds),
+    recordRelationRows(db, projectIds),
     sceneLocationRows(db, projectIds),
     storyEventRows(db, projectIds),
     storyEventLocationRows(db, projectIds),
@@ -1169,6 +1235,24 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
           })),
         }
       : {}),
+    ...(compileProfiles.length
+      ? {
+          compileProfiles: compileProfiles.map((p) => ({
+            id: p.id,
+            projectId: p.projectId,
+            titlePageBody: p.titlePageBody,
+            copyrightPageBody: p.copyrightPageBody,
+            dedicationBody: p.dedicationBody,
+            acknowledgementsBody: p.acknowledgementsBody,
+            sceneBreakGlyph: p.sceneBreakGlyph,
+            chapterHeadingStyle: p.chapterHeadingStyle === "left" ? ("left" as const) : ("centered" as const),
+            includeSynopses: p.includeSynopses,
+            includeMarginComments: p.includeMarginComments,
+            createdAt: iso(p.createdAt),
+            updatedAt: iso(p.updatedAt),
+          })),
+        }
+      : {}),
     ...(boards.length
       ? {
           boards: boards.map((b) => ({
@@ -1244,6 +1328,28 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
             fromRecordId: r.fromRecordId,
             toRecordId: r.toRecordId,
             kind: r.kind as "part_of" | "flows_into" | "governed_by",
+            createdAt: iso(r.createdAt),
+          })),
+        }
+      : {}),
+    ...(recordRelations.length
+      ? {
+          recordRelations: recordRelations.map((r) => ({
+            id: r.id,
+            projectId: r.projectId,
+            fromRecordId: r.fromRecordId,
+            toRecordId: r.toRecordId,
+            kind: r.kind as
+              | "parent_of"
+              | "sibling_of"
+              | "spouse_of"
+              | "member_of"
+              | "leads"
+              | "serves"
+              | "allied_with"
+              | "rival_of"
+              | "custom",
+            customLabel: r.customLabel,
             createdAt: iso(r.createdAt),
           })),
         }
@@ -1588,6 +1694,7 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
       caption: img.caption,
       altText: img.altText,
       position: img.position,
+      ...(img.isPrimary ? { isPrimary: true } : {}),
       createdAt: iso(img.createdAt),
       updatedAt: iso(img.updatedAt),
     })),
@@ -1627,11 +1734,13 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
       ...(readingPins.length ? { readingPins: readingPins.length } : {}),
       ...(writingGoals.length ? { writingGoals: writingGoals.length } : {}),
       ...(manuscriptAnnotations.length ? { manuscriptAnnotations: manuscriptAnnotations.length } : {}),
+      ...(compileProfiles.length ? { compileProfiles: compileProfiles.length } : {}),
       ...(boards.length ? { boards: boards.length } : {}),
       ...(boardCards.length ? { boardCards: boardCards.length } : {}),
       ...(worldMaps.length ? { worldMaps: worldMaps.length } : {}),
       ...(worldMapPins.length ? { worldMapPins: worldMapPins.length } : {}),
       ...(placeRelations.length ? { placeRelations: placeRelations.length } : {}),
+      ...(recordRelations.length ? { recordRelations: recordRelations.length } : {}),
       ...(sceneLocations.length ? { sceneLocations: sceneLocations.length } : {}),
       ...(storyEvents.length ? { storyEvents: storyEvents.length } : {}),
       ...(storyEventLocations.length ? { storyEventLocations: storyEventLocations.length } : {}),
@@ -1711,11 +1820,13 @@ function checkInternalConsistency(b: WorkspaceBackupV1): Issue[] {
     readingPins: readingPinsOf(b).length,
     writingGoals: writingGoalsOf(b).length,
     manuscriptAnnotations: manuscriptAnnotationsOf(b).length,
+    compileProfiles: compileProfilesOf(b).length,
     boards: boardsOf(b).length,
     boardCards: boardCardsOf(b).length,
     worldMaps: worldMapsOf(b).length,
     worldMapPins: worldMapPinsOf(b).length,
     placeRelations: placeRelationsOf(b).length,
+    recordRelations: recordRelationsOf(b).length,
     sceneLocations: sceneLocationsOf(b).length,
     storyEvents: storyEventsOf(b).length,
     storyEventLocations: storyEventLocationsOf(b).length,
@@ -1790,6 +1901,8 @@ function checkInternalConsistency(b: WorkspaceBackupV1): Issue[] {
     issues,
   );
   checkUnique(manuscriptAnnotationsOf(b).map((a) => a.id), "manuscript annotation", issues);
+  checkUnique(compileProfilesOf(b).map((p) => p.id), "compile profile", issues);
+  checkUnique(compileProfilesOf(b).map((p) => p.projectId), "compile profile project", issues);
   checkUnique(boardsOf(b).map((x) => x.id), "board", issues);
   checkUnique(boardCardsOf(b).map((c) => c.id), "board card", issues);
   checkUnique(worldMapsOf(b).map((x) => x.id), "world map", issues);
@@ -1798,6 +1911,12 @@ function checkInternalConsistency(b: WorkspaceBackupV1): Issue[] {
   checkUnique(
     placeRelationsOf(b).map((r) => `${r.fromRecordId}/${r.toRecordId}/${r.kind}`),
     "place relation triple",
+    issues,
+  );
+  checkUnique(recordRelationsOf(b).map((r) => r.id), "record relation", issues);
+  checkUnique(
+    recordRelationsOf(b).map((r) => `${r.fromRecordId}/${r.toRecordId}/${r.kind}/${r.customLabel}`),
+    "record relation quadruple",
     issues,
   );
   checkUnique(sceneLocationsOf(b).map((s) => s.id), "scene location", issues);
@@ -1966,6 +2085,12 @@ function checkInternalConsistency(b: WorkspaceBackupV1): Issue[] {
       issues.push(integrity(`Writing goal ${g.id} has unknown scope ${g.scope}.`));
     }
   });
+  compileProfilesOf(b).forEach((p) => {
+    needProject(p.projectId, `Compile profile ${p.id}`);
+    if (p.chapterHeadingStyle !== "centered" && p.chapterHeadingStyle !== "left") {
+      issues.push(integrity(`Compile profile ${p.id} has unknown chapter heading style.`));
+    }
+  });
   manuscriptAnnotationsOf(b).forEach((a) => {
     needProject(a.projectId, `Manuscript annotation ${a.id}`);
     if (!recordIds.has(a.recordId) || recordProject.get(a.recordId) !== a.projectId) {
@@ -2076,6 +2201,29 @@ function checkInternalConsistency(b: WorkspaceBackupV1): Issue[] {
       if (type && !isLinkableReferenceType(type)) {
         issues.push(integrity(`Place relation ${r.id} must be between reference records.`));
       }
+    }
+  });
+  recordRelationsOf(b).forEach((r) => {
+    needProject(r.projectId, `Record relation ${r.id}`);
+    for (const end of [r.fromRecordId, r.toRecordId]) {
+      if (!recordIds.has(end) || recordProject.get(end) !== r.projectId) {
+        issues.push(integrity(`Record relation ${r.id} references missing record ${end}.`));
+      }
+    }
+    if (r.fromRecordId === r.toRecordId) {
+      issues.push(integrity(`Record relation ${r.id} cannot relate a record to itself.`));
+    }
+    for (const end of [r.fromRecordId, r.toRecordId]) {
+      const type = recordType.get(end);
+      if (type && !isLinkableReferenceType(type)) {
+        issues.push(integrity(`Record relation ${r.id} must be between reference records.`));
+      }
+    }
+    if (r.kind === "custom" && !r.customLabel.trim()) {
+      issues.push(integrity(`Record relation ${r.id} needs a custom label.`));
+    }
+    if (r.kind !== "custom" && r.customLabel.trim()) {
+      issues.push(integrity(`Record relation ${r.id} must not carry a custom label unless kind is custom.`));
     }
   });
   const primarySceneLocation = new Set<string>();
@@ -2334,7 +2482,13 @@ function checkInternalConsistency(b: WorkspaceBackupV1): Issue[] {
     }
   });
   projectAssistantSettingsOf(b).forEach((s) => needProject(s.projectId, `Assistant settings ${s.id}`));
+  const primaryImageByRecord = new Map<string, string>();
   recordImagesOf(b).forEach((img) => {
+    if (img.isPrimary) {
+      const existing = primaryImageByRecord.get(img.recordId);
+      if (existing) issues.push(integrity(`Record ${img.recordId} has more than one primary image.`));
+      else primaryImageByRecord.set(img.recordId, img.id);
+    }
     needProject(img.projectId, `Image ${img.id}`);
     if (!recordIds.has(img.recordId) || recordProject.get(img.recordId) !== img.projectId) {
       issues.push(integrity(`Image ${img.id} references missing record ${img.recordId}.`));
@@ -2378,7 +2532,7 @@ function checkInternalConsistency(b: WorkspaceBackupV1): Issue[] {
   dictionaryEntriesOf(b).forEach((d) => {
     if (d.workspaceId !== b.workspace.id) issues.push(integrity(`Dictionary entry ${d.id} belongs to another workspace.`));
     if (d.projectId !== null) needProject(d.projectId, `Dictionary entry ${d.id}`);
-    if (!validateDictionaryWord(d.word).ok) issues.push(integrity(`Dictionary entry ${d.id} is not a single word.`));
+    if (!validateDictionaryWord(d.word).ok) issues.push(integrity(`Dictionary entry ${d.id} is not a valid word or phrase.`));
   });
 
   const revisionsByRecord = new Map<string, WorkspaceBackupV1["revisions"]>();
@@ -2489,6 +2643,9 @@ async function findCollisions(db: DbOrTx, b: WorkspaceBackupV1): Promise<Issue[]
       db.manuscriptAnnotation.count({ where: { id: { in: manuscriptAnnotationsOf(b).map((a) => a.id) } } }),
     );
   }
+  if (compileProfilesOf(b).length) {
+    await check("compile profile", db.compileProfile.count({ where: { id: { in: compileProfilesOf(b).map((p) => p.id) } } }));
+  }
   if (boardsOf(b).length) {
     await check("board", db.board.count({ where: { id: { in: boardsOf(b).map((x) => x.id) } } }));
   }
@@ -2503,6 +2660,9 @@ async function findCollisions(db: DbOrTx, b: WorkspaceBackupV1): Promise<Issue[]
   }
   if (placeRelationsOf(b).length) {
     await check("place relation", db.placeRelation.count({ where: { id: { in: placeRelationsOf(b).map((r) => r.id) } } }));
+  }
+  if (recordRelationsOf(b).length) {
+    await check("record relation", db.recordRelation.count({ where: { id: { in: recordRelationsOf(b).map((r) => r.id) } } }));
   }
   if (sceneLocationsOf(b).length) {
     await check("scene location", db.sceneLocation.count({ where: { id: { in: sceneLocationsOf(b).map((s) => s.id) } } }));
@@ -2738,11 +2898,13 @@ export async function restoreWorkspaceBackup(db: Db, input: string | unknown, op
   readingPinsOf(b).forEach((p) => assign(p.id, "pin"));
   writingGoalsOf(b).forEach((g) => assign(g.id, "wgoal"));
   manuscriptAnnotationsOf(b).forEach((a) => assign(a.id, "man"));
+  compileProfilesOf(b).forEach((p) => assign(p.id, "cprof"));
   boardsOf(b).forEach((x) => assign(x.id, "brd"));
   boardCardsOf(b).forEach((c) => assign(c.id, "bcd"));
   worldMapsOf(b).forEach((x) => assign(x.id, "wmp"));
   worldMapPinsOf(b).forEach((p) => assign(p.id, "wpn"));
   placeRelationsOf(b).forEach((r) => assign(r.id, "plr"));
+  recordRelationsOf(b).forEach((r) => assign(r.id, "rrl"));
   sceneLocationsOf(b).forEach((s) => assign(s.id, "scl"));
   storyEventsOf(b).forEach((event) => assign(event.id, "sev"));
   storyEventLocationsOf(b).forEach((row) => assign(row.id, "evl"));
@@ -3057,6 +3219,25 @@ export async function restoreWorkspaceBackup(db: Db, input: string | unknown, op
             })),
           });
         }
+        const profiles = compileProfilesOf(b);
+        if (profiles.length) {
+          await tx.compileProfile.createMany({
+            data: profiles.map((p) => ({
+              id: m(p.id),
+              projectId: m(p.projectId),
+              titlePageBody: p.titlePageBody,
+              copyrightPageBody: p.copyrightPageBody,
+              dedicationBody: p.dedicationBody,
+              acknowledgementsBody: p.acknowledgementsBody,
+              sceneBreakGlyph: p.sceneBreakGlyph,
+              chapterHeadingStyle: p.chapterHeadingStyle,
+              includeSynopses: p.includeSynopses,
+              includeMarginComments: p.includeMarginComments,
+              createdAt: new Date(p.createdAt),
+              updatedAt: new Date(p.updatedAt),
+            })),
+          });
+        }
         const boards = boardsOf(b);
         if (boards.length) {
           await tx.board.createMany({
@@ -3088,6 +3269,7 @@ export async function restoreWorkspaceBackup(db: Db, input: string | unknown, op
               caption: img.caption,
               altText: img.altText,
               position: img.position,
+              isPrimary: img.isPrimary ?? false,
               createdAt: new Date(img.createdAt),
               updatedAt: new Date(img.updatedAt),
             },
@@ -3281,6 +3463,20 @@ export async function restoreWorkspaceBackup(db: Db, input: string | unknown, op
               fromRecordId: m(r.fromRecordId),
               toRecordId: m(r.toRecordId),
               kind: r.kind,
+              createdAt: new Date(r.createdAt),
+            })),
+          });
+        }
+        const recordRels = recordRelationsOf(b);
+        if (recordRels.length) {
+          await tx.recordRelation.createMany({
+            data: recordRels.map((r) => ({
+              id: m(r.id),
+              projectId: m(r.projectId),
+              fromRecordId: m(r.fromRecordId),
+              toRecordId: m(r.toRecordId),
+              kind: r.kind,
+              customLabel: r.customLabel,
               createdAt: new Date(r.createdAt),
             })),
           });

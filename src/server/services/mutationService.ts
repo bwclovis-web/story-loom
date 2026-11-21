@@ -878,6 +878,7 @@ export async function deleteRecordRowsInTx(tx: Tx, recordIds: readonly string[])
   await tx.boardCard.deleteMany({ where: { recordId: ids } });
   await tx.worldMapPin.deleteMany({ where: { recordId: ids } });
   await tx.placeRelation.deleteMany({ where: { OR: [{ fromRecordId: ids }, { toRecordId: ids }] } });
+  await tx.recordRelation.deleteMany({ where: { OR: [{ fromRecordId: ids }, { toRecordId: ids }] } });
   await tx.sceneLocation.deleteMany({
     where: { OR: [{ manuscriptRecordId: ids }, { locationRecordId: ids }] },
   });

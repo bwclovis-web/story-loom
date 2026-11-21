@@ -97,7 +97,8 @@ describe("dictionary entries", () => {
     await expectError(addDictionaryEntry(t.db, IDS.project, { word: "Aldreth", caseSensitive: true, scope: "project" }, "manual"), "DUPLICATE");
     await expectError(addDictionaryEntry(t.db, SIBLING, { word: "aldreth", caseSensitive: false, scope: "project" }, "manual"), "DUPLICATE");
     await addDictionaryEntry(t.db, IDS.project, { word: "ALDRETH", caseSensitive: true, scope: "project" }, "manual");
-    await expectError(addDictionaryEntry(t.db, IDS.project, { word: "Aldreth Vexmoor", caseSensitive: true, scope: "project" }, "manual"), "INVALID");
+    await addDictionaryEntry(t.db, IDS.project, { word: "Aldreth Vexmoor", caseSensitive: true, scope: "project" }, "manual");
+    await expectError(addDictionaryEntry(t.db, IDS.project, { word: "well-known", caseSensitive: true, scope: "project" }, "manual"), "INVALID");
     // The same word can be a project word in another workspace.
     await addDictionaryEntry(t.db, OTHER.project, { word: "Aldreth", caseSensitive: true, scope: "project" }, "manual");
   });
@@ -111,17 +112,21 @@ describe("dictionary entries", () => {
       [
         { word: "Vexmoor", caseSensitive: true, note: "marsh city" },
         { word: "Aldreth", caseSensitive: true },
-        { word: "two words", caseSensitive: false },
+        { word: "Salt Quay", caseSensitive: true },
         { word: "vexmoor", caseSensitive: false },
+        { word: "well-known", caseSensitive: false },
       ],
       "import",
     );
-    expect(result.added.map((a) => [a.word, a.scope, a.origin, a.note])).toEqual([["Vexmoor", "workspace", "import", "marsh city"]]);
-    expect(result.skipped.map((s) => s.word)).toEqual(["Aldreth", "two words", "vexmoor"]);
+    expect(result.added.map((a) => [a.word, a.scope, a.origin, a.note])).toEqual([
+      ["Vexmoor", "workspace", "import", "marsh city"],
+      ["Salt Quay", "workspace", "import", ""],
+    ]);
+    expect(result.skipped.map((s) => s.word)).toEqual(["Aldreth", "vexmoor", "well-known"]);
     expect(result.skipped[0].message).toContain("project dictionary");
-    expect(await words(IDS.project)).toEqual(["Aldreth", "Vexmoor"]);
+    expect(await words(IDS.project)).toEqual(["Aldreth", "Salt Quay", "Vexmoor"]);
     const audit = await t.db.auditEntry.findFirstOrThrow({ where: { action: "dictionary.import" } });
-    expect(audit.summary).toContain("Added 1 word");
+    expect(audit.summary).toContain("Added 2 word");
   });
 });
 
@@ -226,7 +231,7 @@ describe("dictionary in backup and restore", () => {
       expect(await dictionaryWordsForProject(target.db, IDS.project)).toEqual([]);
 
       const { checksum: _x, ...body } = backup;
-      const bad = resign({ ...body, dictionaryEntries: body.dictionaryEntries!.map((e) => ({ ...e, word: "two words" })) });
+      const bad = resign({ ...body, dictionaryEntries: body.dictionaryEntries!.map((e) => ({ ...e, word: "bad!" })) });
       const rejected = await restoreWorkspaceBackup(target.db, bad, { idStrategy: "remap" });
       expect(rejected.ok).toBe(false);
       expect(await target.db.workspace.count()).toBe(1);

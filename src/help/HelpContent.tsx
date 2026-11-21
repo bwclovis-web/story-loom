@@ -9,6 +9,7 @@ import {
   BACKUP,
   BOOK_ORDER,
   CHAPTER_IMPORT,
+  COMPILE_PROFILE,
   CONNECTIONS,
   DICTIONARY,
   DRAFT,
@@ -32,6 +33,7 @@ import {
   RECORD_RENAME,
   REVIEW,
   SHELL,
+  SELECTION_ASSIST,
   SPELLING,
   STYLE_CHECK,
   TEXT_APPEARANCE,
@@ -952,7 +954,8 @@ export function HelpContent() {
             <L>{MANUSCRIPT_ANNOTATIONS.corkboardTab}</L> tab lists synopsis cards in book order for the active draft. Pin a margin
             comment to a saved passage by selecting text, saving if needed, then choosing <L>{MANUSCRIPT_ANNOTATIONS.pinSelection}</L>.
             When you save a new revision, older pins show <L>{MANUSCRIPT_ANNOTATIONS.needsRecheck}</L> until you resolve or remove them.
-            PDF export does not include synopses or comments unless a future compile profile asks for them.
+            Exports include synopses or margin comments only when the compile profile on{" "}
+            <L>{NAV.exportPdf}</L> asks for them.
           </p>
         </Sub>
 
@@ -1708,6 +1711,36 @@ export function HelpContent() {
           </p>
         </Sub>
 
+        <Sub id="relationship-views">
+          <p>
+            <L>{WORLD.relationships}</L> on <L>{SHELL.world}</L> opens a graph and three trees built only from{" "}
+            <L>{WORLD.placeRelations}</L> and <L>{WORLD.recordRelations}</L>. Choose <L>{WORLD.relationshipGraphView}</L>{" "}
+            to focus on one record and limit how many steps out to show, with kind filters.{" "}
+            <L>{WORLD.relationshipFamilyView}</L>, <L>{WORLD.relationshipOrganizationView}</L>, and{" "}
+            <L>{WORLD.relationshipGeographyView}</L> use <em>parent of</em> / <em>sibling</em> / <em>spouse</em>,{" "}
+            <em>member of</em> / <em>leads</em> / <em>serves</em>, and <em>part of</em> respectively. Switch to{" "}
+            <L>{WORLD.relationshipListView}</L> for a keyboard-friendly list of the same data.
+          </p>
+          <p>
+            Graph and tree nodes show the reference&apos;s <L>{IMAGES.profileImage}</L> when you set one on its{" "}
+            <L>{IMAGES.heading}</L> gallery; otherwise the dot shows initials from the title.
+          </p>
+        </Sub>
+
+        <Sub id="record-relations">
+          <p>
+            On a character dossier, an organization, or a place reference, <L>{WORLD.recordRelations}</L> stores explicit
+            edges such as <em>Member of</em>, <em>Spouse of</em>, and <em>Rival of</em>, or a custom label you type.
+            These rows are separate from <L>{WORLD.placeRelations}</L> (part of, flows into, governed by). Moving board
+            cards or map pins never creates or changes a record relationship.
+          </p>
+          <p>
+            The reference inspector&apos;s <L>{WORLD.inspectorRelationships}</L> tab lists both kinds when they exist. Soft-trashed
+            ends are hidden; permanently deleting either end removes the relationship. Record relationships are included in
+            workspace backups.
+          </p>
+        </Sub>
+
         <Sub id="world-nav">
           <p>
             On <L>{SHELL.world}</L> and on a World document&apos;s page, the second column shows{" "}
@@ -1848,9 +1881,10 @@ export function HelpContent() {
               <L>{WORLD.inspectorImages}</L>: images attached to this record. See <See anchor="images" />.
             </li>
             <li>
-              <L>{WORLD.inspectorRelationships}</L>: place relationships, <L>{WORLD.linkedManuscript}</L> from a chapter
-              or scene&apos;s <L>{WRITE.references}</L> tab, <L>{XREF.heading}</L>, and <L>{MENTIONED_BY.heading}</L>. A
-              scene note shows <L>{WORLD.noteOn}</L> instead of linked chapters. See <See anchor="place-relations" />,{" "}
+              <L>{WORLD.inspectorRelationships}</L>: place and record relationships when the reference supports them,{" "}
+              <L>{WORLD.linkedManuscript}</L> from a chapter or scene&apos;s <L>{WRITE.references}</L> tab,{" "}
+              <L>{XREF.heading}</L>, and <L>{MENTIONED_BY.heading}</L>. A scene note shows <L>{WORLD.noteOn}</L> instead
+              of linked chapters. See <See anchor="place-relations" />, <See anchor="record-relations" />,{" "}
               <See anchor="cross-references" />, and <See anchor="mentioned-by" />.
             </li>
             <li>
@@ -1974,9 +2008,11 @@ export function HelpContent() {
           <h4>Captions and removing</h4>
           <p>
             Open <L>{IMAGES.details}</L> under an image to change its <L>{IMAGES.caption}</L> and{" "}
-            <L>{IMAGES.altText}</L>, then choose <L>{IMAGES.save}</L>. <L>{IMAGES.remove}</L> asks you to confirm, then deletes
-            the stored image. It is not offered while the text shows the image: remove the line from the text and save first. Older saved
-            versions that showed a removed image say it is not found.
+            <L>{IMAGES.altText}</L>, then choose <L>{IMAGES.save}</L>. <L>{IMAGES.setProfileImage}</L> marks one image as
+            the <L>{IMAGES.profileImage}</L> for that reference; other attachments stay in the gallery.{" "}
+            <L>{IMAGES.remove}</L> asks you to confirm, then deletes the stored image. It is not offered while the text
+            shows the image: remove the line from the text and save first. Older saved versions that showed a removed
+            image say it is not found.
           </p>
           <p>Choose an image to open it at full size in a new tab.</p>
         </Sub>
@@ -2211,13 +2247,21 @@ export function HelpContent() {
             Under <L>{PDF.manuscriptHeading}</L>, optionally tick <L>{PDF.sceneTitles}</L>.
           </li>
           <li>
-            Choose <L>{PDF.downloadManuscript}</L>, <L>{PDF.downloadManuscriptDocx}</L>, or <L>{PDF.downloadManuscriptEpub}</L>.
+            Set the <L>{COMPILE_PROFILE.heading}</L> (title and other front matter, scene-break glyph, chapter heading
+            alignment, and whether to include synopses or margin comments), then choose{" "}
+            <L>{PDF.downloadManuscript}</L>, <L>{PDF.downloadManuscriptDocx}</L>, or <L>{PDF.downloadManuscriptEpub}</L>.
           </li>
         </ol>
         <p>
           Chapters are in book order, as under <L>{BOOK_ORDER.heading}</L> on <L>{SHELL.write}</L>, each starting on a new page, with its text followed by
           its scenes. Notes and references are not included. Projects without drafts export the whole manuscript as
           before. {PDF.manuscriptFormatsNote}
+        </p>
+        <h4>Compile profile</h4>
+        <p>
+          One profile per project. Filled-in title, copyright, dedication, and acknowledgement pages are included before
+          the first chapter in every manuscript format. A custom title page replaces the default project title page. Scene
+          breaks use your glyph when scene titles are off. Synopses and unresolved margin comments are optional.
         </p>
         <h4>What a PDF contains</h4>
         <ul>
@@ -2356,8 +2400,8 @@ export function HelpContent() {
           <h4>Add, edit and remove words</h4>
           <ol>
             <li>
-              In <L>{DICTIONARY.addHeading}</L>, type one word, choose the <L>{DICTIONARY.scope}</L>, and optionally a
-              note. Choose <L>{DICTIONARY.add}</L>.
+              In <L>{DICTIONARY.addHeading}</L>, type one word or a phrase such as an invented place name, choose the{" "}
+              <L>{DICTIONARY.scope}</L>, and optionally a note. Choose <L>{DICTIONARY.add}</L>.
             </li>
             <li>
               Choose <L>{DICTIONARY.edit}</L> beside a word to change its spelling, <L>{DICTIONARY.matchCase}</L>, note
@@ -2374,8 +2418,9 @@ export function HelpContent() {
               accepted.
             </li>
             <li>
-              Entries are single words: for a two-word name, add each word. For a hyphenated name, add each part. A
-              word that is already accepted cannot be added again.
+              You can add a multi-word phrase (for example &ldquo;Salt Quay&rdquo;); the checker accepts only that exact
+              phrase, not the same words on their own. Hyphenated names are still added part by part. An entry that is
+              already accepted cannot be added again.
             </li>
             <li>
               Words close to another word in your dictionary are marked &ldquo;{DICTIONARY.similar}&rdquo;, so two
@@ -2405,9 +2450,9 @@ export function HelpContent() {
               and note.
             </li>
             <li>
-              In <L>{DICTIONARY.importHeading}</L>, choose a file exported this way, or a plain list with one word per
-              line (lines starting with # are skipped; Hunspell .dic files also work). The words are listed, with
-              those already in your dictionary, repeated, or not a single word marked and not selectable.
+              In <L>{DICTIONARY.importHeading}</L>, choose a file exported this way, or a plain list with one word or
+              phrase per line (lines starting with # are skipped; Hunspell .dic files also work). The entries are listed,
+              with those already in your dictionary, repeated, or invalid lines marked and not selectable.
             </li>
             <li>
               Nothing is selected at first. Tick words one by one or choose <L>{DICTIONARY.selectAllNew}</L>, choose
@@ -2603,6 +2648,31 @@ export function HelpContent() {
           <p className="warning">
             {PROOFREAD.privacyNote} Proofreading shares the assistant&apos;s request limits, monthly cap and usage count.
             See <See anchor="assistant-privacy" />.
+          </p>
+        </Sub>
+
+        <Sub id="selection-assist">
+          <p>
+            On the <L>{WRITE.proofread}</L> tab (Write page and record pages), <L>{SELECTION_ASSIST.heading}</L> works on a
+            text selection in the saved revision. Pin references on the <L>{WRITE.references}</L> tab first; those pins are the
+            codex context sent with the selection.
+          </p>
+          <ol>
+            <li>Save the chapter or scene so assist matches the saved text.</li>
+            <li>Select text in the editor.</li>
+            <li>
+              Choose <L>{SELECTION_ASSIST.rewrite}</L>, <L>{SELECTION_ASSIST.expand}</L>, or{" "}
+              <L>{SELECTION_ASSIST.describe}</L>.
+            </li>
+            <li>
+              Review the suggestion. <L>{SELECTION_ASSIST.accept}</L> replaces only the selection in the text box;{" "}
+              <L>{SELECTION_ASSIST.dismiss}</L> leaves your text unchanged.
+            </li>
+            <li>Save when ready, with the protection tick if the record is protected.</li>
+          </ol>
+          <p className="warning">
+            {SELECTION_ASSIST.privacyNote} Writing assist shares the same assistant connection, hourly limit, monthly cap,
+            and usage counters as proofreading and discussion. See <See anchor="assistant-privacy" />.
           </p>
         </Sub>
 
@@ -3583,7 +3653,8 @@ export function HelpContent() {
             scenes assigned to its place. That list is not mentions, linked references, or planned events, and it does
             not invent a story date. The story timeline can leave an event&apos;s time unknown and can order events
             without following the manuscript. A planned event stays marked. <L>{WORLD.showOnMap}</L> is offered only
-            when a linked place has a marker.
+            when a linked place has a marker. A separate <See anchor="relationship-views" /> page graphs place and record
+            relationships only (not mentions).
           </li>
           <li>The browser&apos;s Back button does not warn about unsaved changes.</li>
           <li>
