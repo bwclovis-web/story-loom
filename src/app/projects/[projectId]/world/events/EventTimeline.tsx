@@ -6,6 +6,7 @@ import { IssueList } from "@/components/IssueList";
 import { ContextRail, ContextRailToggle, useContextRail } from "@/components/shell/ContextRail";
 import { CloseIcon } from "@/components/shell/icons";
 import { IconButton } from "@/components/ui/IconButton";
+import { Banner } from "@/components/ui/Banner";
 import { Button, ButtonLink } from "@/components/ui/Button";
 import type { Issue } from "@/domain/issues";
 import type { StoryEventDetail, StoryMapChoice, StoryTimeline } from "@/server/services/storyEventService";
@@ -70,6 +71,11 @@ export function EventTimeline({ projectId, timeline }: { projectId: string; time
           </div>
         </div>
         <p className="small muted">{WORLD.storyEventNote}</p>
+        <p>
+          <ButtonLink variant="secondary" href={`${base.replace("/events", "/calendar")}`}>
+            {WORLD.worldCalendarOpen}
+          </ButtonLink>
+        </p>
         <IssueList issues={issues} />
         <label>
           {WORLD.sceneDraftFilter}
@@ -96,6 +102,7 @@ export function EventTimeline({ projectId, timeline }: { projectId: string; time
         <CreateEvent
           pending={pending}
           drafts={timeline.drafts}
+          calendar={timeline.calendar}
           onCreate={(input) =>
             startTransition(async () => {
               const result = await createStoryEventAction(projectId, input);
@@ -128,7 +135,7 @@ export function EventTimeline({ projectId, timeline }: { projectId: string; time
                   <span>{event.title}</span>
                   <span className="small muted">
                     {event.planned ? `${WORLD.plannedEvent} · ` : ""}
-                    {event.timeLabel || WORLD.timeUnknown}
+                    {event.structuredTime || event.timeLabel || WORLD.timeUnknown}
                     {` · ${event.draftLabel}`}
                   </span>
                 </button>
@@ -171,28 +178,62 @@ export function EventTimeline({ projectId, timeline }: { projectId: string; time
 
 function CreateEvent({
   drafts,
+  calendar,
   pending,
   onCreate,
 }: {
   drafts: StoryTimeline["drafts"];
+  calendar: StoryTimeline["calendar"];
   pending: boolean;
-  onCreate: (input: { title: string; summary: string; timeLabel: string; planned: boolean; draftScope: string }) => void;
+  onCreate: (input: {
+    title: string;
+    summary: string;
+    timeLabel: string;
+    planned: boolean;
+    draftScope: string;
+    useStructured?: boolean;
+    eraId?: string;
+    structYear?: string;
+    structMonth?: string;
+    structDay?: string;
+  }) => void;
 }) {
   const [title, setTitle] = useState("");
   const [summary, setSummary] = useState("");
   const [timeLabel, setTimeLabel] = useState("");
   const [planned, setPlanned] = useState(false);
   const [draftScope, setDraftScope] = useState("all");
+  const [useStructured, setUseStructured] = useState(false);
+  const [eraId, setEraId] = useState("");
+  const [structYear, setStructYear] = useState("");
+  const [structMonth, setStructMonth] = useState("");
+  const [structDay, setStructDay] = useState("");
   return (
     <form
       className="stack panel"
       onSubmit={(event) => {
         event.preventDefault();
-        onCreate({ title, summary, timeLabel, planned, draftScope });
+        onCreate({
+          title,
+          summary,
+          timeLabel,
+          planned,
+          draftScope,
+          useStructured,
+          eraId,
+          structYear,
+          structMonth,
+          structDay,
+        });
         setTitle("");
         setSummary("");
         setTimeLabel("");
         setPlanned(false);
+        setUseStructured(false);
+        setEraId("");
+        setStructYear("");
+        setStructMonth("");
+        setStructDay("");
       }}
     >
       <h3>{WORLD.newEvent}</h3>
@@ -208,6 +249,19 @@ function CreateEvent({
         {WORLD.storyEventTime}
         <input value={timeLabel} maxLength={200} placeholder={WORLD.timeUnknown} onChange={(event) => setTimeLabel(event.target.value)} />
       </label>
+      <StructuredDateFields
+        calendar={calendar}
+        useStructured={useStructured}
+        onUseStructured={setUseStructured}
+        eraId={eraId}
+        onEraId={setEraId}
+        structYear={structYear}
+        onStructYear={setStructYear}
+        structMonth={structMonth}
+        onStructMonth={setStructMonth}
+        structDay={structDay}
+        onStructDay={setStructDay}
+      />
       <label className="scene-location-check">
         <input type="checkbox" checked={planned} onChange={(event) => setPlanned(event.target.checked)} />
         {WORLD.storyEventPlanned}
@@ -217,6 +271,82 @@ function CreateEvent({
         {WORLD.newEvent}
       </Button>
     </form>
+  );
+}
+
+function StructuredDateFields({
+  calendar,
+  useStructured,
+  onUseStructured,
+  eraId,
+  onEraId,
+  structYear,
+  onStructYear,
+  structMonth,
+  onStructMonth,
+  structDay,
+  onStructDay,
+}: {
+  calendar: StoryTimeline["calendar"];
+  useStructured: boolean;
+  onUseStructured: (value: boolean) => void;
+  eraId: string;
+  onEraId: (value: string) => void;
+  structYear: string;
+  onStructYear: (value: string) => void;
+  structMonth: string;
+  onStructMonth: (value: string) => void;
+  structDay: string;
+  onStructDay: (value: string) => void;
+}) {
+  if (!calendar?.months.length) return null;
+  return (
+    <fieldset className="stack">
+      <legend>{WORLD.structuredDate}</legend>
+      <label className="scene-location-check">
+        <input type="checkbox" checked={useStructured} onChange={(event) => onUseStructured(event.target.checked)} />
+        {WORLD.structuredDateUse}
+      </label>
+      {useStructured ? (
+        <>
+          <p className="small muted">{WORLD.structuredDateOptional}</p>
+          <div className="row">
+            <label>
+              {WORLD.structuredDateDay}
+              <input value={structDay} inputMode="numeric" onChange={(event) => onStructDay(event.target.value)} />
+            </label>
+            <label>
+              {WORLD.structuredDateMonth}
+              <select value={structMonth} onChange={(event) => onStructMonth(event.target.value)}>
+                <option value="">—</option>
+                {calendar.months.map((month) => (
+                  <option key={month.id} value={String(month.position)}>
+                    {month.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              {WORLD.structuredDateYear}
+              <input value={structYear} inputMode="numeric" onChange={(event) => onStructYear(event.target.value)} />
+            </label>
+          </div>
+          {calendar.eras.length ? (
+            <label>
+              {WORLD.structuredDateEra}
+              <select value={eraId} onChange={(event) => onEraId(event.target.value)}>
+                <option value="">—</option>
+                {calendar.eras.map((era) => (
+                  <option key={era.id} value={era.id}>
+                    {era.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
+        </>
+      ) : null}
+    </fieldset>
   );
 }
 
@@ -266,6 +396,13 @@ function EventRail({
   const [sourceId, setSourceId] = useState("");
   const [passageStart, setPassageStart] = useState("0");
   const [passageEnd, setPassageEnd] = useState("");
+  const [useStructured, setUseStructured] = useState(Boolean(event.structuredDate.formatted));
+  const [eraId, setEraId] = useState(event.structuredDate.eraId ?? "");
+  const [structYear, setStructYear] = useState(event.structuredDate.year != null ? String(event.structuredDate.year) : "");
+  const [structMonth, setStructMonth] = useState(
+    event.structuredDate.monthPosition != null ? String(event.structuredDate.monthPosition) : "",
+  );
+  const [structDay, setStructDay] = useState(event.structuredDate.day != null ? String(event.structuredDate.day) : "");
 
   useEffect(() => {
     setTitle(event.title);
@@ -273,7 +410,12 @@ function EventRail({
     setTimeLabel(event.timeLabel);
     setPlanned(event.planned);
     setDraftScope(event.draftScope);
-  }, [event.id, event.revision, event.title, event.summary, event.timeLabel, event.planned, event.draftScope]);
+    setUseStructured(Boolean(event.structuredDate.formatted));
+    setEraId(event.structuredDate.eraId ?? "");
+    setStructYear(event.structuredDate.year != null ? String(event.structuredDate.year) : "");
+    setStructMonth(event.structuredDate.monthPosition != null ? String(event.structuredDate.monthPosition) : "");
+    setStructDay(event.structuredDate.day != null ? String(event.structuredDate.day) : "");
+  }, [event.id, event.revision, event.title, event.summary, event.timeLabel, event.planned, event.draftScope, event.structuredDate]);
 
   const run = (work: () => Promise<{ ok: true } | { ok: false; issues: Issue[] }>) => {
     startTransition(async () => {
@@ -288,6 +430,15 @@ function EventRail({
 
   return (
     <div className="stack">
+      {event.dateWarnings.length ? (
+        <Banner tone="warn" title={WORLD.dateConflictWarning}>
+          <ul>
+            {event.dateWarnings.map((warning) => (
+              <li key={warning.otherEventId}>{warning.message}</li>
+            ))}
+          </ul>
+        </Banner>
+      ) : null}
       <form
         className="stack"
         onSubmit={(submit) => {
@@ -300,12 +451,19 @@ function EventRail({
               planned,
               draftScope,
               expectedRevision: event.revision,
+              useStructured,
+              eraId,
+              structYear,
+              structMonth,
+              structDay,
             }),
           );
         }}
       >
         {planned ? <p className="small">{WORLD.plannedEvent}</p> : null}
-        <p className="small muted">{timeLabel.trim() ? timeLabel : WORLD.timeUnknown}</p>
+        <p className="small muted">
+          {event.structuredDate.formatted || (timeLabel.trim() ? timeLabel : WORLD.timeUnknown)}
+        </p>
         <label>
           {WORLD.storyEventTitle}
           <input value={title} required maxLength={200} onChange={(input) => setTitle(input.target.value)} />
@@ -318,6 +476,19 @@ function EventRail({
           {WORLD.storyEventTime}
           <input value={timeLabel} maxLength={200} placeholder={WORLD.timeUnknown} onChange={(input) => setTimeLabel(input.target.value)} />
         </label>
+        <StructuredDateFields
+          calendar={timeline.calendar}
+          useStructured={useStructured}
+          onUseStructured={setUseStructured}
+          eraId={eraId}
+          onEraId={setEraId}
+          structYear={structYear}
+          onStructYear={setStructYear}
+          structMonth={structMonth}
+          onStructMonth={setStructMonth}
+          structDay={structDay}
+          onStructDay={setStructDay}
+        />
         <label className="scene-location-check">
           <input type="checkbox" checked={planned} onChange={(input) => setPlanned(input.target.checked)} />
           {WORLD.storyEventPlanned}

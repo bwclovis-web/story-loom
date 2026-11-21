@@ -18,6 +18,20 @@ import {
   updateStoryEvent,
   type PlaceEventItem,
 } from "@/server/services/storyEventService";
+import { loadWorldCalendar, parseStructuredDateInput } from "@/server/services/worldCalendarService";
+
+type EventFormInput = {
+  title: string;
+  summary: string;
+  timeLabel: string;
+  planned: boolean;
+  draftScope: string;
+  useStructured?: boolean;
+  eraId?: string;
+  structYear?: string;
+  structMonth?: string;
+  structDay?: string;
+};
 
 function failure(error: unknown): { ok: false; issues: Issue[] } {
   if (error instanceof MutationRejectedError) return { ok: false, issues: error.issues };
@@ -45,10 +59,12 @@ export async function listEventsAtLocationAction(
 
 export async function createStoryEventAction(
   projectId: string,
-  input: { title: string; summary: string; timeLabel: string; planned: boolean; draftScope: string },
+  input: EventFormInput,
 ): Promise<{ ok: true; id: string } | { ok: false; issues: Issue[] }> {
   try {
-    const created = await createStoryEvent(getDb(), projectId, input);
+    const calendar = await loadWorldCalendar(getDb(), projectId);
+    const structuredDate = parseStructuredDateInput(calendar, input);
+    const created = await createStoryEvent(getDb(), projectId, { ...input, structuredDate });
     revalidateEvents(projectId);
     return { ok: true, id: created.id };
   } catch (error) {
@@ -59,10 +75,12 @@ export async function createStoryEventAction(
 export async function updateStoryEventAction(
   projectId: string,
   eventId: string,
-  input: { title: string; summary: string; timeLabel: string; planned: boolean; draftScope: string; expectedRevision: number },
+  input: EventFormInput & { expectedRevision: number },
 ): Promise<{ ok: true } | { ok: false; issues: Issue[] }> {
   try {
-    await updateStoryEvent(getDb(), projectId, eventId, input);
+    const calendar = await loadWorldCalendar(getDb(), projectId);
+    const structuredDate = parseStructuredDateInput(calendar, input);
+    await updateStoryEvent(getDb(), projectId, eventId, { ...input, structuredDate });
     revalidateEvents(projectId);
     return { ok: true };
   } catch (error) {

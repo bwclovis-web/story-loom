@@ -21,6 +21,8 @@ import {
   renameWorldMap,
   setWorldMapPinGeometry,
   updateWorldMapPin,
+  updateWorldMapScale,
+  saveWorldMapLayers,
   type WorldMapPinLinks,
 } from "@/server/services/worldMapService";
 
@@ -199,6 +201,34 @@ export async function addPlaceRelationAction(
     revalidatePath(`/projects/${projectId}/records/${input.fromRecordId}`);
     revalidatePath(`/projects/${projectId}/records/${input.toRecordId}`);
     return { ok: true as const, relation };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+export async function updateWorldMapScaleAction(
+  projectId: string,
+  mapId: string,
+  input: { scaleLabel: string; scaleBarLength: number | null },
+) {
+  try {
+    const map = await updateWorldMapScale(getDb(), projectId, mapId, input);
+    revalidateMaps(projectId, mapId);
+    return { ok: true as const, map };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+export async function saveWorldMapLayersAction(
+  projectId: string,
+  mapId: string,
+  layers: readonly { title: string }[],
+) {
+  try {
+    const map = await saveWorldMapLayers(getDb(), projectId, mapId, layers);
+    revalidateMaps(projectId, mapId);
+    return { ok: true as const, map };
   } catch (error) {
     return failure(error);
   }

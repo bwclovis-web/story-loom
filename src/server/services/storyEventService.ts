@@ -2,7 +2,21 @@ import { newId } from "@/domain/ids";
 import { sha256 } from "@/domain/json";
 import { errorIssue } from "@/domain/issues";
 import { isLinkableReferenceType, isRecordType } from "@/domain/recordTypes";
+import {
+  formatStructuredDate,
+  structuredDateFromRow,
+  structuredDateIsComplete,
+  type StructuredDateParts,
+} from "@/world/calendarDate";
+import { dateConflictWarningsForEvent, type DateConflictWarning } from "@/world/storyEventDates";
 import { chronologicalIds, orderWouldCycle, type OrderEdge } from "@/world/storyOrder";
+import {
+  calendarDefs,
+  loadWorldCalendar,
+  parseStructuredDateInput,
+  type ParsedStructuredDateInput,
+  type WorldCalendarView,
+} from "./worldCalendarService";
 import { isUniqueConstraintError, type Db, type DbOrTx, type Tx } from "../db";
 import { writeAudit } from "./auditService";
 import { evidenceKindForSource, EVIDENCE_KIND_LABELS, type EvidenceKind } from "./establishedFactService";
@@ -63,12 +77,23 @@ export interface StoryEventOrderView {
   direction: "before" | "after";
 }
 
+export interface StoryEventStructuredDate {
+  eraId: string | null;
+  year: number | null;
+  monthPosition: number | null;
+  day: number | null;
+  /** Formatted when complete; null when unset or incomplete. */
+  formatted: string | null;
+}
+
 export interface StoryEventDetail {
   id: string;
   title: string;
   summary: string;
   /** Empty when the story time is unknown. */
   timeLabel: string;
+  structuredDate: StoryEventStructuredDate;
+  dateWarnings: DateConflictWarning[];
   planned: boolean;
   /** all | unscoped | a manuscript draft id */
   draftScope: string;
@@ -85,6 +110,7 @@ export interface StoryEventListItem {
   title: string;
   summary: string;
   timeLabel: string;
+  structuredTime: string | null;
   planned: boolean;
   draftScope: string;
   draftLabel: string;
@@ -102,6 +128,7 @@ export interface StorySourceChoice extends StoryChoice {
 
 export interface StoryTimeline {
   draft: string;
+  calendar: WorldCalendarView | null;
   events: StoryEventListItem[];
   selected: StoryEventDetail | null;
   drafts: StoryChoice[];
@@ -145,6 +172,44 @@ function cleanTime(timeLabel: string): string {
   return value;
 }
 
+function structView(
+  parts: StructuredDateParts,
+  months: ReturnType<typeof calendarDefs>["months"],
+  eras: ReturnType<typeof calendarDefs>["eras"],
+): StoryEventStructuredDate {
+  return {
+    eraId: parts.eraId,
+    year: parts.year,
+    monthPosition: parts.monthPosition,
+    day: parts.day,
+    formatted: formatStructuredDate(parts, months, eras),
+  };
+}
+
+function listStructuredTime(
+  event: {
+    structEraId: string | null;
+    structYear: number | null;
+    structMonthPosition: number | null;
+    structDay: number | null;
+  },
+  months: ReturnType<typeof calendarDefs>["months"],
+  eras: ReturnType<typeof calendarDefs>["eras"],
+): string | null {
+  const parts = structuredDateFromRow(event);
+  if (!structuredDateIsComplete(parts, months, eras)) return null;
+  return formatStructuredDate(parts, months, eras);
+}
+
+function structData(parts: ParsedStructuredDateInput) {
+  return {
+    structEraId: parts.eraId,
+    structYear: parts.year,
+    structMonthPosition: parts.monthPosition,
+    structDay: parts.day,
+  };
+}
+
 async function requireDraftScope(tx: Tx, projectId: string, draftScope: string): Promise<string> {
   if (draftScope === "all" || draftScope === "unscoped") return draftScope;
   const draft = await tx.manuscriptDraft.findFirst({ where: { id: draftScope, projectId }, select: { id: true } });
@@ -181,6 +246,8 @@ export async function loadStoryTimeline(
 ): Promise<StoryTimeline> {
   const draft = options?.draft || "all";
   await refreshStaleStoryEvidence(db, projectId);
+  const calendar = await loadWorldCalendar(db, projectId);
+  const { months, eras } = calendarDefs(calendar);
   const [events, drafts, locations, scenes, sources, orders] = await Promise.all([
     db.storyEvent.findMany({ where: { projectId }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] }),
     db.manuscriptDraft.findMany({
@@ -225,6 +292,7 @@ export async function loadStoryTimeline(
         title: event.title,
         summary: event.summary,
         timeLabel: event.timeLabel,
+        structuredTime: listStructuredTime(event, months, eras),
         planned: event.planned,
         draftScope: event.draftScope,
         draftLabel: draftLabel(event.draftScope, draftNames),
@@ -235,8 +303,11 @@ export async function loadStoryTimeline(
   const selectedId = options?.eventId && list.some((event) => event.id === options.eventId) ? options.eventId : (list[0]?.id ?? null);
   return {
     draft,
+    calendar,
     events: list,
-    selected: selectedId ? await eventDetail(db, projectId, selectedId, draftNames) : null,
+    selected: selectedId
+      ? await eventDetail(db, projectId, selectedId, draftNames, calendar, events, orders)
+      : null,
     drafts: drafts.map((item) => ({ id: item.id, title: item.label })),
     locationChoices: locations.flatMap((record) => {
       if (!isRecordType(record.type) || !isLinkableReferenceType(record.type)) return [];
@@ -255,9 +326,21 @@ async function eventDetail(
   projectId: string,
   eventId: string,
   draftNames: Map<string, string>,
+  calendar: WorldCalendarView | null,
+  peerEvents: {
+    id: string;
+    title: string;
+    structEraId: string | null;
+    structYear: number | null;
+    structMonthPosition: number | null;
+    structDay: number | null;
+  }[],
+  orders: { earlierEventId: string; laterEventId: string }[],
 ): Promise<StoryEventDetail | null> {
   const event = await db.storyEvent.findFirst({ where: { id: eventId, projectId } });
   if (!event) return null;
+  const { months, eras } = calendarDefs(calendar);
+  const parts = structuredDateFromRow(event);
   const [locations, scenes, evidence, earlier, later] = await Promise.all([
     db.storyEventLocation.findMany({
       where: { eventId },
@@ -303,6 +386,8 @@ async function eventDetail(
     title: event.title,
     summary: event.summary,
     timeLabel: event.timeLabel,
+    structuredDate: structView(parts, months, eras),
+    dateWarnings: dateConflictWarningsForEvent(event.id, parts, orders, peerEvents, months, eras),
     planned: event.planned,
     draftScope: event.draftScope,
     draftLabel: draftLabel(event.draftScope, draftNames),
@@ -377,19 +462,29 @@ export async function listEventsForLocation(db: DbOrTx, projectId: string, locat
 export async function createStoryEvent(
   db: Db,
   projectId: string,
-  input: { title: string; summary?: string; timeLabel?: string; planned?: boolean; draftScope?: string },
+  input: {
+    title: string;
+    summary?: string;
+    timeLabel?: string;
+    planned?: boolean;
+    draftScope?: string;
+    structuredDate?: ParsedStructuredDateInput;
+  },
 ): Promise<{ id: string }> {
   const title = cleanTitle(input.title);
   const summary = cleanSummary(input.summary ?? "");
   const timeLabel = cleanTime(input.timeLabel ?? "");
   const planned = input.planned === true;
+  const structured =
+    input.structuredDate ??
+    ({ eraId: null, year: null, monthPosition: null, day: null } satisfies ParsedStructuredDateInput);
   return db.$transaction(async (tx) => {
     const project = await tx.project.findFirst({ where: { id: projectId, trashedAt: null }, select: { id: true } });
     if (!project) throw new NotFoundError(`Project ${projectId} not found`);
     const draftScope = await requireDraftScope(tx, projectId, input.draftScope ?? "all");
     const id = newId("sev");
     await tx.storyEvent.create({
-      data: { id, projectId, title, summary, timeLabel, planned, draftScope, revision: 0 },
+      data: { id, projectId, title, summary, timeLabel, planned, draftScope, revision: 0, ...structData(structured) },
     });
     await writeAudit(tx, {
       projectId,
@@ -406,7 +501,15 @@ export async function updateStoryEvent(
   db: Db,
   projectId: string,
   eventId: string,
-  input: { title: string; summary: string; timeLabel: string; planned: boolean; draftScope: string; expectedRevision: number },
+  input: {
+    title: string;
+    summary: string;
+    timeLabel: string;
+    planned: boolean;
+    draftScope: string;
+    expectedRevision: number;
+    structuredDate: ParsedStructuredDateInput;
+  },
 ): Promise<void> {
   const title = cleanTitle(input.title);
   const summary = cleanSummary(input.summary);
@@ -416,7 +519,15 @@ export async function updateStoryEvent(
     const draftScope = await requireDraftScope(tx, projectId, input.draftScope);
     await tx.storyEvent.update({
       where: { id: eventId },
-      data: { title, summary, timeLabel, planned: input.planned, draftScope, revision: { increment: 1 } },
+      data: {
+        title,
+        summary,
+        timeLabel,
+        planned: input.planned,
+        draftScope,
+        revision: { increment: 1 },
+        ...structData(input.structuredDate),
+      },
     });
     await writeAudit(tx, {
       projectId,

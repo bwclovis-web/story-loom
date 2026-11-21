@@ -64,6 +64,7 @@ model Project {
   boards                 Board[]
   boardCards             BoardCard[]
   worldMaps              WorldMap[]
+  worldMapLayers         WorldMapLayer[]
   worldMapPins           WorldMapPin[]
   placeRelations         PlaceRelation[]
   recordRelations        RecordRelation[]
@@ -85,6 +86,9 @@ model Project {
   writingGoals           WritingGoal[]
   manuscriptAnnotations  ManuscriptAnnotation[]
   compileProfile         CompileProfile?
+  worldCalendar          WorldCalendar?
+  worldCalendarMonths    WorldCalendarMonth[]
+  worldCalendarEras      WorldCalendarEra[]
 
   @@index([workspaceId])
 }
@@ -466,13 +470,36 @@ model WorldMap {
   title      String
   imageId    String
   image      RecordImage   @relation(fields: [imageId], references: [id])
+  /// Author-written scale caption for the labelled bar (not computed distance).
+  scaleLabel     String   @default("")
+  /// Bar length as a fraction of image width (0–1), when set with scaleLabel.
+  scaleBarLength Float?
   createdAt  DateTime      @default(now())
   updatedAt  DateTime      @updatedAt
+  layers     WorldMapLayer[]
   pins       WorldMapPin[] @relation("MapPins")
   detailPins WorldMapPin[] @relation("MapDetail")
 
   @@index([projectId])
   @@index([imageId])
+}
+
+/// Author-defined marker layer on a map. Replaces fixed marker groups in the UI.
+model WorldMapLayer {
+  id          String        @id
+  mapId       String
+  map         WorldMap      @relation(fields: [mapId], references: [id], onDelete: Cascade)
+  projectId   String
+  project     Project       @relation(fields: [projectId], references: [id])
+  position    Int
+  title       String
+  /// Legacy markerGroup this layer replaced, when seeded from older maps.
+  legacyGroup String?
+  createdAt   DateTime      @default(now())
+  pins        WorldMapPin[]
+
+  @@unique([mapId, position])
+  @@index([projectId])
 }
 
 /// A marker on a World map. xNorm/yNorm and points are fractions of image
@@ -497,6 +524,8 @@ model WorldMapPin {
   targetMapId String?
   targetMap   WorldMap? @relation("MapDetail", fields: [targetMapId], references: [id], onDelete: SetNull)
   markerGroup String    @default("places")
+  layerId     String?
+  layer       WorldMapLayer? @relation(fields: [layerId], references: [id])
   label       String    @default("")
   /// point | route | area | label
   kind        String    @default("point")
@@ -578,6 +607,53 @@ model SceneLocation {
   @@index([locationRecordId])
 }
 
+/// Author-defined in-world calendar for a project. Months, day counts, and eras.
+/// Not manuscript content. Optional structured dates on story events refer here.
+model WorldCalendar {
+  id        String   @id
+  projectId String   @unique
+  project   Project  @relation(fields: [projectId], references: [id])
+  title     String   @default("")
+  revision  Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  months    WorldCalendarMonth[]
+  eras      WorldCalendarEra[]
+}
+
+model WorldCalendarMonth {
+  id          String        @id
+  calendarId  String
+  calendar    WorldCalendar @relation(fields: [calendarId], references: [id])
+  projectId   String
+  project     Project       @relation(fields: [projectId], references: [id])
+  position    Int
+  name        String
+  daysInMonth Int
+  createdAt   DateTime      @default(now())
+
+  @@unique([calendarId, position])
+  @@index([projectId])
+}
+
+/// Era labels with optional short form. yearOffset is the absolute year when era year 1 begins.
+model WorldCalendarEra {
+  id         String        @id
+  calendarId String
+  calendar   WorldCalendar @relation(fields: [calendarId], references: [id])
+  projectId  String
+  project    Project       @relation(fields: [projectId], references: [id])
+  position   Int
+  name       String
+  shortLabel String        @default("")
+  yearOffset Int           @default(0)
+  createdAt  DateTime      @default(now())
+  storyEvents StoryEvent[]
+
+  @@unique([calendarId, position])
+  @@index([projectId])
+}
+
 /// A story event. Not a scene location, mention, RecordLink, PlaceRelation, or
 /// EstablishedFact. Chronological order is the explicit earlier/later
 /// constraints, never manuscript order. An empty timeLabel means the story
@@ -593,6 +669,12 @@ model StoryEvent {
   planned    Boolean  @default(false)
   /// all | unscoped | a manuscript draft id
   draftScope String   @default("all")
+  /// Optional structured in-world date (all parts optional; compare only when complete).
+  structEraId          String?
+  structEra            WorldCalendarEra? @relation(fields: [structEraId], references: [id])
+  structYear           Int?
+  structMonthPosition  Int?
+  structDay            Int?
   revision   Int      @default(0)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt

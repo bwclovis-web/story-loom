@@ -1,5 +1,32 @@
 # Progress
 
+## Name generator from language patterns (Nov 21, 2026)
+
+No schema. Language-kind references store **Name syllables** and **Name patterns** in `fields`. World → **Name generator** suggests names from a seed; **Add to dictionary** and **Create character dossier** are explicit author actions.
+
+| Check | Result |
+| --- | --- |
+| `pnpm typecheck` | pass |
+| `pnpm exec vitest run tests/unit/language-name-patterns.test.ts tests/acceptance/world-names.test.ts tests/unit/help.test.ts` | 9/9 passed |
+
+### Rollback
+
+Revert code only.
+
+## Map scale, author layers, geography panel (Nov 21, 2026)
+
+Migration `20261121160000_world_map_layers`: `WorldMapLayer` per map, optional `layerId` on pins, and author scale fields on `WorldMap`. Default layers from legacy marker groups; scale bar, layer editor, geography from `part_of`, optional `worldMapLayers` in backup.
+
+| Check | Result |
+| --- | --- |
+| `pnpm exec prisma migrate deploy` | applied `20261121160000_world_map_layers` |
+| `pnpm typecheck` | pass |
+| `pnpm exec vitest run tests/acceptance/world-maps-place-relations.test.ts tests/unit/help.test.ts` | 15/15 passed |
+
+### Rollback
+
+Revert code; backups without layers restore with default layer names and no scale bar.
+
 ## Relationship graph and trees (Nov 21, 2026)
 
 World → **Relationships** page: SVG graph with focus, hop limit, and kind filters; family, organization, and geography trees from record and place relations only. List presentation for accessibility. No schema change.

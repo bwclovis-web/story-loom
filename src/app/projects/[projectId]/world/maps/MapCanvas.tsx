@@ -13,7 +13,10 @@ import { ContextRail, ContextRailToggle, useContextRail } from "@/components/she
 import { CloseIcon } from "@/components/shell/icons";
 import { errorIssue, type Issue } from "@/domain/issues";
 import type { LoadedInspector } from "@/server/services/referenceInspectorService";
+import type { WorldMapLayerView } from "@/server/services/worldMapLayerService";
+import { layerStrokeColor, resolvePinLayerId } from "@/server/services/worldMapLayerService";
 import type { WorldMapPinView, WorldMapView } from "@/server/services/worldMapService";
+import type { MapGeographyNode } from "@/world/mapGeography";
 import { WORLD, WRITE } from "@/ui/labels";
 import { mapListHandlesKey } from "@/world/mapKeyboard";
 import {
@@ -25,15 +28,14 @@ import {
   type ShapeDraft,
 } from "@/world/mapGeometry";
 import {
-  MARKER_GROUPS,
   clampMapZoom,
   pushMapTrail,
-  readHiddenGroups,
+  readHiddenLayers,
   readMapMode,
   readMapTrail,
   readMapView,
   trailWithoutCurrent,
-  writeHiddenGroups,
+  writeHiddenLayers,
   writeMapMode,
   writeMapTrail,
   writeMapView,
@@ -48,9 +50,12 @@ import {
   moveWorldMapPinAction,
   removeWorldMapPinAction,
   renameWorldMapAction,
+  saveWorldMapLayersAction,
   setWorldMapPinGeometryAction,
   updateWorldMapPinAction,
+  updateWorldMapScaleAction,
 } from "./actions";
+import { MapGeographyPanel } from "./MapGeographyPanel";
 import { MapShapeEditor } from "./MapShapeEditor";
 import { MarkerScenes } from "./MarkerScenes";
 import { PlaceEvents } from "./PlaceEvents";
@@ -80,24 +85,35 @@ const KIND_LABEL: Record<MarkerKind, string> = {
   label: WORLD.markerKindLabel,
 };
 
-const SHAPE_STROKE: Record<MarkerGroup, string> = {
-  places: "var(--color-accent)",
-  waterways: "var(--color-ok, #2f6f4e)",
-  transport: "var(--color-warn, #a15c12)",
-  story: "var(--color-violet, #5b4b8a)",
-};
+function effectiveLayerId(pin: WorldMapPinView, layers: readonly WorldMapLayerView[]): string | null {
+  return resolvePinLayerId(pin, layers);
+}
+
+function pinLayerTitle(pin: WorldMapPinView, layers: readonly WorldMapLayerView[]): string {
+  const id = effectiveLayerId(pin, layers);
+  const layer = id ? layers.find((item) => item.id === id) : undefined;
+  return layer?.title ?? GROUP_LABEL[pin.markerGroup];
+}
+
+function pinLayerIndex(pin: WorldMapPinView, layers: readonly WorldMapLayerView[]): number {
+  const id = effectiveLayerId(pin, layers);
+  const index = id ? layers.findIndex((item) => item.id === id) : -1;
+  return index >= 0 ? index : 0;
+}
 
 export function MapCanvas({
   projectId,
   map: initial,
   records,
   otherMaps,
+  geography,
   initialPinId = null,
 }: {
   projectId: string;
   map: WorldMapView;
   records: PlaceableRecord[];
   otherMaps: PlaceableMap[];
+  geography: readonly MapGeographyNode[];
   initialPinId?: string | null;
 }) {
   const router = useRouter();
@@ -122,11 +138,16 @@ export function MapCanvas({
   const [mode, setMode] = useState<"browse" | "edit">("browse");
   const [view, setView] = useState<MapViewState>({ zoom: 1, x: 0, y: 0 });
   const [trail, setTrail] = useState<MapTrailItem[]>([]);
-  const [hiddenGroups, setHiddenGroups] = useState<MarkerGroup[]>([]);
+  const [hiddenLayerIds, setHiddenLayerIds] = useState<string[]>([]);
   const [query, setQuery] = useState("");
   const [pendingPlaceId, setPendingPlaceId] = useState("");
   const [pendingMapId, setPendingMapId] = useState("");
-  const [pendingGroup, setPendingGroup] = useState<MarkerGroup>("places");
+  const [pendingLayerId, setPendingLayerId] = useState(initial.layers[0]?.id ?? "");
+  const [scaleLabel, setScaleLabel] = useState(initial.scaleLabel);
+  const [scaleBarPercent, setScaleBarPercent] = useState(
+    initial.scaleBarLength != null ? String(Math.round(initial.scaleBarLength * 1000) / 10) : "",
+  );
+  const [layerTitles, setLayerTitles] = useState(initial.layers.map((layer) => layer.title));
   const [pendingLabel, setPendingLabel] = useState("");
   const [tool, setTool] = useState<MarkerKind>("point");
   const [draft, setDraft] = useState<ShapeDraft | null>(null);
@@ -151,13 +172,17 @@ export function MapCanvas({
     setMap(initial);
     setPins(initial.pins);
     setTitle(initial.title);
+    setScaleLabel(initial.scaleLabel);
+    setScaleBarPercent(initial.scaleBarLength != null ? String(Math.round(initial.scaleBarLength * 1000) / 10) : "");
+    setLayerTitles(initial.layers.map((layer) => layer.title));
+    if (initial.layers[0]) setPendingLayerId((current) => current || initial.layers[0]!.id);
   }, [initial]);
 
   useEffect(() => {
     skipSave.current = true;
     setView(readMapView(initial.id));
     setMode(readMapMode());
-    setHiddenGroups(readHiddenGroups());
+    setHiddenLayerIds(readHiddenLayers(initial.id));
     setTrail(trailWithoutCurrent(readMapTrail(projectId), initial.id));
   }, [initial.id, projectId]);
 
@@ -171,11 +196,14 @@ export function MapCanvas({
 
   const selected = pins.find((p) => p.id === selectedId) ?? null;
   const inspectRecordId = selected?.recordId && !selected.unavailable ? selected.recordId : null;
-  const shown = pins.filter((pin) => !hiddenGroups.includes(pin.markerGroup));
+  const shown = pins.filter((pin) => {
+    const layerId = effectiveLayerId(pin, map.layers);
+    return !layerId || !hiddenLayerIds.includes(layerId);
+  });
   const needle = query.trim().toLowerCase();
   const listed = shown.filter((pin) => {
     if (!needle) return true;
-    return `${pin.title} ${pin.typeLabel} ${GROUP_LABEL[pin.markerGroup]}`.toLowerCase().includes(needle);
+    return `${pin.title} ${pin.typeLabel} ${pinLayerTitle(pin, map.layers)}`.toLowerCase().includes(needle);
   });
 
   useEffect(() => {
@@ -243,12 +271,17 @@ export function MapCanvas({
     setDraft(draft.pinId ? null : startShape(draft.kind));
   };
 
-  const toggleGroup = (group: MarkerGroup) => {
-    setHiddenGroups((current) => {
-      const next = current.includes(group) ? current.filter((item) => item !== group) : [...current, group];
-      writeHiddenGroups(next);
+  const toggleLayer = (layerId: string) => {
+    setHiddenLayerIds((current) => {
+      const next = current.includes(layerId) ? current.filter((item) => item !== layerId) : [...current, layerId];
+      writeHiddenLayers(map.id, next);
       return next;
     });
+  };
+
+  const jumpToPin = (pinId: string) => {
+    const pin = pins.find((item) => item.id === pinId);
+    if (pin) selectPin(pin);
   };
 
   const normFromClient = (clientX: number, clientY: number) => {
@@ -327,7 +360,7 @@ export function MapCanvas({
       const result = await addWorldMapPinAction(projectId, map.id, {
         recordId: pendingPlaceId || null,
         targetMapId: pendingMapId || null,
-        markerGroup: pendingGroup,
+        layerId: pendingLayerId || null,
         label: pendingLabel,
         xNorm,
         yNorm,
@@ -379,7 +412,7 @@ export function MapCanvas({
         yNorm: anchor.y,
         recordId: pendingPlaceId || null,
         targetMapId: pendingMapId || null,
-        markerGroup: pendingGroup,
+        layerId: pendingLayerId || null,
         label: pendingLabel,
       });
       if (!result.ok) {
@@ -553,11 +586,11 @@ export function MapCanvas({
           {mode === "edit" ? (
             <CanvasToolbarGroup className="map-place-fields">
               <label>
-                <span className="sr-only">{WORLD.markerGroup}</span>
-                <select value={pendingGroup} onChange={(e) => setPendingGroup(e.target.value as MarkerGroup)}>
-                  {MARKER_GROUPS.map((group) => (
-                    <option key={group} value={group}>
-                      {GROUP_LABEL[group]}
+                <span className="sr-only">{WORLD.mapLayer}</span>
+                <select value={pendingLayerId} onChange={(e) => setPendingLayerId(e.target.value)}>
+                  {map.layers.map((layer) => (
+                    <option key={layer.id} value={layer.id}>
+                      {layer.title}
                     </option>
                   ))}
                 </select>
@@ -601,6 +634,45 @@ export function MapCanvas({
             </CanvasToolbarGroup>
           ) : null}
           <BoardOverflowMenu>
+              <form
+                className="stack"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const parsed = scaleBarPercent.trim() === "" ? null : Number(scaleBarPercent) / 100;
+                  startTransition(async () => {
+                    const result = await updateWorldMapScaleAction(projectId, map.id, {
+                      scaleLabel: scaleLabel.trim(),
+                      scaleBarLength: parsed != null && Number.isFinite(parsed) ? parsed : null,
+                    });
+                    if (!result.ok) setIssues(result.issues);
+                    else {
+                      setIssues([]);
+                      setMap(result.map);
+                      router.refresh();
+                    }
+                  });
+                }}
+              >
+                <p className="small muted">{WORLD.geometryNote}</p>
+                <label>
+                  {WORLD.mapScaleLabel}
+                  <input value={scaleLabel} maxLength={120} onChange={(e) => setScaleLabel(e.target.value)} />
+                </label>
+                <label>
+                  {WORLD.mapScaleBarLength}
+                  <input
+                    type="number"
+                    min={2}
+                    max={100}
+                    step={0.1}
+                    value={scaleBarPercent}
+                    onChange={(e) => setScaleBarPercent(e.target.value)}
+                  />
+                </label>
+                <Button type="submit" disabled={pending} variant="secondary" size="sm">
+                  {WORLD.saveMapScale}
+                </Button>
+              </form>
               <form
                 className="row"
                 style={{ gap: "0.35rem", flexWrap: "wrap" }}
@@ -662,19 +734,79 @@ export function MapCanvas({
         ) : null}
 
         <fieldset className="map-legend">
-          <legend>{WORLD.markerLegend}</legend>
-          {MARKER_GROUPS.map((group) => (
-            <label key={group}>
-              <input
-                type="checkbox"
-                checked={!hiddenGroups.includes(group)}
-                onChange={() => toggleGroup(group)}
+          <legend>{WORLD.mapLayerLegend}</legend>
+          {map.layers.map((layer, index) => (
+            <label key={layer.id}>
+              <input type="checkbox" checked={!hiddenLayerIds.includes(layer.id)} onChange={() => toggleLayer(layer.id)} />
+              <span
+                className="map-legend-swatch"
+                style={{ background: layerStrokeColor(index), borderColor: "var(--color-surface)" }}
+                aria-hidden="true"
               />
-              <span className={`map-legend-swatch map-group-${group}`} aria-hidden="true" />
-              {GROUP_LABEL[group]}
+              {layer.title}
             </label>
           ))}
         </fieldset>
+        {mode === "edit" ? (
+          <form
+            className="stack panel"
+            onSubmit={(event) => {
+              event.preventDefault();
+              startTransition(async () => {
+                const result = await saveWorldMapLayersAction(
+                  projectId,
+                  map.id,
+                  layerTitles.map((title) => ({ title })),
+                );
+                if (!result.ok) setIssues(result.issues);
+                else {
+                  setIssues([]);
+                  setMap(result.map);
+                  setPins(result.map.pins);
+                  setLayerTitles(result.map.layers.map((layer) => layer.title));
+                  if (result.map.layers[0]) setPendingLayerId(result.map.layers[0].id);
+                  router.refresh();
+                }
+              });
+            }}
+          >
+            <h3>{WORLD.mapLayers}</h3>
+            {layerTitles.map((title, index) => (
+              <div key={index} className="row" style={{ gap: "0.35rem", flexWrap: "wrap" }}>
+                <label className="grow">
+                  <span className="sr-only">
+                    {WORLD.mapLayer} {index + 1}
+                  </span>
+                  <input
+                    value={title}
+                    maxLength={80}
+                    onChange={(e) =>
+                      setLayerTitles((current) => current.map((row, rowIndex) => (rowIndex === index ? e.target.value : row)))
+                    }
+                  />
+                </label>
+                {layerTitles.length > 1 ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => setLayerTitles((current) => current.filter((_, rowIndex) => rowIndex !== index))}
+                  >
+                    {WORLD.removeMapLayer}
+                  </Button>
+                ) : null}
+              </div>
+            ))}
+            {layerTitles.length < 16 ? (
+              <Button type="button" size="sm" variant="secondary" onClick={() => setLayerTitles((current) => [...current, ""])}>
+                {WORLD.addMapLayer}
+              </Button>
+            ) : null}
+            <Button type="submit" size="sm" disabled={pending}>
+              {WORLD.saveMapLayers}
+            </Button>
+          </form>
+        ) : null}
 
         <div
           ref={viewportRef}
@@ -726,7 +858,7 @@ export function MapCanvas({
                       key={pin.id}
                       className={`map-shape map-shape-area${selectedId === pin.id ? " selected" : ""}`}
                       points={pin.points.map((point) => `${point.x * 100},${point.y * 100}`).join(" ")}
-                      style={{ stroke: SHAPE_STROKE[pin.markerGroup] }}
+                      style={{ stroke: layerStrokeColor(pinLayerIndex(pin, map.layers)) }}
                       onClick={(event) => {
                         event.stopPropagation();
                         selectPin(pin);
@@ -740,7 +872,7 @@ export function MapCanvas({
                       key={pin.id}
                       className={`map-shape${selectedId === pin.id ? " selected" : ""}`}
                       points={pin.points.map((point) => `${point.x * 100},${point.y * 100}`).join(" ")}
-                      style={{ stroke: SHAPE_STROKE[pin.markerGroup] }}
+                      style={{ stroke: layerStrokeColor(pinLayerIndex(pin, map.layers)) }}
                       onClick={(event) => {
                         event.stopPropagation();
                         selectPin(pin);
@@ -787,9 +919,18 @@ export function MapCanvas({
                   <span className="map-pin-label">{pin.title}</span>
                 </button>
               ))}
+              {map.scaleLabel && map.scaleBarLength ? (
+                <div className="map-scale" aria-label={WORLD.mapScale}>
+                  <div className="map-scale-bar" style={{ width: `${map.scaleBarLength * 100}%` }}>
+                    <span>{map.scaleLabel}</span>
+                  </div>
+                </div>
+              ) : null}
             </div>
           </div>
         </div>
+
+        <MapGeographyPanel projectId={projectId} mapId={map.id} geography={geography} onJumpToPin={jumpToPin} />
 
         <section className="panel" aria-labelledby={pinListId}>
           <h2 id={pinListId}>{WORLD.pinList}</h2>
@@ -834,7 +975,9 @@ export function MapCanvas({
                   >
                     <span>{pin.title}</span>
                     <span className="small muted">
-                      {pin.kind === "point" ? GROUP_LABEL[pin.markerGroup] : `${KIND_LABEL[pin.kind]} · ${GROUP_LABEL[pin.markerGroup]}`}
+                      {pin.kind === "point"
+                        ? pinLayerTitle(pin, map.layers)
+                        : `${KIND_LABEL[pin.kind]} · ${pinLayerTitle(pin, map.layers)}`}
                       {pin.typeLabel ? ` · ${pin.typeLabel}` : ""}
                       {pin.unavailable ? ` · ${WORLD.pinUnavailable}` : ""}
                       {pin.targetUnavailable ? ` · ${WORLD.targetMapUnavailable}` : ""}
@@ -864,6 +1007,7 @@ export function MapCanvas({
               projectId={projectId}
               mapId={map.id}
               pin={selected}
+              layers={map.layers}
               records={records}
               otherMaps={otherMaps}
               mode={mode}
@@ -901,6 +1045,7 @@ function MarkerRail({
   projectId,
   mapId,
   pin,
+  layers,
   records,
   otherMaps,
   mode,
@@ -916,6 +1061,7 @@ function MarkerRail({
   projectId: string;
   mapId: string;
   pin: WorldMapPinView;
+  layers: WorldMapLayerView[];
   records: PlaceableRecord[];
   otherMaps: PlaceableMap[];
   mode: "browse" | "edit";
@@ -930,7 +1076,7 @@ function MarkerRail({
 }) {
   const [recordId, setRecordId] = useState(pin.recordId ?? "");
   const [targetMapId, setTargetMapId] = useState(pin.targetMapId ?? "");
-  const [group, setGroup] = useState<MarkerGroup>(pin.markerGroup);
+  const [layerId, setLayerId] = useState(effectiveLayerId(pin, layers) ?? layers[0]?.id ?? "");
   const [label, setLabel] = useState(pin.label);
   const [xPercent, setXPercent] = useState(String(Math.round(pin.xNorm * 1000) / 10));
   const [yPercent, setYPercent] = useState(String(Math.round(pin.yNorm * 1000) / 10));
@@ -939,16 +1085,16 @@ function MarkerRail({
   useEffect(() => {
     setRecordId(pin.recordId ?? "");
     setTargetMapId(pin.targetMapId ?? "");
-    setGroup(pin.markerGroup);
+    setLayerId(effectiveLayerId(pin, layers) ?? layers[0]?.id ?? "");
     setLabel(pin.label);
     setXPercent(String(Math.round(pin.xNorm * 1000) / 10));
     setYPercent(String(Math.round(pin.yNorm * 1000) / 10));
-  }, [pin.id, pin.recordId, pin.targetMapId, pin.markerGroup, pin.label, pin.xNorm, pin.yNorm, pin.revision]);
+  }, [pin.id, pin.recordId, pin.targetMapId, pin.layerId, pin.markerGroup, pin.label, pin.xNorm, pin.yNorm, pin.revision, layers]);
 
   return (
     <div className="stack">
       <div>
-        <p className="board-card-kind">{pin.typeLabel || GROUP_LABEL[pin.markerGroup]}</p>
+        <p className="board-card-kind">{pin.typeLabel || pinLayerTitle(pin, layers)}</p>
         <p className="board-card-title">{pin.title}</p>
         {pin.authorityStatus ? <StatusBadge status={pin.authorityStatus} /> : null}
         {pin.unavailable ? <p className="small muted">{WORLD.pinUnavailable}</p> : null}
@@ -991,7 +1137,7 @@ function MarkerRail({
               const result = await updateWorldMapPinAction(projectId, mapId, pin.id, {
                 recordId: recordId || null,
                 targetMapId: targetMapId || null,
-                markerGroup: group,
+                layerId: layerId || null,
                 label,
                 expectedRevision: pin.revision,
               });
@@ -1005,11 +1151,11 @@ function MarkerRail({
           }}
         >
           <label>
-            {WORLD.markerGroup}
-            <select value={group} onChange={(e) => setGroup(e.target.value as MarkerGroup)}>
-              {MARKER_GROUPS.map((item) => (
-                <option key={item} value={item}>
-                  {GROUP_LABEL[item]}
+            {WORLD.mapLayer}
+            <select value={layerId} onChange={(e) => setLayerId(e.target.value)}>
+              {layers.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.title}
                 </option>
               ))}
             </select>

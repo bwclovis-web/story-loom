@@ -95,12 +95,31 @@ export function WorldKindFields({
           {specs.map((spec) => (
             <label key={spec.key}>
               {spec.label}
-              <input
-                type="text"
-                value={values[spec.key] ?? ""}
-                placeholder={spec.placeholder}
-                onChange={(event) => sync(mode.selectValue === WORLD_KIND_CUSTOM_UI ? mode.customName : mode.selectValue, { ...values, [spec.key]: event.target.value })}
-              />
+              {spec.multiline ? (
+                <textarea
+                  rows={4}
+                  value={values[spec.key] ?? ""}
+                  placeholder={spec.placeholder}
+                  onChange={(event) =>
+                    sync(mode.selectValue === WORLD_KIND_CUSTOM_UI ? mode.customName : mode.selectValue, {
+                      ...values,
+                      [spec.key]: event.target.value,
+                    })
+                  }
+                />
+              ) : (
+                <input
+                  type="text"
+                  value={values[spec.key] ?? ""}
+                  placeholder={spec.placeholder}
+                  onChange={(event) =>
+                    sync(mode.selectValue === WORLD_KIND_CUSTOM_UI ? mode.customName : mode.selectValue, {
+                      ...values,
+                      [spec.key]: event.target.value,
+                    })
+                  }
+                />
+              )}
             </label>
           ))}
         </div>

@@ -57,6 +57,8 @@ import { buildReferenceInspectorModel, type RecordPlacement } from "@/world/insp
 import { OutlineReview } from "./OutlineReview";
 import { PlaceRelations } from "./PlaceRelations";
 import { RecordRelations } from "./RecordRelations";
+import { ReferenceInfobox } from "@/components/world/ReferenceInfobox";
+import type { ReferenceInfoboxModel } from "@/world/referenceInfobox";
 import { WorldContextAside, WorldContextProvider, WorldContextToggle } from "./WorldContextRail";
 import { WorldPins } from "./WorldPins";
 
@@ -116,6 +118,7 @@ export interface ReferenceViewProps {
   manuscriptScenes: SceneChoice[];
   placements: RecordPlacement[];
   mentionedBy: MentionedByItem[];
+  infobox: ReferenceInfoboxModel | null;
   editor: {
     spellingLanguage: SpellingLanguage;
     spellChecker: SpellChecker;
@@ -349,6 +352,8 @@ export function ReferenceView(props: ReferenceViewProps) {
           </li>
         ) : null}
       </ul>
+
+      {!editing && props.infobox ? <ReferenceInfobox model={props.infobox} /> : null}
 
       <WorldContextProvider>
       <div className="write-layout reference-write-layout">

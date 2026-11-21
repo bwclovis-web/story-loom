@@ -14,6 +14,7 @@ import {
   DICTIONARY,
   DRAFT,
   EXPORT,
+  INFOBOX,
   FILE,
   HISTORY,
   HOME,
@@ -1622,8 +1623,21 @@ export function HelpContent() {
               time.
             </li>
             <li>
-              Groups — <L>{WORLD.markerGroupPlaces}</L>, <L>{WORLD.markerGroupWaterways}</L>,{" "}
-              <L>{WORLD.markerGroupTransport}</L>, and <L>{WORLD.markerGroupStory}</L> — can be hidden from the legend.
+              Each map has author-defined <L>{WORLD.mapLayers}</L>. Older maps open with the former four groups as
+              default layer names. In <L>{WORLD.mapModeEdit}</L> you can rename layers, add more (up to sixteen), and
+              save them. The <L>{WORLD.mapLayerLegend}</L> toggles which layers show on the map. New markers use the
+              layer you pick in the toolbar or on the marker form.
+            </li>
+            <li>
+              An optional labelled <L>{WORLD.mapScale}</L> bar sits on the image. You write the caption and how wide the
+              bar is as a percent of the image. It is not computed distance or travel time (see{" "}
+              <L>{WORLD.geometryNote}</L>).
+            </li>
+            <li>
+              <L>{WORLD.mapGeography}</L> lists places linked by part_of (see <See anchor="place-relations" />).{" "}
+              <L>{WORLD.showOnMap}</L> selects a marker when that place is pinned on this map.
+            </li>
+            <li>
               The marker list can be searched and moved with the keyboard. Arrow keys stay on the list. Enter on{" "}
               <L>{WORLD.openSceneInWrite}</L>, <L>{WORLD.openChapterInWrite}</L>, or another link follows that link.
               Selecting a marker opens the same inspector a
@@ -1648,7 +1662,8 @@ export function HelpContent() {
             same records, at the same positions. A backup that omits route, area, or label geometry restores those
             markers as point pins. Point pins in a new backup omit the geometry fields, so an older copy of the app can
             still read a map that has only points. A backup that includes a route or an area will not restore on an
-            older copy that does not know those fields.
+            older copy that does not know those fields. Backups that omit <L>{WORLD.mapLayers}</L> or map scale fields
+            restore with default layer names and no scale bar.
           </p>
         </Sub>
 
@@ -1670,6 +1685,15 @@ export function HelpContent() {
           </p>
         </Sub>
 
+        <Sub id="world-calendar">
+          <p>
+            <L>{WORLD.worldCalendar}</L> on <L>{SHELL.world}</L> holds one calendar per project: month names, how many days
+            each month has, and optional eras with an abbreviation and a year offset for comparing dates across eras. Saving
+            a new calendar clears structured dates on story events so nothing points at removed months or eras. Calendar data
+            is included in workspace backups.
+          </p>
+        </Sub>
+
         <Sub id="story-events">
           <p>
             <L>{WORLD.storyTimeline}</L> is a list of events. Each event has a title, a summary, optional places,
@@ -1678,9 +1702,12 @@ export function HelpContent() {
             or an established fact.
           </p>
           <p>
-            Leave <L>{WORLD.storyEventTime}</L> blank when the time is unknown. The app does not invent a date.{" "}
-            <L>{WORLD.recordOrder}</L> says which event happens first. That order is not the manuscript order, so a
-            later chapter can reveal an earlier event. A circle is refused and nothing is saved.
+            Leave <L>{WORLD.storyEventTime}</L> blank when the time is unknown. The app does not invent a date. On{" "}
+            <L>{WORLD.worldCalendar}</L> you define months, day counts, and eras; on the timeline you can add an optional{" "}
+            <L>{WORLD.structuredDate}</L> alongside the free-text time. Incomplete or missing structured dates are fine.
+            If a full structured date disagrees with an explicit <L>{WORLD.recordOrder}</L> link, the timeline warns you;
+            it never changes constraints for you. <L>{WORLD.recordOrder}</L> says which event happens first. That order is
+            not the manuscript order, so a later chapter can reveal an earlier event. A circle is refused and nothing is saved.
           </p>
           <p>
             Selecting an event shows its passages and revealing scenes in the right rail.{" "}
@@ -1786,6 +1813,27 @@ export function HelpContent() {
             with no kind. Choose <L>{WORLD_KIND.kindCustomOption}</L> when editing to type any label; it is stored in{" "}
             <code>kind</code> like the built-ins. {WORLD_KIND.historyNote}{" "}
             <L>{WORLD.outlineHeading}</L> still only adds Markdown headings to the text; it does not set <code>kind</code>.
+          </p>
+          <p>
+            For <L>{RECORD_TYPE_LABELS.worldbuilding}</L> records with kind <em>language</em>, optional{" "}
+            <strong>Name syllables</strong> and <strong>Name patterns</strong> fields support the{" "}
+            <L>{WORLD.nameGenerator}</L> (see <See anchor="world-names" />). Patterns use <code>{"{s}"}</code> or{" "}
+            <code>{"{S}"}</code> for a random syllable. They are revisioned with the record, not a separate table.
+          </p>
+        </Sub>
+
+        <Sub id="world-names">
+          <p>
+            World → <L>{WORLD.nameGenerator}</L> reads syllables and patterns from a language-kind reference, then
+            lists suggested names. Set a <L>{WORLD.nameGeneratorSeed}</L> to reproduce the same list later; change the
+            seed to vary results. Generation does not write anything. For each suggestion, choose{" "}
+            <L>{WORLD.nameGeneratorAddDictionary}</L> (project or workspace scope) or{" "}
+            <L>{WORLD.nameGeneratorCreateDossier}</L> to open a new character dossier with that title. Both paths use the
+            existing dictionary and record services.
+          </p>
+          <p>
+            This is not distance, grammar, or automatic prose replacement. Invalid syllables for the dictionary are
+            refused when you add. See <See anchor="dictionary" /> and <See anchor="world-kinds" />.
           </p>
         </Sub>
 
@@ -3647,8 +3695,10 @@ export function HelpContent() {
             <L>{SHELL.world}</L> categories are the document types. There are no separate categories for places, magic
             or other subjects. Optional outlines add headings inside the document you already have; they do not change
             its type. The reference inspector has Overview, Sections, Images, Relationships, and Established in when
-            the record supports it. There is no Open questions tab; open questions are a heading you can add with an
-            outline. Maps can be browsed, zoomed, and marked with points, routes, areas, and labels. Freehand drawing
+            the record supports it. <L>{INFOBOX.heading}</L> at the top of a reference page summarizes kind fields,
+            aliases, accepted established facts, relationships, map presence, and the first manuscript appearance from
+            name matches; pending or dismissed facts are omitted. Open questions still come from an{" "}
+            <L>{INFOBOX.openQuestions}</L> heading in the text, not a separate tab. Maps can be browsed, zoomed, and marked with points, routes, areas, and labels. Freehand drawing
             is not available, and marker positions are not distances or travel times. A marker can list chapters and
             scenes assigned to its place. That list is not mentions, linked references, or planned events, and it does
             not invent a story date. The story timeline can leave an event&apos;s time unknown and can order events

@@ -11,6 +11,7 @@ export interface WorldKindFieldSpec {
   key: string;
   label: string;
   placeholder?: string;
+  multiline?: boolean;
 }
 
 export const WORLD_KIND_FIELD_SPECS: Record<ReferenceTemplateKey, readonly WorldKindFieldSpec[]> = {
@@ -45,6 +46,18 @@ export const WORLD_KIND_FIELD_SPECS: Record<ReferenceTemplateKey, readonly World
   language: [
     { key: "speakers", label: "Speakers", placeholder: "Who speaks it" },
     { key: "writing", label: "Writing system", placeholder: "Script or marks" },
+    {
+      key: "nameSyllables",
+      label: "Name syllables",
+      placeholder: "One syllable per line (e.g. ka, ri, tor)",
+      multiline: true,
+    },
+    {
+      key: "namePatterns",
+      label: "Name patterns",
+      placeholder: "One pattern per line. Use {s} or {S} for a random syllable.",
+      multiline: true,
+    },
   ],
 };
 

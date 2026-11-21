@@ -11,6 +11,12 @@ import {
   type NormPoint,
 } from "@/world/mapGeometry";
 import { isMarkerGroup, type MarkerGroup } from "@/world/mapMarkers";
+import {
+  listWorldMapLayers,
+  resolveLayerForWrite,
+  seedDefaultMapLayers,
+  type WorldMapLayerView,
+} from "./worldMapLayerService";
 import type { Db, DbOrTx, Tx } from "../db";
 import { writeAudit } from "./auditService";
 import { MutationRejectedError, NotFoundError } from "./errors";
@@ -56,6 +62,7 @@ export interface WorldMapPinView {
   /** True when a detailed-map link is set but that map cannot be opened. */
   targetUnavailable: boolean;
   markerGroup: MarkerGroup;
+  layerId: string | null;
   label: string;
   kind: MarkerKind;
   points: NormPoint[];
@@ -73,6 +80,7 @@ export interface WorldMapPinLinks {
   recordId?: string | null;
   targetMapId?: string | null;
   markerGroup?: string | null;
+  layerId?: string | null;
   label?: string | null;
   /** When set, the write is refused if the marker was saved again since this revision. */
   expectedRevision?: number | null;
@@ -90,6 +98,9 @@ export interface WorldMapView {
   hostRecordTitle: string;
   createdAt: Date;
   updatedAt: Date;
+  scaleLabel: string;
+  scaleBarLength: number | null;
+  layers: WorldMapLayerView[];
   pins: WorldMapPinView[];
 }
 
@@ -150,6 +161,11 @@ export async function listWorldMaps(db: DbOrTx, projectId: string): Promise<Worl
 }
 
 export async function getWorldMap(db: DbOrTx, projectId: string, mapId: string): Promise<WorldMapView> {
+  if ("worldMapLayer" in db && (await db.worldMapLayer.count({ where: { mapId } })) === 0) {
+    if ("$transaction" in db) {
+      await (db as Db).$transaction(async (tx) => seedDefaultMapLayers(tx, projectId, mapId));
+    }
+  }
   const map = await db.worldMap.findFirst({
     where: { id: mapId, projectId },
     include: {
@@ -194,6 +210,9 @@ export async function getWorldMap(db: DbOrTx, projectId: string, mapId: string):
     hostRecordTitle: map.image.record.title,
     createdAt: map.createdAt,
     updatedAt: map.updatedAt,
+    scaleLabel: map.scaleLabel ?? "",
+    scaleBarLength: map.scaleBarLength ?? null,
+    layers: await listWorldMapLayers(db, mapId),
     pins: map.pins.flatMap((p): WorldMapPinView[] => {
       const record = p.record;
       const linked =
@@ -215,6 +234,7 @@ export async function getWorldMap(db: DbOrTx, projectId: string, mapId: string):
           targetMapTitle: target?.title ?? null,
           targetUnavailable: Boolean(p.targetMapId) && !targetLive,
           markerGroup: isMarkerGroup(p.markerGroup) ? p.markerGroup : "places",
+          layerId: p.layerId,
           label: p.label,
           kind,
           points: kind === "route" || kind === "area" ? parseStoredPoints(p.points) : [],
@@ -255,6 +275,7 @@ export async function createWorldMap(
     await tx.worldMap.create({
       data: { id, projectId, title, imageId: image.id },
     });
+    await seedDefaultMapLayers(tx, projectId, id);
     await writeAudit(tx, {
       projectId,
       action: "world_map.create",
@@ -292,6 +313,7 @@ export async function createWorldMapWithUpload(
     await tx.worldMap.create({
       data: { id, projectId, title, imageId: image.id },
     });
+    await seedDefaultMapLayers(tx, projectId, id);
     await writeAudit(tx, {
       projectId,
       action: "world_map.create",
@@ -362,6 +384,7 @@ export async function addWorldMapPin(
         recordId: links.recordId,
         targetMapId: links.targetMapId,
         markerGroup: links.markerGroup,
+        layerId: links.layerId,
         label: links.label,
         kind,
         points: serializePoints(shape.points),
@@ -402,6 +425,7 @@ export async function updateWorldMapPin(
         recordId: links.recordId,
         targetMapId: links.targetMapId,
         markerGroup: links.markerGroup,
+        layerId: links.layerId,
         label: links.label,
         revision: { increment: 1 },
       },
@@ -586,7 +610,7 @@ async function resolvePinLinks(tx: Tx, projectId: string, mapId: string, input: 
   if (kind === "point" && !recordId && !targetMapId) throw rejected("Link a reference, a detailed map, or both.");
   if (kind === "label" && !label) throw rejected("Enter the label text.");
   if (targetMapId === mapId) throw rejected("A marker cannot open the map it is already on.");
-  const markerGroup: MarkerGroup = isMarkerGroup(input.markerGroup) ? input.markerGroup : "places";
+  const resolvedLayer = await resolveLayerForWrite(tx, mapId, input.layerId, input.markerGroup);
   let recordTitle = "";
   if (recordId) {
     const record = await tx.record.findFirst({
@@ -607,8 +631,89 @@ async function resolvePinLinks(tx: Tx, projectId: string, mapId: string, input: 
   return {
     recordId,
     targetMapId,
-    markerGroup,
+    markerGroup: resolvedLayer.markerGroup,
+    layerId: resolvedLayer.layerId,
     label,
     summary: [recordTitle, mapTitle, label].filter(Boolean).join(" · ") || "marker",
   };
+}
+
+export async function updateWorldMapScale(
+  db: Db,
+  projectId: string,
+  mapId: string,
+  input: { scaleLabel: string; scaleBarLength: number | null },
+): Promise<WorldMapView> {
+  const scaleLabel = input.scaleLabel.trim().slice(0, 120);
+  const scaleBarLength =
+    input.scaleBarLength == null
+      ? null
+      : Number.isFinite(input.scaleBarLength)
+        ? Math.min(1, Math.max(0.02, input.scaleBarLength))
+        : null;
+  if (scaleLabel && scaleBarLength == null) throw rejected("Set a bar length when you add a scale label.");
+  return db.$transaction(async (tx) => {
+    await requireLiveMap(tx, projectId, mapId);
+    await tx.worldMap.update({
+      where: { id: mapId },
+      data: { scaleLabel, scaleBarLength },
+    });
+    await writeAudit(tx, {
+      projectId,
+      action: "world_map.scale",
+      actor: UI_ACTOR,
+      summary: scaleLabel ? `Set map scale to "${scaleLabel}"` : "Cleared the map scale",
+      details: { mapId, scaleLabel, scaleBarLength },
+    });
+    return getWorldMap(tx, projectId, mapId);
+  });
+}
+
+export async function saveWorldMapLayers(
+  db: Db,
+  projectId: string,
+  mapId: string,
+  layers: readonly { id?: string; title: string }[],
+): Promise<WorldMapView> {
+  const { validateLayerTitles } = await import("./worldMapLayerService");
+  const normalized = validateLayerTitles(layers);
+  return db.$transaction(async (tx) => {
+    await requireLiveMap(tx, projectId, mapId);
+    const existing = await tx.worldMapPin.findMany({ where: { mapId, projectId }, select: { id: true, layerId: true } });
+    const oldLayers = await listWorldMapLayers(tx, mapId);
+    await tx.worldMapLayer.deleteMany({ where: { mapId } });
+    const created: WorldMapLayerView[] = [];
+    for (const [index, row] of normalized.entries()) {
+      const legacy = oldLayers.find((layer) => layer.position === index + 1)?.legacyGroup ?? null;
+      const id = newId("wmly");
+      await tx.worldMapLayer.create({
+        data: {
+          id,
+          mapId,
+          projectId,
+          position: index + 1,
+          title: row.title,
+          legacyGroup: legacy,
+        },
+      });
+      created.push({ id, mapId, position: index + 1, title: row.title, legacyGroup: legacy });
+    }
+    const fallbackId = created[0]?.id ?? null;
+    for (const pin of existing) {
+      const still = created.find((layer) => layer.id === pin.layerId);
+      await tx.worldMapPin.update({
+        where: { id: pin.id },
+        data: { layerId: still?.id ?? fallbackId },
+      });
+    }
+    await tx.worldMap.update({ where: { id: mapId }, data: { updatedAt: new Date() } });
+    await writeAudit(tx, {
+      projectId,
+      action: "world_map.layers",
+      actor: UI_ACTOR,
+      summary: `Updated layers on a map`,
+      details: { mapId, layerCount: created.length },
+    });
+    return getWorldMap(tx, projectId, mapId);
+  });
 }

@@ -283,6 +283,46 @@ export const workspaceBackupV1Schema = z
           .strict(),
       )
       .optional(),
+    /** In-world calendar per project; omitted in older backups → none. */
+    worldCalendars: z
+      .array(
+        z
+          .object({
+            id,
+            projectId: id,
+            title: z.string().max(120).optional(),
+            revision: z.number().int().min(0).optional(),
+            months: z.array(
+              z
+                .object({
+                  id,
+                  position: z.number().int().min(1).max(24),
+                  name: z.string().min(1).max(80),
+                  daysInMonth: z.number().int().min(1).max(100),
+                  createdAt: timestamp,
+                })
+                .strict(),
+            ),
+            eras: z
+              .array(
+                z
+                  .object({
+                    id,
+                    position: z.number().int().min(1).max(32),
+                    name: z.string().min(1).max(80),
+                    shortLabel: z.string().max(20).optional(),
+                    yearOffset: z.number().int().optional(),
+                    createdAt: timestamp,
+                  })
+                  .strict(),
+              )
+              .optional(),
+            createdAt: timestamp,
+            updatedAt: timestamp,
+          })
+          .strict(),
+      )
+      .optional(),
   /** Manuscript compile profile per project; omitted in older backups → default at export. */
     compileProfiles: z
       .array(
@@ -374,8 +414,28 @@ export const workspaceBackupV1Schema = z
             projectId: id,
             title: z.string().min(1),
             imageId: id,
+            /** Author scale caption; omitted → empty (no bar). */
+            scaleLabel: z.string().optional(),
+            /** Bar length as fraction of image width when scaleLabel is set. */
+            scaleBarLength: z.number().min(0.02).max(1).optional(),
             createdAt: timestamp,
             updatedAt: timestamp,
+          })
+          .strict(),
+      )
+      .optional(),
+    /** Author-defined layers on world maps; omitted → default layers on restore. */
+    worldMapLayers: z
+      .array(
+        z
+          .object({
+            id,
+            mapId: id,
+            projectId: id,
+            position: z.number().int().min(1),
+            title: z.string().min(1),
+            legacyGroup: z.enum(["places", "waterways", "transport", "story"]).optional(),
+            createdAt: timestamp,
           })
           .strict(),
       )
@@ -394,6 +454,8 @@ export const workspaceBackupV1Schema = z
             targetMapId: id.nullable().optional(),
             /** places | waterways | transport | story. Omitted means places. */
             markerGroup: z.enum(["places", "waterways", "transport", "story"]).optional(),
+            /** wmly layer row when backups include author layers. */
+            layerId: id.nullable().optional(),
             /** Optional display name. Omitted means empty; the linked title is used. */
             label: z.string().optional(),
             /** point | route | area | label. Omitted means a point pin. */
@@ -497,6 +559,10 @@ export const workspaceBackupV1Schema = z
             timeLabel: z.string().max(200).optional(),
             planned: z.boolean().optional(),
             draftScope: z.string().min(1).max(80).optional(),
+            structEraId: id.optional(),
+            structYear: z.number().int().min(1).max(999_999).optional(),
+            structMonthPosition: z.number().int().min(1).max(24).optional(),
+            structDay: z.number().int().min(1).max(100).optional(),
             createdAt: timestamp,
             updatedAt: timestamp,
           })
@@ -914,6 +980,7 @@ export const workspaceBackupV1Schema = z
         boards: z.number().int().optional(),
         boardCards: z.number().int().optional(),
         worldMaps: z.number().int().optional(),
+        worldMapLayers: z.number().int().optional(),
         worldMapPins: z.number().int().optional(),
         placeRelations: z.number().int().optional(),
         recordRelations: z.number().int().optional(),

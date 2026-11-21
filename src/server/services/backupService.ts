@@ -82,6 +82,10 @@ function writingGoalsOf(b: WorkspaceBackupV1) {
   return b.writingGoals ?? [];
 }
 
+function worldCalendarsOf(b: WorkspaceBackupV1) {
+  return b.worldCalendars ?? [];
+}
+
 function manuscriptAnnotationsOf(b: WorkspaceBackupV1) {
   return b.manuscriptAnnotations ?? [];
 }
@@ -104,6 +108,10 @@ function worldMapsOf(b: WorkspaceBackupV1) {
 
 function worldMapPinsOf(b: WorkspaceBackupV1) {
   return b.worldMapPins ?? [];
+}
+
+function worldMapLayersOf(b: WorkspaceBackupV1) {
+  return b.worldMapLayers ?? [];
 }
 
 function placeRelationsOf(b: WorkspaceBackupV1) {
@@ -393,6 +401,23 @@ async function writingGoalRows(db: DbOrTx, projectIds: string[]) {
   }
 }
 
+async function worldCalendarRows(db: DbOrTx, projectIds: string[]) {
+  if (!("worldCalendar" in db) || !(db as { worldCalendar?: { findMany: unknown } }).worldCalendar) return [];
+  try {
+    return await db.worldCalendar.findMany({
+      where: { projectId: { in: projectIds } },
+      include: {
+        months: { orderBy: { position: "asc" } },
+        eras: { orderBy: { position: "asc" } },
+      },
+      orderBy: [{ projectId: "asc" }, { id: "asc" }],
+    });
+  } catch (error) {
+    if (isMissingSchemaError(error, "P2021")) return [];
+    throw error;
+  }
+}
+
 async function manuscriptAnnotationRows(db: DbOrTx, projectIds: string[]) {
   if (!("manuscriptAnnotation" in db) || !(db as { manuscriptAnnotation?: { findMany: unknown } }).manuscriptAnnotation)
     return [];
@@ -455,6 +480,27 @@ async function worldMapRows(db: DbOrTx, projectIds: string[]) {
     });
   } catch (error) {
     if (isMissingSchemaError(error, "P2021")) return [];
+    if (isMissingSchemaError(error, "P2022")) {
+      const rows = await db.worldMap.findMany({
+        where: { projectId: { in: projectIds } },
+        orderBy: [{ projectId: "asc" }, { id: "asc" }],
+        select: { id: true, projectId: true, title: true, imageId: true, createdAt: true, updatedAt: true },
+      });
+      return rows.map((row) => ({ ...row, scaleLabel: "", scaleBarLength: null }));
+    }
+    throw error;
+  }
+}
+
+async function worldMapLayerRows(db: DbOrTx, projectIds: string[]) {
+  if (!("worldMapLayer" in db) || !(db as { worldMapLayer?: { findMany: unknown } }).worldMapLayer) return [];
+  try {
+    return await db.worldMapLayer.findMany({
+      where: { projectId: { in: projectIds } },
+      orderBy: [{ mapId: "asc" }, { position: "asc" }, { id: "asc" }],
+    });
+  } catch (error) {
+    if (isMissingSchemaError(error, "P2021")) return [];
     throw error;
   }
 }
@@ -495,7 +541,7 @@ async function worldMapPinRowsBeforeGeometry(db: DbOrTx, projectIds: string[]) {
         createdAt: true,
       },
     });
-    return rows.map((row) => ({ ...row, ...blank }));
+    return rows.map((row) => ({ ...row, layerId: null, ...blank }));
   } catch (error) {
     if (!isMissingSchemaError(error, "P2022")) throw error;
     const rows = await db.worldMapPin.findMany({
@@ -503,7 +549,7 @@ async function worldMapPinRowsBeforeGeometry(db: DbOrTx, projectIds: string[]) {
       orderBy: [{ mapId: "asc" }, { id: "asc" }],
       select: { id: true, mapId: true, projectId: true, recordId: true, xNorm: true, yNorm: true, createdAt: true },
     });
-    return rows.map((row) => ({ ...row, targetMapId: null, markerGroup: "places", label: "", ...blank }));
+    return rows.map((row) => ({ ...row, targetMapId: null, markerGroup: "places", label: "", layerId: null, ...blank }));
   }
 }
 
@@ -649,9 +695,40 @@ async function storyRows<T>(db: DbOrTx, key: string, load: () => Promise<T[]>): 
 }
 
 async function storyEventRows(db: DbOrTx, projectIds: string[]) {
-  return storyRows(db, "storyEvent", () =>
-    db.storyEvent.findMany({ where: { projectId: { in: projectIds } }, orderBy: [{ projectId: "asc" }, { id: "asc" }] }),
-  );
+  if (!("storyEvent" in db)) return [];
+  const order = [{ projectId: "asc" as const }, { id: "asc" as const }];
+  const where = { projectId: { in: projectIds } };
+  try {
+    return await db.storyEvent.findMany({ where, orderBy: order });
+  } catch (error) {
+    if (isMissingSchemaError(error, "P2021")) return [];
+    if (isMissingSchemaError(error, "P2022")) {
+      const rows = await db.storyEvent.findMany({
+        where,
+        orderBy: order,
+        select: {
+          id: true,
+          projectId: true,
+          title: true,
+          summary: true,
+          timeLabel: true,
+          planned: true,
+          draftScope: true,
+          revision: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      });
+      return rows.map((row) => ({
+        ...row,
+        structEraId: null,
+        structYear: null,
+        structMonthPosition: null,
+        structDay: null,
+      }));
+    }
+    throw error;
+  }
 }
 async function storyEventLocationRows(db: DbOrTx, projectIds: string[]) {
   return storyRows(db, "storyEventLocation", () =>
@@ -935,11 +1012,13 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
     rewriteSourceLinks,
     readingPins,
     writingGoals,
+    worldCalendars,
     manuscriptAnnotations,
     compileProfiles,
     boards,
     boardCards,
     worldMaps,
+    worldMapLayers,
     worldMapPins,
     placeRelations,
     recordRelations,
@@ -977,11 +1056,13 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
     rewriteSourceLinkRows(db, projectIds),
     readingPinRows(db, projectIds),
     writingGoalRows(db, projectIds),
+    worldCalendarRows(db, projectIds),
     manuscriptAnnotationRows(db, projectIds),
     compileProfileRows(db, projectIds),
     boardRows(db, projectIds),
     boardCardRows(db, projectIds),
     worldMapRows(db, projectIds),
+    worldMapLayerRows(db, projectIds),
     worldMapPinRows(db, projectIds),
     placeRelationRows(db, projectIds),
     recordRelationRows(db, projectIds),
@@ -1215,6 +1296,33 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
           })),
         }
       : {}),
+    ...(worldCalendars.length
+      ? {
+          worldCalendars: worldCalendars.map((calendar) => ({
+            id: calendar.id,
+            projectId: calendar.projectId,
+            ...(calendar.title ? { title: calendar.title } : {}),
+            revision: calendar.revision,
+            months: calendar.months.map((month) => ({
+              id: month.id,
+              position: month.position,
+              name: month.name,
+              daysInMonth: month.daysInMonth,
+              createdAt: iso(month.createdAt),
+            })),
+            eras: calendar.eras.map((era) => ({
+              id: era.id,
+              position: era.position,
+              name: era.name,
+              ...(era.shortLabel ? { shortLabel: era.shortLabel } : {}),
+              ...(era.yearOffset ? { yearOffset: era.yearOffset } : {}),
+              createdAt: iso(era.createdAt),
+            })),
+            createdAt: iso(calendar.createdAt),
+            updatedAt: iso(calendar.updatedAt),
+          })),
+        }
+      : {}),
     ...(manuscriptAnnotations.length
       ? {
           manuscriptAnnotations: manuscriptAnnotations.map((a) => ({
@@ -1292,8 +1400,25 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
             projectId: m.projectId,
             title: m.title,
             imageId: m.imageId,
+            ...(m.scaleLabel ? { scaleLabel: m.scaleLabel } : {}),
+            ...(m.scaleBarLength != null ? { scaleBarLength: m.scaleBarLength } : {}),
             createdAt: iso(m.createdAt),
             updatedAt: iso(m.updatedAt),
+          })),
+        }
+      : {}),
+    ...(worldMapLayers.length
+      ? {
+          worldMapLayers: worldMapLayers.map((layer) => ({
+            id: layer.id,
+            mapId: layer.mapId,
+            projectId: layer.projectId,
+            position: layer.position,
+            title: layer.title,
+            ...(layer.legacyGroup === "waterways" || layer.legacyGroup === "transport" || layer.legacyGroup === "story"
+              ? { legacyGroup: layer.legacyGroup }
+              : {}),
+            createdAt: iso(layer.createdAt),
           })),
         }
       : {}),
@@ -1310,6 +1435,7 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
               ...(p.markerGroup === "waterways" || p.markerGroup === "transport" || p.markerGroup === "story"
                 ? { markerGroup: p.markerGroup }
                 : {}),
+              ...(p.layerId ? { layerId: p.layerId } : {}),
               ...(p.label ? { label: p.label } : {}),
               ...(p.kind === "route" || p.kind === "area" || p.kind === "label" ? { kind: p.kind } : {}),
               ...(points.length ? { points } : {}),
@@ -1376,6 +1502,10 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
             ...(event.timeLabel ? { timeLabel: event.timeLabel } : {}),
             ...(event.planned ? { planned: true as const } : {}),
             ...(event.draftScope !== "all" ? { draftScope: event.draftScope } : {}),
+            ...(event.structEraId ? { structEraId: event.structEraId } : {}),
+            ...(event.structYear != null ? { structYear: event.structYear } : {}),
+            ...(event.structMonthPosition != null ? { structMonthPosition: event.structMonthPosition } : {}),
+            ...(event.structDay != null ? { structDay: event.structDay } : {}),
             createdAt: iso(event.createdAt),
             updatedAt: iso(event.updatedAt),
           })),
@@ -1738,6 +1868,7 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
       ...(boards.length ? { boards: boards.length } : {}),
       ...(boardCards.length ? { boardCards: boardCards.length } : {}),
       ...(worldMaps.length ? { worldMaps: worldMaps.length } : {}),
+      ...(worldMapLayers.length ? { worldMapLayers: worldMapLayers.length } : {}),
       ...(worldMapPins.length ? { worldMapPins: worldMapPins.length } : {}),
       ...(placeRelations.length ? { placeRelations: placeRelations.length } : {}),
       ...(recordRelations.length ? { recordRelations: recordRelations.length } : {}),
@@ -1824,6 +1955,7 @@ function checkInternalConsistency(b: WorkspaceBackupV1): Issue[] {
     boards: boardsOf(b).length,
     boardCards: boardCardsOf(b).length,
     worldMaps: worldMapsOf(b).length,
+    worldMapLayers: worldMapLayersOf(b).length,
     worldMapPins: worldMapPinsOf(b).length,
     placeRelations: placeRelationsOf(b).length,
     recordRelations: recordRelationsOf(b).length,
@@ -1906,6 +2038,7 @@ function checkInternalConsistency(b: WorkspaceBackupV1): Issue[] {
   checkUnique(boardsOf(b).map((x) => x.id), "board", issues);
   checkUnique(boardCardsOf(b).map((c) => c.id), "board card", issues);
   checkUnique(worldMapsOf(b).map((x) => x.id), "world map", issues);
+  checkUnique(worldMapLayersOf(b).map((x) => x.id), "world map layer", issues);
   checkUnique(worldMapPinsOf(b).map((p) => p.id), "world map pin", issues);
   checkUnique(placeRelationsOf(b).map((r) => r.id), "place relation", issues);
   checkUnique(
@@ -2146,10 +2279,21 @@ function checkInternalConsistency(b: WorkspaceBackupV1): Issue[] {
       issues.push(integrity(`World map ${m.id} references missing image ${m.imageId}.`));
     }
   });
+  const layerIds = new Set(worldMapLayersOf(b).map((layer) => layer.id));
+  const layerProject = new Map(worldMapLayersOf(b).map((layer) => [layer.id, layer.projectId]));
+  worldMapLayersOf(b).forEach((layer) => {
+    needProject(layer.projectId, `World map layer ${layer.id}`);
+    if (!mapIds.has(layer.mapId) || mapProject.get(layer.mapId) !== layer.projectId) {
+      issues.push(integrity(`World map layer ${layer.id} references missing map ${layer.mapId}.`));
+    }
+  });
   worldMapPinsOf(b).forEach((p) => {
     needProject(p.projectId, `World map pin ${p.id}`);
     if (!mapIds.has(p.mapId) || mapProject.get(p.mapId) !== p.projectId) {
       issues.push(integrity(`World map pin ${p.id} references missing map ${p.mapId}.`));
+    }
+    if (p.layerId && (!layerIds.has(p.layerId) || layerProject.get(p.layerId) !== p.projectId)) {
+      issues.push(integrity(`World map pin ${p.id} references missing layer ${p.layerId}.`));
     }
     const recordId = p.recordId ?? null;
     const targetMapId = p.targetMapId ?? null;
@@ -2655,6 +2799,12 @@ async function findCollisions(db: DbOrTx, b: WorkspaceBackupV1): Promise<Issue[]
   if (worldMapsOf(b).length) {
     await check("world map", db.worldMap.count({ where: { id: { in: worldMapsOf(b).map((x) => x.id) } } }));
   }
+  if (worldMapLayersOf(b).length && "worldMapLayer" in db) {
+    await check(
+      "world map layer",
+      db.worldMapLayer.count({ where: { id: { in: worldMapLayersOf(b).map((x) => x.id) } } }),
+    );
+  }
   if (worldMapPinsOf(b).length) {
     await check("world map pin", db.worldMapPin.count({ where: { id: { in: worldMapPinsOf(b).map((p) => p.id) } } }));
   }
@@ -2902,6 +3052,7 @@ export async function restoreWorkspaceBackup(db: Db, input: string | unknown, op
   boardsOf(b).forEach((x) => assign(x.id, "brd"));
   boardCardsOf(b).forEach((c) => assign(c.id, "bcd"));
   worldMapsOf(b).forEach((x) => assign(x.id, "wmp"));
+  worldMapLayersOf(b).forEach((x) => assign(x.id, "wmly"));
   worldMapPinsOf(b).forEach((p) => assign(p.id, "wpn"));
   placeRelationsOf(b).forEach((r) => assign(r.id, "plr"));
   recordRelationsOf(b).forEach((r) => assign(r.id, "rrl"));
@@ -3238,6 +3389,47 @@ export async function restoreWorkspaceBackup(db: Db, input: string | unknown, op
             })),
           });
         }
+        for (const calendar of worldCalendarsOf(b)) {
+          const calendarId = m(calendar.id);
+          await tx.worldCalendar.create({
+            data: {
+              id: calendarId,
+              projectId: m(calendar.projectId),
+              title: calendar.title ?? "",
+              revision: calendar.revision ?? 0,
+              createdAt: new Date(calendar.createdAt),
+              updatedAt: new Date(calendar.updatedAt),
+            },
+          });
+          if (calendar.months.length) {
+            await tx.worldCalendarMonth.createMany({
+              data: calendar.months.map((month) => ({
+                id: m(month.id),
+                calendarId,
+                projectId: m(calendar.projectId),
+                position: month.position,
+                name: month.name,
+                daysInMonth: month.daysInMonth,
+                createdAt: new Date(month.createdAt),
+              })),
+            });
+          }
+          const eras = calendar.eras ?? [];
+          if (eras.length) {
+            await tx.worldCalendarEra.createMany({
+              data: eras.map((era) => ({
+                id: m(era.id),
+                calendarId,
+                projectId: m(calendar.projectId),
+                position: era.position,
+                name: era.name,
+                shortLabel: era.shortLabel ?? "",
+                yearOffset: era.yearOffset ?? 0,
+                createdAt: new Date(era.createdAt),
+              })),
+            });
+          }
+        }
         const boards = boardsOf(b);
         if (boards.length) {
           await tx.board.createMany({
@@ -3304,10 +3496,31 @@ export async function restoreWorkspaceBackup(db: Db, input: string | unknown, op
               projectId: m(map.projectId),
               title: map.title,
               imageId: m(map.imageId),
+              scaleLabel: map.scaleLabel ?? "",
+              scaleBarLength: map.scaleBarLength ?? null,
               createdAt: new Date(map.createdAt),
               updatedAt: new Date(map.updatedAt),
             })),
           });
+        }
+        const mapLayers = worldMapLayersOf(b);
+        if (mapLayers.length && "worldMapLayer" in tx) {
+          await tx.worldMapLayer.createMany({
+            data: mapLayers.map((layer) => ({
+              id: m(layer.id),
+              mapId: m(layer.mapId),
+              projectId: m(layer.projectId),
+              position: layer.position,
+              title: layer.title,
+              legacyGroup: layer.legacyGroup ?? null,
+              createdAt: new Date(layer.createdAt),
+            })),
+          });
+        } else if (maps.length && "worldMapLayer" in tx) {
+          const { seedDefaultMapLayers } = await import("./worldMapLayerService");
+          for (const map of maps) {
+            await seedDefaultMapLayers(tx, m(map.projectId), m(map.id));
+          }
         }
         const mapPins = worldMapPinsOf(b);
         if (mapPins.length) {
@@ -3319,6 +3532,7 @@ export async function restoreWorkspaceBackup(db: Db, input: string | unknown, op
               recordId: p.recordId ? m(p.recordId) : null,
               targetMapId: p.targetMapId ? m(p.targetMapId) : null,
               markerGroup: p.markerGroup ?? "places",
+              layerId: p.layerId ? m(p.layerId) : null,
               label: p.label ?? "",
               kind: p.kind ?? "point",
               points: JSON.stringify(p.points ?? []),
@@ -3354,6 +3568,10 @@ export async function restoreWorkspaceBackup(db: Db, input: string | unknown, op
               timeLabel: event.timeLabel ?? "",
               planned: event.planned ?? false,
               draftScope: event.draftScope ? m(event.draftScope) : "all",
+              structEraId: event.structEraId ? m(event.structEraId) : null,
+              structYear: event.structYear ?? null,
+              structMonthPosition: event.structMonthPosition ?? null,
+              structDay: event.structDay ?? null,
               revision: 0,
               createdAt: new Date(event.createdAt),
               updatedAt: new Date(event.updatedAt),

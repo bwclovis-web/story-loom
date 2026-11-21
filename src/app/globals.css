@@ -1689,6 +1689,21 @@ button.plot-grid-blank-add:focus-visible {
 .map-legend legend { padding: 0; margin-right: 0.25rem; }
 .map-legend label { display: inline-flex; align-items: center; gap: 0.35rem; min-height: 2.75rem; }
 .map-legend-swatch { width: 0.75rem; height: 0.75rem; border-radius: 50%; border: 2px solid var(--color-surface); }
+.map-scale {
+  position: absolute;
+  left: 0.5rem;
+  bottom: 0.5rem;
+  max-width: calc(100% - 1rem);
+  pointer-events: none;
+  color: var(--color-text);
+}
+.map-scale-bar {
+  border-bottom: 3px solid var(--color-text);
+  text-align: center;
+  font-size: 0.85rem;
+  line-height: 1.3;
+  padding-bottom: 0.15rem;
+}
 .map-group-places { background: var(--color-accent); }
 .map-group-waterways { background: var(--color-ok, #2f6f4e); }
 .map-group-transport { background: var(--color-warn, #a15c12); }
@@ -2265,6 +2280,17 @@ a.button-link.secondary:hover {
 .disagreements h2 { margin: 0 0 0.3rem; font-size: 0.95rem; }
 .disagreements p, .disagreements ul { margin: 0.2rem 0; }
 .reference-fields th { width: 30%; color: var(--color-text); }
+.reference-infobox { margin-bottom: 1rem; }
+.reference-infobox-grid {
+  display: grid;
+  gap: 0.35rem 1rem;
+  grid-template-columns: minmax(6rem, 28%) 1fr;
+  margin: 0.5rem 0 0;
+}
+.reference-infobox-grid dt { margin: 0; font-weight: 600; color: var(--color-text-muted); }
+.reference-infobox-grid dd { margin: 0; }
+.reference-infobox-sub { margin: 0.85rem 0 0.35rem; font-size: 0.95rem; }
+.reference-infobox-open { white-space: pre-wrap; margin: 0; }
 .reference-details { margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--border); }
 .reference-details .panel { scroll-margin-top: 1rem; }
 .imported-file { margin-top: 0.6rem; }

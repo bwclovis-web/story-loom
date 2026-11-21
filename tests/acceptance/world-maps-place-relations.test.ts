@@ -19,8 +19,12 @@ import {
   listWorldMaps,
   moveWorldMapPin,
   removeWorldMapPin,
+  saveWorldMapLayers,
   setWorldMapPinGeometry,
+  updateWorldMapScale,
 } from "@/server/services/worldMapService";
+import { buildMapGeographyTree } from "@/world/mapGeography";
+import { loadProjectRelationshipGraph } from "@/server/services/relationshipGraphService";
 import { createTestDb, IDS, seedProject, type TestDb } from "../helpers";
 import { makePng } from "../imageFixtures";
 import path from "node:path";
@@ -108,6 +112,57 @@ describe("World maps and place relationships", () => {
     await removeWorldMapPin(t.db, IDS.project, mapA.id, pinA.id);
     expect((await getWorldMap(t.db, IDS.project, mapA.id)).pins).toHaveLength(0);
     expect((await getWorldMap(t.db, IDS.project, mapB.id)).pins.some((p) => p.recordId === RIVER)).toBe(true);
+  });
+
+  it("seeds map layers, saves scale and custom layer titles, and builds geography from part_of", async () => {
+    const [img] = await addRecordImages(
+      t.db,
+      IDS.project,
+      IDS.world,
+      [{ filename: "layered.png", bytes: makePng(24, 24) }],
+      { confirmProtected: false },
+    );
+    const map = await createWorldMap(t.db, IDS.project, { title: "Layered chart", imageId: img.id });
+    const view = await getWorldMap(t.db, IDS.project, map.id);
+    expect(view.layers).toHaveLength(4);
+    expect(view.layers.map((layer) => layer.title)).toEqual(["Places", "Waterways", "Transport", "Story locations"]);
+
+    await updateWorldMapScale(t.db, IDS.project, map.id, { scaleLabel: "10 leagues", scaleBarLength: 0.2 });
+    const pinChild = await addWorldMapPin(t.db, IDS.project, map.id, {
+      recordId: TIDAL,
+      xNorm: 0.4,
+      yNorm: 0.6,
+      layerId: view.layers[0]!.id,
+    });
+    await addWorldMapPin(t.db, IDS.project, map.id, { recordId: RIVER, xNorm: 0.2, yNorm: 0.2 });
+    await addPlaceRelation(t.db, IDS.project, { fromRecordId: TIDAL, toRecordId: RIVER, kind: "part_of" });
+
+    const afterLayers = await saveWorldMapLayers(t.db, IDS.project, map.id, [
+      { title: "Coast" },
+      { title: "Shipping lanes" },
+      { title: "Rails" },
+      { title: "Plot beats" },
+    ]);
+    expect(afterLayers.layers.map((layer) => layer.title)).toEqual(["Coast", "Shipping lanes", "Rails", "Plot beats"]);
+    expect(afterLayers.scaleLabel).toBe("10 leagues");
+
+    const graph = await loadProjectRelationshipGraph(t.db, IDS.project);
+    const pinsByRecord = new Map(afterLayers.pins.map((pin) => [pin.recordId!, pin.id] as const));
+    const geography = buildMapGeographyTree(graph.nodes, graph.edges, pinsByRecord);
+    expect(geography.some((node) => node.id === RIVER)).toBe(true);
+    const river = geography.find((node) => node.id === RIVER);
+    expect(river?.children.some((child) => child.id === TIDAL && child.pinId === pinChild.id)).toBe(true);
+
+    const backup = await createWorkspaceBackup(t.db, IDS.workspace);
+    expect(backup.worldMapLayers?.map((layer) => layer.title)).toEqual([
+      "Coast",
+      "Shipping lanes",
+      "Rails",
+      "Plot beats",
+    ]);
+    expect(backup.worldMaps?.[0]?.scaleLabel).toBe("10 leagues");
+    expect(backup.worldMaps?.[0]?.scaleBarLength).toBeCloseTo(0.2);
+    expect(backup.worldMapPins?.some((pin) => pin.layerId === afterLayers.layers[0]!.id)).toBe(true);
   });
 
   it("stores place relations independently of pin and card moves", async () => {

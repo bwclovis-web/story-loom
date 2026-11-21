@@ -104,6 +104,7 @@ describe("story events", () => {
         planned: true,
         draftScope: "all",
         expectedRevision: 0,
+        structuredDate: { eraId: null, year: null, monthPosition: null, day: null },
       }),
     ).rejects.toBeInstanceOf(MutationRejectedError);
     expect((await t.db.storyEvent.findUniqueOrThrow({ where: { id: fire.id } })).title).toBe("The fire");

@@ -50,6 +50,7 @@ import { getSynopsis, listMarginComments } from "@/server/services/manuscriptAnn
 import { listWeaveBeatsForManuscript } from "@/server/services/weaveService";
 import { RECORD, XREF } from "@/ui/labels";
 import { buildManuscriptTree, manuscriptIdsInBookOrder } from "@/ui/manuscriptTree";
+import { buildReferenceInfobox } from "@/world/referenceInfobox";
 import { crossRefsFor, type RecordCrossRefs } from "@/writing/crossRefs";
 import { parseStyleRangeQuery, styleCheckNameTerms } from "@/writing/styleCheck";
 import { CrossRefsPanel } from "@/components/CrossRefsPanel";
@@ -337,6 +338,33 @@ export default async function RecordPage({
       });
     });
 
+  const bookOrderIds = manuscriptIdsInBookOrder(
+    manuscriptRows.flatMap((row) => {
+      if (row.type !== "manuscript_chapter" && row.type !== "manuscript_scene") return [];
+      return [
+        {
+          id: row.id,
+          title: row.title,
+          type: row.type,
+          parentRecordId: row.parentRecordId,
+          position: row.position,
+          createdAt: row.createdAt.toISOString(),
+          draftId: row.draftId,
+        },
+      ];
+    }),
+  );
+  const infobox = buildReferenceInfobox({
+    projectId,
+    record,
+    bookOrderIds,
+    crossRefs: crossRefsFor(crossRefs, record.id),
+    acceptedFacts: (establishedFacts ?? []).filter((fact) => fact.status === "accepted"),
+    placeRelations,
+    recordRelations: showRecordRelations ? recordRelations : null,
+    placements,
+  });
+
   return (
     <ReferenceView
       key={record.id}
@@ -381,6 +409,7 @@ export default async function RecordPage({
       })}
       editor={{ spellingLanguage, spellChecker, dictionaryWords, proofread }}
       mentionedBy={mentionedBy}
+      infobox={infobox}
     />
   );
 }

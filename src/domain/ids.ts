@@ -31,9 +31,13 @@ export type IdPrefix =
   | "brd" // world board
   | "bcd" // board card
   | "wmp" // world map
+  | "wmly" // world map layer
   | "wpn" // world map pin
   | "plr" // place relation
   | "rrl" // record relationship (character / organization)
+  | "wcal" // world calendar
+  | "wcmo" // world calendar month
+  | "wcra" // world calendar era
   | "wvg" // weave grid
   | "wvb" // weave beat
   | "wth" // weave story thread (plot-grid column)
