@@ -3483,6 +3483,29 @@ export function HelpContent() {
           </p>
         </Sub>
 
+        <Sub id="backup-mirror">
+          <p>
+            On <L>{SHELL.backups}</L>, <L>{BACKUP.mirrorHeading}</L> can copy each <strong>full</strong> backup into
+            another folder after it is written under <code>backups/</code>. That folder can live inside Dropbox, OneDrive,
+            or any path you choose. The repository includes <code>docs/backup-sync.md</code> with the same workflow for
+            terminal use.
+          </p>
+          <p>{BACKUP.mirrorWarning}</p>
+          <ul>
+            <li>
+              Mirroring applies to <Cmd script="db:backup" />, pre-migrate backups, and backups before permanent delete.
+              It does not apply to workspace JSON downloads from this page.
+            </li>
+            <li>
+              Check a mirrored folder with <code>pnpm db:verify-backup</code> and the timestamped subfolder path before
+              you rely on it for a restore.
+            </li>
+            <li>
+              <code>WORDLY_BACKUP_MIRROR_DIR</code> in <code>.env</code> overrides the path saved in the app.
+            </li>
+          </ul>
+        </Sub>
+
         <Sub id="restore">
           <p>Restoring adds a copy of the backup as a new workspace. It never overwrites your current work.</p>
           <ol>

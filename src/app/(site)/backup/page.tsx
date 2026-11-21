@@ -1,13 +1,17 @@
 import { HelpHint } from "@/components/HelpHint";
 import { getDb } from "@/server/db";
+import { backupMirrorSettingsPath, loadBackupMirrorSettings } from "@/server/backupMirrorSettings";
 import { listWorkspacesWithProjects } from "@/server/services/projectService";
 import { BACKUP } from "@/ui/labels";
+import { BackupMirrorSettings } from "./BackupMirrorSettings";
 import { RestoreClient } from "./RestoreClient";
 
 export const dynamic = "force-dynamic";
 
 export default async function BackupPage() {
   const workspaces = await listWorkspacesWithProjects(getDb());
+  const mirror = loadBackupMirrorSettings();
+  const fromEnv = Boolean(process.env.WORDLY_BACKUP_MIRROR_DIR?.trim());
   return (
     <>
       <h1>{BACKUP.heading}</h1>
@@ -39,6 +43,13 @@ export default async function BackupPage() {
         <p className="small muted">
           For a full database snapshot as well (all workspaces plus the raw SQLite file), run <code>pnpm db:backup</code>.
         </p>
+      </section>
+      <section className="panel">
+        <h2 style={{ marginTop: 0 }}>{BACKUP.mirrorHeading}</h2>
+        <HelpHint anchor="backup-mirror" topic="backup mirror folder">
+          Optional mirror for full backups only—not a substitute for copying workspace JSON files elsewhere.
+        </HelpHint>
+        <BackupMirrorSettings mirrorDir={mirror.mirrorDir} fromEnv={fromEnv} settingsPath={backupMirrorSettingsPath()} />
       </section>
       <section className="panel">
         <h2 style={{ marginTop: 0 }}>{BACKUP.restoreHeading}</h2>

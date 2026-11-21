@@ -30,6 +30,9 @@ mcp/grant.json
 *.sqlite-wal
 *.sqlite-shm
 
+# Local app settings (backup mirror path, not in git)
+local/
+
 # Private content: manuscripts, imported references, context exports,
 # backups, recovery files and local uploads. Invented examples live in
 # examples/ and tests/fixtures/ and stay tracked.

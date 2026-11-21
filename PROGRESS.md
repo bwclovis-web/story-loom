@@ -1,5 +1,18 @@
 # Progress
 
+## Optional backup mirror folder (Nov 21, 2026)
+
+No schema. **Backup & restore** can save a mirror path (`local/backup-mirror.json`, git-ignored) or `WORDLY_BACKUP_MIRROR_DIR`; each full backup is copied after `writeFullBackup`. Docs: `docs/backup-sync.md`.
+
+| Check | Result |
+| --- | --- |
+| `pnpm typecheck` | pass |
+| `pnpm exec vitest run tests/unit/backup-mirror.test.ts tests/acceptance/backup-mirror.test.ts tests/unit/help.test.ts` | 7/7 passed |
+
+### Rollback
+
+Revert code; delete `local/backup-mirror.json` and unset `WORDLY_BACKUP_MIRROR_DIR`.
+
 ## Name generator from language patterns (Nov 21, 2026)
 
 No schema. Language-kind references store **Name syllables** and **Name patterns** in `fields`. World → **Name generator** suggests names from a seed; **Add to dictionary** and **Create character dossier** are explicit author actions.

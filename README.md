@@ -174,6 +174,12 @@ resolved path, applied migrations, and row counts. It is read-only.
 Never run `prisma migrate reset` against your working database. `backups/` is
 git-ignored. Copy important backups somewhere outside the repository too.
 
+**Optional mirror folder:** On **Backup & restore**, set **Also copy full backups to a
+folder**, or set `WORDLY_BACKUP_MIRROR_DIR` in `.env`, so each full backup is
+copied into a timestamped subfolder (for example under Dropbox). Sync backup
+folders only—not the live `.db` file—and do not run two app instances against the
+same database. See [docs/backup-sync.md](docs/backup-sync.md).
+
 ### Backup and restore, safely
 
 1. Back up: `pnpm db:backup --label before-trial`, or use **Backup & restore**

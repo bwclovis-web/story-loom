@@ -2012,6 +2012,20 @@ export const BACKUP = {
   heading: "Backup & restore",
   downloadHeading: "Download a workspace backup",
   restoreHeading: "Restore a backup as a new workspace",
+  mirrorHeading: "Also copy full backups to a folder",
+  mirrorLead:
+    "When set, every full backup (pnpm db:backup, pre-migrate, and before permanent delete) is copied into a new subfolder here after the copy under backups/ succeeds. Use a Dropbox, OneDrive, or other folder you control.",
+  mirrorWarning:
+    "Do not point two running copies of Story Loom at the same database file. Sync only backup folders, not the live .db file, and never open the same database from two machines at once.",
+  mirrorFolder: "Mirror folder (absolute path)",
+  mirrorPlaceholder: "e.g. C:\\Users\\you\\Dropbox\\StoryLoom-backups",
+  mirrorSave: "Save mirror folder",
+  mirrorClear: "Clear mirror folder",
+  mirrorActive: (dir: string) => `Mirroring to: ${dir}`,
+  mirrorInactive: "Mirror copy is off. Backups stay only under backups/ in the project folder.",
+  mirrorSettingsFile: "Saved in",
+  mirrorEnvOverride: "WORDLY_BACKUP_MIRROR_DIR in .env overrides this setting.",
+  mirrorAppliesTo: "Workspace JSON downloads from this page are not mirrored—only full database backups.",
   restore: "Restore as new workspace",
   cannotRestore: "This backup cannot be restored. Nothing was written.",
 } as const;

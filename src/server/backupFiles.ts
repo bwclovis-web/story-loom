@@ -2,6 +2,7 @@ import Database from "better-sqlite3";
 import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import type { Db } from "./db";
+import { mirrorFullBackupFolder } from "./backupMirror";
 import { createWorkspaceBackup } from "./services/backupService";
 
 /*
@@ -31,6 +32,8 @@ export interface FullBackupResult {
   dir: string;
   sqliteFile: string;
   workspaceFiles: Array<{ workspaceId: string; name: string; file: string }>;
+  mirrorDestDir: string | null;
+  mirrorError: string | null;
 }
 
 /**
@@ -60,5 +63,12 @@ export async function writeFullBackup(
       workspaceFiles.push({ workspaceId: ws.id, name: ws.name, file: out });
     }
   }
-  return { dir, sqliteFile, workspaceFiles };
+  const mirror = mirrorFullBackupFolder(dir);
+  return {
+    dir,
+    sqliteFile,
+    workspaceFiles,
+    mirrorDestDir: mirror.destDir,
+    mirrorError: mirror.error,
+  };
 }

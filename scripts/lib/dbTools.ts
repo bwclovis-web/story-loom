@@ -67,6 +67,8 @@ export function printBackup(result: FullBackupResult) {
   console.log(`Backup written to ${result.dir}`);
   console.log(`  SQLite snapshot: ${path.basename(result.sqliteFile)}`);
   for (const w of result.workspaceFiles) console.log(`  Workspace "${w.name}" (${w.workspaceId}): ${path.basename(w.file)}`);
+  if (result.mirrorDestDir) console.log(`  Mirror copy: ${result.mirrorDestDir}`);
+  if (result.mirrorError) console.error(`  Mirror copy failed: ${result.mirrorError}`);
 }
 
 function runTool(args: string[], dbFile: string): void {

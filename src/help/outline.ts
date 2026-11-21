@@ -172,6 +172,7 @@ export const HELP_SECTIONS = [
     title: "Backup and restore",
     children: [
       { id: "full-backup", title: "Full backup" },
+      { id: "backup-mirror", title: "Backup mirror folder" },
       { id: "restore", title: "Restore" },
     ],
   },
