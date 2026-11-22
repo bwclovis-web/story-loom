@@ -33,11 +33,11 @@ export default async function WorldBoardsPage({ params }: { params: Promise<{ pr
         }
       />
 
-      <section className="panel stack" aria-labelledby="create-board-heading">
-        <h2 id="create-board-heading">{WORLD.newBoard}</h2>
-        <p className="small muted" style={{ marginTop: 0 }}>
-          Place dossiers and places you already have. Positions stay on this board only.
-        </p>
+      <section className="panel world-create-panel stack" aria-labelledby="create-board-heading">
+        <header className="world-create-intro">
+          <h2 id="create-board-heading">{WORLD.newBoard}</h2>
+          <p className="small muted">{WORLD.newBoardLead}</p>
+        </header>
         <CreateBoardForm projectId={projectId} />
       </section>
 

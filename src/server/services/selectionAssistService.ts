@@ -34,6 +34,8 @@ export interface SelectionAssistInput {
   action: SelectionAssistAction;
   /** Manuscript draft id for reading pins, or "" when the project has no drafts. */
   scopeDraftId: string;
+  /** Pin record ids omitted after Context Inspector toggles. */
+  excludeRecordIds?: readonly string[];
 }
 
 export interface PreparedSelectionAssist {
@@ -114,7 +116,8 @@ export async function prepareSelectionAssist(
     throw new AssistantError("BUSY", "An assistant request is already running for this record. Wait for it or cancel it.");
   }
 
-  const pins = await listReadingPins(db, input.projectId, input.scopeDraftId);
+  const excluded = new Set(input.excludeRecordIds ?? []);
+  const pins = (await listReadingPins(db, input.projectId, input.scopeDraftId)).filter((p) => !excluded.has(p.recordId));
   const contextDocs = await loadAuthorReferenceDocuments(
     db,
     input.projectId,

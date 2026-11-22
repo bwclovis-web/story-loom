@@ -1,4 +1,4 @@
-import { CONTINUITY, SHELL, WORLD } from "@/ui/labels";
+import { CHARACTER_DEVELOPMENT, CONTINUITY, SHELL, WORLD } from "@/ui/labels";
 import { parseProjectPath } from "@/ui/navigation";
 
 /**
@@ -15,7 +15,8 @@ export type WorldDestinationKey =
   | "events"
   | "calendar"
   | "names"
-  | "continuity";
+  | "continuity"
+  | "development";
 
 export type WorldDestinationGroupId = "lore" | "visual" | "time" | "tools";
 
@@ -48,6 +49,13 @@ const DESTINATIONS: readonly WorldDestination[] = [
     segment: "relationships",
     label: WORLD.relationships,
     hint: WORLD.relationshipsNavHint,
+  },
+  {
+    key: "development",
+    group: "lore",
+    segment: "development",
+    label: CHARACTER_DEVELOPMENT.heading,
+    hint: CHARACTER_DEVELOPMENT.seriesLead,
   },
   {
     key: "maps",
@@ -96,7 +104,7 @@ const DESTINATIONS: readonly WorldDestination[] = [
 export const WORLD_DESTINATIONS: readonly WorldDestination[] = DESTINATIONS;
 
 export const WORLD_DESTINATION_GROUPS: readonly WorldDestinationGroup[] = [
-  { id: "lore", heading: WORLD.loreAndCodex, keys: ["references", "relationships"] },
+  { id: "lore", heading: WORLD.loreAndCodex, keys: ["references", "relationships", "development"] },
   { id: "visual", heading: WORLD.visualSpaces, keys: ["maps", "boards"] },
   { id: "time", heading: WORLD.timeAndContinuity, keys: ["events", "calendar", "continuity"] },
   { id: "tools", heading: WORLD.toolsHeading, keys: ["names"] },

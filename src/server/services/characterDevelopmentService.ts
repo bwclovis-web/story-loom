@@ -8,7 +8,6 @@ import {
   cuesForEvents,
   cuesForManuscript,
   developmentIsEmpty,
-  dossierBodyHash,
   extractInstructions,
   inheritedTraits,
   parseProfileSuggestions,
@@ -31,6 +30,7 @@ import {
   type SeriesMatrixRow,
 } from "@/domain/characterDevelopment";
 import { errorIssue, type Issue } from "@/domain/issues";
+import { sha256 } from "@/domain/json";
 import type { JsonObject } from "@/domain/json";
 import { newId } from "@/domain/ids";
 import { toRecordView, type RecordView } from "@/domain/records";
@@ -175,8 +175,8 @@ export async function saveCharacterDevelopment(
     fields,
     unlockProtected: input.unlockProtected,
   });
-  const saved = batch.records.find((item) => item.id === record.id);
-  return { revision: saved?.currentRevision ?? input.expectedRevision + 1, profile: input.profile };
+  const saved = batch.outcomes.find((item) => item.recordId === record.id);
+  return { revision: saved?.newRevision ?? input.expectedRevision + 1, profile: input.profile };
 }
 
 function guardApprovedBookStates(
@@ -356,5 +356,5 @@ function assertContextSize(runtime: AssistantRuntime, chars: number) {
 export const characterDevelopmentActor = ACTOR_NOTE;
 
 export function passageHash(excerpt: string): string {
-  return dossierBodyHash(excerpt);
+  return sha256(excerpt);
 }

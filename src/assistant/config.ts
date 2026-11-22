@@ -65,13 +65,27 @@ export const SHARED_API_KEY_ENV = "OPENAI_API_KEY";
 /** The OpenAI library adds these headers to every request and has no option to ignore them. */
 export const SHARED_HEADERS_ENV = "OPENAI_CUSTOM_HEADERS";
 export const MODEL_ENV = "OPENAI_MODEL";
+/** Optional OpenAI-compatible base URL (e.g. http://127.0.0.1:11434/v1 for Ollama). */
+export const BASE_URL_ENV = "WORDLY_OPENAI_BASE_URL";
+/** Official OpenAI Responses API host. Used when BASE_URL_ENV is unset. */
+export const DEFAULT_OPENAI_BASE_URL = "https://api.openai.com/v1";
+/** Placeholder key sent to local OpenAI-compatible servers that do not require auth. Never a real secret. */
+export const LOCAL_PLACEHOLDER_KEY = "local-no-key";
 
 const MODEL_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,99}$/;
+const MAX_BASE_URL = 200;
 
 export interface AssistantStatus {
   configured: boolean;
   /** Model ID from OPENAI_MODEL; not secret. */
   model: string | null;
+  /**
+   * OpenAI-compatible base URL in use (always set when configured).
+   * Never a secret. Equals DEFAULT_OPENAI_BASE_URL when using OpenAI cloud.
+   */
+  baseUrl: string;
+  /** True when baseUrl is not the default OpenAI cloud host. */
+  usingCustomBaseUrl: boolean;
   limits: AssistantLimits;
   /** What stops the assistant from running. Never contains the key. */
   problems: string[];
@@ -79,7 +93,10 @@ export interface AssistantStatus {
 
 export interface AssistantConfig {
   status: AssistantStatus;
-  /** Present only when status.configured is true. */
+  /**
+   * Present when status.configured is true. For a custom local base URL with no
+   * saved key, this is LOCAL_PLACEHOLDER_KEY (not a real credential).
+   */
   apiKey: string | null;
 }
 
@@ -96,18 +113,56 @@ function readLimit(env: Env, spec: LimitSpec, problems: string[]): number {
   return value;
 }
 
+/** Normalize an author-supplied base URL. Returns null when empty; throws via problems when invalid. */
+export function parseAssistantBaseUrl(raw: string | undefined | null, problems: string[]): string | null {
+  const trimmed = raw?.trim() ?? "";
+  if (!trimmed) return null;
+  if (trimmed.length > MAX_BASE_URL) {
+    problems.push(`${BASE_URL_ENV} is too long (max ${MAX_BASE_URL} characters).`);
+    return null;
+  }
+  let url: URL;
+  try {
+    url = new URL(trimmed);
+  } catch {
+    problems.push(`${BASE_URL_ENV} must be a full URL such as http://127.0.0.1:11434/v1.`);
+    return null;
+  }
+  if (url.protocol !== "http:" && url.protocol !== "https:") {
+    problems.push(`${BASE_URL_ENV} must use http or https.`);
+    return null;
+  }
+  // Strip a trailing slash so /v1 and /v1/ are the same.
+  return trimmed.replace(/\/+$/, "");
+}
+
+export function isLoopbackBaseUrl(baseUrl: string): boolean {
+  try {
+    const host = new URL(baseUrl).hostname.toLowerCase();
+    return host === "127.0.0.1" || host === "localhost" || host === "::1" || host === "[::1]";
+  } catch {
+    return false;
+  }
+}
+
 export function readAssistantConfig(env: Env): AssistantConfig {
   const problems: string[] = [];
-  const apiKey = env[API_KEY_ENV]?.trim() || null;
+  const savedKey = env[API_KEY_ENV]?.trim() || null;
   const model = env[MODEL_ENV]?.trim() || null;
+  const customBase = parseAssistantBaseUrl(env[BASE_URL_ENV], problems);
+  const baseUrl = customBase ?? DEFAULT_OPENAI_BASE_URL;
+  const usingCustomBaseUrl = baseUrl !== DEFAULT_OPENAI_BASE_URL;
+  const localCompatible = usingCustomBaseUrl && isLoopbackBaseUrl(baseUrl);
 
-  if (!apiKey && env[SHARED_API_KEY_ENV]?.trim()) {
+  if (!savedKey && env[SHARED_API_KEY_ENV]?.trim()) {
     problems.push(
       `${API_KEY_ENV} is not set. ${SHARED_API_KEY_ENV} is set, but that name is shared with other apps on this computer, so Story Loom does not use it. Add a key for this app on the Settings page, or put it in ${API_KEY_ENV} in this folder's .env file.`,
     );
-  } else if (!apiKey) {
+  } else if (!savedKey && !localCompatible) {
     problems.push(
-      `${API_KEY_ENV} is not set. Add your OpenAI API key on the Settings page, or set ${API_KEY_ENV} in .env.`,
+      usingCustomBaseUrl
+        ? `${API_KEY_ENV} is not set. Remote OpenAI-compatible endpoints need a key (or use a loopback URL such as http://127.0.0.1:11434/v1 for a local server without a key).`
+        : `${API_KEY_ENV} is not set. Add your OpenAI API key on the Settings page, or set ${API_KEY_ENV} in .env.`,
     );
   }
   if (env[SHARED_HEADERS_ENV]?.trim()) {
@@ -133,9 +188,17 @@ export function readAssistantConfig(env: Env): AssistantConfig {
   ) as unknown as AssistantLimits;
 
   const configured = problems.length === 0;
+  const apiKey = configured ? savedKey || (localCompatible ? LOCAL_PLACEHOLDER_KEY : null) : null;
   return {
-    status: { configured, model: model && MODEL_PATTERN.test(model) ? model : null, limits, problems },
-    apiKey: configured ? apiKey : null,
+    status: {
+      configured,
+      model: model && MODEL_PATTERN.test(model) ? model : null,
+      baseUrl,
+      usingCustomBaseUrl,
+      limits,
+      problems,
+    },
+    apiKey,
   };
 }
 

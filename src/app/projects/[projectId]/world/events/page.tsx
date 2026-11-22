@@ -1,4 +1,7 @@
+import { DevelopmentCues } from "@/components/world/CharacterDevelopment";
 import { WorldToolHeader } from "@/components/world/WorldToolHeader";
+import { developmentCuesForEvents } from "@/server/services/characterDevelopmentService";
+import { CHARACTER_DEVELOPMENT } from "@/ui/labels";
 import { getDb } from "@/server/db";
 import { loadStoryTimeline } from "@/server/services/storyEventService";
 import { WORLD } from "@/ui/labels";
@@ -16,7 +19,9 @@ export default async function StoryEventsPage({
 }) {
   const { projectId } = await params;
   const query = await searchParams;
-  const timeline = await loadStoryTimeline(getDb(), projectId, { draft: query.draft, eventId: query.event ?? null });
+  const db = getDb();
+  const timeline = await loadStoryTimeline(db, projectId, { draft: query.draft, eventId: query.event ?? null });
+  const arcCues = await developmentCuesForEvents(db, projectId, timeline.events.map((event) => event.id));
   return (
     <>
       <WorldToolHeader
@@ -25,6 +30,7 @@ export default async function StoryEventsPage({
         title={WORLD.storyTimeline}
         lead={WORLD.storyTimelineLead}
       />
+      {arcCues.length ? <DevelopmentCues title={CHARACTER_DEVELOPMENT.timelineCues} cues={arcCues} /> : null}
       <EventTimeline projectId={projectId} timeline={timeline} />
     </>
   );

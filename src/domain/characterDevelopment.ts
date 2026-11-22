@@ -1,5 +1,4 @@
 import type { JsonObject, JsonValue } from "@/domain/json";
-import { sha256 } from "@/domain/json";
 import type { AuthorityStatus } from "@/domain/statuses";
 import { isAuthorityStatus } from "@/domain/statuses";
 import { orderRelation, type OrderEdge } from "@/world/storyOrder";
@@ -467,7 +466,6 @@ function readPsychology(raw: unknown, problems: ProfileProblem[]): PsychologyPro
       const frame = asRecord(item);
       if (!frame) return [];
       const name = text(frame.name);
-      if (!name) return [];
       return [{ id: idOf(frame.id, `frame_${index}_saved`), name, notes: text(frame.notes) }];
     });
   }
@@ -480,7 +478,6 @@ function readArchetypes(raw: unknown): ArchetypeAssignment[] {
     const row = asRecord(item);
     if (!row) return [];
     const name = text(row.name);
-    if (!name) return [];
     const library = (ARCHETYPE_LIBRARY as readonly string[]).includes(name);
     return [
       {
@@ -502,7 +499,6 @@ function readMilestones(raw: unknown): MilestoneLink[] {
     const row = asRecord(item);
     if (!row) return [];
     const title = text(row.title);
-    if (!title) return [];
     const status = oneOf(row.status, MILESTONE_STATUSES) ?? "planned";
     return [
       {
@@ -525,13 +521,20 @@ function readMilestones(raw: unknown): MilestoneLink[] {
   });
 }
 
+function requireMilestoneTitles(arcs: readonly DevelopmentArc[], problems: ProfileProblem[]) {
+  for (const arc of arcs) {
+    for (const milestone of arc.milestones) {
+      if (!milestone.title.trim()) problems.push({ path: `arcs.${arc.id}.milestones.${milestone.id}`, message: "A milestone needs a title." });
+    }
+  }
+}
+
 function readArcs(raw: unknown): DevelopmentArc[] {
   if (!Array.isArray(raw)) return [];
   return raw.flatMap((item, index) => {
     const row = asRecord(item);
     if (!row) return [];
     const title = text(row.title);
-    if (!title) return [];
     const perceptions = Array.isArray(row.perceptions)
       ? row.perceptions.flatMap((entry) => {
           const perception = asRecord(entry);
@@ -724,8 +727,15 @@ export function validateCharacterDevelopment(profile: CharacterDevelopment): Pro
   if (!wingIsValid(profile.psychology.enneagram, profile.psychology.wing)) {
     problems.push({ path: "psychology.wing", message: "A wing must be a neighboring Enneagram type, or empty." });
   }
+  for (const framework of profile.psychology.frameworks) {
+    if (!framework.name.trim()) problems.push({ path: `frameworks.${framework.id}`, message: "A personality framework needs a name." });
+  }
+  for (const archetype of profile.archetypes) {
+    if (!archetype.name.trim()) problems.push({ path: `archetypes.${archetype.id}`, message: "An archetype needs a name." });
+  }
   const arcIds = new Set<string>();
   for (const arc of profile.arcs) {
+    if (!arc.title.trim()) problems.push({ path: `arcs.${arc.id}.title`, message: "An arc needs a title." });
     if (arcIds.has(arc.id)) problems.push({ path: `arcs.${arc.id}`, message: "Two arcs share an id." });
     arcIds.add(arc.id);
     if (arc.scope === "book" && !arc.bookProjectId) {
@@ -742,6 +752,7 @@ export function validateCharacterDevelopment(profile: CharacterDevelopment): Pro
   if (arcParentCycle(profile.arcs)) {
     problems.push({ path: "arcs", message: "Arc parent links cannot form a circle." });
   }
+  requireMilestoneTitles(profile.arcs, problems);
   for (const arc of profile.arcs) {
     if (!arc.parentArcId) continue;
     const parent = profile.arcs.find((item) => item.id === arc.parentArcId);
@@ -818,20 +829,18 @@ export function developmentIsEmpty(profile: CharacterDevelopment): boolean {
   return JSON.stringify(profile) === JSON.stringify(blank);
 }
 
-export function dossierBodyHash(body: string): string {
-  return sha256(body);
-}
-
 export type ProfileFreshness = "current" | "unchecked" | "stale";
 
-export function profileFreshness(profile: CharacterDevelopment, body: string, revision: number): ProfileFreshness {
-  if (!profile.sourceBodyHash || profile.sourceRevision === null) return developmentIsEmpty(profile) ? "current" : "unchecked";
-  if (profile.sourceBodyHash !== dossierBodyHash(body) || profile.sourceRevision !== revision) return "stale";
+export function profileFreshness(profile: CharacterDevelopment, revision: number, bodyHash?: string | null): ProfileFreshness {
+  if (profile.sourceRevision === null && !profile.sourceBodyHash) return developmentIsEmpty(profile) ? "current" : "unchecked";
+  if (profile.sourceRevision !== null && profile.sourceRevision !== revision) return "stale";
+  if (bodyHash && profile.sourceBodyHash && profile.sourceBodyHash !== bodyHash) return "stale";
+  if (profile.sourceRevision === null) return "unchecked";
   return "current";
 }
 
-export function markProfileChecked(profile: CharacterDevelopment, body: string, revision: number): CharacterDevelopment {
-  return { ...profile, sourceBodyHash: dossierBodyHash(body), sourceRevision: revision };
+export function markProfileChecked(profile: CharacterDevelopment, revision: number, bodyHash: string): CharacterDevelopment {
+  return { ...profile, sourceBodyHash: bodyHash, sourceRevision: revision };
 }
 
 /**
@@ -1014,12 +1023,16 @@ function hasOwnValue(profile: CharacterDevelopment, key: InheritableKey): boolea
  */
 export function inheritedTraits(variant: CharacterDevelopment, foundation: CharacterDevelopment | null): InheritedTrait[] {
   if (!variant.variant || !foundation) return [];
-  return variant.variant.inheritedKeys.flatMap((key) => {
-    if (hasOwnValue(variant, key)) return [{ key, source: "override" as const, value: psychologyValue(variant, key) }];
+  const traits: InheritedTrait[] = [];
+  for (const key of variant.variant.inheritedKeys) {
+    if (hasOwnValue(variant, key)) {
+      traits.push({ key, source: "override", value: psychologyValue(variant, key) });
+      continue;
+    }
     const value = psychologyValue(foundation, key);
-    if (!value) return [];
-    return [{ key, source: "inherited" as const, value }];
-  });
+    if (value) traits.push({ key, source: "inherited", value });
+  }
+  return traits;
 }
 
 export interface ProfileSuggestion {
@@ -1257,7 +1270,8 @@ export function characterProfileMarkdown(title: string, profile: CharacterDevelo
   if (profile.archetypes.length) {
     lines.push("", "## Archetypes");
     for (const archetype of profile.archetypes) {
-      lines.push(`- ${arche.rank}: ${arche.name}${arche.periodLabel ? ` (${arche.periodLabel})` : ""}`);
+      const period = archetype.periodLabel ? ` (${archetype.periodLabel})` : "";
+      lines.push(`- ${archetype.rank}: ${archetype.name}${period}`);
     }
   }
   if (profile.arcs.length) {

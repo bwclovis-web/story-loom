@@ -1,10 +1,10 @@
-import { Button } from "@/components/ui/Button";
 import Link from "next/link";
 import { fieldDiffs, textDiff } from "@/changePackage/diff";
 import { StatusBadge } from "@/components/Badges";
 import { FieldDiffTable, TextDiff } from "@/components/DiffView";
-import { ConfirmAction } from "@/components/ConfirmAction";
+import { ActionButton, ConfirmAction } from "@/components/ConfirmAction";
 import { HelpHint } from "@/components/HelpHint";
+import { Button } from "@/components/ui/Button";
 import type { RecordView } from "@/domain/records";
 import { RECORD_TYPE_LABELS, type RecordType } from "@/domain/recordTypes";
 import type { RevisionWithSource } from "@/server/services/recordService";
@@ -44,15 +44,24 @@ export function ProtectionSection({ projectId, record }: { projectId: string; re
       </p>
       <HelpHint anchor="protection" topic="protection">
         {record.protected
-          ? "Removing protection takes effect at once, with no confirmation."
+          ? "Removing protection asks for a second confirmation first."
           : "Protecting a record does not create a new saved version."}
       </HelpHint>
-      <form action={setProtectionAction.bind(null, projectId, record.id)}>
-        <input type="hidden" name="protected" value={record.protected ? "false" : "true"} />
-        <button type="submit" className={record.protected ? "secondary" : "danger"}>
-          {record.protected ? RECORD.unprotect : RECORD.protect}
-        </button>
-      </form>
+      {record.protected ? (
+        <ConfirmAction
+          action={setProtectionAction.bind(null, projectId, record.id, false)}
+          label={RECORD.unprotect}
+          confirmLabel={RECORD.confirmUnprotect}
+          pendingLabel={RECORD.unprotecting}
+          details={<p className="small">{RECORD.unprotectDetails}</p>}
+        />
+      ) : (
+        <ActionButton
+          action={setProtectionAction.bind(null, projectId, record.id, true)}
+          label={RECORD.protect}
+          pendingLabel={RECORD.protecting}
+        />
+      )}
     </section>
   );
 }

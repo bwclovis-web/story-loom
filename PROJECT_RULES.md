@@ -100,6 +100,12 @@ rewritten automatically, so do not put project rules inside it.
   pages are created only via `mutationService`. Defaults change only on an
   explicit author action. Audited; never revisioned content.
 - Change-package idempotency is per project: (projectId, packageId) + content hash.
+- Optional character psychology, archetypes, arcs, variants, and state history
+  live in `fields.characterDevelopment` on the existing character dossier.
+  Missing metadata leaves the dossier unchanged. Suggestions from Extract or
+  Review are not canon and never edit manuscript prose. Approved opening or
+  closing state for one book is not rewritten by an edit that only touches
+  another book unless the author confirms that rewrite.
 
 ## In-app help
 

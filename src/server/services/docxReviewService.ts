@@ -86,7 +86,7 @@ export async function previewDocxReview(
       unmatchedComments: [],
       hasTrackedChanges: false,
       requiresProtectedConfirmation: false,
-      issues: [errorIssue("NOT_FOUND", `Project ${projectId} not found`)],
+      issues: [errorIssue("RECORD_NOT_FOUND", `Project ${projectId} not found`)],
     };
   }
 

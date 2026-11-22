@@ -65,6 +65,7 @@ import { PlaceRelations } from "./PlaceRelations";
 import { RecordRelations } from "./RecordRelations";
 import { ReferenceInfobox } from "@/components/world/ReferenceInfobox";
 import type { ReferenceInfoboxModel } from "@/world/referenceInfobox";
+import { CharacterDevelopmentSection } from "./CharacterDevelopmentSection";
 import { WorldContextAside, WorldContextProvider, WorldContextToggle } from "./WorldContextRail";
 import { WorldPins } from "./WorldPins";
 
@@ -505,6 +506,10 @@ export function ReferenceView(props: ReferenceViewProps) {
               incoming={props.placeRelations.incoming}
               choices={props.placeChoices}
             />
+          ) : null}
+
+          {record.type === "character_dossier" ? (
+            <CharacterDevelopmentSection projectId={projectId} recordId={record.id} />
           ) : null}
 
           {linkable && props.recordRelations ? (

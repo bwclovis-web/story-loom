@@ -1,6 +1,7 @@
 import type { AuthorityStatus } from "@/domain/statuses";
 import type { JsonObject } from "@/domain/json";
 import { isLinkableReferenceType, isRecordType, RECORD_TYPE_LABELS, type RecordType } from "@/domain/recordTypes";
+import { developmentIsEmpty, profileFreshness, readCharacterDevelopment } from "@/domain/characterDevelopment";
 import { worldbuildingKindFromFields, worldKindDisplayFromFields } from "@/world/worldKinds";
 import { listSections } from "@/writing/sections";
 
@@ -61,6 +62,9 @@ export interface ReferenceInspectorModel {
   supportsRecordRelations: boolean;
   /** Set on worldbuilding records: kind label, or null when kind is unset. */
   worldKindLabel?: string | null;
+  /** Short read-only development lines for a character dossier. */
+  developmentLines: string[];
+  developmentStale: boolean;
 }
 
 function supportsRecordRelations(type: RecordType, fields: JsonObject | undefined): boolean {
@@ -107,6 +111,16 @@ export function buildReferenceInspectorModel(input: {
   placements: RecordPlacement[];
 }): ReferenceInspectorModel | null {
   if (!isRecordType(input.type)) return null;
+  const development = input.type === "character_dossier" ? readCharacterDevelopment(input.fields ?? {}).profile : null;
+  const developmentLines = development && !developmentIsEmpty(development)
+    ? [
+        development.importance ? `Importance: ${development.importance}` : "",
+        development.narrativeRole ? `Role: ${development.narrativeRole.replaceAll("_", " ")}` : "",
+        development.psychology.enneagram ? `Enneagram: ${development.psychology.enneagram}` : "",
+        development.archetypes.length ? `Archetypes: ${development.archetypes.map((item) => item.name).slice(0, 3).join(", ")}` : "",
+        development.arcs.length ? `Arcs: ${development.arcs.map((arc) => arc.title).slice(0, 3).join(", ")}` : "",
+      ].filter(Boolean)
+    : [];
   const sections = listSections(input.body);
   const first = sections[0];
   const leadSource =
@@ -134,5 +148,7 @@ export function buildReferenceInspectorModel(input: {
     supportsEstablished: isLinkableReferenceType(input.type),
     supportsRecordRelations: supportsRecordRelations(input.type, input.fields),
     worldKindLabel: input.type === "worldbuilding" ? worldKindDisplayFromFields(input.fields ?? {}) : undefined,
+    developmentLines,
+    developmentStale: development ? profileFreshness(development, input.revision) === "stale" : false,
   };
 }

@@ -2,7 +2,7 @@ import { z } from "zod";
 import { getDb } from "@/server/db";
 import { getAssistantConfig } from "@/server/assistantConfig";
 import { finishRun, registerRun } from "@/server/assistantRuns";
-import { createOpenAIProvider } from "@/server/openai/openaiProvider";
+import { createOpenAIProviderFromConfig } from "@/server/openai/openaiProvider";
 import { rejectCrossSite } from "@/server/sameOrigin";
 import { AssistantError, type AssistantErrorCode } from "@/server/services/assistantService";
 import { prepareProofread, runProofread } from "@/server/services/proofreadService";
@@ -14,6 +14,7 @@ const body = z.object({
   recordId: z.string().min(1).max(100),
   revision: z.number().int().min(1),
   range: z.object({ start: z.number().int().min(0), end: z.number().int().min(1) }).nullable(),
+  excludeDictionaryWords: z.array(z.string().min(1).max(80)).max(200).optional(),
 });
 
 const HTTP_STATUS: Record<AssistantErrorCode, number> = {
@@ -49,8 +50,8 @@ export async function POST(request: Request, ctx: { params: Promise<{ projectId:
 
   let prep;
   try {
-    const { recordId, revision, range } = parsed.data;
-    prep = await prepareProofread(getDb(), runtime, { projectId, recordId, revision, range });
+    const { recordId, revision, range, excludeDictionaryWords } = parsed.data;
+    prep = await prepareProofread(getDb(), runtime, { projectId, recordId, revision, range, excludeDictionaryWords });
   } catch (error) {
     if (error instanceof AssistantError) {
       return errorResponse(error.code, error.message, HTTP_STATUS[error.code], error.size ? { size: error.size } : {});
@@ -59,7 +60,7 @@ export async function POST(request: Request, ctx: { params: Promise<{ projectId:
     return errorResponse("SERVER_ERROR", "The request could not be prepared.", 500);
   }
 
-  const provider = createOpenAIProvider(config.apiKey ?? "");
+  const provider = createOpenAIProviderFromConfig(config);
   const run = registerRun(prep.runId);
   const signal = AbortSignal.any([run.signal, request.signal]);
   const encoder = new TextEncoder();

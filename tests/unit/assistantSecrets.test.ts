@@ -24,14 +24,14 @@ describe("assistant secrets from Settings", () => {
 
   it("loads empty secrets when the file is missing", async () => {
     const { loadAssistantSecrets, resolveAssistantEnv } = await import("@/server/assistantSecrets");
-    expect(loadAssistantSecrets()).toEqual({ apiKey: null, model: null });
+    expect(loadAssistantSecrets()).toEqual({ apiKey: null, model: null, baseUrl: null });
     expect(resolveAssistantEnv({})[API_KEY_ENV]).toBeUndefined();
   });
 
   it("saves a key without writing it into status objects", async () => {
     const { saveAssistantSecrets, loadAssistantSecrets, assistantSecretsStatus, resolveAssistantEnv } =
       await import("@/server/assistantSecrets");
-    saveAssistantSecrets({ apiKey: KEY, model: "example-model-1" });
+    saveAssistantSecrets({ apiKey: KEY, model: "example-model-1", baseUrl: null });
     expect(loadAssistantSecrets().apiKey).toBe(KEY);
     const status = assistantSecretsStatus();
     expect(status.keySaved).toBe(true);
@@ -51,11 +51,13 @@ describe("assistant secrets from Settings", () => {
   it("lets Settings override .env and falls back when cleared", async () => {
     const { saveAssistantSecrets, resolveAssistantEnv } = await import("@/server/assistantSecrets");
     const base = { [API_KEY_ENV]: "sk-from-dotenv-aaaa", [MODEL_ENV]: "dotenv-model" };
-    saveAssistantSecrets({ apiKey: KEY, model: "settings-model" });
+    saveAssistantSecrets({ apiKey: KEY, model: "settings-model", baseUrl: "http://127.0.0.1:11434/v1" });
     expect(resolveAssistantEnv(base)[API_KEY_ENV]).toBe(KEY);
     expect(resolveAssistantEnv(base)[MODEL_ENV]).toBe("settings-model");
-    saveAssistantSecrets({ apiKey: null, model: null });
+    expect(resolveAssistantEnv(base).WORDLY_OPENAI_BASE_URL).toBe("http://127.0.0.1:11434/v1");
+    saveAssistantSecrets({ apiKey: null, model: null, baseUrl: null });
     expect(resolveAssistantEnv(base)[API_KEY_ENV]).toBe("sk-from-dotenv-aaaa");
     expect(resolveAssistantEnv(base)[MODEL_ENV]).toBe("dotenv-model");
+    expect(resolveAssistantEnv(base).WORDLY_OPENAI_BASE_URL).toBeUndefined();
   });
 });

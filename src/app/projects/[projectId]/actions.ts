@@ -197,9 +197,24 @@ export async function setStatusAction(
   }
 }
 
-export async function setProtectionAction(projectId: string, recordId: string, formData: FormData) {
-  await setProtection(getDb(), projectId, recordId, formData.get("protected") === "true");
-  revalidatePath(`/projects/${projectId}`, "layout");
+/** Turns protection on or off. Removing protection is confirmed in the UI first. */
+export async function setProtectionAction(
+  projectId: string,
+  recordId: string,
+  isProtected: boolean,
+  _prev: FormResult,
+  _formData: FormData,
+): Promise<FormResult> {
+  try {
+    await setProtection(getDb(), projectId, recordId, isProtected);
+    revalidatePath(`/projects/${projectId}`, "layout");
+    return {
+      ok: true,
+      message: isProtected ? "This record is now protected." : "Protection removed.",
+    };
+  } catch (error) {
+    return failure(error);
+  }
 }
 
 /** Moves the record (with any scenes and notes inside it) to the Trash, then opens its list page. */

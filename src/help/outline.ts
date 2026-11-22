@@ -37,7 +37,7 @@ export const HELP_SECTIONS = [
     id: "settings",
     title: "Settings",
     children: [
-      { id: "settings-ai", title: "Your OpenAI API key" },
+      { id: "settings-ai", title: "Your AI key and endpoint" },
       { id: "settings-library", title: "Library and backup folders" },
     ],
   },
@@ -111,6 +111,7 @@ export const HELP_SECTIONS = [
       { id: "story-events", title: "Story timeline" },
       { id: "place-relations", title: "Place relationships" },
       { id: "record-relations", title: "Record relationships" },
+      { id: "character-development", title: "Character development" },
       { id: "relationship-views", title: "Relationship graph and trees" },
       { id: "world-nav", title: "Finding references" },
       { id: "world-kinds", title: "Worldbuilding kinds" },
@@ -158,6 +159,7 @@ export const HELP_SECTIONS = [
     children: [
       { id: "assistant-setup", title: "Assistant setup" },
       { id: "assistant-context", title: "Choosing what to send" },
+      { id: "assistant-payload", title: "Exact payload inspector" },
       { id: "assistant-answers", title: "Reading answers" },
       { id: "assistant-proposals", title: "Change proposals" },
       { id: "assistant-privacy", title: "Privacy, usage and limits" },
@@ -258,6 +260,7 @@ export const HELP_ROUTES = [
   "/projects/[projectId]/world/calendar",
   "/projects/[projectId]/world/events",
   "/projects/[projectId]/world/relationships",
+  "/projects/[projectId]/world/development",
   "/projects/[projectId]/world/names",
   "/projects/[projectId]/records/[recordId]",
   "/projects/[projectId]/import",

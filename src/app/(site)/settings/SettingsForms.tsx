@@ -33,14 +33,17 @@ function applyResult(
 export function AssistantSettingsForm({
   keySaved,
   model,
+  baseUrl,
   secretsPath,
 }: {
   keySaved: boolean;
   model: string;
+  baseUrl: string;
   secretsPath: string;
 }) {
   const [apiKey, setApiKey] = useState("");
   const [modelValue, setModelValue] = useState(model);
+  const [baseUrlValue, setBaseUrlValue] = useState(baseUrl);
   const [issues, setIssues] = useState<Issue[]>([]);
   const [message, setMessage] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -50,6 +53,7 @@ export function AssistantSettingsForm({
       const data = new FormData();
       data.set("apiKey", apiKey);
       data.set("model", modelValue);
+      data.set("baseUrl", baseUrlValue);
       const result = await saveAssistantKeyAction(data);
       applyResult(result, setIssues, setMessage);
       if (result.ok) setApiKey("");
@@ -109,6 +113,20 @@ export function AssistantSettingsForm({
         />
       </label>
       <p className="small muted">{SETTINGS.aiModelHint}</p>
+      <label>
+        {SETTINGS.aiBaseUrlLabel}
+        <input
+          type="url"
+          name="baseUrl"
+          autoComplete="off"
+          spellCheck={false}
+          value={baseUrlValue}
+          disabled={pending}
+          placeholder={SETTINGS.aiBaseUrlPlaceholder}
+          onChange={(e) => setBaseUrlValue(e.target.value)}
+        />
+      </label>
+      <p className="small muted">{SETTINGS.aiBaseUrlHint}</p>
       <p className="small muted">
         {SETTINGS.aiSecretsFile} <code>{secretsPath}</code>
       </p>

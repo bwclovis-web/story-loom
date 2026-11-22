@@ -61,10 +61,13 @@ export function CreateMapForm({
     setFormKey((key) => key + 1);
   };
 
+  const previewTitle = title.trim() || WORLD.mapPreviewTitle;
+
   return (
+    <div className="world-create-shell">
     <form
       key={formKey}
-      className="stack"
+      className="world-create-form stack"
       aria-busy={pending}
       onSubmit={(e) => {
         e.preventDefault();
@@ -130,7 +133,7 @@ export function CreateMapForm({
         });
       }}
     >
-      <label>
+      <label className="world-create-field">
         {WORLD.mapTitle}
         <input value={title} onChange={(e) => setTitle(e.target.value)} required maxLength={200} />
       </label>
@@ -164,7 +167,9 @@ export function CreateMapForm({
         </>
       ) : (
         <>
-          <FileInput ref={fileRef} label={WORLD.mapSourceUpload} accept="image/png,image/jpeg,image/gif,image/webp" />
+          <div className="world-create-dropzone">
+            <FileInput ref={fileRef} label={WORLD.mapSourceUpload} accept="image/png,image/jpeg,image/gif,image/webp" />
+          </div>
           <RadioGroup
             layout="stack"
             legend={WORLD.mapSaveWithReference}
@@ -257,7 +262,7 @@ export function CreateMapForm({
         </>
       )}
       <IssueList issues={issues} />
-      <div className="row" style={{ gap: "0.5rem", flexWrap: "wrap" }}>
+      <div className="world-create-actions">
         <Button type="button" variant="secondary" disabled={pending} onClick={reset}>
           {REFERENCE_FORM.cancel}
         </Button>
@@ -266,5 +271,11 @@ export function CreateMapForm({
         </Button>
       </div>
     </form>
+
+    <aside className="world-create-preview map-create-preview" aria-hidden="true">
+      <p className="world-create-preview-label">{previewTitle}</p>
+      <div className="map-create-preview-canvas" />
+    </aside>
+    </div>
   );
 }

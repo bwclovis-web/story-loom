@@ -1,10 +1,12 @@
 "use client";
 
 import { useRef, useState, type RefObject } from "react";
+import { ContextInspector, useDisabledInspectIds } from "@/components/assistant/ContextInspector";
 import { HelpHint } from "@/components/HelpHint";
+import type { ContextInspectReport } from "@/server/services/assistantContextInspect";
 import type { SelectionAssistResult } from "@/server/services/selectionAssistService";
 import type { SelectionAssistAction } from "@/selectionAssist/output";
-import { SELECTION_ASSIST } from "@/ui/labels";
+import { ASSISTANT, SELECTION_ASSIST } from "@/ui/labels";
 import type { ProofreadConfig } from "./Proofreader";
 import { ProtectionTick } from "./ProtectionTick";
 import { applyTextareaEdit, selectRange } from "./textareaEdit";
@@ -52,6 +54,9 @@ export function SelectionAssister({
   const [error, setError] = useState<ApiError | null>(null);
   const [message, setMessage] = useState("");
   const [dismissed, setDismissed] = useState(false);
+  const [inspect, setInspect] = useState<ContextInspectReport | null>(null);
+  const [pendingAction, setPendingAction] = useState<SelectionAssistAction | null>(null);
+  const { disabledIds, toggle, reset } = useDisabledInspectIds();
   const abortRef = useRef<AbortController | null>(null);
 
   if (!config.configured) return null;
@@ -69,7 +74,7 @@ export function SelectionAssister({
       result.range.start !== selection.start ||
       result.range.end !== selection.end);
 
-  async function start(action: SelectionAssistAction) {
+  async function openInspect(action: SelectionAssistAction) {
     if (dirty) {
       setMessage(SELECTION_ASSIST.saveFirst);
       return;
@@ -82,6 +87,40 @@ export function SelectionAssister({
     setMessage("");
     setDismissed(false);
     setResult(null);
+    reset();
+    setPendingAction(action);
+    try {
+      const response = await fetch(`/api/projects/${projectId}/assistant/context-inspect`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          kind: "selection_assist",
+          recordId,
+          revision,
+          range: { start: selection.start, end: selection.end },
+          action,
+          scopeDraftId,
+        }),
+      });
+      const json = (await response.json()) as { report?: ContextInspectReport; error?: ApiError };
+      if (!response.ok || !json.report) {
+        setError(json.error ?? { code: "HTTP", message: `Inspect failed (${response.status}).` });
+        setPendingAction(null);
+        return;
+      }
+      setInspect(json.report);
+    } catch {
+      setError({ code: "NETWORK", message: "Could not reach the app server. Is it still running?" });
+      setPendingAction(null);
+    }
+  }
+
+  async function start(action: SelectionAssistAction, excludeRecordIds: string[]) {
+    setError(null);
+    setMessage("");
+    setDismissed(false);
+    setResult(null);
+    setInspect(null);
     setBusy({ runId: null });
     const source = savedText;
     const range = { start: selection.start, end: selection.end };
@@ -99,6 +138,7 @@ export function SelectionAssister({
           range,
           action,
           scopeDraftId,
+          excludeRecordIds,
         }),
         signal: controller.signal,
       });
@@ -142,6 +182,7 @@ export function SelectionAssister({
       if (!controller.signal.aborted) setError({ code: "STREAM", message: "The response ended unexpectedly." });
     } finally {
       setBusy(null);
+      setPendingAction(null);
     }
   }
 
@@ -169,6 +210,8 @@ export function SelectionAssister({
     setMessage(SELECTION_ASSIST.accepted);
   }
 
+  const excludeRecordIds = [...disabledIds].filter((id) => id.startsWith("record:")).map((id) => id.slice("record:".length));
+
   return (
     <div className="selection-assist stack" aria-label={SELECTION_ASSIST.heading}>
       <div className="row">
@@ -179,13 +222,13 @@ export function SelectionAssister({
       </HelpHint>
       <p className="small muted">{SELECTION_ASSIST.pinNote}</p>
       <div className="row" style={{ flexWrap: "wrap", gap: "0.5rem" }}>
-        <Button type="button" variant="secondary" disabled={!!busy || !hasSelection || dirty || selectionOver} onClick={() => void start("rewrite")}>
+        <Button type="button" variant="secondary" disabled={!!busy || !hasSelection || dirty || selectionOver} onClick={() => void openInspect("rewrite")}>
           {SELECTION_ASSIST.rewrite}
         </Button>
-        <Button type="button" variant="secondary" disabled={!!busy || !hasSelection || dirty || selectionOver} onClick={() => void start("expand")}>
+        <Button type="button" variant="secondary" disabled={!!busy || !hasSelection || dirty || selectionOver} onClick={() => void openInspect("expand")}>
           {SELECTION_ASSIST.expand}
         </Button>
-        <Button type="button" variant="secondary" disabled={!!busy || !hasSelection || dirty || selectionOver} onClick={() => void start("describe")}>
+        <Button type="button" variant="secondary" disabled={!!busy || !hasSelection || dirty || selectionOver} onClick={() => void openInspect("describe")}>
           {SELECTION_ASSIST.describe}
         </Button>
         {busy ? (
@@ -205,6 +248,7 @@ export function SelectionAssister({
           </span>
         )}
       </div>
+      <p className="small muted">{SELECTION_ASSIST.inspectBeforeSend}</p>
       {dirty && !busy ? <p className="small muted">{SELECTION_ASSIST.saveFirst}</p> : null}
       {selectionOver ? <p className="small error-text">{SELECTION_ASSIST.tooLarge}</p> : null}
       {message ? <p className="small muted">{message}</p> : null}
@@ -222,10 +266,24 @@ export function SelectionAssister({
           ) : null}
         </Banner>
       ) : null}
+      {inspect && pendingAction ? (
+        <ContextInspector
+          report={inspect}
+          disabledIds={disabledIds}
+          onToggle={toggle}
+          busy={!!busy}
+          onClose={() => {
+            setInspect(null);
+            setPendingAction(null);
+          }}
+          onConfirmSend={() => void start(pendingAction, excludeRecordIds)}
+        />
+      ) : null}
       {result && !dismissed && result.status === "complete" && result.replacement && !result.errorMessage ? (
         <div className="stack panel">
           <p className="small" style={{ margin: 0 }}>
-            {SELECTION_ASSIST.suggestionFor(result.action)} {result.contextRecordIds.length ? SELECTION_ASSIST.usedPins(result.contextRecordIds.length) : SELECTION_ASSIST.noPins}
+            {SELECTION_ASSIST.suggestionFor(result.action)}{" "}
+            {result.contextRecordIds.length ? SELECTION_ASSIST.usedPins(result.contextRecordIds.length) : SELECTION_ASSIST.noPins}
           </p>
           {rangeStale ? <p className="small muted">{SELECTION_ASSIST.staleNote}</p> : null}
           {!editable ? <ProtectionTick note={SELECTION_ASSIST.protectedNote} onUnlock={onUnlock} warning /> : null}
@@ -246,6 +304,8 @@ export function SelectionAssister({
         </div>
       ) : null}
       {result?.errorMessage ? <Banner tone={result.status === "failed" ? "error" : "info"}>{result.errorMessage}</Banner> : null}
+      {/* Keep ASSISTANT labels referenced for help consistency */}
+      <span className="sr-only">{ASSISTANT.inspectHeading}</span>
     </div>
   );
 }

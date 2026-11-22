@@ -354,7 +354,8 @@ export async function createWorldMapWithNewReference(
   if (!isMapReferenceType(input.type)) {
     throw rejected("Choose a document type for the new reference.");
   }
-  if (!isAuthorityStatus(input.authorityStatus)) {
+  const authorityStatus = input.authorityStatus;
+  if (!isAuthorityStatus(authorityStatus)) {
     throw rejected("Choose a canon status. A reference is not approved unless you choose approved.");
   }
   const { validateImageFiles, insertRecordImagesInTx } = await import("./imageService");
@@ -383,7 +384,7 @@ export async function createWorldMapWithNewReference(
           title: referenceTitle,
           body: "",
           fields: {},
-          authorityStatus: input.authorityStatus,
+          authorityStatus,
         },
       ],
       {

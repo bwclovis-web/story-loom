@@ -39,7 +39,7 @@ export interface ResponsesClient {
   };
 }
 
-export function defaultClient(apiKey: string): ResponsesClient {
+export function defaultClient(apiKey: string, baseURL = "https://api.openai.com/v1"): ResponsesClient {
   // Every setting is explicit so the library never falls back to OPENAI_* variables shared by other apps.
   return new OpenAI({
     apiKey,
@@ -47,7 +47,7 @@ export function defaultClient(apiKey: string): ResponsesClient {
     organization: null,
     project: null,
     webhookSecret: null,
-    baseURL: "https://api.openai.com/v1",
+    baseURL,
     maxRetries: 0,
     logLevel: "off",
   });
@@ -209,11 +209,16 @@ export function toProviderError(error: unknown, signal: AbortSignal): ProviderEr
   return new ProviderError("provider_failed", "The assistant request failed unexpectedly.");
 }
 
-export function createOpenAIProvider(apiKey: string, makeClient: (key: string) => ResponsesClient = defaultClient): AssistantProvider {
+export function createOpenAIProvider(
+  apiKey: string,
+  makeClient: (key: string) => ResponsesClient = defaultClient,
+  baseURL?: string,
+): AssistantProvider {
+  const clientFactory = baseURL ? (key: string) => defaultClient(key, baseURL) : makeClient;
   return {
     async *stream(request: ProviderRequest, signal: AbortSignal): AsyncIterable<ProviderEvent> {
       try {
-        const client = makeClient(apiKey);
+        const client = clientFactory(apiKey);
         const events = (await client.responses.create(buildCreateParams(request), {
           signal,
           timeout: request.timeoutMs,
@@ -255,7 +260,7 @@ export function createOpenAIProvider(apiKey: string, makeClient: (key: string) =
     async structured(request: ProviderRequest, schema: OutputSchema, signal: AbortSignal): Promise<StructuredResult> {
       try {
         if (signal.aborted) throw new ProviderError("cancelled", "The request was cancelled.");
-        const client = makeClient(apiKey);
+        const client = clientFactory(apiKey);
         const response = (await client.responses.create(buildStructuredParams(request, schema), {
           signal,
           timeout: request.timeoutMs,
@@ -268,7 +273,7 @@ export function createOpenAIProvider(apiKey: string, makeClient: (key: string) =
     async complete(request: ProviderRequest, signal: AbortSignal): Promise<ProviderRound> {
       try {
         if (signal.aborted) throw new ProviderError("cancelled", "The request was cancelled.");
-        const client = makeClient(apiKey);
+        const client = clientFactory(apiKey);
         const response = (await client.responses.create(buildCompleteParams(request), {
           signal,
           timeout: request.timeoutMs,
@@ -279,4 +284,12 @@ export function createOpenAIProvider(apiKey: string, makeClient: (key: string) =
       }
     },
   };
+}
+
+/** Build a provider from getAssistantConfig() so every route uses the same base URL. */
+export function createOpenAIProviderFromConfig(config: {
+  apiKey: string | null;
+  status: { baseUrl: string; configured: boolean };
+}): AssistantProvider {
+  return createOpenAIProvider(config.apiKey ?? "local-no-key", defaultClient, config.status.baseUrl);
 }

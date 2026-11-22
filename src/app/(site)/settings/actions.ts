@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { MODEL_ENV } from "@/assistant/config";
+import { BASE_URL_ENV, MODEL_ENV, parseAssistantBaseUrl } from "@/assistant/config";
 import { errorIssue, type Issue } from "@/domain/issues";
 import { testAssistantConnection } from "@/server/assistantConnectionTest";
 import {
@@ -43,6 +43,7 @@ export async function loadSettingsViewAction() {
   return {
     keySaved: secrets.keySaved,
     model: secrets.model ?? process.env[MODEL_ENV]?.trim() ?? "",
+    baseUrl: secrets.baseUrl ?? process.env[BASE_URL_ENV]?.trim() ?? "",
     secretsPath: secrets.secretsPath,
     libraryDir: library.libraryDir,
     libraryFromEnv: Boolean(process.env.WORDLY_LIBRARY_DIR?.trim()),
@@ -63,12 +64,16 @@ export async function loadSettingsViewAction() {
 export async function saveAssistantKeyAction(formData: FormData): Promise<SettingsFormResult> {
   const rawKey = String(formData.get("apiKey") ?? "");
   const rawModel = String(formData.get("model") ?? "").trim();
+  const rawBaseUrl = String(formData.get("baseUrl") ?? "").trim();
   const clearKey = formData.get("clearKey") === "1";
   const issues: Issue[] = [];
 
   if (rawModel && !MODEL_PATTERN.test(rawModel)) {
     issues.push(errorIssue("INVALID_CHANGE", `${MODEL_ENV} does not look like a model ID.`));
   }
+  const baseProblems: string[] = [];
+  const parsedBase = parseAssistantBaseUrl(rawBaseUrl || null, baseProblems);
+  for (const problem of baseProblems) issues.push(errorIssue("INVALID_CHANGE", problem));
   if (issues.length) return { ok: false, issues };
 
   const current = loadAssistantSecrets();
@@ -78,7 +83,8 @@ export async function saveAssistantKeyAction(formData: FormData): Promise<Settin
   // Empty key field with clearKey off keeps the existing saved key.
 
   const model = rawModel || null;
-  saveAssistantSecrets({ apiKey, model });
+  const baseUrl = rawBaseUrl ? parsedBase : null;
+  saveAssistantSecrets({ apiKey, model, baseUrl });
   revalidatePath("/settings");
   revalidatePath("/connections");
   return { ok: true, message: clearKey ? "API key cleared." : "Assistant settings saved." };
@@ -86,7 +92,7 @@ export async function saveAssistantKeyAction(formData: FormData): Promise<Settin
 
 export async function clearAssistantKeyAction(): Promise<SettingsFormResult> {
   const current = loadAssistantSecrets();
-  saveAssistantSecrets({ apiKey: null, model: current.model });
+  saveAssistantSecrets({ apiKey: null, model: current.model, baseUrl: current.baseUrl });
   revalidatePath("/settings");
   revalidatePath("/connections");
   return { ok: true, message: "API key cleared." };
@@ -97,7 +103,7 @@ export async function testAssistantConnectionAction(): Promise<SettingsFormResul
   if (!result.ok) return { ok: false, issues: [errorIssue("INVALID_CHANGE", result.message)] };
   return {
     ok: true,
-    message: `Connected with model ${result.model}. Reply: ${result.outputPreview}`,
+    message: `Connected with model ${result.model} at ${result.baseUrl}. Reply: ${result.outputPreview}`,
   };
 }
 

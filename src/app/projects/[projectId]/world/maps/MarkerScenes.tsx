@@ -14,11 +14,13 @@ export function MarkerScenes({
   locationRecordId,
   returnPath = null,
   refreshKey = 0,
+  compact = false,
 }: {
   projectId: string;
   locationRecordId: string;
   returnPath?: string | null;
   refreshKey?: number;
+  compact?: boolean;
 }) {
   const idPrefix = useId();
   const [draft, setDraft] = useState("all");
@@ -48,9 +50,9 @@ export function MarkerScenes({
   }, [projectId, locationRecordId, draft, book, refreshKey]);
 
   return (
-    <section className="stack" aria-labelledby={`${idPrefix}-scenes`}>
-      <h3 id={`${idPrefix}-scenes`}>{WORLD.scenesAtLocation}</h3>
-      <p className="small muted">{WORLD.scenesAtLocationNote}</p>
+    <section className="stack" aria-labelledby={compact ? undefined : `${idPrefix}-scenes`}>
+      {compact ? null : <h3 id={`${idPrefix}-scenes`}>{WORLD.scenesAtLocation}</h3>}
+      {compact ? null : <p className="small muted">{WORLD.scenesAtLocationNote}</p>}
       <div className="row">
         <label>
           {WORLD.sceneDraftFilter}

@@ -1,7 +1,7 @@
 import "server-only";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { API_KEY_ENV, MODEL_ENV } from "@/assistant/config";
+import { API_KEY_ENV, BASE_URL_ENV, MODEL_ENV } from "@/assistant/config";
 import { parseJsonObject } from "@/domain/json";
 
 /*
@@ -15,6 +15,11 @@ export interface AssistantSecrets {
   apiKey: string | null;
   /** Model ID from Settings; null when unset so .env can supply it. */
   model: string | null;
+  /**
+   * OpenAI-compatible base URL from Settings (e.g. http://127.0.0.1:11434/v1).
+   * Null when unset so .env / default OpenAI cloud can supply it.
+   */
+  baseUrl: string | null;
 }
 
 type Env = Record<string, string | undefined>;
@@ -26,7 +31,7 @@ export function assistantSecretsPath(): string {
 }
 
 function emptySecrets(): AssistantSecrets {
-  return { apiKey: null, model: null };
+  return { apiKey: null, model: null, baseUrl: null };
 }
 
 export function loadAssistantSecrets(): AssistantSecrets {
@@ -36,7 +41,8 @@ export function loadAssistantSecrets(): AssistantSecrets {
     const parsed = parseJsonObject(readFileSync(file, "utf8"));
     const apiKey = typeof parsed.apiKey === "string" && parsed.apiKey.trim() ? parsed.apiKey.trim() : null;
     const model = typeof parsed.model === "string" && parsed.model.trim() ? parsed.model.trim() : null;
-    return { apiKey, model };
+    const baseUrl = typeof parsed.baseUrl === "string" && parsed.baseUrl.trim() ? parsed.baseUrl.trim() : null;
+    return { apiKey, model, baseUrl };
   } catch {
     return emptySecrets();
   }
@@ -48,6 +54,7 @@ export function saveAssistantSecrets(next: AssistantSecrets): AssistantSecrets {
   const payload = {
     apiKey: next.apiKey,
     model: next.model,
+    baseUrl: next.baseUrl,
   };
   writeFileSync(file, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
   return next;
@@ -57,11 +64,13 @@ export function saveAssistantSecrets(next: AssistantSecrets): AssistantSecrets {
 export function assistantSecretsStatus(secrets: AssistantSecrets = loadAssistantSecrets()): {
   keySaved: boolean;
   model: string | null;
+  baseUrl: string | null;
   secretsPath: string;
 } {
   return {
     keySaved: Boolean(secrets.apiKey),
     model: secrets.model,
+    baseUrl: secrets.baseUrl,
     secretsPath: assistantSecretsPath(),
   };
 }
@@ -75,5 +84,6 @@ export function resolveAssistantEnv(base: Env = process.env): Env {
   const env: Env = { ...base };
   if (secrets.apiKey) env[API_KEY_ENV] = secrets.apiKey;
   if (secrets.model) env[MODEL_ENV] = secrets.model;
+  if (secrets.baseUrl) env[BASE_URL_ENV] = secrets.baseUrl;
   return env;
 }

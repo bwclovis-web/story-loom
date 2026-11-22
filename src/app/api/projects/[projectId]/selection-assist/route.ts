@@ -2,7 +2,7 @@ import { z } from "zod";
 import { getDb } from "@/server/db";
 import { getAssistantConfig } from "@/server/assistantConfig";
 import { finishRun, registerRun } from "@/server/assistantRuns";
-import { createOpenAIProvider } from "@/server/openai/openaiProvider";
+import { createOpenAIProviderFromConfig } from "@/server/openai/openaiProvider";
 import { rejectCrossSite } from "@/server/sameOrigin";
 import { AssistantError, type AssistantErrorCode } from "@/server/services/assistantService";
 import { listReadingPins } from "@/server/services/readingPinService";
@@ -18,6 +18,7 @@ const body = z.object({
   range: z.object({ start: z.number().int().min(0), end: z.number().int().min(1) }),
   action: z.enum(SELECTION_ASSIST_ACTIONS),
   scopeDraftId: z.string().max(100),
+  excludeRecordIds: z.array(z.string().min(1).max(100)).max(100).optional(),
 });
 
 const HTTP_STATUS: Record<AssistantErrorCode, number> = {
@@ -54,10 +55,19 @@ export async function POST(request: Request, ctx: { params: Promise<{ projectId:
   let prep;
   let contextRecordIds: string[] = [];
   try {
-    const { recordId, revision, range, action, scopeDraftId } = parsed.data;
+    const { recordId, revision, range, action, scopeDraftId, excludeRecordIds } = parsed.data;
+    const excluded = new Set(excludeRecordIds ?? []);
     const pins = await listReadingPins(getDb(), projectId, scopeDraftId);
-    contextRecordIds = pins.map((p) => p.recordId);
-    prep = await prepareSelectionAssist(getDb(), runtime, { projectId, recordId, revision, range, action, scopeDraftId });
+    contextRecordIds = pins.map((p) => p.recordId).filter((id) => !excluded.has(id));
+    prep = await prepareSelectionAssist(getDb(), runtime, {
+      projectId,
+      recordId,
+      revision,
+      range,
+      action,
+      scopeDraftId,
+      excludeRecordIds,
+    });
   } catch (error) {
     if (error instanceof AssistantError) {
       return errorResponse(error.code, error.message, HTTP_STATUS[error.code], error.size ? { size: error.size } : {});
@@ -66,7 +76,7 @@ export async function POST(request: Request, ctx: { params: Promise<{ projectId:
     return errorResponse("SERVER_ERROR", "The request could not be prepared.", 500);
   }
 
-  const provider = createOpenAIProvider(config.apiKey ?? "");
+  const provider = createOpenAIProviderFromConfig(config);
   const run = registerRun(prep.runId);
   const signal = AbortSignal.any([run.signal, request.signal]);
   const encoder = new TextEncoder();

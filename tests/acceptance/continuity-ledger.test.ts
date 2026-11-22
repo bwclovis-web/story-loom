@@ -39,7 +39,7 @@ describe("Continuity Ledger", () => {
         {
           kind: "create_record",
           recordId: characterId,
-          type: "character",
+          type: "character_dossier",
           title: "Mira Quill",
           body: "A draft dossier.\n",
           fields: { name: "Mira Quill" },

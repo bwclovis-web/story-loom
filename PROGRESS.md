@@ -1,5 +1,44 @@
 # Progress
 
+## Pre-flight hygiene before Milestone 7 (Nov 22, 2026)
+
+Cleared the five standing `tsc --noEmit` errors (proofread schema import, optional `provider.complete`, DOCX review issue code, map authority status narrowing, Continuity Ledger fixture type). Help no longer claims Save-only writing; unlocked autosave and protected manual Save are documented, including under Limitations. Removing protection now uses the shared two-step confirm control.
+
+| Check | Result |
+| --- | --- |
+| `pnpm exec tsc --noEmit` | pending |
+| `pnpm exec vitest run tests/acceptance/continuity-ledger.test.ts tests/unit/help.test.ts` | pending |
+
+### Rollback
+
+Revert the five type fixes, ProtectionSection confirm wiring, `setProtectionAction` FormResult shape, Help/label sentences, and this note. No schema change.
+
+## Milestone 6: AI transparency & local endpoint (Nov 22, 2026)
+
+Settings accepts an optional OpenAI-compatible **base URL** (e.g. Ollama / LM Studio on loopback); loopback URLs may omit an API key. All AI routes use that base URL. Selection assist opens an **exact payload inspector** (toggle pinned refs) before send. Unlocked scenes can **Draft beat into suggestion box** from Plot (Weave notes + pins → preview → Accept → Save); protected scenes refuse. Keys never appear in inspect reports or status JSON.
+
+| Check | Result |
+| --- | --- |
+| `pnpm exec vitest run tests/acceptance/ai-transparency.test.ts tests/unit/assistantConfig.test.ts tests/unit/assistantSecrets.test.ts tests/unit/help.test.ts` | 4 files, 24 tests passed |
+
+### Rollback
+
+Revert assistant config/secrets/base URL, openaiProvider `createOpenAIProviderFromConfig`, context-inspect + beat-draft services/routes/UI, help, and labels. No schema change (`proofreadRun.mode` string already free-form).
+
+## Character psychology and development (Nov 22, 2026)
+
+Character dossiers can carry an optional development profile: Enneagram and other writing-aid notes, archetypes, importance, narrative role, several arcs, relationship perceptions, book presence, variants, and explicit state changes. The dossier record stays the identity. Empty profiles behave as before. World → Character development lists arcs across books, including a novel with no series. Plot grids, the timeline, and the manuscript context rail show linked milestones when they exist. Extract and Review propose notes through the assistant and do not write until the author saves a selection. They never edit manuscript prose. Approved book states stay in place unless the author confirms a rewrite.
+
+| Check | Result |
+| --- | --- |
+| `pnpm exec vitest run tests/unit/character-development.test.ts tests/acceptance/character-development.test.ts tests/unit/help.test.ts tests/unit/worldDestinations.test.ts` | 4 files, 24 tests passed |
+| `pnpm exec tsc --noEmit` | No errors in the character-development files. The project still reports existing errors in assistant context inspect, beat draft assist, docx review, world maps, and the continuity ledger test. |
+| `pnpm test` | 135 files passed, 4 failed. Series bible and backup passed when run again alone. The remaining failure is `mcp-readonly` searching for “café”, which this change does not touch. Three other failures were hook timeouts under the full run and passed alone. |
+
+### Rollback
+
+Revert the character development domain, dossier section, World development page, inspector lines, cue strips, help, and labels. Profiles already saved remain inside dossier fields until an edit removes `characterDevelopment`. No schema change and no manuscript rewrite.
+
 ## Milestone 5: Export presets & compile validation (Nov 22, 2026)
 
 Compile profile gains **Standard manuscript (Shunn)** and **Formatter-ready** presets (layout only; front/back matter and exclusions kept). Manuscript spacing is double-spaced 12pt; DOCX gets margins, running header with page number, and word count on the title page. EPUB/PDF/DOCX put front matter before chapters and back matter after. Export PDF page shows an Export preview with counts and read-only warnings (empty chapters, unplaced scenes, `[[links]]`, synopses/comments).
@@ -20,7 +59,7 @@ Selecting a marker or card stays on that map or board. The rail shows a short re
 | --- | --- |
 | `pnpm exec vitest run tests/unit/canvas-return.test.ts tests/unit/board-interaction.test.ts tests/unit/help.test.ts tests/unit/map-interaction.test.ts tests/unit/map-keyboard.test.ts` | 5 files, 19 tests passed |
 | `pnpm exec tsc --noEmit` | No errors in the files changed for this work. Three existing errors remain in `docxReviewService.ts`, `worldMapService.ts`, and `tests/acceptance/continuity-ledger.test.ts`. |
-| Browser | Temporary project only. The working manuscript and canon are not used for these checks. |
+| Browser, temporary project on port 2113 | Empty project: first map asked for a new reference, stored the upload there, and opened in Browse with no markers. A route was drawn with Add point, cancelled with no marker left, then saved and edited through the point fields. Browse hid the drawing tools. Hide all layers said markers were hidden; a search that matches nothing said no markers match. Open reference returned to the same map, the same marker, and the same search. A missing marker id was announced and was not selected. A blank board and its first note were created. Lock layout announced the lock and disabled the position fields. Upload onto the protected reference showed the required tick and was not submitted. Light and dark page backgrounds both applied, and 1280, 768, and 390 widths did not overflow the page. The working manuscript was not opened. |
 
 ### Rollback
 

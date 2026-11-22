@@ -18,6 +18,9 @@ import { Button, ButtonLink } from "@/components/ui/Button";
 import { CanvasToolbar, CanvasToolbarGroup } from "@/components/ui/CanvasToolbar";
 import { IconButton } from "@/components/ui/IconButton";
 import { SegmentedControl, SegmentedOption } from "@/components/ui/SegmentedControl";
+import { BoardCardKindIcon } from "@/components/world/BoardCardKindIcon";
+import { BoardProjectImage } from "@/components/world/BoardProjectImage";
+import { CanvasInspectorSection } from "@/components/world/CanvasInspectorSection";
 import { CanvasReferenceSummary } from "@/components/world/CanvasReferenceSummary";
 import { LinkSceneForm } from "@/components/world/LinkSceneForm";
 import { ContextRail, ContextRailToggle, useContextRail } from "@/components/shell/ContextRail";
@@ -499,6 +502,13 @@ export function BoardCanvas({
     </form>
   ) : null;
 
+  const inspectorTitle = !selected
+    ? WORLD.boardRail
+    : selected.kind === "note"
+      ? selected.noteTitle.trim() || WORLD.noteCard
+      : selected.label;
+  const cardReturnPath = selected ? canvasReturnPath(projectId, "boards", board.id, selected.id) : "";
+
   return (
     <div className="write-layout reference-write-layout board-layout visual-canvas">
       <div className="write-main board-main">
@@ -507,36 +517,7 @@ export function BoardCanvas({
         {missingSelection ? <p className="small" role="status">{missingSelection}</p> : null}
 
         <CanvasToolbar label={WORLD.boardCanvas}>
-          <SegmentedControl size="sm" label={WORLD.boardViews}>
-            <SegmentedOption selected={view === "canvas"} onClick={() => { setView("canvas"); writeBoardView(board.id, "canvas"); }}>
-              {WORLD.boardViewCanvas}
-            </SegmentedOption>
-            <SegmentedOption selected={view === "list"} onClick={() => { setView("list"); writeBoardView(board.id, "list"); }}>
-              {WORLD.boardViewList}
-            </SegmentedOption>
-          </SegmentedControl>
-          <SegmentedControl size="sm" label={WORLD.boardTools}>
-            <SegmentedOption selected={tool === "select"} disabled={view !== "canvas"} onClick={() => setTool("select")}>
-              {WORLD.boardToolSelect}
-            </SegmentedOption>
-            <SegmentedOption selected={tool === "pan"} disabled={view !== "canvas"} onClick={() => setTool("pan")}>
-              {WORLD.boardToolPan}
-            </SegmentedOption>
-          </SegmentedControl>
-          <Button
-            type="button"
-            size="sm"
-            variant="secondary"
-            className="board-lock"
-            aria-pressed={layoutLocked}
-            onClick={() => {
-              if (!layoutLocked) cancelActiveMove();
-              setLayoutLocked((current) => !current);
-            }}
-          >
-            {WORLD.boardLockLayout}
-          </Button>
-          <BoardOverflowMenu summary={WORLD.addCardMenu}>
+          <BoardOverflowMenu summary={`+ ${WORLD.addCardMenu}`} className="canvas-add-card">
             <label>
               <span className="sr-only">{WORLD.addRecordCard}</span>
               <select
@@ -561,24 +542,51 @@ export function BoardCanvas({
             </Button>
           </BoardOverflowMenu>
 
+          <SegmentedControl size="sm" label={WORLD.boardTools} className="canvas-tool-chips">
+            <SegmentedOption selected={tool === "select"} disabled={view !== "canvas"} onClick={() => setTool("select")}>
+              {WORLD.boardToolSelect}
+            </SegmentedOption>
+            <SegmentedOption selected={tool === "pan"} disabled={view !== "canvas"} onClick={() => setTool("pan")}>
+              {WORLD.boardToolPan}
+            </SegmentedOption>
+          </SegmentedControl>
+          <label className="board-lock-switch">
+            <span className="board-lock-switch-label">{WORLD.boardLockLayout}</span>
+            <input
+              type="checkbox"
+              className="board-lock-switch-input"
+              role="switch"
+              checked={layoutLocked}
+              onChange={(event) => {
+                cancelActiveMove();
+                setLayoutLocked(event.target.checked);
+              }}
+            />
+          </label>
+
           <CanvasToolbarGroup>
-            <label className="small">
-              <span className="sr-only">{WORLD.filterCardKind}</span>
-              <select
-                value={kindFilter}
-                aria-label={WORLD.filterCardKind}
-                onChange={(e) => {
-                  const next = e.target.value as typeof kindFilter;
-                  setKindFilter(next);
-                  writeBoardFilter(board.id, next);
-                }}
-              >
-                <option value="all">{WORLD.filterAllKinds}</option>
-                <option value="record">{WORLD.filterRecords}</option>
-                <option value="image">{WORLD.filterImages}</option>
-                <option value="note">{WORLD.filterNotes}</option>
-              </select>
-            </label>
+            <span className="board-toolbar-filter-label">{WORLD.filterLabel}</span>
+            <SegmentedControl size="sm" label={WORLD.filterCardKind} className="canvas-filter-chips">
+              {(
+                [
+                  ["all", WORLD.filterAll],
+                  ["record", WORLD.filterRecords],
+                  ["image", WORLD.filterImages],
+                  ["note", WORLD.filterNotes],
+                ] as const
+              ).map(([value, label]) => (
+                <SegmentedOption
+                  key={value}
+                  selected={kindFilter === value}
+                  onClick={() => {
+                    setKindFilter(value);
+                    writeBoardFilter(board.id, value);
+                  }}
+                >
+                  {label}
+                </SegmentedOption>
+              ))}
+            </SegmentedControl>
             <Button
               type="button"
               disabled={view !== "canvas" || !selected}
@@ -670,17 +678,6 @@ export function BoardCanvas({
           </BoardOverflowMenu>
           <ContextRailToggle rail={rail} controls={railId} />
         </CanvasToolbar>
-        <p className="board-status small muted" aria-live="polite">
-          {layoutLocked
-            ? WORLD.boardLayoutLocked
-            : view === "list"
-              ? null
-              : tool === "pan"
-                ? WORLD.boardPanHint
-                : WORLD.boardSelectHint}{" "}
-          {WORLD.boardCardCount(visibleCards.length, cards.length)}
-          {hiddenByFilter > 0 ? ` ${WORLD.boardFilterHides(hiddenByFilter)}` : ""}
-        </p>
 
         <div
           ref={surfaceRef}
@@ -814,7 +811,7 @@ export function BoardCanvas({
                   left: card.x,
                   top: card.y,
                   width: card.width,
-                  minHeight: card.height,
+                  minHeight: card.kind === "image" ? Math.max(card.height, 200) : card.height,
                   zIndex: card.zIndex + (selectedId === card.id ? 1000 : 0),
                   visibility: hidden ? "hidden" : undefined,
                   pointerEvents: hidden ? "none" : undefined,
@@ -841,6 +838,7 @@ export function BoardCanvas({
                     <span className="board-drag-grip" aria-hidden="true" />
                   </button>
                   <span className="board-card-kind">
+                    <BoardCardKindIcon kind={card.kind} />
                     {card.kind === "note" ? WORLD.noteCard : card.kind === "image" ? WORLD.imageCard : WORLD.recordCard}
                   </span>
                 </div>
@@ -848,15 +846,19 @@ export function BoardCanvas({
                 {card.kind === "record" && card.recordTypeLabel ? (
                   <span className="board-card-meta">{card.recordTypeLabel}</span>
                 ) : null}
+                {card.kind === "record" && selectedId === card.id && inspection?.ok && inspection.model.lead ? (
+                  <p className="board-card-body">{inspection.model.lead}</p>
+                ) : null}
                 {card.kind === "note" && card.noteBody ? <p className="board-card-body">{card.noteBody}</p> : null}
                 {card.kind === "image" && card.imageId ? (
-                  // eslint-disable-next-line @next/next/no-img-element -- board thumbnail from project image route
-                  <img
-                    src={`/projects/${encodeURIComponent(projectId)}/images/${encodeURIComponent(card.imageId)}`}
-                    alt={card.imageAlt || card.imageName || ""}
+                  <BoardProjectImage
+                    projectId={projectId}
+                    imageId={card.imageId}
+                    alt={card.imageAlt || card.imageName || card.label}
                     className="board-card-thumb"
-                    draggable={false}
                   />
+                ) : card.kind === "image" ? (
+                  <p className="small muted board-card-missing-image">{WORLD.boardImageUnavailable}</p>
                 ) : null}
               </div>
             );
@@ -903,6 +905,7 @@ export function BoardCanvas({
                 aria-current={selectedId === card.id ? "true" : undefined}
               >
                 <span className="board-card-kind">
+                  <BoardCardKindIcon kind={card.kind} />
                   {card.kind === "note" ? WORLD.noteCard : card.kind === "image" ? WORLD.imageCard : WORLD.recordCard}
                 </span>
                 <span className="board-list-title">{card.label}</span>
@@ -932,6 +935,23 @@ export function BoardCanvas({
             ))
           )}
         </div>
+
+        <footer className="visual-canvas-footer" aria-live="polite">
+          <p className="visual-canvas-footer-status">
+            {WORLD.boardViewPreserved}
+            {layoutLocked ? ` · ${WORLD.boardLayoutLockedShort}` : ""}
+            {hiddenByFilter > 0 ? ` · ${WORLD.boardFilterHides(hiddenByFilter)}` : ""}
+            {view === "list" ? ` · ${WORLD.boardCardCount(visibleCards.length, cards.length)}` : null}
+          </p>
+          <SegmentedControl size="sm" label={WORLD.boardViews} className="canvas-view-switch">
+            <SegmentedOption selected={view === "canvas"} onClick={() => { setView("canvas"); writeBoardView(board.id, "canvas"); }}>
+              {WORLD.boardViewCanvas}
+            </SegmentedOption>
+            <SegmentedOption selected={view === "list"} onClick={() => { setView("list"); writeBoardView(board.id, "list"); }}>
+              {WORLD.boardViewList}
+            </SegmentedOption>
+          </SegmentedControl>
+        </footer>
       </div>
 
       <ContextRail id={railId} labelledBy={titleId} rail={rail} className="reference-context visual-inspector">
@@ -946,7 +966,7 @@ export function BoardCanvas({
         >
           <div className="context-head">
             <h2 className="context-title" id={titleId}>
-              {WORLD.boardRail}
+              {inspectorTitle}
             </h2>
             {!rail.wide ? (
               <IconButton tip="end" aria-label={WRITE.closeContext} onClick={rail.close}>
@@ -1052,40 +1072,77 @@ export function BoardCanvas({
                 </section>
               </div>
             ) : (
-              <div className="stack">
+              <div className="stack board-inspector">
                 {positionForm}
-                <section className="rail-section">
-                  {inspection?.ok ? (
+                {selected.kind === "image" && selected.imageId ? (
+                  <figure className="board-rail-figure">
+                    <BoardProjectImage
+                      projectId={projectId}
+                      imageId={selected.imageId}
+                      alt={selected.imageAlt || selected.imageName || selected.label}
+                      className="board-rail-image"
+                    />
+                    {selected.imageName ? <figcaption className="small muted">{selected.imageName}</figcaption> : null}
+                  </figure>
+                ) : null}
+                {inspection?.ok ? (
+                  <CanvasInspectorSection title={selected.kind === "image" ? WORLD.boardReferencePreview : WORLD.referenceSummary}>
                     <CanvasReferenceSummary
                       projectId={projectId}
                       model={inspection.model}
-                      returnPath={canvasReturnPath(projectId, "boards", board.id, selected.id)}
+                      returnPath={cardReturnPath}
                       sourceNote={selected.kind === "image" ? WORLD.openedFromImage : null}
+                      imageId={selected.kind === "image" ? selected.imageId : null}
+                      imageAlt={selected.imageAlt || selected.imageName}
                     />
-                  ) : inspection && !inspection.ok ? (
-                    <p className="error-text">{inspection.message}</p>
-                  ) : (
-                    <p className="small muted">{WORLD.inspectorLoading}</p>
-                  )}
-                </section>
-                {selected.recordId ? (
-                  <MarkerScenes
-                    projectId={projectId}
-                    locationRecordId={selected.recordId}
-                    returnPath={canvasReturnPath(projectId, "boards", board.id, selected.id)}
-                    refreshKey={sceneRefresh}
-                  />
+                  </CanvasInspectorSection>
+                ) : inspection && !inspection.ok ? (
+                  <p className="error-text">{inspection.message}</p>
+                ) : selected.recordId ? (
+                  <CanvasInspectorSection title={WORLD.referenceSummary}>
+                    <div className="canvas-reference-summary">
+                      <p className="board-card-kind">{selected.recordTypeLabel ?? WORLD.recordCard}</p>
+                      <h3 className="inspector-record-title">{selected.recordTitle ?? selected.label}</h3>
+                      <p className="small muted" role="status">
+                        {WORLD.inspectorLoading}
+                      </p>
+                      {selected.recordId ? (
+                        <div className="canvas-reference-actions">
+                          <ButtonLink
+                            href={withCanvasReturn(
+                              `/projects/${encodeURIComponent(projectId)}/records/${encodeURIComponent(selected.recordId)}`,
+                              cardReturnPath,
+                            )}
+                            size="sm"
+                          >
+                            {WORLD.openReference}
+                          </ButtonLink>
+                        </div>
+                      ) : null}
+                    </div>
+                  </CanvasInspectorSection>
                 ) : null}
-                {inspection?.ok && isLinkableReferenceType(inspection.model.recordType) ? (
-                  <LinkSceneForm
-                    projectId={projectId}
-                    locationRecordId={inspection.model.id}
-                    protectedReference={inspection.model.protected}
-                    onLinked={(message) => {
-                      setStatus(message);
-                      setSceneRefresh((value) => value + 1);
-                    }}
-                  />
+                {selected.recordId ? (
+                  <CanvasInspectorSection title={WORLD.linkedScenes}>
+                    <MarkerScenes
+                      projectId={projectId}
+                      locationRecordId={selected.recordId}
+                      returnPath={cardReturnPath}
+                      refreshKey={sceneRefresh}
+                      compact
+                    />
+                    {inspection?.ok && isLinkableReferenceType(inspection.model.recordType) ? (
+                      <LinkSceneForm
+                        projectId={projectId}
+                        locationRecordId={inspection.model.id}
+                        protectedReference={inspection.model.protected}
+                        onLinked={(message) => {
+                          setStatus(message);
+                          setSceneRefresh((value) => value + 1);
+                        }}
+                      />
+                    ) : null}
+                  </CanvasInspectorSection>
                 ) : null}
                 <section className="rail-section">
                   <p className="small muted" style={{ margin: 0 }}>

@@ -9,6 +9,7 @@ import { Button, ButtonLink } from "@/components/ui/Button";
 import { CanvasToolbar } from "@/components/ui/CanvasToolbar";
 import { SegmentedControl, SegmentedOption } from "@/components/ui/SegmentedControl";
 import { IconButton } from "@/components/ui/IconButton";
+import { CanvasInspectorSection } from "@/components/world/CanvasInspectorSection";
 import { CanvasReferenceSummary } from "@/components/world/CanvasReferenceSummary";
 import { LinkSceneForm } from "@/components/world/LinkSceneForm";
 import { ContextRail, ContextRailToggle, useContextRail } from "@/components/shell/ContextRail";
@@ -798,6 +799,15 @@ export function MapCanvas({
   };
 
   const returnPath = canvasReturnPath(projectId, "maps", map.id, selected?.id ?? null);
+  const inspectorTitle = draft
+    ? draft.kind === "route"
+      ? WORLD.mapNewRoute
+      : draft.kind === "area"
+        ? WORLD.mapNewArea
+        : WORLD.mapNewLabel
+    : selected
+      ? selected.title
+      : WORLD.mapRail;
 
   return (
     <div className="write-layout reference-write-layout board-layout visual-canvas">
@@ -835,7 +845,7 @@ export function MapCanvas({
               ))}
             </SegmentedControl>
           ) : null}
-          <BoardOverflowMenu summary={WORLD.mapLayers}>
+          <BoardOverflowMenu summary={WORLD.mapLayers} className="canvas-menu-trigger">
             <fieldset className="map-legend">
               <legend className="sr-only">{WORLD.mapLayerLegend}</legend>
               <div className="map-layer-presets">
@@ -937,7 +947,10 @@ export function MapCanvas({
               </form>
             ) : null}
           </BoardOverflowMenu>
-          <BoardOverflowMenu summary={shown.length === pins.length ? `${WORLD.pinList} (${pins.length})` : `${WORLD.pinList} (${shown.length}/${pins.length})`}>
+          <BoardOverflowMenu
+            className="canvas-menu-trigger"
+            summary={shown.length === pins.length ? `${WORLD.pinList} (${pins.length})` : `${WORLD.pinList} (${shown.length}/${pins.length})`}
+          >
             <div className="visual-menu-scroll">
               <h2 id={pinListId} className="sr-only">{WORLD.pinList}</h2>
               <p className="small muted">{WORLD.mapMarkerCount(shown.length, pins.length)}</p>
@@ -1345,8 +1358,8 @@ export function MapCanvas({
             </div>
           </div>
         </div>
-        <p className="map-status">
-          <span>
+        <footer className="visual-canvas-footer map-status">
+          <p className="visual-canvas-footer-status">
             {mode === "browse"
               ? WORLD.mapModeBrowseHint
               : tool === "select"
@@ -1354,8 +1367,9 @@ export function MapCanvas({
                 : tool === "point"
                   ? WORLD.mapPinHint
                   : WORLD.mapModeEditHint}
-          </span>
-          <span>{markerNotice.kind === "empty" ? WORLD.mapNoMarkers : markerNotice.kind === "hidden" ? WORLD.mapAllHidden : WORLD.mapMarkerCount(shown.length, pins.length)}</span>
+            {" · "}
+            {markerNotice.kind === "empty" ? WORLD.mapNoMarkers : markerNotice.kind === "hidden" ? WORLD.mapAllHidden : WORLD.mapMarkerCount(shown.length, pins.length)}
+          </p>
           {shown.length < pins.length ? (
             <span className="map-status-hidden">
               <Button type="button" size="sm" variant="secondary" onClick={() => applyLayerPreset("all")}>
@@ -1363,13 +1377,15 @@ export function MapCanvas({
               </Button>
             </span>
           ) : null}
-        </p>
+        </footer>
 
       </div>
 
       <ContextRail id={railId} labelledBy={titleId} rail={rail} className="visual-inspector" focusOnOverlayOpen>
         <div className="context-head">
-          <h2 id={titleId}>{WORLD.mapRail}</h2>
+          <h2 className="context-title" id={titleId}>
+            {inspectorTitle}
+          </h2>
           {!rail.wide ? (
             <IconButton tip="none" aria-label={WRITE.hideContext} onClick={rail.close}>
               <CloseIcon />
@@ -1576,67 +1592,62 @@ function MarkerRail({
   }, [pin.id, pin.recordId, pin.targetMapId, pin.layerId, pin.markerGroup, pin.label, pin.xNorm, pin.yNorm, pin.revision, layers]);
 
   return (
-    <div className="stack">
-      <div>
-        <p className="board-card-kind">{pin.typeLabel || pinLayerTitle(pin, layers)}</p>
-        <p className="board-card-title">{pin.title}</p>
-        {pin.authorityStatus ? <StatusBadge status={pin.authorityStatus} /> : null}
-        {pin.unavailable ? <p className="small muted">{WORLD.pinUnavailable}</p> : null}
-        {pin.targetUnavailable ? <p className="small muted">{WORLD.targetMapUnavailable}</p> : null}
-        {pin.kind === "route" || pin.kind === "area" ? (
-          <p className="small muted">
-            {KIND_LABEL[pin.kind]} · {pin.points.length} points
-          </p>
+    <div className="stack canvas-marker-rail">
+      <p className="small muted canvas-inspector-kind">
+        {pin.typeLabel || pinLayerTitle(pin, layers)}
+        {pin.kind === "route" || pin.kind === "area" ? ` · ${KIND_LABEL[pin.kind]} · ${pin.points.length} points` : ""}
+        {pin.authorityStatus ? (
+          <>
+            {" · "}
+            <StatusBadge status={pin.authorityStatus} />
+          </>
         ) : null}
-      </div>
-      <div className="row" style={{ gap: "0.4rem", flexWrap: "wrap" }}>
-        {pin.recordId && !pin.unavailable && !inspection?.ok ? (
-          <ButtonLink
-            href={withCanvasReturn(
-              `/projects/${encodeURIComponent(projectId)}/records/${encodeURIComponent(pin.recordId)}`,
-              returnPath,
-            )}
-            variant="secondary"
-            size="sm"
-          >
-            {WORLD.openReference}
-          </ButtonLink>
-        ) : null}
-        {pin.targetMapId && !pin.targetUnavailable ? (
-          <Button type="button" variant="secondary" size="sm" onClick={() => onOpenMap(pin.targetMapId!)}>
-            {WORLD.openDetailedMap}
-          </Button>
-        ) : null}
-      </div>
+      </p>
+      {pin.unavailable ? <p className="small muted">{WORLD.pinUnavailable}</p> : null}
+      {pin.targetUnavailable ? <p className="small muted">{WORLD.targetMapUnavailable}</p> : null}
+      {pin.targetMapId && !pin.targetUnavailable ? (
+        <Button type="button" variant="secondary" size="sm" onClick={() => onOpenMap(pin.targetMapId!)}>
+          {WORLD.openDetailedMap}
+        </Button>
+      ) : null}
       {pin.recordId && !pin.unavailable ? (
         inspection?.ok ? (
-          <CanvasReferenceSummary projectId={projectId} model={inspection.model} returnPath={returnPath} />
+          <CanvasInspectorSection title={WORLD.referenceSummary}>
+            <CanvasReferenceSummary projectId={projectId} model={inspection.model} returnPath={returnPath} />
+          </CanvasInspectorSection>
         ) : inspection && !inspection.ok ? (
           <p className="muted">{inspection.message}</p>
-        ) : (
+        ) : pin.recordId ? (
           <p className="muted">{WORLD.inspectorLoading}</p>
-        )
+        ) : null
       ) : null}
       {pin.recordId ? (
-        <MarkerScenes
-          projectId={projectId}
-          locationRecordId={pin.recordId}
-          returnPath={returnPath}
-          refreshKey={sceneRefresh}
-        />
+        <CanvasInspectorSection title={WORLD.eventsAtPlace} defaultOpen={false}>
+          <PlaceEvents projectId={projectId} locationRecordId={pin.recordId} compact />
+        </CanvasInspectorSection>
       ) : null}
-      {inspection?.ok && isLinkableReferenceType(inspection.model.recordType) ? (
-        <LinkSceneForm
-          projectId={projectId}
-          locationRecordId={inspection.model.id}
-          protectedReference={inspection.model.protected}
-          onLinked={(message) => {
-            onStatus(message);
-            onLinked();
-          }}
-        />
+      {pin.recordId ? (
+        <CanvasInspectorSection title={WORLD.linkedScenes} defaultOpen>
+          <MarkerScenes
+            projectId={projectId}
+            locationRecordId={pin.recordId}
+            returnPath={returnPath}
+            refreshKey={sceneRefresh}
+            compact
+          />
+          {inspection?.ok && isLinkableReferenceType(inspection.model.recordType) ? (
+            <LinkSceneForm
+              projectId={projectId}
+              locationRecordId={inspection.model.id}
+              protectedReference={inspection.model.protected}
+              onLinked={(message) => {
+                onStatus(message);
+                onLinked();
+              }}
+            />
+          ) : null}
+        </CanvasInspectorSection>
       ) : null}
-      {pin.recordId ? <PlaceEvents projectId={projectId} locationRecordId={pin.recordId} /> : null}
       {mode === "edit" ? (
         <form
           className="stack"

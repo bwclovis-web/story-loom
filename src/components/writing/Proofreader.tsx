@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState, type RefObject } from "react";
+import { ContextInspector, useDisabledInspectIds } from "@/components/assistant/ContextInspector";
 import { HelpHint } from "@/components/HelpHint";
 import type { ProofreadSuggestion } from "@/proofread/anchors";
 import {
@@ -12,8 +13,9 @@ import {
   type Decision,
   type LocatedSuggestion,
 } from "@/proofread/apply";
+import type { ContextInspectReport } from "@/server/services/assistantContextInspect";
 import type { ProofreadResult } from "@/server/services/proofreadService";
-import { PROOFREAD } from "@/ui/labels";
+import { ASSISTANT, PROOFREAD } from "@/ui/labels";
 import { ProtectionTick } from "./ProtectionTick";
 import { applyTextareaEdit, selectRange } from "./textareaEdit";
 import { Banner } from "@/components/ui/Banner";
@@ -78,6 +80,9 @@ export function Proofreader({
   const [busy, setBusy] = useState<{ runId: string | null } | null>(null);
   const [error, setError] = useState<ApiError | null>(null);
   const [message, setMessage] = useState("");
+  const [inspect, setInspect] = useState<ContextInspectReport | null>(null);
+  const [pendingRange, setPendingRange] = useState<{ start: number; end: number } | null | undefined>(undefined);
+  const { disabledIds, toggle, reset } = useDisabledInspectIds();
   const abortRef = useRef<AbortController | null>(null);
 
   const located = useMemo(() => (run ? locateAll(run, text, decisions) : []), [run, text, decisions]);
@@ -112,13 +117,43 @@ export function Proofreader({
     if (ta && r) selectRange(ta, r.start, r.end);
   };
 
-  async function start(range: { start: number; end: number } | null) {
+  async function openInspect(range: { start: number; end: number } | null) {
     if (dirty) {
       setMessage(PROOFREAD.saveFirst);
       return;
     }
     setError(null);
     setMessage("");
+    reset();
+    setPendingRange(range);
+    try {
+      const response = await fetch(`/api/projects/${projectId}/assistant/context-inspect`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ kind: "proofread", recordId, revision, range }),
+      });
+      const json = (await response.json()) as { report?: ContextInspectReport; error?: ApiError };
+      if (!response.ok || !json.report) {
+        setError(json.error ?? { code: "HTTP", message: `Inspect failed (${response.status}).` });
+        setPendingRange(undefined);
+        return;
+      }
+      setInspect(json.report);
+    } catch {
+      setError({ code: "NETWORK", message: "Could not reach the app server. Is it still running?" });
+      setPendingRange(undefined);
+    }
+  }
+
+  async function start(range: { start: number; end: number } | null, excludeDictionaryWords: string[] = []) {
+    if (dirty) {
+      setMessage(PROOFREAD.saveFirst);
+      return;
+    }
+    setError(null);
+    setMessage("");
+    setInspect(null);
+    setPendingRange(undefined);
     setBusy({ runId: null });
     const source = savedText;
     const controller = new AbortController();
@@ -128,7 +163,7 @@ export function Proofreader({
       response = await fetch(`/api/projects/${projectId}/proofread`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode: "proofread", recordId, revision, range }),
+        body: JSON.stringify({ mode: "proofread", recordId, revision, range, excludeDictionaryWords }),
         signal: controller.signal,
       });
     } catch {
@@ -268,10 +303,10 @@ export function Proofreader({
         {PROOFREAD.privacyNote}
       </HelpHint>
       <div className="row">
-        <Button type="button" variant="secondary" onClick={() => void start(selection)} disabled={!!busy || !hasSelection || dirty || selectionOver}>
+        <Button type="button" variant="secondary" onClick={() => void openInspect(selection)} disabled={!!busy || !hasSelection || dirty || selectionOver}>
           {PROOFREAD.proofreadSelection}
         </Button>
-        <Button type="button" variant="secondary" onClick={() => void start(null)} disabled={!!busy || dirty || documentOver}>
+        <Button type="button" variant="secondary" onClick={() => void openInspect(null)} disabled={!!busy || dirty || documentOver}>
           {PROOFREAD.proofreadDocument}
         </Button>
         {busy ? (
@@ -291,12 +326,31 @@ export function Proofreader({
         )}
       </div>
       {dirty && !busy ? <p className="small muted">{PROOFREAD.saveFirst}</p> : null}
+      <p className="small muted">{ASSISTANT.inspectOpen}</p>
       {selectionOver || documentOver ? (
         <p className="small error-text">
           {documentOver && !selectionOver
             ? "The whole document is over the request limit. Select a part of it to proofread. Nothing is cut automatically."
             : "The selection is over the request limit. Select less text. Nothing is cut automatically."}
         </p>
+      ) : null}
+      {inspect && pendingRange !== undefined ? (
+        <ContextInspector
+          report={inspect}
+          disabledIds={disabledIds}
+          onToggle={toggle}
+          busy={!!busy}
+          onClose={() => {
+            setInspect(null);
+            setPendingRange(undefined);
+          }}
+          onConfirmSend={() => {
+            const words = [...disabledIds]
+              .filter((id) => id.startsWith("dict:"))
+              .map((id) => id.slice("dict:".length));
+            void start(pendingRange ?? null, words);
+          }}
+        />
       ) : null}
 
       {error ? (

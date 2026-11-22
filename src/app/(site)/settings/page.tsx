@@ -37,7 +37,12 @@ export default async function SettingsPage() {
             ))}
           </ul>
         )}
-        <AssistantSettingsForm keySaved={view.keySaved} model={view.model} secretsPath={view.secretsPath} />
+        <AssistantSettingsForm
+          keySaved={view.keySaved}
+          model={view.model}
+          baseUrl={view.baseUrl}
+          secretsPath={view.secretsPath}
+        />
       </section>
 
       <section className="panel stack" aria-labelledby="settings-library">

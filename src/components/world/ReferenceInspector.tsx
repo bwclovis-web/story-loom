@@ -11,7 +11,7 @@ import {
   type SceneChoice,
 } from "@/app/projects/[projectId]/records/[recordId]/EstablishedInRail";
 import type { EstablishedFactView } from "@/server/services/establishedFactService";
-import { REFERENCE_FORM, WORLD, WORLD_KIND } from "@/ui/labels";
+import { CHARACTER_DEVELOPMENT, REFERENCE_FORM, WORLD, WORLD_KIND } from "@/ui/labels";
 import { placementHref, type ReferenceInspectorModel } from "@/world/inspectorModel";
 
 export interface InspectorEstablished {
@@ -187,6 +187,22 @@ export function ReferenceInspector({
               </>
             )}
           </div>
+          {model.developmentLines.length ? (
+            <div>
+              <h3>{CHARACTER_DEVELOPMENT.heading}</h3>
+              {model.developmentStale ? <p className="small">{CHARACTER_DEVELOPMENT.staleProfile}</p> : null}
+              <ul className="small">
+                {model.developmentLines.map((line) => (
+                  <li key={line}>{line}</li>
+                ))}
+              </ul>
+              <p className="small">
+                <a href={linkMode === "page" ? "#character-development" : `${recordHref}#character-development`}>
+                  {CHARACTER_DEVELOPMENT.openDossier}
+                </a>
+              </p>
+            </div>
+          ) : null}
           {linkMode === "remote" ? (
             <ButtonLink variant="secondary" size="sm" href={recordHref}>
               {WORLD.inspectorOpenRecord}

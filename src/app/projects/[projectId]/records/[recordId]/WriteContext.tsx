@@ -2,12 +2,25 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useActionState, useEffect, useId, useMemo, useRef, useState, useTransition, type KeyboardEvent, type ReactNode } from "react";
+import {
+  useActionState,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+  type KeyboardEvent,
+  type ReactNode,
+  type RefObject,
+} from "react";
 import { WriteAssistantRail } from "@/components/assistant/WriteAssistantRail";
 import { StatusBadge } from "@/components/Badges";
 import { IssueList } from "@/components/IssueList";
 import { BookOpen, FileText, Shield, Sparkles, StickyNote, Waypoints, X } from "lucide-react";
+import { Banner } from "@/components/ui/Banner";
 import { Button, ButtonLink } from "@/components/ui/Button";
+import { applyTextareaEdit } from "@/components/writing/textareaEdit";
 import { useLayout } from "@/components/shell/LayoutContext";
 import { CONTEXT_TABS, type ContextTab } from "@/components/shell/preferences";
 import { setUnsaved } from "@/components/shell/unsaved";
@@ -15,7 +28,9 @@ import { submitWithoutReset } from "@/components/submitWithoutReset";
 import type { Issue } from "@/domain/issues";
 import { RECORD_TYPE_LABELS, type RecordType } from "@/domain/recordTypes";
 import type { AuthorityStatus } from "@/domain/statuses";
-import { ASSISTANT, CONTINUITY, DRAFT, RECORD, SERIES, WEAVE, WRITE } from "@/ui/labels";
+import { DevelopmentCues } from "@/components/world/CharacterDevelopment";
+import type { DevelopmentCue } from "@/domain/characterDevelopment";
+import { ASSISTANT, CHARACTER_DEVELOPMENT, CONTINUITY, DRAFT, RECORD, SERIES, WEAVE, WRITE } from "@/ui/labels";
 import { seriesBookLabel, seriesRecordHref } from "@/world/seriesHome";
 import {
   attachRewriteSourceAction,
@@ -128,6 +143,7 @@ export function WriteContext({
   initialPins,
   plotBeats,
   continuityFindings = [],
+  characterCues = [],
   editorText,
   editorDirty,
   editorSelection,
@@ -135,6 +151,11 @@ export function WriteContext({
   assistantConfigured,
   assistantProblems,
   proofreader,
+  revision,
+  editable,
+  onUnlock,
+  textareaRef,
+  onTextChange,
   overlay,
   onClose,
 }: {
@@ -155,6 +176,7 @@ export function WriteContext({
   plotBeats: PlotBeatItem[];
   /** Open Continuity Ledger findings that touch this chapter or scene. */
   continuityFindings?: Array<{ key: string; title: string; detail: string; href: string; severity: string }>;
+  characterCues?: DevelopmentCue[];
   /** Current editor text (may be unsaved). */
   editorText: string;
   editorDirty: boolean;
@@ -163,6 +185,11 @@ export function WriteContext({
   assistantConfigured: boolean;
   assistantProblems: string[];
   proofreader: ReactNode;
+  revision: number;
+  editable: boolean;
+  onUnlock: () => void;
+  textareaRef: RefObject<HTMLTextAreaElement | null>;
+  onTextChange: (value: string) => void;
   /** Shown over the page on narrow screens; closes with Escape. */
   overlay: boolean;
   onClose: () => void;
@@ -257,6 +284,7 @@ export function WriteContext({
       </div>
       <div role="tabpanel" id={`${idPrefix}-panel-references`} aria-labelledby={`${idPrefix}-tab-references`} hidden={tab !== "references"} className="context-body">
         <ContinuityStrip projectId={projectId} findings={continuityFindings} />
+        {characterCues.length ? <DevelopmentCues title={CHARACTER_DEVELOPMENT.cues} cues={characterCues} /> : null}
         <References
           projectId={projectId}
           recordId={recordId}
@@ -272,7 +300,18 @@ export function WriteContext({
         <Notes projectId={projectId} recordId={recordId} recordTitle={recordTitle} notes={notes} />
       </div>
       <div role="tabpanel" id={`${idPrefix}-panel-plot`} aria-labelledby={`${idPrefix}-tab-plot`} hidden={tab !== "plot"} className="context-body">
-        <PlotBeats projectId={projectId} beats={plotBeats} />
+        <PlotBeats
+          projectId={projectId}
+          recordId={recordId}
+          revision={revision}
+          scopeDraftId={draftScopeId ?? ""}
+          beats={plotBeats}
+          editable={editable}
+          assistantConfigured={assistantConfigured}
+          textareaRef={textareaRef}
+          onUnlock={onUnlock}
+          onTextChange={onTextChange}
+        />
       </div>
       <div role="tabpanel" id={`${idPrefix}-panel-proofread`} aria-labelledby={`${idPrefix}-tab-proofread`} hidden={tab !== "proofread"} className="context-body">
         {proofreader}
@@ -318,7 +357,35 @@ function ContinuityStrip({
   );
 }
 
-function PlotBeats({ projectId, beats }: { projectId: string; beats: PlotBeatItem[] }) {
+function PlotBeats({
+  projectId,
+  recordId,
+  revision,
+  scopeDraftId,
+  beats,
+  editable,
+  assistantConfigured,
+  textareaRef,
+  onUnlock,
+  onTextChange,
+}: {
+  projectId: string;
+  recordId: string;
+  revision: number;
+  scopeDraftId: string;
+  beats: PlotBeatItem[];
+  editable: boolean;
+  assistantConfigured: boolean;
+  textareaRef: RefObject<HTMLTextAreaElement | null>;
+  onUnlock: () => void;
+  onTextChange: (value: string) => void;
+}) {
+  const [busyBeatId, setBusyBeatId] = useState<string | null>(null);
+  const [suggestion, setSuggestion] = useState<{ beatId: string; text: string; note: string | null } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [message, setMessage] = useState("");
+  const abortRef = useRef<AbortController | null>(null);
+
   if (!beats.length) {
     return (
       <p className="rail-empty">
@@ -327,27 +394,152 @@ function PlotBeats({ projectId, beats }: { projectId: string; beats: PlotBeatIte
       </p>
     );
   }
+
+  async function draftBeat(beatId: string) {
+    if (!editable) {
+      setError(WEAVE.draftBeatProtected);
+      return;
+    }
+    if (!assistantConfigured) {
+      setError(ASSISTANT.notConfigured);
+      return;
+    }
+    setError(null);
+    setMessage("");
+    setSuggestion(null);
+    setBusyBeatId(beatId);
+    const controller = new AbortController();
+    abortRef.current = controller;
+    try {
+      const response = await fetch(`/api/projects/${projectId}/beat-draft`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ recordId, revision, beatId, scopeDraftId }),
+        signal: controller.signal,
+      });
+      if (!response.ok || !response.body) {
+        const json = (await response.json().catch(() => null)) as { error?: { message?: string } } | null;
+        setError(json?.error?.message ?? `Request failed (${response.status}).`);
+        setBusyBeatId(null);
+        return;
+      }
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        let lineEnd = buffer.indexOf("\n");
+        while (lineEnd >= 0) {
+          const line = buffer.slice(0, lineEnd);
+          buffer = buffer.slice(lineEnd + 1);
+          if (!line.trim()) {
+            lineEnd = buffer.indexOf("\n");
+            continue;
+          }
+          const event = JSON.parse(line) as {
+            type: string;
+            result?: { suggestion?: string | null; note?: string | null; errorMessage?: string | null; status?: string };
+            message?: string;
+          };
+          if (event.type === "done" && event.result) {
+            if (event.result.suggestion) {
+              setSuggestion({ beatId, text: event.result.suggestion, note: event.result.note ?? null });
+            } else {
+              setError(event.result.errorMessage ?? WEAVE.draftBeatEmpty);
+            }
+          }
+          if (event.type === "error") setError(event.message ?? "The request failed.");
+          lineEnd = buffer.indexOf("\n");
+        }
+      }
+    } catch {
+      if (!controller.signal.aborted) setError("Could not reach the app server.");
+    } finally {
+      setBusyBeatId(null);
+    }
+  }
+
+  function acceptSuggestion() {
+    if (!suggestion) return;
+    const ta = textareaRef.current;
+    if (!ta) return;
+    const start = ta.selectionStart;
+    const end = ta.selectionEnd;
+    const insert = suggestion.text;
+    const prefix = start > 0 && ta.value[start - 1] !== "\n" ? "\n\n" : "";
+    applyTextareaEdit(ta, { start, end, text: `${prefix}${insert}` });
+    onTextChange(ta.value);
+    setSuggestion(null);
+    setMessage(WEAVE.draftBeatAccepted);
+  }
+
   return (
-    <ul className="write-plot-list">
-      {beats.map((beat) => (
-        <li key={beat.id} className="write-plot-item">
-          <strong>{beat.title}</strong>
-          {beat.threadTitle ? (
-            <span className="small muted">
-              {WEAVE.writePlotThread}: {beat.threadTitle}
-            </span>
-          ) : null}
-          {beat.decisionLabel ? <span className="small muted">{beat.decisionLabel}</span> : null}
-          {beat.body ? <p className="small">{beat.body}</p> : null}
-          <Link
-            href={`/projects/${encodeURIComponent(projectId)}/plan/weave/${encodeURIComponent(beat.gridId)}`}
-            className="small"
-          >
-            {beat.gridTitle} — {WEAVE.writePlotOpenGrid}
-          </Link>
-        </li>
-      ))}
-    </ul>
+    <div className="stack">
+      <p className="small muted" style={{ margin: 0 }}>
+        {WEAVE.draftBeatHint}
+      </p>
+      {!editable ? (
+        <p className="small muted">
+          {WEAVE.draftBeatProtected}{" "}
+          <Button type="button" size="sm" variant="secondary" onClick={onUnlock}>
+            Enable editing
+          </Button>
+        </p>
+      ) : null}
+      {error ? <Banner tone="error">{error}</Banner> : null}
+      {message ? <p className="small muted">{message}</p> : null}
+      {suggestion ? (
+        <div className="stack panel">
+          <pre className="small" style={{ whiteSpace: "pre-wrap", margin: 0 }}>
+            {suggestion.text}
+          </pre>
+          {suggestion.note ? <p className="small muted">{suggestion.note}</p> : null}
+          <div className="row" style={{ gap: "0.5rem" }}>
+            <Button type="button" size="sm" disabled={!editable} onClick={acceptSuggestion}>
+              {WEAVE.draftBeatAccept}
+            </Button>
+            <Button type="button" size="sm" variant="secondary" onClick={() => setSuggestion(null)}>
+              {WEAVE.draftBeatDismiss}
+            </Button>
+          </div>
+        </div>
+      ) : null}
+      <ul className="write-plot-list">
+        {beats.map((beat) => (
+          <li key={beat.id} className="write-plot-item">
+            <strong>{beat.title}</strong>
+            {beat.threadTitle ? (
+              <span className="small muted">
+                {WEAVE.writePlotThread}: {beat.threadTitle}
+              </span>
+            ) : null}
+            {beat.decisionLabel ? <span className="small muted">{beat.decisionLabel}</span> : null}
+            {beat.body ? <p className="small">{beat.body}</p> : null}
+            <div className="row" style={{ flexWrap: "wrap", gap: "0.5rem" }}>
+              <Link
+                href={`/projects/${encodeURIComponent(projectId)}/plan/weave/${encodeURIComponent(beat.gridId)}`}
+                className="small"
+              >
+                {beat.gridTitle} — {WEAVE.writePlotOpenGrid}
+              </Link>
+              {assistantConfigured ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  disabled={!editable || busyBeatId !== null}
+                  onClick={() => void draftBeat(beat.id)}
+                >
+                  {busyBeatId === beat.id ? WEAVE.draftBeatRunning : WEAVE.draftBeat}
+                </Button>
+              ) : null}
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 

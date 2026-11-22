@@ -12,6 +12,7 @@ import {
   Sparkles,
   ListChecks,
   User,
+  Users,
   Waypoints,
   type LucideIcon,
 } from "lucide-react";
@@ -26,6 +27,7 @@ const DESTINATION_ICONS: Record<WorldDestinationKey, LucideIcon> = {
   calendar: Calendar,
   names: Sparkles,
   continuity: ListChecks,
+  development: Users,
 };
 
 /** Icon for a World surface. Decorative; the link text is the name. */

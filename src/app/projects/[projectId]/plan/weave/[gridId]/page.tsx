@@ -11,6 +11,9 @@ import { getWeaveGrid, listSeriesWeaveBeats } from "@/server/services/weaveServi
 import { SHELL, WEAVE } from "@/ui/labels";
 import { buildManuscriptTree } from "@/ui/manuscriptTree";
 import { otherDraftRowByRecord } from "@/ui/plotGridPlacement";
+import { DevelopmentCues } from "@/components/world/CharacterDevelopment";
+import { developmentCuesForBeats } from "@/server/services/characterDevelopmentService";
+import { CHARACTER_DEVELOPMENT } from "@/ui/labels";
 import { WeaveCanvas } from "../WeaveCanvas";
 import type { PlotGridChapter } from "../WeavePlotGrid";
 
@@ -111,6 +114,7 @@ export default async function WeaveGridPage({
   const otherDraftRowByRecordId = Object.fromEntries(otherDraftRowByRecord(visibleRowIds, rewriteLinks));
 
   const base = `/projects/${encodeURIComponent(projectId)}`;
+  const arcCues = await developmentCuesForBeats(db, projectId, grid.beats.map((beat) => beat.id));
 
   return (
     <>
@@ -122,6 +126,7 @@ export default async function WeaveGridPage({
           { label: grid.title, current: true },
         ]}
       />
+      {arcCues.length ? <DevelopmentCues title={CHARACTER_DEVELOPMENT.plotTracks} cues={arcCues} /> : null}
       <WeaveCanvas
         projectId={projectId}
         grid={grid}

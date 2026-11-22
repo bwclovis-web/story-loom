@@ -13,6 +13,7 @@ import {
   type ProfileSuggestion,
   type ReviewObservation,
 } from "@/domain/characterDevelopment";
+import { sha256 } from "@/domain/json";
 import { getDb } from "@/server/db";
 import { MutationRejectedError, NotFoundError, StaleRevisionError } from "@/server/services/errors";
 import { errorIssue, type Issue } from "@/domain/issues";
@@ -122,7 +123,7 @@ export async function markCharacterProfileCheckedAction(
     if (loaded.record.projectId !== projectId) {
       return { ok: false, message: "Edit this character from the book that holds the dossier." };
     }
-    const profile = markProfileChecked(loaded.profile, loaded.record.body, loaded.record.currentRevision);
+    const profile = markProfileChecked(loaded.profile, loaded.record.currentRevision, sha256(loaded.record.body));
     const saved = await saveCharacterDevelopment(getDb(), projectId, {
       recordId,
       expectedRevision,

@@ -31,6 +31,8 @@ export interface ProofreadInput {
   revision: number;
   /** Characters to check, counted in the text with line endings as "\n"; null for the whole document. */
   range: { start: number; end: number } | null;
+  /** Dictionary words omitted after Context Inspector toggles. */
+  excludeDictionaryWords?: readonly string[];
 }
 
 export interface PreparedProofread {
@@ -110,7 +112,10 @@ export async function prepareProofread(db: Db, runtime: AssistantRuntime, input:
     throw new AssistantError("BUSY", "Proofreading is already running for this record. Wait for it or cancel it.");
   }
 
-  const acceptedWords = dictionaryWordsIn(sent, await dictionaryWordsForProject(db, record.projectId));
+  const excludedDict = new Set((input.excludeDictionaryWords ?? []).map((w) => w.toLocaleLowerCase()));
+  const acceptedWords = dictionaryWordsIn(sent, await dictionaryWordsForProject(db, record.projectId)).filter(
+    (w) => !excludedDict.has(w.word.toLocaleLowerCase()),
+  );
   const boundary = chooseBoundary([sent, ...acceptedWords.map((w) => w.word)], () => randomBytes(6).toString("hex"));
   const built = buildProofreadRequest(
     { recordId: record.id, title: revision.title, type: record.type, revision: input.revision, scope, range, text: sent },

@@ -119,6 +119,7 @@ export function WriteEditor(props: {
   initialPins: import("@/server/services/readingPinService").ReadingPinView[];
   plotBeats: PlotBeatItem[];
   continuityFindings?: Array<{ key: string; title: string; detail: string; href: string; severity: string }>;
+  characterCues?: import("@/domain/characterDevelopment").DevelopmentCue[];
   manuscriptSplitOptions: ManuscriptSplitOption[];
   preferredSplitIds: string[];
   /** Chapter and scene ids in book order for Alt+↑ / Alt+↓. */
@@ -1006,6 +1007,7 @@ export function WriteEditor(props: {
           initialPins={props.initialPins}
           plotBeats={props.plotBeats}
           continuityFindings={props.continuityFindings}
+          characterCues={props.characterCues}
           editorText={text}
           editorDirty={dirty}
           editorSelection={selection}
@@ -1014,6 +1016,11 @@ export function WriteEditor(props: {
           assistantProblems={props.proofread.problems ?? []}
           overlay={!rail.wide}
           onClose={rail.close}
+          revision={props.revision}
+          editable={editable}
+          onUnlock={() => setUnlocked(true)}
+          textareaRef={bodyRef}
+          onTextChange={setText}
           proofreader={
             <>
               <SelectionAssister

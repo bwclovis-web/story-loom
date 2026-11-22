@@ -5,7 +5,7 @@ import { resolveAssistantEnv } from "./assistantSecrets";
 import { toProviderError } from "./openai/openaiProvider";
 
 export type ConnectionTestResult =
-  | { ok: true; model: string; outputPreview: string }
+  | { ok: true; model: string; outputPreview: string; baseUrl: string }
   | { ok: false; message: string };
 
 /**
@@ -29,7 +29,7 @@ export async function testAssistantConnection(env = resolveAssistantEnv(process.
       organization: null,
       project: null,
       webhookSecret: null,
-      baseURL: "https://api.openai.com/v1",
+      baseURL: status.baseUrl,
       maxRetries: 0,
       logLevel: "off",
     });
@@ -49,21 +49,37 @@ export async function testAssistantConnection(env = resolveAssistantEnv(process.
       ok: true,
       model: status.model,
       outputPreview: text.slice(0, 80) || "(empty reply)",
+      baseUrl: status.baseUrl,
     };
   } catch (error) {
     const mapped = toProviderError(error, signal);
     if (mapped.code === "auth") {
-      return { ok: false, message: "OpenAI rejected the API key (401). Check the key on Settings and try again." };
+      return {
+        ok: false,
+        message: status.usingCustomBaseUrl
+          ? "The endpoint rejected the API key (401). For a local server with no key, leave the key blank; otherwise check the key on Settings."
+          : "OpenAI rejected the API key (401). Check the key on Settings and try again.",
+      };
     }
     if (mapped.code === "not_found") {
       return {
         ok: false,
-        message: "OpenAI did not accept that model ID. Choose a Responses API text model your project can use.",
+        message: status.usingCustomBaseUrl
+          ? "That model ID was not found on the endpoint. Check the model name your local server exposes."
+          : "OpenAI did not accept that model ID. Choose a Responses API text model your project can use.",
+      };
+    }
+    if (mapped.code === "connection") {
+      return {
+        ok: false,
+        message: status.usingCustomBaseUrl
+          ? `Could not reach ${status.baseUrl}. Start the local server (Ollama, LM Studio, …) and confirm the URL ends with /v1.`
+          : "Could not reach OpenAI. Check the internet connection and try again.",
       };
     }
     if (mapped.code === "cancelled") {
       return { ok: false, message: "The test timed out. Check your network and try again." };
     }
-    return { ok: false, message: "The connection test failed. Check the key, model, and network, then try again." };
+    return { ok: false, message: "The connection test failed. Check the key, model, endpoint, and network, then try again." };
   }
 }

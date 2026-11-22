@@ -50,8 +50,11 @@ export default async function WorldMapsPage({ params }: { params: Promise<{ proj
       />
       <ClearMapTrail projectId={projectId} />
 
-      <section className="panel" aria-labelledby="new-map-heading">
-        <h2 id="new-map-heading">{WORLD.newMap}</h2>
+      <section className="panel world-create-panel" aria-labelledby="new-map-heading">
+        <header className="world-create-intro">
+          <h2 id="new-map-heading">{WORLD.newMap}</h2>
+          <p className="small muted">{WORLD.newMapLead}</p>
+        </header>
         <CreateMapForm
           projectId={projectId}
           images={images}

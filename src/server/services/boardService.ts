@@ -366,8 +366,8 @@ export async function addImageCard(
         recordId: image.recordId,
         x: Math.round(input.x),
         y: Math.round(input.y),
-        width: 180,
-        height: 160,
+        width: 240,
+        height: 200,
         zIndex: z,
       },
     });

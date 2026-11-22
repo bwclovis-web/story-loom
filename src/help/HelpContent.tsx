@@ -36,6 +36,7 @@ import {
   PROOFREAD,
   READ_BOOK,
   RECORD,
+  CHARACTER_DEVELOPMENT,
   RECORD_RENAME,
   REFERENCE_FORM,
   REVIEW,
@@ -498,10 +499,11 @@ export function HelpContent() {
         </p>
         <Sub id="settings-ai">
           <p>
-            <L>{SETTINGS.aiHeading}</L>: paste a key from your OpenAI API account and a model ID, then choose{" "}
-            <L>{SETTINGS.aiSave}</L>. The form never shows a saved key again—only that a key is saved.{" "}
-            <L>{SETTINGS.aiClearKey}</L> removes the Settings copy (any <code>.env</code> key still applies after that).{" "}
-            <L>{SETTINGS.aiTest}</L> sends one small paid request. Details: <See anchor="assistant-setup" />.
+            <L>{SETTINGS.aiHeading}</L>: paste a key (optional for a local loopback URL), a model ID, and optional{" "}
+            <L>{SETTINGS.aiBaseUrlLabel}</L>, then choose <L>{SETTINGS.aiSave}</L>. The form never shows a saved key
+            again—only that a key is saved. <L>{SETTINGS.aiClearKey}</L> removes the Settings copy (any{" "}
+            <code>.env</code> key still applies after that). <L>{SETTINGS.aiTest}</L> sends one small request to the
+            configured endpoint. Details: <See anchor="assistant-setup" />.
           </p>
         </Sub>
         <Sub id="settings-library">
@@ -895,8 +897,8 @@ export function HelpContent() {
             In <L>{RECORD.protectionHeading}</L>, <L>{RECORD.protect}</L> and <L>{RECORD.unprotect}</L> switch
             protection on or off. Neither creates a new saved version.
           </p>
-          <p className="warning">
-            <L>{RECORD.unprotect}</L> takes effect at once. There is no confirmation step.
+          <p>
+            <L>{RECORD.unprotect}</L> asks for a second confirmation before it takes effect.
           </p>
           <p>
             Imports and change packages can only change a protected record after you tick a confirmation box. See{" "}
@@ -1593,11 +1595,12 @@ export function HelpContent() {
 
         <Sub id="local-recovery">
           <p>
-            Saving still happens only when you choose Save. While a chapter, scene, or reference is open, this browser
-            keeps a local copy of unsaved title, text, and structured fields. After a reload, <L>{WRITE.recoverHeading}</L>{" "}
-            offers <L>{WRITE.recoverRestore}</L> or <L>{WRITE.recoverDiscard}</L> when that copy differs from the saved
-            record. {WRITE.recoverNote} The copy is not in a workspace backup. Closing the tab warns when the editor has
-            unsaved changes. The browser&apos;s Back button does not.
+            Unlocked chapters and scenes also autosave while you pause; protected records still need{" "}
+            <L>{WRITE.save}</L> with the protection tick. Separately, while a chapter, scene, or reference is open, this
+            browser keeps a local copy of unsaved title, text, and structured fields. After a reload,{" "}
+            <L>{WRITE.recoverHeading}</L> offers <L>{WRITE.recoverRestore}</L> or <L>{WRITE.recoverDiscard}</L> when that
+            copy differs from the saved record. {WRITE.recoverNote} The copy is not in a workspace backup. Closing the
+            tab warns when the editor has unsaved changes. The browser&apos;s Back button does not.
           </p>
         </Sub>
       </Section>
@@ -2113,6 +2116,36 @@ export function HelpContent() {
             The reference inspector&apos;s <L>{WORLD.inspectorRelationships}</L> tab lists both kinds when they exist. Soft-trashed
             ends are hidden; permanently deleting either end removes the relationship. Record relationships are included in
             workspace backups.
+          </p>
+        </Sub>
+
+        <Sub id="character-development">
+          <p>
+            On a character dossier, <L>{CHARACTER_DEVELOPMENT.heading}</L> stores optional psychology, archetypes, arcs,
+            relationship perceptions, and state changes on the dossier you already have. Leaving it blank changes
+            nothing. Importance and narrative role suggest how much detail to write; they do not lock any field. A minor
+            character can stay empty. A supporting character can still carry several arcs.
+          </p>
+          <p>
+            Enneagram types, wings, and archetypes are writing aids. They are not diagnoses, and they do not require the
+            prose to match. Trauma, disability, and neurodivergence stay in the dossier text, separate from those
+            classifications. Narrative role is separate from archetype: a mentor can still be a Trickster.
+          </p>
+          <p>
+            Arcs use the same approval words as other records: draft, proposed, approved, superseded, and unresolved.
+            Movement can pause, regress, stop, or be revisited. A series arc can contain book arcs. Book order in the
+            profile is narrative order, which you set, not publication order and not the order of scenes in the file.
+            Approved opening and closing notes for one book stay put when you edit another book, unless you tick{" "}
+            <L>{CHARACTER_DEVELOPMENT.confirmRewrite}</L>.
+          </p>
+          <p>
+            <L>{CHARACTER_DEVELOPMENT.extract}</L> and <L>{CHARACTER_DEVELOPMENT.review}</L> need the assistant key on
+            Settings. They propose notes and cite the dossier or a linked passage. Nothing is canon, and the manuscript
+            is not edited, until you save a selected suggestion yourself. A passage linked at a revision is marked when
+            that chapter or scene is saved again. Variants can inherit traits you tick. They do not share knowledge,
+            memories, or arcs. <L>{CHARACTER_DEVELOPMENT.seriesHeading}</L> on World lists the same notes across books,
+            including a novel that is not in a series. The profile is part of the dossier fields, so it travels with
+            revisions, context export, and change packages. An older package that does not mention it leaves it in place.
           </p>
         </Sub>
 
@@ -3192,20 +3225,22 @@ export function HelpContent() {
 
         <Sub id="assistant-setup">
           <p>
-            The assistant uses an OpenAI API key, which is separate from a ChatGPT subscription and billed separately by
-            OpenAI. Story Loom never ships a shared key: you use your own. Prefer{" "}
-            <L>{SETTINGS.heading}</L> in the app (see <See anchor="settings-ai" />). Developers can still set{" "}
-            <code>.env</code> instead.
+            The assistant talks to an OpenAI-compatible Responses API: either OpenAI cloud with your own key, or a
+            local server such as Ollama or LM Studio. Story Loom never ships a shared key. Prefer{" "}
+            <L>{SETTINGS.heading}</L> in the app. Developers can still set <code>.env</code> instead.
           </p>
           <ol>
-            <li>Create an API key in your OpenAI API account (platform.openai.com).</li>
             <li>
-              Open <L>{SETTINGS.heading}</L> (under the gear menu in the left column). Paste the key, enter a model ID
-              that supports the Responses API and that your API project can use, and choose{" "}
-              <L>{SETTINGS.aiSave}</L>.
+              For OpenAI cloud: create an API key in your OpenAI API account (platform.openai.com). For a local server:
+              start it with an OpenAI-compatible <code>/v1</code> endpoint (for example{" "}
+              <code>http://127.0.0.1:11434/v1</code>).
             </li>
             <li>
-              Optional: choose <L>{SETTINGS.aiTest}</L> to send one small paid check (&ldquo;connected&rdquo;).
+              Open <L>{SETTINGS.heading}</L>. Paste the key (optional for a loopback URL), enter a model ID, optionally
+              set <L>{SETTINGS.aiBaseUrlLabel}</L>, and choose <L>{SETTINGS.aiSave}</L>.
+            </li>
+            <li>
+              Optional: choose <L>{SETTINGS.aiTest}</L> to send one small check (&ldquo;connected&rdquo;).
             </li>
             <li>
               Open <L>{NAV.assistant}</L>. The model ID and limits are shown at the top. If something is missing, the page
@@ -3213,9 +3248,10 @@ export function HelpContent() {
             </li>
           </ol>
           <p>
-            Developers: you may instead put <code>WORDLY_OPENAI_API_KEY</code> and <code>OPENAI_MODEL</code> in{" "}
-            <code>.env</code> and restart with <Cmd script="dev" />. A value saved in Settings overrides the matching{" "}
-            <code>.env</code> line until you clear it. Clearing Settings falls back to <code>.env</code>.
+            Developers: you may instead put <code>WORDLY_OPENAI_API_KEY</code>, <code>OPENAI_MODEL</code>, and optional{" "}
+            <code>WORDLY_OPENAI_BASE_URL</code> in <code>.env</code> and restart with <Cmd script="dev" />. A value
+            saved in Settings overrides the matching <code>.env</code> line until you clear it. Clearing Settings falls
+            back to <code>.env</code>.
           </p>
           <p className="warning">
             The key is stored only on this computer (under <code>local/</code>, which is not saved to git). Do not paste
@@ -3233,6 +3269,22 @@ export function HelpContent() {
           <p>
             Without a key, the page explains what is missing and nothing can be sent. Everything else in the app works as
             usual. Optional limits are listed in <See anchor="assistant-privacy" />.
+          </p>
+        </Sub>
+
+        <Sub id="assistant-payload">
+          <p>
+            Before AI writing assist or proofreading leaves this computer, you can open{" "}
+            <L>{ASSISTANT.inspectHeading}</L>. It lists every item that would be sent (instructions, the selected
+            passage or document, pinned references, dictionary words), with character counts and an approximate token
+            estimate. Untick optional items to leave them out, then confirm. The API key is never shown. Discussion on
+            the assistant page already uses explicit Include ticks for the same idea.
+          </p>
+          <p>
+            On an unlocked scene, Plot → <L>{WEAVE.draftBeat}</L> asks the model for prose from a linked Weave beat and
+            pinned references. The suggestion appears in a preview box only. Accept inserts it into the editor; you must
+            Save yourself. Protected scenes refuse the action until Enable editing. Nothing is written through a side
+            channel.
           </p>
         </Sub>
 
@@ -4119,11 +4171,12 @@ export function HelpContent() {
             <L>{NAV.history}</L> when a whole project or workspace goes. Only the backup made just before keeps it.
           </li>
           <li>
-            Saving still happens only when you choose Save. While you type, this browser keeps a local copy of unsaved
-            title, text, and structured fields for the open record. That copy is not a revision and is not in a backup.
-            After a reload, Restore local draft or Discard offers that copy when it differs from the saved record.
-            Restoring an earlier saved version only helps when its title or text (or structured fields, if you tick that
-            box) differs from the current saved version.
+            Unlocked chapters and scenes autosave while you pause; protected records still need Save with the protection
+            tick. Separately, while you type, this browser keeps a local copy of unsaved title, text, and structured
+            fields for the open record. That copy is not a revision and is not in a backup. After a reload, Restore
+            local draft or Discard offers that copy when it differs from the saved record. Restoring an earlier saved
+            version only helps when its title or text (or structured fields, if you tick that box) differs from the
+            current saved version.
           </li>
           <li>
             Chapter files can be imported as chapters (see <See anchor="import-chapters" />), but scenes cannot, and
@@ -4200,7 +4253,6 @@ export function HelpContent() {
           <li>Canon status applies to a whole record, not to parts of it.</li>
           <li>Related records are found only by exact names, and only when a change package is applied.</li>
           <li>Resolved review items are not shown in the list.</li>
-          <li>Removing protection has no confirmation step.</li>
           <li>In the app, each backup covers one workspace.</li>
         </ul>
       </Section>

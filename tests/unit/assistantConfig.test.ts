@@ -100,6 +100,35 @@ describe("OpenAI client settings", () => {
     expect(client.project).toBeNull();
     expect(client.adminAPIKey).toBeNull();
   });
+
+  it("uses an explicit custom base URL when provided", () => {
+    const client = defaultClient(KEY, "http://127.0.0.1:11434/v1") as unknown as OpenAI;
+    expect(client.baseURL).toBe("http://127.0.0.1:11434/v1");
+    expect(client.apiKey).toBe(KEY);
+  });
+});
+
+describe("local OpenAI-compatible endpoint", () => {
+  it("allows a loopback base URL without an API key", () => {
+    const config = readAssistantConfig({
+      OPENAI_MODEL: "llama3.2",
+      WORDLY_OPENAI_BASE_URL: "http://127.0.0.1:11434/v1",
+    });
+    expect(config.status.configured).toBe(true);
+    expect(config.status.usingCustomBaseUrl).toBe(true);
+    expect(config.status.baseUrl).toBe("http://127.0.0.1:11434/v1");
+    expect(config.apiKey).toBe("local-no-key");
+    expect(JSON.stringify(config.status)).not.toMatch(/sk-/);
+  });
+
+  it("still requires a key for a non-loopback custom base URL", () => {
+    const config = readAssistantConfig({
+      OPENAI_MODEL: "m",
+      WORDLY_OPENAI_BASE_URL: "https://llm.example.com/v1",
+    });
+    expect(config.status.configured).toBe(false);
+    expect(config.status.problems.join(" ")).toContain("WORDLY_OPENAI_API_KEY");
+  });
 });
 
 describe("cross-site guard for assistant routes", () => {
