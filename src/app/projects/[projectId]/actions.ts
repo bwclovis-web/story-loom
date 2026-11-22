@@ -7,7 +7,7 @@ import { isAuthorityStatus } from "@/domain/statuses";
 import { errorIssue, type Issue } from "@/domain/issues";
 import { parseJsonObject, type JsonObject } from "@/domain/json";
 import { getDb } from "@/server/db";
-import { MutationRejectedError } from "@/server/services/errors";
+import { MutationRejectedError, StaleRevisionError } from "@/server/services/errors";
 import {
   applyChangePackage,
   previewChangePackage,
@@ -24,6 +24,7 @@ import {
   type MarkdownImportOutcome,
   type MarkdownImportPreview,
 } from "@/server/services/markdownImportService";
+import { autosaveRecord } from "@/server/services/autosaveService";
 import {
   createRecord,
   getRecord,
@@ -44,6 +45,9 @@ export interface FormResult {
   ok: boolean;
   message?: string;
   issues?: Issue[];
+  /** Set after a successful save or autosave so the editor can advance expectedRevision. */
+  revision?: number;
+  coalesced?: boolean;
 }
 
 function str(formData: FormData, key: string): string {
@@ -57,6 +61,7 @@ function parseFields(text: string, type?: RecordType): JsonObject {
 
 function failure(error: unknown): FormResult {
   if (error instanceof MutationRejectedError) return { ok: false, issues: error.issues };
+  if (error instanceof StaleRevisionError) return { ok: false, issues: error.issues };
   return { ok: false, issues: [errorIssue("INVALID_CHANGE", (error as Error).message)] };
 }
 
@@ -129,8 +134,41 @@ export async function saveRecordAction(
       authorityStatus: isAuthorityStatus(status) ? status : undefined,
       unlockProtected: formData.get("unlockProtected") === "on",
     });
+    const revision = batch.outcomes[0].newRevision;
     revalidatePath(`/projects/${projectId}`, "layout");
-    return { ok: true, message: `Saved as revision ${batch.outcomes[0].newRevision}.` };
+    return { ok: true, message: `Saved as revision ${revision}.`, revision };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+/**
+ * Background save for unlocked manuscript records only. Protected records are
+ * refused. Rapid calls within a few minutes coalesce into one tip revision.
+ */
+export async function autosaveRecordAction(
+  projectId: string,
+  recordId: string,
+  input: { expectedRevision: number; title: string; body: string; fields: string },
+): Promise<FormResult> {
+  try {
+    const existing = await getRecord(getDb(), projectId, recordId);
+    const result = await autosaveRecord(getDb(), projectId, {
+      recordId,
+      expectedRevision: input.expectedRevision,
+      title: input.title,
+      body: input.body,
+      fields: parseFields(input.fields, existing.type),
+    });
+    revalidatePath(`/projects/${projectId}`, "layout");
+    return {
+      ok: true,
+      revision: result.revision,
+      coalesced: result.coalesced,
+      message: result.coalesced
+        ? `Autosaved (revision ${result.revision}).`
+        : `Autosaved as revision ${result.revision}.`,
+    };
   } catch (error) {
     return failure(error);
   }

@@ -201,6 +201,8 @@ function ProjectNavContent({
         { href: `${base}/import`, label: NAV.importPackage },
         { href: `${base}/import-markdown`, label: NAV.importMarkdown },
         { href: `${base}/import-chapters`, label: NAV.importChapters },
+        { href: `${base}/import-scrivener`, label: NAV.importScrivener },
+        { href: `${base}/import-docx-review`, label: NAV.importDocxReview },
       ],
     },
     {

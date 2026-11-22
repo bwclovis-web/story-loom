@@ -12,7 +12,16 @@ export function isAuthorityStatus(value: string): value is AuthorityStatus {
   return (AUTHORITY_STATUSES as readonly string[]).includes(value);
 }
 
-export const SOURCE_KINDS = ["ui", "change_package", "markdown_import", "api", "restore"] as const;
+export const SOURCE_KINDS = [
+  "ui",
+  "change_package",
+  "markdown_import",
+  "docx_import",
+  "scrivener_import",
+  "api",
+  "restore",
+  "autosave",
+] as const;
 export type SourceKind = (typeof SOURCE_KINDS)[number];
 
 /** Which content class a mutation batch is allowed to touch. */

@@ -172,7 +172,8 @@ export function HelpContent() {
             </li>
             <li>
               <See anchor="panels-focus" />, <See anchor="draft-comparison" />, and <See anchor="local-recovery" />: layout,
-              side-by-side drafts, and an unsaved copy kept in this browser.
+              side-by-side drafts, and an unsaved copy kept in this browser. Unlocked chapters and scenes also autosave
+              while you pause (<See anchor="protection" />).
             </li>
             <li>
               <See anchor="manuscript-style-check" />, <See anchor="writing-goals" />, and{" "}
@@ -849,13 +850,16 @@ export function HelpContent() {
 
         <Sub id="saved-versions">
           <p>
-            Every save creates a new saved version. The app calls these <em>revisions</em> and numbers them 1, 2, 3, and
-            so on. Earlier versions are never changed or removed.
+            Every manual save creates a new saved version. The app calls these <em>revisions</em> and numbers them 1, 2,
+            3, and so on. Earlier versions are never removed. Unlocked chapters and scenes also{" "}
+            <L>{WRITE.autosaving}</L> while you pause (see <See anchor="protection" />); rapid autosaves update the same
+            tip revision for a few minutes so the history stays readable, and a manual <L>{WRITE.save}</L> starts a new
+            numbered version.
           </p>
           <ul>
             <li>
-              <L>{RECORD.historyHeading}</L> lists every version with its status, where it came from (typed in the app, a
-              Markdown import, or a change package), and when.
+              <L>{RECORD.historyHeading}</L> lists every version with its status, where it came from (typed in the app,
+              autosaved, a Markdown import, or a change package), and when.
             </li>
             <li>Choose a version number there to see what changed since the version before it.</li>
             <li>
@@ -875,7 +879,8 @@ export function HelpContent() {
         <Sub id="protection">
           <p>
             Protection guards a record against accidental changes. Manuscript chapters and scenes are protected
-            automatically when created. Any record can be protected.
+            automatically when created. Any record can be protected. Autosave runs only when protection is off (
+            <L>{WRITE.autosaveHint}</L>).
           </p>
           <p>To change a protected record on its page:</p>
           <ol>
@@ -885,7 +890,7 @@ export function HelpContent() {
             </li>
             <li>Save.</li>
           </ol>
-          <p>Without the tick, the save is refused and your typing stays on screen.</p>
+          <p>Without the tick, the save is refused and your typing stays on screen. Autosave never unlocks a record.</p>
           <p>
             In <L>{RECORD.protectionHeading}</L>, <L>{RECORD.protect}</L> and <L>{RECORD.unprotect}</L> switch
             protection on or off. Neither creates a new saved version.
@@ -1175,9 +1180,12 @@ export function HelpContent() {
 
         <Sub id="import-chapters">
           <p>
-            If you write chapters in other programs as <code>.md</code>, <code>.markdown</code> or <code>.txt</code> files,{" "}
-            <L>{NAV.importChapters}</L> turns each file into a chapter. Only files you pick on that page become chapters;{" "}
-            <L>{NAV.importMarkdown}</L> never creates chapters.
+            If you write chapters in other programs as <code>.md</code>, <code>.markdown</code>, <code>.txt</code>, or Word{" "}
+            <code>.docx</code> files, <L>{NAV.importChapters}</L> turns each file into a chapter. Heading 1 in a Word file
+            starts a new chapter; Heading 2 and <code>***</code> stay as scene breaks in the chapter text. Only files you
+            pick on that page become chapters; <L>{NAV.importMarkdown}</L> never creates chapters. A whole Scrivener
+            project uses <See anchor="import-scrivener" />; an editor&apos;s marked-up Word file uses{" "}
+            <See anchor="import-docx-review" />.
           </p>
           <ol>
             <li>
@@ -1214,6 +1222,36 @@ export function HelpContent() {
             number. Move it afterwards under <L>{BOOK_ORDER.heading}</L> (see <See anchor="book-order" />). A replaced
             chapter keeps its place.
           </p>
+        </Sub>
+
+        <Sub id="import-scrivener">
+          <p>
+            <L>{NAV.importScrivener}</L> reads a zipped Scrivener project (the <code>.scriv</code> package that contains a{" "}
+            <code>.scrivx</code> binder). Draft documents become manuscript chapters through the same create / replace /
+            skip and protection gates as <See anchor="import-chapters" />. Nested Draft documents are folded into the
+            parent chapter as <code>***</code> scene breaks and headings—imports still do not create scene records.
+            Research and Notes folders become research notes (draft, unlocked) unless you skip or replace a match.
+          </p>
+          <p>
+            The import report lists unsupported binder items (snapshots, PDFs, media) so nothing is dropped silently.
+            Nothing is written until you review the report and choose import.
+          </p>
+        </Sub>
+
+        <Sub id="import-docx-review">
+          <p>
+            After an editor returns a Word file, <L>{NAV.importDocxReview}</L> compares its final text to your live
+            chapters. Export the manuscript as DOCX from Story Loom first so chapter bookmarks match. Tracked changes are
+            reflected in the chapter diff; Word comments can become margin comments after you accept the text.
+          </p>
+          <ol>
+            <li>Pick the edited <code>.docx</code>. Nothing is written yet.</li>
+            <li>Review each chapter diff. Accept only the chapters you want to update.</li>
+            <li>
+              Tick the protection confirmation when replacing protected chapters, then apply. Earlier versions stay in
+              history.
+            </li>
+          </ol>
         </Sub>
 
         <Sub id="read-book">
@@ -1498,7 +1536,9 @@ export function HelpContent() {
             <li>
               <L>{WRITE.modeFocus}</L> hides the chapter list, the icon rail, and the side panel, and keeps the text in
               a centered column. Press <kbd>Esc</kbd>, choose <L>{WRITE.exitFocus}</L>, or press <kbd>Ctrl</kbd>+
-              <kbd>Shift</kbd>+<kbd>F</kbd>. Your text, selection, and undo history stay as they were.
+              <kbd>Shift</kbd>+<kbd>F</kbd>. Your text, selection, and undo history stay as they were. The focus bar
+              shows the save status and <L>{WRITE.prevInBook}</L> / <L>{WRITE.nextInBook}</L>.{" "}
+              <L>{WRITE.bookNavHint}</L>
             </li>
             <li>
               To change a panel&apos;s width, drag the line at its edge. Or move to that line with <kbd>Tab</kbd> and
@@ -1865,28 +1905,34 @@ export function HelpContent() {
               restored for the map you return to. The same place can appear on several maps.
             </li>
             <li>
-              <L>{WORLD.mapModeBrowse}</L> pans and zooms without moving markers. <L>{WORLD.mapModeEdit}</L> uses a
-              compact tool for <L>{WORLD.markerKindPoint}</L>, <L>{WORLD.markerKindRoute}</L>,{" "}
-              <L>{WORLD.markerKindArea}</L>, or <L>{WORLD.markerKindLabel}</L>. A route is an ordered path. An area is a
-              closed boundary. A label is text at one position. Instructions appear only while one of those tools is in
-              use. <L>{WORLD.drawUndo}</L> and <L>{WORLD.drawCancel}</L> drop points that have not been saved.{" "}
-              <L>{WORLD.drawSave}</L> and <L>{WORLD.deleteShape}</L> go through the map service. If the marker was saved
-              again after you started, the write is refused and the stored shape stays as it was. The marker list and
-              the point fields (<L>{WORLD.drawPointX}</L>, <L>{WORLD.drawPointY}</L>, <L>{WORLD.drawMoveEarlier}</L>,{" "}
+              <L>{WORLD.mapModeBrowse}</L> pans and zooms without moving markers. <L>{WORLD.mapModeEdit}</L> opens on{" "}
+              <L>{WORLD.mapToolSelect}</L>. The other tools are <L>{WORLD.mapToolPin}</L>, <L>{WORLD.markerKindRoute}</L>,{" "}
+              <L>{WORLD.markerKindArea}</L>, and <L>{WORLD.markerKindLabel}</L>. A drawing tool is not carried over from
+              another map. Select drags a point or label only after the pointer moves; a click only selects it.{" "}
+              <L>{WORLD.mapToolPin}</L> places one pin and returns to Select unless <L>{WORLD.mapKeepPlacing}</L> is
+              ticked. A route is an ordered path. An area is a closed boundary. A label is text at one position. While
+              a route, area, or label is being drawn, a short instruction sits above the map and the point list sits in
+              the inspector. Enter, or <L>{WORLD.mapFinishDrawing}</L>, finishes a valid drawing and leaves it unsaved.
+              Escape, or <L>{WORLD.drawCancel}</L>, drops that drawing. Neither key is taken while you are typing in a
+              field. <L>{WORLD.mapSaveRoute}</L>, <L>{WORLD.mapSaveArea}</L>, and <L>{WORLD.mapSaveLabel}</L> are the
+              writes. If the marker was saved again after you started, the write is refused, the stored shape stays as
+              it was, and the draft you were editing stays on screen. The marker list and the point fields (
+              <L>{WORLD.drawPointX}</L>, <L>{WORLD.drawPointY}</L>, <L>{WORLD.drawMoveEarlier}</L>,{" "}
               <L>{WORLD.drawMoveLater}</L>) select and edit a shape without the pointer. Each marker can still link a
-              World reference.               Freehand drawing is not part of this screen. Positions are not travel time.{" "}
+              World reference. Freehand drawing is not part of this screen. Positions are not travel time.{" "}
               <L>{WORLD.mapMeasure}</L> and <L>{WORLD.mapRouteLength}</L> estimate a distance from the scale bar you
               set, and the result is labelled <L>{WORLD.mapMeasureDerived}</L>.
             </li>
             <li>
               Each map has author-defined <L>{WORLD.mapLayers}</L>. Older maps open with the former four groups as
               default layer names. In <L>{WORLD.mapModeEdit}</L> you can rename layers, add more (up to sixteen), and
-              save them. <L>{WORLD.mapLayerLegend}</L> and <L>{WORLD.pinList}</L> open from the one map toolbar. The
+              save them. <L>{WORLD.mapLayers}</L> and <L>{WORLD.pinList}</L> open from the one map toolbar. The
               canvas uses the remaining height, and those lists plus the inspector scroll on their own. The legend
-              toggles which layers show on the map.{" "}
-              <L>{WORLD.mapLayersShowAll}</L>, <L>{WORLD.mapLayersHideAll}</L>, and <L>{WORLD.mapLayerPreset("Places")}</L>{" "}
+              toggles which layers show on the map and lists how many markers are on each layer. Markers hidden by a
+              layer are counted under the map, where <L>{WORLD.mapLayersShowAll}</L> shows them again.{" "}
+              <L>{WORLD.mapLayersHideAll}</L> and <L>{WORLD.mapLayerPreset("Places")}</L>{" "}
               switch a whole preset at once. New markers use the
-              layer you pick in the toolbar or on the marker form.
+              layer you pick in the inspector.
             </li>
             <li>
               An optional labelled <L>{WORLD.mapScale}</L> bar sits on the image. You write the caption and how wide the

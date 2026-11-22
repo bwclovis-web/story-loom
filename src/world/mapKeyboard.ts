@@ -8,6 +8,14 @@ export interface KeyTarget {
 
 const FIELD = "a, input, select, textarea, [contenteditable='true']";
 
+const TYPING = "input, textarea, select, [contenteditable='true']";
+
+/** Drawing keys stay out of fields so typing and editor shortcuts keep working. */
+export function mapDrawingHandlesKey(target: EventTarget | KeyTarget | null): boolean {
+  if (target == null || !("closest" in target) || typeof target.closest !== "function") return true;
+  return target.closest(TYPING) == null;
+}
+
 export function mapListHandlesKey(target: EventTarget | KeyTarget | null, currentTarget: EventTarget | KeyTarget | null): boolean {
   if (target == null || target === currentTarget) return true;
   if (!("closest" in target) || typeof target.closest !== "function") return true;

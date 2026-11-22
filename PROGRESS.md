@@ -1,5 +1,56 @@
 # Progress
 
+## Milestone 3: DOCX / Scrivener import and editor Word review (Nov 22, 2026)
+
+Import chapters accepts Word `.docx` (Heading 1 → chapters; Heading 2 / `***` stay as scene breaks in the body). Scrivener zip import maps Draft → chapters and Research → research notes, with an unsupported-item report. Editor DOCX review matches exported chapter bookmarks, shows diffs, and applies through mutationService with protection confirmation; optional Word comments become margin comments. Manuscript DOCX export writes `sl_record_*` bookmarks for round-trip. Imports still never create scene records.
+
+| Check | Result |
+| --- | --- |
+| `pnpm exec vitest run tests/acceptance/docx-import.test.ts tests/acceptance/scrivener-import.test.ts tests/unit/help.test.ts` | 3 files, 7 tests passed |
+| `pnpm exec vitest run tests/acceptance/chapter-import.test.ts` | 1 file, 8 tests passed |
+
+### Rollback
+
+Revert DOCX/Scrivener/review services and routes, export bookmarks, SOURCE_KINDS additions, and help/nav/labels. Existing revisions with `docx_import` / `scrivener_import` remain readable; no migration required.
+
+## Milestone 2: Unlocked autosave and drafting ergonomics (Nov 22, 2026)
+
+Unlocked chapters and scenes autosave while you pause. Rapid autosaves update the tip `autosave` revision for a few minutes so history stays readable; a manual Save starts a new numbered version. Protected records stay manual-save only. Manuscript search narrows candidates with SQL `contains` before loading bodies. Focus mode shows save status and previous/next in book order (`Alt+↑` / `Alt+↓`).
+
+| Check | Result |
+| --- | --- |
+| `pnpm exec vitest run tests/acceptance/autosave.test.ts tests/acceptance/book-order.test.ts tests/acceptance/project-search.test.ts tests/unit/help.test.ts` | 4 files, 17 tests passed |
+
+### Rollback
+
+Revert autosave service/hook/action, WriteEditor focus nav and status wiring, search `onlyIds` prefilter, SOURCE_KINDS `autosave`, and the help/PROJECT_RULES notes. Existing autosave revisions remain readable; no migration required.
+
+## Map canvas interaction (Nov 22, 2026)
+
+Browse selects a marker and pans the background. It does not move markers. Edit opens on Select. Pin places one marker and returns to Select unless Keep placing pins is ticked. Route, area, and label keep an unsaved draft with a live preview and vertex handles. Enter or Finish ends a valid drawing without writing. Escape or Cancel drops it and leaves saved geometry as it was. Save route, Save area, and Save label are the writes. A refused save keeps the draft. A click that does not pass the drag threshold does not write a move. Layers show a hidden state, visible and total counts, and Show all layers when some markers are hidden. The marker list distinguishes an empty map, a search miss, and markers hidden by layers. Fit map resets the view. Center selection pans the current zoom so the selected marker sits in the middle. Viewport, custom layers, and map trails stay as they were.
+
+| Check | Result |
+| --- | --- |
+| `pnpm exec vitest run tests/unit/map-interaction.test.ts tests/unit/map-keyboard.test.ts tests/unit/help.test.ts` | 3 files, 12 tests passed |
+| Browser | The Devil You Know, Aldemar, nothing saved. Browse stays on the shared header and project navigation. Edit opens on Select. Route shows Finish and Save route, both disabled until the drawing is valid, and Cancel returns to Select. Pin shows Keep placing pins, unticked, and Add marker stays disabled. Center selection stays disabled with no marker. This map has no markers, so a drag was not exercised on the author’s map. |
+
+### Rollback
+
+Revert the map interaction helper, the canvas pointer and keyboard changes, and the help sentences. No data change.
+
+## Map canvas layout (Nov 22, 2026)
+
+The map page keeps the shared project header and the project-column navigation. The canvas toolbar is one row: Browse or Edit, the marker tools while editing, Layers, Markers with a count, Fit map, and zoom. Layer rows show how many markers sit on that layer. A line under the map says how many markers are hidden and can show them again. Drawing a route, area, or label puts the instruction above the map and the label, layer, reference, and point list in the inspector. Enter finishes that shape and Escape cancels it, except while typing in a field or using a button. Nothing is written until Save shape.
+
+| Check | Result |
+| --- | --- |
+| `pnpm exec vitest run tests/unit/help.test.ts tests/unit/weave-library.test.ts` | 2 files, 7 tests passed |
+| Browser | The Devil You Know, Aldemar, nothing saved. Header stays cover, series, title, breadcrumb, and Getting started. Project navigation stays. Browse is one toolbar row: Browse, Edit, Layers, Markers (0), More actions, zoom, Fit map. The map fills the column. Edit adds Point, Route, Area, and Label. Route shows the instruction above the map and the draft fields in the inspector. Save shape stayed disabled. Browse restored the previous mode. |
+
+### Rollback
+
+Revert the map canvas toolbar, the inspector placement of the shape editor, the Enter and Escape handling, and the help sentences. No data change.
+
 ## Milestone 1: Desktop shell and Settings BYOK (Nov 21, 2026)
 
 Installable Electron wrapper (`desktop/`), optional library folder (`storyloom.db` + lock file), and **Settings** (`/settings`) where authors paste their own OpenAI API key and model. Settings secrets live in `local/assistant-secrets.json` (git-ignored) and override `.env` until cleared; the UI never echoes the key. Backup mirror can be set from Settings. Help, Connections, and `docs/assistant.md` point at Settings. Scripts: `pnpm desktop:dev`, `pnpm desktop:build`.

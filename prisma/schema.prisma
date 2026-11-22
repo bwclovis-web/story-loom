@@ -1102,7 +1102,7 @@ model Source {
   id                String     @id
   projectId         String
   project           Project    @relation(fields: [projectId], references: [id])
-  /// ui | change_package | markdown_import | api | restore
+  /// ui | change_package | markdown_import | docx_import | scrivener_import | api | restore | autosave
   kind              String
   actor             String
   conversationLabel String?

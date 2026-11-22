@@ -62,15 +62,17 @@ import { minimalEdit, toggleInline } from "@/writing/markdownFormat";
 import { tidyText } from "@/writing/tidy";
 import { styleRangeHighlightEnd } from "@/writing/styleCheck";
 import type { SpellChecker, SpellingLanguage } from "@/writing/spelling";
-import { saveRecordAction, type FormResult } from "../../actions";
+import { autosaveRecordAction, saveRecordAction, type FormResult } from "../../actions";
 import { linkReferenceAction, splitManuscriptAction } from "../../write/actions";
 import { ManuscriptMetaFields } from "@/components/writing/ManuscriptMetaFields";
 import { CodexSuggestBox } from "@/components/writing/CodexSuggestBox";
 import type { CodexEntry } from "@/writing/codexSuggest";
 import { RecoveryBanner } from "@/writing/RecoveryBanner";
 import { suggestSplitPeer } from "@/writing/splitPeers";
+import { useAutosave } from "@/writing/useAutosave";
 import { useLocalRecovery } from "@/writing/useLocalRecovery";
 import { parseMarkdown } from "@/writing/markdownParse";
+import { useRouter } from "next/navigation";
 import {
   WriteContext,
   type AttachableSource,
@@ -116,6 +118,8 @@ export function WriteEditor(props: {
   plotBeats: PlotBeatItem[];
   manuscriptSplitOptions: ManuscriptSplitOption[];
   preferredSplitIds: string[];
+  /** Chapter and scene ids in book order for Alt+↑ / Alt+↓. */
+  bookOrderIds?: readonly string[];
   codexEntries: CodexEntry[];
   styleCheckNames: readonly string[];
   synopsisBody: string;
@@ -129,6 +133,7 @@ export function WriteEditor(props: {
   const findId = `${idPrefix}-find`;
   const spellId = `${idPrefix}-spell`;
   const styleId = `${idPrefix}-style`;
+  const router = useRouter();
   const { layout, updateLayout, writeMode, setWriteMode, setWriteScreen, openMainMenu } = useLayout();
   const chromeRef = useRef<HTMLElement>(null);
   const topbarRef = useRef<HTMLDivElement>(null);
@@ -150,6 +155,12 @@ export function WriteEditor(props: {
   const [selection, setSelection] = useState({ start: 0, end: 0 });
   const [unlocked, setUnlocked] = useState(false);
   const [unlockedRevision, setUnlockedRevision] = useState(props.revision);
+  const [knownRevision, setKnownRevision] = useState(props.revision);
+  const [serverBaseline, setServerBaseline] = useState({
+    title: props.title,
+    body: savedText,
+    fields: props.fieldsJson,
+  });
   const [language, setLanguage] = useState(props.spellingLanguage);
   const [directUndo, setDirectUndo] = useState<DirectUndo[]>([]);
   const [checker, setChecker] = useState(props.spellChecker);
@@ -179,11 +190,51 @@ export function WriteEditor(props: {
     setUnlockedRevision(props.revision);
     setUnlocked(false);
   }
+  if (props.revision > knownRevision) {
+    setKnownRevision(props.revision);
+    setServerBaseline({ title: props.title, body: savedText, fields: props.fieldsJson });
+  }
+  if (state.ok && state.revision && state.revision > knownRevision) {
+    setKnownRevision(state.revision);
+    setServerBaseline({ title, body: text, fields });
+  }
 
   // Unsaved means the server has not acknowledged what is on screen.
-  const dirty = text !== savedText || title !== props.title || fields !== props.fieldsJson;
-  const saveStatus = pending ? WRITE.saving : !state.ok ? WRITE.notSaved : dirty ? WRITE.unsaved : WRITE.savedRevision(props.revision);
-  const statusTone = pending ? "busy" : !state.ok ? "error" : dirty ? "dirty" : "saved";
+  const dirty = text !== serverBaseline.body || title !== serverBaseline.title || fields !== serverBaseline.fields;
+  const autosave = useAutosave({
+    enabled: !props.isProtected,
+    dirty,
+    revision: knownRevision,
+    title,
+    body: text,
+    fields,
+    save: (payload) => autosaveRecordAction(props.projectId, props.recordId, payload),
+    onRevision: (revision) => {
+      setKnownRevision(revision);
+      setServerBaseline({ title, body: text, fields });
+    },
+  });
+  const saveStatus = pending
+    ? WRITE.saving
+    : autosave.status === "saving" || autosave.status === "scheduled"
+      ? WRITE.autosaving
+      : !state.ok
+        ? WRITE.notSaved
+        : autosave.status === "error"
+          ? WRITE.autosaveError
+          : dirty
+            ? WRITE.unsaved
+            : autosave.status === "saved"
+              ? WRITE.autosaved
+              : WRITE.savedRevision(knownRevision);
+  const statusTone =
+    pending || autosave.status === "saving" || autosave.status === "scheduled"
+      ? "busy"
+      : !state.ok || autosave.status === "error"
+        ? "error"
+        : dirty
+          ? "dirty"
+          : "saved";
 
   const unsavedKey = `editor-${props.recordId}`;
   const splitPeers = props.manuscriptSplitOptions.filter((o) => o.id !== props.recordId);
@@ -248,18 +299,18 @@ export function WriteEditor(props: {
 
   const [previewOpen, setPreviewOpen] = useState(false);
   const previewDoc = useMemo(() => parseMarkdown(overlayText), [overlayText]);
-  const baseline = useMemo(
-    () => ({ title: props.title, body: savedText, fields: props.fieldsJson }),
-    [props.title, savedText, props.fieldsJson],
+  const recoveryBaseline = useMemo(
+    () => ({ title: serverBaseline.title, body: serverBaseline.body, fields: serverBaseline.fields }),
+    [serverBaseline.title, serverBaseline.body, serverBaseline.fields],
   );
   const currentDraft = useMemo(() => ({ title, body: text, fields }), [title, text, fields]);
   const recovery = useLocalRecovery({
     recordId: props.recordId,
-    revision: props.revision,
-    baseline,
+    revision: knownRevision,
+    baseline: recoveryBaseline,
     current: currentDraft,
     enabled: true,
-    saved: state.ok && Boolean(state.message) && !dirty,
+    saved: !dirty,
     onRestore: (draft) => {
       setTitle(draft.title);
       setText(normalizeNewlines(draft.body));
@@ -407,6 +458,32 @@ export function WriteEditor(props: {
     return () => window.removeEventListener("keydown", onKey);
   });
 
+  const bookOrderIds = props.bookOrderIds ?? [];
+  const bookIndex = bookOrderIds.indexOf(props.recordId);
+  const prevBookId = bookIndex > 0 ? bookOrderIds[bookIndex - 1] : null;
+  const nextBookId = bookIndex >= 0 && bookIndex < bookOrderIds.length - 1 ? bookOrderIds[bookIndex + 1] : null;
+  const goBookNeighbor = (id: string | null) => {
+    if (!id || dirty) {
+      if (dirty && !window.confirm(WRITE.leaveUnsaved)) return;
+    }
+    if (!id) return;
+    router.push(`/projects/${encodeURIComponent(props.projectId)}/records/${encodeURIComponent(id)}`);
+  };
+  useEffect(() => {
+    const onKey = (e: globalThis.KeyboardEvent) => {
+      if (!e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+      if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
+      const target = e.target as HTMLElement | null;
+      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) {
+        // Allow navigation from the manuscript text box; block only from other fields when typing modifiers alone.
+      }
+      e.preventDefault();
+      goBookNeighbor(e.key === "ArrowUp" ? prevBookId : nextBookId);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  });
+
   const focusFind = useRef(false);
   const openFind = () => {
     if (findOpen) {
@@ -452,7 +529,7 @@ export function WriteEditor(props: {
     <div className="write-layout">
       <div className="write-main">
         <form ref={formRef} onSubmit={submitWithoutReset(action)} onKeyDown={onFormKey} className="write-form">
-          <input type="hidden" name="expectedRevision" value={props.revision} />
+          <input type="hidden" name="expectedRevision" value={knownRevision} />
           <input type="hidden" name="authorityStatus" value={props.authorityStatus} />
 
           <header className="write-header write-chrome" ref={chromeRef}>
@@ -793,6 +870,33 @@ export function WriteEditor(props: {
               >
                 {WRITE.exitFocus}
               </Button>
+              <p className={`save-status ${statusTone}`} role="status">
+                {saveStatus}
+              </p>
+              <div className="row" style={{ gap: "0.35rem" }}>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  disabled={!prevBookId}
+                  title={WRITE.bookNavHint}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => goBookNeighbor(prevBookId)}
+                >
+                  {WRITE.prevInBook}
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  disabled={!nextBookId}
+                  title={WRITE.bookNavHint}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => goBookNeighbor(nextBookId)}
+                >
+                  {WRITE.nextInBook}
+                </Button>
+              </div>
               <LabeledSwitch
                 label={WRITE.typewriterScroll}
                 hint={WRITE.typewriterScrollHint}
@@ -832,7 +936,7 @@ export function WriteEditor(props: {
               setSplitError(null);
               void splitManuscriptAction(props.projectId, {
                 recordId: props.recordId,
-                expectedRevision: props.revision,
+                expectedRevision: knownRevision,
                 splitAt: selection.start,
                 newTitle: splitTitle,
                 unlockProtected: unlocked,

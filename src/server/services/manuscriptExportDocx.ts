@@ -1,5 +1,5 @@
 import "server-only";
-import { AlignmentType, HeadingLevel, Paragraph, TextRun, type FileChild } from "docx";
+import { AlignmentType, Bookmark, HeadingLevel, Paragraph, TextRun, type FileChild } from "docx";
 import {
   chapterHeadingAlign,
   defaultTitleSubtitle,
@@ -33,9 +33,17 @@ function drawRecord(
 ) {
   if (asChapter) {
     children.push(chapterBreak());
+    // Stable bookmark for editor DOCX round-trip matching (Word allows [A-Za-z0-9_]).
+    const bookmarkId = `sl_record_${recordId.replace(/[^A-Za-z0-9]/g, "_")}`;
     children.push(
       new Paragraph({
-        children: [new TextRun({ text: title, bold: true, size: 32 })],
+        heading: HeadingLevel.HEADING_1,
+        children: [
+          new Bookmark({
+            id: bookmarkId,
+            children: [new TextRun({ text: title, bold: true, size: 32 })],
+          }),
+        ],
         alignment: headingAlignment(ctx),
       }),
     );

@@ -27,10 +27,13 @@ rewritten automatically, so do not put project rules inside it.
 
 ## Domain invariants
 
-- `mutationService` is the only writer of records and revisions (backup
-  restore, which copies stored history verbatim, is the single exception).
-  New write paths must go through it so revision checks, protection, scope,
-  provenance and audit stay uniform.
+- `mutationService` is the only writer of records and revisions, with two
+  documented exceptions: backup restore (copies stored history verbatim), and
+  unlocked-record autosave tip coalescing (`autosaveService`), which may update
+  the tip `autosave` revision in place within a short window so history stays
+  scannable. New write paths must go through `mutationService` or
+  `autosaveService` so revision checks, protection, scope, provenance and audit
+  stay uniform. Autosave never touches protected records.
 - Canon status is never inferred: not from filenames, imports, or package
   inclusion. Approval is an explicit author choice.
 - Protected records (manuscript chapters and scenes by default) change only
@@ -39,12 +42,17 @@ rewritten automatically, so do not put project rules inside it.
   propagate.
 - Markdown reference imports create reference documents only, never
   manuscript chapters or scenes. Chapters come from files only on the
-  separate Import chapters page, where the author picks the files
-  (`chapterImportService`): manuscript scope, protected drafts, an explicit
-  create / replace / skip for every match, a confirmation for replacing
-  protected chapters, all or nothing. It never creates scenes. "Load text
-  from file" on a chapter or scene only fills the editor's text box, and
-  saving goes through the normal record save (protection tick required).
+  Import chapters page (Markdown/text/DOCX via `chapterImportService` /
+  `docxChapterImport`), Scrivener zip import (`scrivenerImportService` →
+  the same chapter gates), or editor DOCX review (`docxReviewService`):
+  manuscript scope, protected drafts, an explicit create / replace / skip
+  (or accept) for every match, a confirmation for replacing protected
+  chapters, all or nothing. These paths never create scene records; scene
+  breaks stay as `***` / headings inside chapter text. Research from
+  Scrivener becomes reference records through the Markdown import path.
+  "Load text from file" on a chapter or scene only fills the editor's text
+  box, and saving goes through the normal record save (protection tick
+  required).
 - The Connections page may write the MCP grant file, and only with
   `capabilities: ["read"]`; it refuses to overwrite a grant file it cannot
   parse (`grantSettingsService`).

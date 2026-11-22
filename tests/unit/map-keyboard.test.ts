@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mapListHandlesKey, type KeyTarget } from "@/world/mapKeyboard";
+import { mapDrawingHandlesKey, mapListHandlesKey, type KeyTarget } from "@/world/mapKeyboard";
 
 class Node implements KeyTarget {
   constructor(
@@ -37,6 +37,13 @@ describe("map keyboard", () => {
     expect(mapListHandlesKey(link, list)).toBe(false);
     expect(mapListHandlesKey(field, list)).toBe(false);
     expect(mapListHandlesKey(action, list)).toBe(false);
+  });
+
+  it("leaves drawing keys inside a field", () => {
+    const field = new Node("input");
+    const canvas = new Node("div");
+    expect(mapDrawingHandlesKey(field)).toBe(false);
+    expect(mapDrawingHandlesKey(canvas)).toBe(true);
   });
 
   it("still handles keys on the list and on its options", () => {

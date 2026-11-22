@@ -104,8 +104,14 @@ export function sourceSummary(source: RevisionWithSource["source"]): string {
       return `Change package ${source.packageId ?? ""}`.trim();
     case "markdown_import":
       return `Markdown import of ${source.originalFilename ?? "a file"}`;
+    case "docx_import":
+      return `Word import of ${source.originalFilename ?? "a file"}`;
+    case "scrivener_import":
+      return `Scrivener import of ${source.originalFilename ?? "a file"}`;
     case "ui":
       return "Edited in the app";
+    case "autosave":
+      return "Autosaved";
     case "restore":
       return source.conversationLabel ? `Restored from ${source.conversationLabel}` : "Restored from an earlier version";
     default:

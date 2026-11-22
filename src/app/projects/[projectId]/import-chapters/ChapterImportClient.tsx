@@ -15,12 +15,22 @@ import type {
   ChapterImportOutcome,
 } from "@/server/services/chapterImportService";
 import { CHAPTER_IMPORT } from "@/ui/labels";
-import { importChaptersAction, previewChaptersAction } from "./actions";
+import { importChaptersAction, previewChaptersAction, previewDocxChaptersAction } from "./actions";
 
 interface Choice {
   title: string;
   /** "" = undecided, "create", "skip", or "replace:<recordId>". */
   decision: string;
+}
+
+type SourceKind = "markdown_import" | "docx_import";
+
+async function fileToBase64(file: File): Promise<string> {
+  const buf = await file.arrayBuffer();
+  let binary = "";
+  const bytes = new Uint8Array(buf);
+  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]!);
+  return btoa(binary);
 }
 
 function toDecision(f: ChapterFilePreview, value: string): ChapterDecision | undefined {
@@ -34,6 +44,7 @@ function toDecision(f: ChapterFilePreview, value: string): ChapterDecision | und
 
 export function ChapterImportClient({ projectId }: { projectId: string }) {
   const [files, setFiles] = useState<ChapterFile[]>([]);
+  const [sourceKind, setSourceKind] = useState<SourceKind>("markdown_import");
   const [preview, setPreview] = useState<ChapterFilePreview[] | null>(null);
   const [choices, setChoices] = useState<Choice[]>([]);
   const [confirmProtected, setConfirmProtected] = useState(false);
@@ -49,15 +60,20 @@ export function ChapterImportClient({ projectId }: { projectId: string }) {
     setConfirmProtected(false);
   };
 
+  const applyPreview = (loaded: ChapterFile[], p: ChapterFilePreview[], kind: SourceKind) => {
+    setSourceKind(kind);
+    setFiles(loaded);
+    setPreview(p);
+    setChoices(p.map((f) => ({ title: f.suggestedTitle, decision: f.matches.length ? "" : "create" })));
+  };
+
   const loadPreview = (read: () => Promise<ChapterFile[]>, tidyText: boolean) => {
     reset();
     startTransition(async () => {
       try {
         const loaded = await read();
         const p = await previewChaptersAction(projectId, loaded, tidyText);
-        setFiles(loaded);
-        setPreview(p);
-        setChoices(p.map((f) => ({ title: f.suggestedTitle, decision: f.matches.length ? "" : "create" })));
+        applyPreview(loaded, p, "markdown_import");
       } catch {
         setError("The files could not be read. Nothing was written.");
       }
@@ -67,7 +83,26 @@ export function ChapterImportClient({ projectId }: { projectId: string }) {
   const onFiles = (list: FileList | null) => {
     if (!list || list.length === 0) return reset();
     const picked = [...list];
-    loadPreview(() => Promise.all(picked.map(async (f) => ({ filename: f.name, content: await f.text() }))), tidy);
+    const docx = picked.filter((f) => /\.docx$/i.test(f.name));
+    const text = picked.filter((f) => /\.(md|markdown|txt)$/i.test(f.name));
+    if (docx.length && text.length) {
+      setError("Choose either Word (.docx) files or Markdown/text files, not both in one import.");
+      return;
+    }
+    if (docx.length) {
+      reset();
+      startTransition(async () => {
+        try {
+          const payload = await Promise.all(docx.map(async (f) => ({ filename: f.name, base64: await fileToBase64(f) })));
+          const { files: loaded, preview: p } = await previewDocxChaptersAction(projectId, payload, tidy);
+          applyPreview(loaded, p, "docx_import");
+        } catch {
+          setError("The Word files could not be read. Nothing was written.");
+        }
+      });
+      return;
+    }
+    loadPreview(() => Promise.all(text.map(async (f) => ({ filename: f.name, content: await f.text() }))), tidy);
   };
 
   /** Tidying can change which chapters a file matches, so the list is worked out again and choices start over. */
@@ -98,7 +133,7 @@ export function ChapterImportClient({ projectId }: { projectId: string }) {
         title: choices[i].title,
         decision: toDecision(f, choices[i].decision),
       }));
-      setOutcome(await importChaptersAction(projectId, items, confirmProtected, tidy));
+      setOutcome(await importChaptersAction(projectId, items, confirmProtected, tidy, sourceKind));
     });
 
   const rejected = outcome?.status === "rejected" ? outcome.issues : [];
@@ -146,7 +181,7 @@ export function ChapterImportClient({ projectId }: { projectId: string }) {
         <div className="row">
           <FileInput
             multiple
-            accept=".md,.markdown,.txt,text/markdown,text/plain"
+            accept=".md,.markdown,.txt,.docx,text/markdown,text/plain,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
             onChange={(e) => onFiles(e.target.files)}
             aria-label={CHAPTER_IMPORT.filesLabel}
             disabled={pending}

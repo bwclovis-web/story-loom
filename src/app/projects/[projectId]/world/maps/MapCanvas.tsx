@@ -6,7 +6,8 @@ import { StatusBadge } from "@/components/Badges";
 import { IssueList } from "@/components/IssueList";
 import { BoardOverflowMenu } from "@/components/ui/BoardOverflowMenu";
 import { Button, ButtonLink } from "@/components/ui/Button";
-import { CanvasToolbar, CanvasToolbarGroup } from "@/components/ui/CanvasToolbar";
+import { CanvasToolbar } from "@/components/ui/CanvasToolbar";
+import { SegmentedControl, SegmentedOption } from "@/components/ui/SegmentedControl";
 import { IconButton } from "@/components/ui/IconButton";
 import { ReferenceInspector } from "@/components/world/ReferenceInspector";
 import { ContextRail, ContextRailToggle, useContextRail } from "@/components/shell/ContextRail";
@@ -18,15 +19,30 @@ import { layerStrokeColor, resolvePinLayerId } from "@/server/services/worldMapL
 import type { WorldMapPinView, WorldMapView } from "@/server/services/worldMapService";
 import type { MapGeographyNode } from "@/world/mapGeography";
 import { WORLD, WRITE } from "@/ui/labels";
-import { mapListHandlesKey } from "@/world/mapKeyboard";
+import { mapDrawingHandlesKey, mapListHandlesKey } from "@/world/mapKeyboard";
 import {
-  addShapePoint,
-  cancelShape,
   editShape,
-  startShape,
+  replaceShapePoint,
+  shapeReady,
   type MarkerKind,
   type ShapeDraft,
 } from "@/world/mapGeometry";
+import {
+  appendDraftPoint,
+  cancelDrawing,
+  centerPointPan,
+  dragExceeded,
+  finishDrawing,
+  fitMapView,
+  gestureForPointer,
+  keepDraftAfterFailure,
+  layerNotice,
+  nextToolAfterPin,
+  sessionForTool,
+  toolOnEnterEdit,
+  type DrawPhase,
+  type MapTool,
+} from "@/world/mapInteraction";
 import {
   annotatedMapSvg,
   distanceFromScale,
@@ -158,8 +174,11 @@ export function MapCanvas({
   );
   const [layerTitles, setLayerTitles] = useState(initial.layers.map((layer) => layer.title));
   const [pendingLabel, setPendingLabel] = useState("");
-  const [tool, setTool] = useState<MarkerKind>("point");
+  const [tool, setTool] = useState<MapTool>("select");
   const [draft, setDraft] = useState<ShapeDraft | null>(null);
+  const [drawPhase, setDrawPhase] = useState<DrawPhase>("drawing");
+  const [keepPlacing, setKeepPlacing] = useState(false);
+  const [hoverPoint, setHoverPoint] = useState<{ x: number; y: number } | null>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
   const viewRef = useRef(view);
@@ -174,8 +193,19 @@ export function MapCanvas({
     xNorm: number;
     yNorm: number;
     revision: number;
+    exceeded: boolean;
   } | null>(null);
+  const vertexRef = useRef<{
+    index: number;
+    origin: { x: number; y: number };
+    startX: number;
+    startY: number;
+    exceeded: boolean;
+  } | null>(null);
+  const suppressClick = useRef(false);
+  const drawStart = useRef<{ x: number; y: number } | null>(null);
   const panRef = useRef<{ startX: number; startY: number; originX: number; originY: number; moved: boolean } | null>(null);
+  const draftActions = useRef({ cancel: () => {}, save: () => {} });
 
   useEffect(() => {
     setMap(initial);
@@ -191,6 +221,10 @@ export function MapCanvas({
     skipSave.current = true;
     setView(readMapView(initial.id));
     setMode(readMapMode());
+    setTool(toolOnEnterEdit());
+    setDraft(null);
+    setDrawPhase("drawing");
+    setKeepPlacing(false);
     setHiddenLayerIds(readHiddenLayers(initial.id));
     setTrail(trailWithoutCurrent(readMapTrail(projectId), initial.id));
   }, [initial.id, projectId]);
@@ -214,6 +248,14 @@ export function MapCanvas({
     if (!needle) return true;
     return `${pin.title} ${pin.typeLabel} ${pinLayerTitle(pin, map.layers)}`.toLowerCase().includes(needle);
   });
+  const markerNotice = layerNotice({
+    total: pins.length,
+    visible: shown.length,
+    listed: listed.length,
+    searching: needle.length > 0,
+  });
+  const previewPoints =
+    !draft ? [] : drawPhase === "drawing" && hoverPoint ? [...draft.points, hoverPoint] : draft.points;
 
   useEffect(() => {
     if (!didDeepLink.current && initialPinId && initial.pins.some((pin) => pin.id === initialPinId)) {
@@ -265,19 +307,42 @@ export function MapCanvas({
   const changeMode = (next: "browse" | "edit") => {
     setMode(next);
     writeMapMode(next);
-    if (next === "browse") setDraft(null);
+    if (next === "edit" && mode === "edit") return;
+    setDraft(null);
+    setDrawPhase("drawing");
+    setHoverPoint(null);
+    if (next === "edit") setTool(toolOnEnterEdit());
   };
 
-  const chooseTool = (next: MarkerKind) => {
+  const chooseTool = (next: MapTool) => {
     setTool(next);
-    setDraft(next === "point" ? null : startShape(next));
+    setHoverPoint(null);
+    const session = sessionForTool(next);
+    setDraft(session?.draft ?? null);
+    setDrawPhase(session?.phase ?? "drawing");
   };
 
   const cancelDraft = () => {
-    if (!draft) return;
-    const result = cancelShape(draft);
-    if (result.wrote) return;
-    setDraft(draft.pinId ? null : startShape(draft.kind));
+    if (draft) {
+      const result = cancelDrawing(draft);
+      if (result.wrote) return;
+    }
+    setDraft(null);
+    setDrawPhase("drawing");
+    setHoverPoint(null);
+    setTool(toolOnEnterEdit());
+  };
+
+  const finishActiveDrawing = () => {
+    if (!draft || drawPhase !== "drawing") return;
+    const result = finishDrawing(draft);
+    if (!result.ok) {
+      setIssues([errorIssue("INVALID_REFERENCE", result.message)]);
+      return;
+    }
+    setIssues([]);
+    setDrawPhase("review");
+    setHoverPoint(null);
   };
 
   const toggleLayer = (layerId: string) => {
@@ -388,12 +453,26 @@ export function MapCanvas({
     return { xNorm, yNorm };
   };
 
+  const cancelMarkerDrag = () => {
+    const drag = dragRef.current;
+    if (!drag) return;
+    dragRef.current = null;
+    setPins((list) => list.map((pin) => (pin.id === drag.pinId ? { ...pin, xNorm: drag.originX, yNorm: drag.originY } : pin)));
+  };
+
+  const cancelVertexDrag = () => {
+    const vertex = vertexRef.current;
+    vertexRef.current = null;
+    if (!vertex) return;
+    setDraft((current) => (current ? replaceShapePoint(current, vertex.index, vertex.origin) : current));
+  };
+
   const onPinPointerDown = (e: ReactPointerEvent, pin: WorldMapPinView) => {
     if (e.button !== 0) return;
     e.stopPropagation();
     selectPin(pin);
-    if (mode !== "edit") return;
-    e.currentTarget.setPointerCapture(e.pointerId);
+    const gesture = gestureForPointer({ mode, tool, phase: draft ? drawPhase : null, onMarker: true, exceeded: false });
+    if (gesture !== "select" || mode !== "edit" || tool !== "select") return;
     if (pin.kind === "route" || pin.kind === "area" || draft) return;
     e.currentTarget.setPointerCapture(e.pointerId);
     dragRef.current = {
@@ -405,12 +484,15 @@ export function MapCanvas({
       xNorm: pin.xNorm,
       yNorm: pin.yNorm,
       revision: pin.revision,
+      exceeded: false,
     };
   };
 
   const onPinPointerMove = (e: ReactPointerEvent) => {
     const drag = dragRef.current;
-    if (!drag || mode !== "edit" || drag.pinId !== e.currentTarget.getAttribute("data-pin-id")) return;
+    if (!drag || mode !== "edit" || tool !== "select" || drag.pinId !== e.currentTarget.getAttribute("data-pin-id")) return;
+    if (!dragExceeded(e.clientX - drag.startX, e.clientY - drag.startY)) return;
+    drag.exceeded = true;
     const el = imageRef.current;
     if (!el) return;
     const rect = el.getBoundingClientRect();
@@ -425,8 +507,7 @@ export function MapCanvas({
     const drag = dragRef.current;
     if (!drag) return;
     dragRef.current = null;
-    const moved = drag.xNorm !== drag.originX || drag.yNorm !== drag.originY;
-    if (!moved) return;
+    if (!drag.exceeded) return;
     startTransition(async () => {
       const result = await moveWorldMapPinAction(projectId, map.id, drag.pinId, {
         xNorm: drag.xNorm,
@@ -467,6 +548,7 @@ export function MapCanvas({
       setIssues([]);
       setPins((list) => [...list, result.pin]);
       selectPin(result.pin);
+      setTool(nextToolAfterPin(keepPlacing));
       router.refresh();
     });
   };
@@ -487,14 +569,14 @@ export function MapCanvas({
         });
         if (!result.ok) {
           setIssues(result.issues);
-          if (result.issues.some((issue) => issue.code === "STALE_REVISION")) {
-            setDraft(null);
-            router.refresh();
-          }
+          setDraft((current) => (current ? keepDraftAfterFailure(current) : current));
+          if (result.issues.some((issue) => issue.code === "STALE_REVISION")) router.refresh();
           return;
         }
         setIssues([]);
         setDraft(null);
+        setDrawPhase("drawing");
+        setTool(toolOnEnterEdit());
         setPins((list) => list.map((pin) => (pin.id === result.pin.id ? result.pin : pin)));
         router.refresh();
         return;
@@ -512,11 +594,13 @@ export function MapCanvas({
       });
       if (!result.ok) {
         setIssues(result.issues);
+        setDraft((current) => (current ? keepDraftAfterFailure(current) : current));
         return;
       }
       setIssues([]);
       setDraft(null);
-      setTool("point");
+      setDrawPhase("drawing");
+      setTool(toolOnEnterEdit());
       setPins((list) => [...list, result.pin]);
       selectPin(result.pin);
       router.refresh();
@@ -542,10 +626,58 @@ export function MapCanvas({
     });
   };
 
+  draftActions.current.cancel = cancelDraft;
+  draftActions.current.save = finishActiveDrawing;
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      if (!mapDrawingHandlesKey(event.target)) return;
+      const target = event.target;
+      if (target instanceof HTMLElement && target.closest("button, [role='listbox']")) return;
+      if (event.key === "Escape") {
+        if (dragRef.current) {
+          event.preventDefault();
+          cancelMarkerDrag();
+          return;
+        }
+        if (vertexRef.current) {
+          event.preventDefault();
+          cancelVertexDrag();
+          return;
+        }
+        if (draft) {
+          event.preventDefault();
+          draftActions.current.cancel();
+        }
+      } else if (event.key === "Enter" && draft && drawPhase === "drawing") {
+        event.preventDefault();
+        draftActions.current.save();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [draft, drawPhase]);
+
+  const drawingGesture = gestureForPointer({
+    mode,
+    tool,
+    phase: draft ? drawPhase : null,
+    onMarker: false,
+    exceeded: false,
+  });
+
   const onSurfacePointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
     if (e.button !== 0) return;
-    if ((e.target as HTMLElement).closest("[data-pin-id]")) return;
-    if (measuring || mode !== "browse") return;
+    if ((e.target as HTMLElement).closest("[data-pin-id], [data-vertex]")) return;
+    if (measuring) return;
+    suppressClick.current = false;
+    if (drawingGesture === "draw") {
+      drawStart.current = { x: e.clientX, y: e.clientY };
+      return;
+    }
+    const canPan = mode === "browse" || tool === "select" || drawPhase === "review";
+    if (!canPan) return;
     e.currentTarget.setPointerCapture(e.pointerId);
     panRef.current = {
       startX: e.clientX,
@@ -557,16 +689,49 @@ export function MapCanvas({
   };
 
   const onSurfacePointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (drawStart.current && dragExceeded(e.clientX - drawStart.current.x, e.clientY - drawStart.current.y)) {
+      suppressClick.current = true;
+    }
+    if (drawingGesture === "draw") {
+      const point = normFromClient(e.clientX, e.clientY);
+      setHoverPoint({ x: point.xNorm, y: point.yNorm });
+    }
     const pan = panRef.current;
     if (!pan) return;
+    if (dragExceeded(e.clientX - pan.startX, e.clientY - pan.startY)) {
+      pan.moved = true;
+      suppressClick.current = true;
+    }
     const x = pan.originX + (e.clientX - pan.startX);
     const y = pan.originY + (e.clientY - pan.startY);
-    if (Math.abs(e.clientX - pan.startX) + Math.abs(e.clientY - pan.startY) > 3) pan.moved = true;
     setView((current) => ({ ...current, x, y }));
   };
 
   const onSurfacePointerUp = () => {
     panRef.current = null;
+    drawStart.current = null;
+  };
+
+  const onVertexPointerDown = (event: ReactPointerEvent, index: number) => {
+    if (event.button !== 0 || !draft) return;
+    event.stopPropagation();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    const point = draft.points[index];
+    if (!point) return;
+    vertexRef.current = { index, origin: { x: point.x, y: point.y }, startX: event.clientX, startY: event.clientY, exceeded: false };
+  };
+
+  const onVertexPointerMove = (event: ReactPointerEvent) => {
+    const vertex = vertexRef.current;
+    if (!vertex) return;
+    if (!vertex.exceeded && !dragExceeded(event.clientX - vertex.startX, event.clientY - vertex.startY)) return;
+    vertex.exceeded = true;
+    const point = normFromClient(event.clientX, event.clientY);
+    setDraft((current) => (current ? replaceShapePoint(current, vertex.index, { x: point.xNorm, y: point.yNorm }) : current));
+  };
+
+  const onVertexPointerUp = () => {
+    vertexRef.current = null;
   };
 
   const openDetailedMap = (targetId: string) => {
@@ -624,99 +789,25 @@ export function MapCanvas({
           </nav>
         ) : null}
 
-        <CanvasToolbar label={WORLD.mapCanvas}>
-          <CanvasToolbarGroup>
-            <div className="map-mode" role="group" aria-label={`${WORLD.mapModeBrowse} / ${WORLD.mapModeEdit}`}>
-              <Button type="button" size="sm" variant={mode === "browse" ? "primary" : "secondary"} aria-pressed={mode === "browse"} onClick={() => changeMode("browse")}>
-                {WORLD.mapModeBrowse}
-              </Button>
-              <Button type="button" size="sm" variant={mode === "edit" ? "primary" : "secondary"} aria-pressed={mode === "edit"} onClick={() => changeMode("edit")}>
-                {WORLD.mapModeEdit}
-              </Button>
-            </div>
-          </CanvasToolbarGroup>
-          <CanvasToolbarGroup>
-            <Button type="button" size="sm" variant="secondary" onClick={() => setView((current) => ({ ...current, zoom: clampMapZoom(current.zoom / 1.25) }))}>
-              {WORLD.mapZoomOut}
-            </Button>
-            <span className="map-zoom-readout" aria-live="polite">
-              {Math.round(view.zoom * 100)}%
-            </span>
-            <Button type="button" size="sm" variant="secondary" onClick={() => setView((current) => ({ ...current, zoom: clampMapZoom(current.zoom * 1.25) }))}>
-              {WORLD.mapZoomIn}
-            </Button>
-            <Button type="button" size="sm" variant="secondary" onClick={() => setView({ zoom: 1, x: 0, y: 0 })}>
-              {WORLD.mapZoomReset}
-            </Button>
-          </CanvasToolbarGroup>
+        <CanvasToolbar label={WORLD.mapCanvas} className="map-toolbar">
+          <SegmentedControl size="sm" label={`${WORLD.mapModeBrowse} / ${WORLD.mapModeEdit}`}>
+            <SegmentedOption selected={mode === "browse"} onClick={() => changeMode("browse")}>
+              {WORLD.mapModeBrowse}
+            </SegmentedOption>
+            <SegmentedOption selected={mode === "edit"} onClick={() => changeMode("edit")}>
+              {WORLD.mapModeEdit}
+            </SegmentedOption>
+          </SegmentedControl>
           {mode === "edit" ? (
-            <CanvasToolbarGroup>
-              <span className="sr-only">{WORLD.markerTools}</span>
-              {(["point", "route", "area", "label"] as const).map((kind) => (
-                <Button
-                  key={kind}
-                  type="button"
-                  size="sm"
-                  variant={tool === kind ? "primary" : "secondary"}
-                  aria-pressed={tool === kind}
-                  onClick={() => chooseTool(kind)}
-                >
-                  {KIND_LABEL[kind]}
-                </Button>
+            <SegmentedControl size="sm" label={WORLD.markerTools}>
+              {(["select", "point", "route", "area", "label"] as const).map((kind) => (
+                <SegmentedOption key={kind} selected={tool === kind} onClick={() => chooseTool(kind)}>
+                  {kind === "select" ? WORLD.mapToolSelect : kind === "point" ? WORLD.mapToolPin : KIND_LABEL[kind]}
+                </SegmentedOption>
               ))}
-            </CanvasToolbarGroup>
+            </SegmentedControl>
           ) : null}
-          {mode === "edit" ? (
-            <CanvasToolbarGroup className="map-place-fields">
-              <label>
-                <span className="sr-only">{WORLD.mapLayer}</span>
-                <select value={pendingLayerId} onChange={(e) => setPendingLayerId(e.target.value)}>
-                  {map.layers.map((layer) => (
-                    <option key={layer.id} value={layer.id}>
-                      {layer.title}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                <span className="sr-only">{WORLD.choosePlace}</span>
-                <select value={pendingPlaceId} disabled={pending} onChange={(e) => setPendingPlaceId(e.target.value)}>
-                  <option value="">{WORLD.choosePlace}</option>
-                  {records.map((r) => (
-                    <option key={r.id} value={r.id}>
-                      {r.title} ({r.typeLabel})
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                <span className="sr-only">{WORLD.chooseDetailedMap}</span>
-                <select value={pendingMapId} disabled={pending} onChange={(e) => setPendingMapId(e.target.value)}>
-                  <option value="">{otherMaps.length ? WORLD.chooseDetailedMap : WORLD.noDetailedMap}</option>
-                  {otherMaps.map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.title}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                <span className="sr-only">{WORLD.markerLabel}</span>
-                <input value={pendingLabel} maxLength={120} placeholder={WORLD.markerLabel} onChange={(e) => setPendingLabel(e.target.value)} />
-              </label>
-              {tool === "point" ? (
-                <Button
-                  type="button"
-                  size="sm"
-                  disabled={pending || (!pendingPlaceId && !pendingMapId)}
-                  onClick={() => placePin(0.5, 0.5)}
-                >
-                  {WORLD.addPin}
-                </Button>
-              ) : null}
-            </CanvasToolbarGroup>
-          ) : null}
-          <BoardOverflowMenu summary={WORLD.mapLayerLegend}>
+          <BoardOverflowMenu summary={WORLD.mapLayers}>
             <fieldset className="map-legend">
               <legend className="sr-only">{WORLD.mapLayerLegend}</legend>
               <div className="map-layer-presets">
@@ -740,17 +831,22 @@ export function MapCanvas({
                     </Button>
                   ))}
               </div>
-              {map.layers.map((layer, index) => (
-                <label key={layer.id}>
+              {map.layers.map((layer, index) => {
+                const count = pins.filter((pin) => effectiveLayerId(pin, map.layers) === layer.id).length;
+                return (
+                <label key={layer.id} className={hiddenLayerIds.includes(layer.id) ? "is-hidden" : undefined}>
                   <input type="checkbox" checked={!hiddenLayerIds.includes(layer.id)} onChange={() => toggleLayer(layer.id)} />
                   <span
                     className="map-legend-swatch"
                     style={{ background: layerStrokeColor(index), borderColor: "var(--color-surface)" }}
                     aria-hidden="true"
                   />
-                  {layer.title}
+                  <span className="map-layer-name">{layer.title}</span>
+                  <span className="map-layer-count">{count}</span>
+                  {hiddenLayerIds.includes(layer.id) ? <span className="map-layer-state">{WORLD.mapLayerHidden}</span> : null}
                 </label>
-              ))}
+                );
+              })}
             </fieldset>
             {mode === "edit" ? (
               <form
@@ -813,10 +909,10 @@ export function MapCanvas({
               </form>
             ) : null}
           </BoardOverflowMenu>
-          <BoardOverflowMenu summary={WORLD.pinList}>
+          <BoardOverflowMenu summary={shown.length === pins.length ? `${WORLD.pinList} (${pins.length})` : `${WORLD.pinList} (${shown.length}/${pins.length})`}>
             <div className="visual-menu-scroll">
               <h2 id={pinListId} className="sr-only">{WORLD.pinList}</h2>
-              <p className="small muted">{WORLD.pinsCount(shown.length)}</p>
+              <p className="small muted">{WORLD.mapMarkerCount(shown.length, pins.length)}</p>
               <label>
                 {WORLD.markerSearch}
                 <input
@@ -832,8 +928,12 @@ export function MapCanvas({
                   }}
                 />
               </label>
-              {listed.length === 0 ? (
-                <p className="muted">{needle ? WORLD.noMarkerMatch : WORLD.noPinSelected}</p>
+              {markerNotice.kind === "empty" ? (
+                <p className="muted">{WORLD.mapNoMarkers}</p>
+              ) : markerNotice.kind === "hidden" ? (
+                <p className="muted">{WORLD.mapAllHidden}</p>
+              ) : markerNotice.kind === "no-match" ? (
+                <p className="muted">{WORLD.noMarkerMatch}</p>
               ) : (
                 <ul
                   id={listboxId}
@@ -979,11 +1079,46 @@ export function MapCanvas({
                 </Button>
               )}
           </BoardOverflowMenu>
+          <div className="map-zoom">
+            <Button type="button" size="sm" variant="secondary" aria-label={WORLD.mapZoomOut} onClick={() => setView((current) => ({ ...current, zoom: clampMapZoom(current.zoom / 1.25) }))}>
+              −
+            </Button>
+            <span className="map-zoom-readout" aria-live="polite">
+              {Math.round(view.zoom * 100)}%
+            </span>
+            <Button type="button" size="sm" variant="secondary" aria-label={WORLD.mapZoomIn} onClick={() => setView((current) => ({ ...current, zoom: clampMapZoom(current.zoom * 1.25) }))}>
+              +
+            </Button>
+            <Button type="button" size="sm" variant="secondary" onClick={() => setView(fitMapView())}>
+              {WORLD.mapFit}
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              disabled={!selected}
+              onClick={() => {
+                const image = imageRef.current;
+                const viewport = viewportRef.current;
+                if (!selected || !image || !viewport) return;
+                const imageRect = image.getBoundingClientRect();
+                const viewRect = viewport.getBoundingClientRect();
+                const pointX = imageRect.left + selected.xNorm * imageRect.width;
+                const pointY = imageRect.top + selected.yNorm * imageRect.height;
+                setView((current) =>
+                  centerPointPan(
+                    current,
+                    viewRect.left + viewRect.width / 2 - pointX,
+                    viewRect.top + viewRect.height / 2 - pointY,
+                  ),
+                );
+              }}
+            >
+              {WORLD.mapCenterSelection}
+            </Button>
+          </div>
           <ContextRailToggle rail={rail} controls={railId} />
         </CanvasToolbar>
-        <p className="board-meta small muted">
-          <span>{mode === "browse" ? WORLD.mapModeBrowseHint : WORLD.mapModeEditHint}</span>
-        </p>
         <IssueList issues={issues} />
         {measuring ? <p className="small muted map-measure-readout">{WORLD.mapMeasureHint}</p> : null}
         {measurePoints.length === 2 ? (
@@ -1000,19 +1135,24 @@ export function MapCanvas({
           </p>
         ) : null}
         {draft ? (
-          <MapShapeEditor
-            draft={draft}
-            pending={pending}
-            onChange={setDraft}
-            onCancel={cancelDraft}
-            onSave={saveDraft}
-            onDelete={draft.pinId ? deleteDraftShape : null}
-          />
+          <div className="map-draw-bar">
+            <p className="small" role="status">
+              {draft.kind === "route" ? WORLD.drawRouteHint : draft.kind === "area" ? WORLD.drawAreaHint : WORLD.drawLabelHint}
+            </p>
+            {drawPhase === "drawing" ? (
+              <Button type="button" size="sm" disabled={!shapeReady(draft)} onClick={finishActiveDrawing}>
+                {WORLD.mapFinishDrawing}
+              </Button>
+            ) : null}
+            <Button type="button" size="sm" variant="secondary" onClick={cancelDraft}>
+              {WORLD.drawCancel}
+            </Button>
+          </div>
         ) : null}
 
         <div
           ref={viewportRef}
-          className={`map-viewport map-mode-${mode}`}
+          className={`map-viewport map-mode-${mode} map-tool-${tool}`}
           onPointerDown={onSurfacePointerDown}
           onPointerMove={onSurfacePointerMove}
           onPointerUp={onSurfacePointerUp}
@@ -1034,20 +1174,30 @@ export function MapCanvas({
                   return;
                 }
                 if (mode !== "edit") return;
-                if ((e.target as HTMLElement).closest("[data-pin-id], .map-shape")) return;
+                if ((e.target as HTMLElement).closest("[data-pin-id], [data-vertex], .map-shape")) return;
+                if (suppressClick.current) {
+                  suppressClick.current = false;
+                  return;
+                }
+                const gesture = gestureForPointer({
+                  mode,
+                  tool,
+                  phase: draft ? drawPhase : null,
+                  onMarker: false,
+                  exceeded: false,
+                });
+                if (gesture !== "draw") return;
                 const { xNorm, yNorm } = normFromClient(e.clientX, e.clientY);
                 if (tool === "point") {
-                  if (!pendingPlaceId && !pendingMapId) {
-                    setSelectedId(null);
-                    return;
-                  }
                   placePin(xNorm, yNorm);
                   return;
                 }
-                setDraft((current) => {
-                  const base = current && current.kind === tool && !current.pinId ? current : startShape(tool);
-                  return addShapePoint(base, { x: xNorm, y: yNorm });
-                });
+                if (tool !== "route" && tool !== "area" && tool !== "label") return;
+                const base = draft && draft.kind === tool ? draft : sessionForTool(tool)!.draft;
+                const next = appendDraftPoint(base, draft ? drawPhase : "drawing", { x: xNorm, y: yNorm });
+                setDraft(next.draft);
+                setDrawPhase(next.phase);
+                setHoverPoint(null);
               }}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -1087,17 +1237,18 @@ export function MapCanvas({
                       }}
                     />
                   ))}
-                {draft && draft.kind === "area" && draft.points.length >= 3 ? (
-                  <polygon
-                    className="map-shape map-shape-area draft"
-                    points={draft.points.map((point) => `${point.x * 100},${point.y * 100}`).join(" ")}
-                  />
-                ) : null}
-                {draft && draft.kind === "route" && draft.points.length >= 2 ? (
-                  <polyline
-                    className="map-shape draft"
-                    points={draft.points.map((point) => `${point.x * 100},${point.y * 100}`).join(" ")}
-                  />
+                {draft && previewPoints.length >= 2 ? (
+                  draft.kind === "area" && previewPoints.length >= 3 ? (
+                    <polygon
+                      className="map-shape map-shape-area draft"
+                      points={previewPoints.map((point) => `${point.x * 100},${point.y * 100}`).join(" ")}
+                    />
+                  ) : (
+                    <polyline
+                      className="map-shape draft"
+                      points={previewPoints.map((point) => `${point.x * 100},${point.y * 100}`).join(" ")}
+                    />
+                  )
                 ) : null}
                 {measurePoints.length === 2 ? (
                   <polyline
@@ -1124,6 +1275,7 @@ export function MapCanvas({
                   onPointerDown={(e) => onPinPointerDown(e, pin)}
                   onPointerMove={onPinPointerMove}
                   onPointerUp={onPinPointerUp}
+                  onPointerCancel={cancelMarkerDrag}
                   onClick={(e) => {
                     e.stopPropagation();
                     selectPin(pin);
@@ -1133,6 +1285,23 @@ export function MapCanvas({
                   <span className="map-pin-label">{pin.title}</span>
                 </button>
               ))}
+              {draft
+                ? draft.points.map((point, index) => (
+                    <button
+                      key={`${draft.kind}-${index}`}
+                      type="button"
+                      className="map-vertex"
+                      data-vertex={index}
+                      style={{ left: `${point.x * 100}%`, top: `${point.y * 100}%` }}
+                      aria-label={`${WORLD.drawPointX} ${index + 1}, ${WORLD.drawPointY} ${index + 1}`}
+                      onPointerDown={(event) => onVertexPointerDown(event, index)}
+                      onPointerMove={onVertexPointerMove}
+                      onPointerUp={onVertexPointerUp}
+                      onPointerCancel={cancelVertexDrag}
+                      onClick={(event) => event.stopPropagation()}
+                    />
+                  ))
+                : null}
               {map.scaleLabel && map.scaleBarLength ? (
                 <div className="map-scale" aria-label={WORLD.mapScale}>
                   <div className="map-scale-bar" style={{ width: `${map.scaleBarLength * 100}%` }}>
@@ -1143,6 +1312,25 @@ export function MapCanvas({
             </div>
           </div>
         </div>
+        <p className="map-status">
+          <span>
+            {mode === "browse"
+              ? WORLD.mapModeBrowseHint
+              : tool === "select"
+                ? WORLD.mapSelectHint
+                : tool === "point"
+                  ? WORLD.mapPinHint
+                  : WORLD.mapModeEditHint}
+          </span>
+          <span>{markerNotice.kind === "empty" ? WORLD.mapNoMarkers : markerNotice.kind === "hidden" ? WORLD.mapAllHidden : WORLD.mapMarkerCount(shown.length, pins.length)}</span>
+          {shown.length < pins.length ? (
+            <span className="map-status-hidden">
+              <Button type="button" size="sm" variant="secondary" onClick={() => applyLayerPreset("all")}>
+                {WORLD.mapLayersShowAll}
+              </Button>
+            </span>
+          ) : null}
+        </p>
 
       </div>
 
@@ -1156,8 +1344,105 @@ export function MapCanvas({
           ) : null}
         </div>
         <div className="context-body">
-          {!selected ? (
-            <p className="visual-inspector-empty">{WORLD.noPinSelected}</p>
+          {draft ? (
+            <div className="stack">
+              {!draft.pinId ? (
+                <>
+                  <label>
+                    {WORLD.markerLabel}
+                    <input value={pendingLabel} maxLength={120} onChange={(e) => setPendingLabel(e.target.value)} />
+                  </label>
+                  <label>
+                    {WORLD.mapLayer}
+                    <select value={pendingLayerId} onChange={(e) => setPendingLayerId(e.target.value)}>
+                      {map.layers.map((layer) => (
+                        <option key={layer.id} value={layer.id}>
+                          {layer.title}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    {WORLD.choosePlace}
+                    <select value={pendingPlaceId} disabled={pending} onChange={(e) => setPendingPlaceId(e.target.value)}>
+                      <option value="">{WORLD.choosePlace}</option>
+                      {records.map((record) => (
+                        <option key={record.id} value={record.id}>
+                          {record.title} ({record.typeLabel})
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <p className="small muted">{WORLD.mapDraftNote}</p>
+                </>
+              ) : null}
+              <MapShapeEditor
+                draft={draft}
+                pending={pending}
+                onChange={setDraft}
+                onCancel={cancelDraft}
+                onSave={saveDraft}
+                saveLabel={draft.kind === "route" ? WORLD.mapSaveRoute : draft.kind === "area" ? WORLD.mapSaveArea : WORLD.mapSaveLabel}
+                onDelete={draft.pinId ? deleteDraftShape : null}
+              />
+            </div>
+          ) : !selected ? (
+            mode === "edit" && tool === "point" ? (
+              <form
+                className="stack"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  placePin(0.5, 0.5);
+                }}
+              >
+                <label>
+                  {WORLD.markerLabel}
+                  <input value={pendingLabel} maxLength={120} onChange={(e) => setPendingLabel(e.target.value)} />
+                </label>
+                <label>
+                  {WORLD.mapLayer}
+                  <select value={pendingLayerId} onChange={(e) => setPendingLayerId(e.target.value)}>
+                    {map.layers.map((layer) => (
+                      <option key={layer.id} value={layer.id}>
+                        {layer.title}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  {WORLD.choosePlace}
+                  <select value={pendingPlaceId} disabled={pending} onChange={(e) => setPendingPlaceId(e.target.value)}>
+                    <option value="">{WORLD.choosePlace}</option>
+                    {records.map((record) => (
+                      <option key={record.id} value={record.id}>
+                        {record.title} ({record.typeLabel})
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  {WORLD.chooseDetailedMap}
+                  <select value={pendingMapId} disabled={pending} onChange={(e) => setPendingMapId(e.target.value)}>
+                    <option value="">{otherMaps.length ? WORLD.chooseDetailedMap : WORLD.noDetailedMap}</option>
+                    {otherMaps.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.title}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="map-keep-placing">
+                  <input type="checkbox" checked={keepPlacing} onChange={(event) => setKeepPlacing(event.target.checked)} />
+                  {WORLD.mapKeepPlacing}
+                </label>
+                <Button type="submit" size="sm" disabled={pending || (!pendingPlaceId && !pendingMapId)}>
+                  {WORLD.addPin}
+                </Button>
+                <p className="visual-inspector-empty">{WORLD.noPinSelected}</p>
+              </form>
+            ) : (
+              <p className="visual-inspector-empty">{WORLD.noPinSelected}</p>
+            )
           ) : (
             <MarkerRail
               projectId={projectId}
@@ -1182,10 +1467,11 @@ export function MapCanvas({
                 setDraft(null);
                 router.refresh();
               }}
-              onEditShape={() => {
+                onEditShape={() => {
                 if (selected.kind !== "route" && selected.kind !== "area") return;
                 setTool(selected.kind);
                 setDraft(editShape(selected.kind, selected.id, selected.points));
+                setDrawPhase("drawing");
                 setMode("edit");
                 writeMapMode("edit");
               }}

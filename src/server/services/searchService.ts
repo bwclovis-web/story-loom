@@ -47,28 +47,49 @@ export async function searchProjectRecords(
   },
 ): Promise<SearchHit[]> {
   const query = input.query.normalize("NFC").trim();
-  const rows = await db.record.findMany({
+  if (!query) return [];
+  // Pre-filter in SQLite so large non-matching bodies are not loaded into Node.
+  const typeFilter = input.types
+    ? { in: [...input.types] }
+    : input.includeManuscript
+      ? undefined
+      : { notIn: [...MANUSCRIPT_TYPES] };
+  const candidateIds = await db.record.findMany({
     where: {
       projectId: input.projectId,
       trashedAt: null,
-      type: {
-        ...(input.includeManuscript ? {} : { notIn: [...MANUSCRIPT_TYPES] }),
-        ...(input.types ? { in: [...input.types] } : {}),
-      },
+      ...(typeFilter ? { type: typeFilter } : {}),
+      OR: [
+        { title: { contains: query } },
+        { body: { contains: query } },
+        { fields: { contains: query } },
+      ],
     },
     orderBy: { id: "asc" },
-    select: {
-      id: true,
-      projectId: true,
-      type: true,
-      title: true,
-      body: true,
-      fields: true,
-      authorityStatus: true,
-      protected: true,
-      currentRevision: true,
-    },
+    select: { id: true },
   });
+  // SQLite LIKE is case-insensitive for ASCII; still load candidates and match in JS with NFC + excerpt.
+  // When the query has no ASCII-folding match path, fall back to a broader title-only pass is unnecessary:
+  // contains already returns a superset for typical English manuscripts.
+  const idList = candidateIds.map((row) => row.id);
+  const rows =
+    idList.length === 0
+      ? []
+      : await db.record.findMany({
+          where: { id: { in: idList }, projectId: input.projectId, trashedAt: null },
+          orderBy: { id: "asc" },
+          select: {
+            id: true,
+            projectId: true,
+            type: true,
+            title: true,
+            body: true,
+            fields: true,
+            authorityStatus: true,
+            protected: true,
+            currentRevision: true,
+          },
+        });
 
   const hits: SearchHit[] = [];
   for (const row of rows) {
@@ -157,7 +178,13 @@ export interface ManuscriptRecordInOrder {
 /** Chapters, scenes and notes on the active draft, in book order (notes after their parent). */
 export async function listManuscriptInBookOrder(
   db: DbOrTx,
-  input: { projectId: string; draftId?: string | null; hasDrafts?: boolean },
+  input: {
+    projectId: string;
+    draftId?: string | null;
+    hasDrafts?: boolean;
+    /** When set, only these ids (plus their notes' parents for ordering) are loaded. */
+    onlyIds?: readonly string[];
+  },
 ): Promise<ManuscriptRecordInOrder[]> {
   const manuscriptFilter =
     input.hasDrafts === true
@@ -170,6 +197,7 @@ export async function listManuscriptInBookOrder(
       projectId: input.projectId,
       trashedAt: null,
       OR: [manuscriptFilter, { type: "scene_note" }],
+      ...(input.onlyIds ? { id: { in: [...input.onlyIds] } } : {}),
     },
     select: {
       id: true,
@@ -235,9 +263,36 @@ export async function searchManuscript(
   if (!query) return { hits: [], totalMatches: 0 };
 
   const options = { matchCase: input.matchCase };
+  // Narrow candidates in SQL first so a 120k-word book does not load every body into Node.
+  const manuscriptFilter =
+    input.hasDrafts === true
+      ? input.draftId
+        ? { type: { in: [...MANUSCRIPT_TYPES] }, draftId: input.draftId }
+        : { type: { in: [...MANUSCRIPT_TYPES] }, id: { in: [] as string[] } }
+      : { type: { in: [...MANUSCRIPT_TYPES] } };
+  const candidates = await db.record.findMany({
+    where: {
+      projectId: input.projectId,
+      trashedAt: null,
+      AND: [
+        { OR: [manuscriptFilter, { type: "scene_note" }] },
+        { OR: [{ title: { contains: query } }, { body: { contains: query } }] },
+      ],
+    },
+    select: { id: true, parentRecordId: true, type: true },
+  });
+  if (candidates.length === 0) return { hits: [], totalMatches: 0 };
+  const onlyIds = new Set<string>();
+  for (const row of candidates) {
+    onlyIds.add(row.id);
+    if (row.parentRecordId) onlyIds.add(row.parentRecordId);
+  }
+
   const hits: ManuscriptHit[] = [];
   let totalMatches = 0;
-  for (const row of await listManuscriptInBookOrder(db, input)) {
+  const candidateSet = new Set(candidates.map((row) => row.id));
+  for (const row of await listManuscriptInBookOrder(db, { ...input, onlyIds: [...onlyIds] })) {
+    if (!candidateSet.has(row.id)) continue;
     const titleMatches = findMatches(row.title, query, options).length > 0;
     const text = searchText(row.body, query, { ...options, limit: MANUSCRIPT_EXCERPTS_PER_RECORD });
     if (!titleMatches && text.count === 0) continue;

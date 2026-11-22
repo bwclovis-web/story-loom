@@ -73,6 +73,8 @@ export interface ChapterImportRequest {
   /** Tidy each file's text (see src/writing/tidy.ts) before it becomes chapter text. The original file is kept as it was. */
   tidy?: boolean;
   actor?: string;
+  /** Provenance kind for created/replaced revisions. Defaults to markdown_import. */
+  sourceKind?: "markdown_import" | "docx_import" | "scrivener_import";
 }
 
 export interface ChapterImportResult {
@@ -199,7 +201,7 @@ function context(req: ChapterImportRequest, item: ChapterImportItem): MutationCo
   return {
     projectId: req.projectId,
     actor: req.actor ?? "author",
-    source: { kind: "markdown_import", originalFilename: item.filename },
+    source: { kind: req.sourceKind ?? "markdown_import", originalFilename: item.filename },
     scope: "manuscript",
     protectedOverrides: new Set(decision?.action === "replace" && req.confirmProtectedReplacements ? [decision.recordId] : []),
   };

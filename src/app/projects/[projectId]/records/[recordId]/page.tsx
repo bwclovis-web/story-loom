@@ -134,13 +134,14 @@ export default async function RecordPage({
 
   if (manuscript) {
     const pinScopeId = await resolvePinScope(db, projectId, recordDraftId);
+    const manuscriptNav = await listManuscriptNav(db, projectId, {
+      hasDrafts: drafts.length > 0,
+      draftId: recordDraftId,
+    });
+    const bookOrderIds = manuscriptIdsInBookOrder(manuscriptNav);
     const manuscriptSplitOptions =
       drafts.length === 0
-        ? splitOptionsFromTree(
-            "",
-            WRITE.splitThisBook,
-            buildManuscriptTree(await listManuscriptNav(db, projectId, { hasDrafts: false })),
-          )
+        ? splitOptionsFromTree("", WRITE.splitThisBook, buildManuscriptTree(manuscriptNav))
         : (
             await Promise.all(
               drafts.map(async (draft) =>
@@ -248,6 +249,7 @@ export default async function RecordPage({
         }))}
         manuscriptSplitOptions={manuscriptSplitOptions}
         preferredSplitIds={sources.map((s) => s.toRecordId)}
+        bookOrderIds={bookOrderIds}
         codexEntries={codexEntries}
         styleCheckNames={styleCheckNameTerms(crossRefs)}
         synopsisBody={synopsis?.body ?? ""}

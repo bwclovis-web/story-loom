@@ -12,6 +12,7 @@ import {
   type ChapterImportItem,
   type ChapterImportOutcome,
 } from "@/server/services/chapterImportService";
+import { docxBuffersToChapterFiles } from "@/server/services/docxChapterImport";
 
 /** Server actions can be called with anything, so the shape is checked before the service checks the content. */
 function isFile(raw: unknown): raw is ChapterFile {
@@ -28,9 +29,33 @@ function isDecision(raw: unknown): raw is ChapterDecision | undefined {
   return d.action === "replace" && typeof d.recordId === "string" && Number.isInteger(d.expectedRevision);
 }
 
+function decodeBase64(data: string): Buffer {
+  return Buffer.from(data, "base64");
+}
+
 export async function previewChaptersAction(projectId: string, files: unknown, tidy: boolean): Promise<ChapterFilePreview[]> {
   if (!Array.isArray(files) || !files.every(isFile)) throw new Error("The files could not be read.");
   return previewChapterImport(getDb(), projectId, files, { tidy: tidy === true });
+}
+
+/** Decode .docx uploads (base64) into ChapterFile rows, then preview. */
+export async function previewDocxChaptersAction(
+  projectId: string,
+  files: unknown,
+  tidy: boolean,
+): Promise<{ files: ChapterFile[]; preview: ChapterFilePreview[] }> {
+  if (!Array.isArray(files)) throw new Error("The files could not be read.");
+  const docxFiles: { filename: string; bytes: Buffer }[] = [];
+  for (const raw of files) {
+    if (typeof raw !== "object" || raw === null) throw new Error("The files could not be read.");
+    const { filename, base64 } = raw as Record<string, unknown>;
+    if (typeof filename !== "string" || typeof base64 !== "string") throw new Error("The files could not be read.");
+    if (!/\.docx$/i.test(filename)) throw new Error("Only .docx Word files can be imported here.");
+    docxFiles.push({ filename, bytes: decodeBase64(base64) });
+  }
+  const chapterFiles = await docxBuffersToChapterFiles(docxFiles);
+  const preview = await previewChapterImport(getDb(), projectId, chapterFiles, { tidy: tidy === true });
+  return { files: chapterFiles, preview };
 }
 
 export async function importChaptersAction(
@@ -38,6 +63,7 @@ export async function importChaptersAction(
   items: unknown,
   confirmProtected: boolean,
   tidy: boolean,
+  sourceKind?: "markdown_import" | "docx_import" | "scrivener_import",
 ): Promise<ChapterImportOutcome> {
   const ok =
     Array.isArray(items) &&
@@ -48,6 +74,7 @@ export async function importChaptersAction(
     items: items as ChapterImportItem[],
     confirmProtectedReplacements: confirmProtected === true,
     tidy: tidy === true,
+    sourceKind: sourceKind === "docx_import" || sourceKind === "scrivener_import" ? sourceKind : "markdown_import",
   });
   if (outcome.status === "applied") revalidatePath(`/projects/${projectId}`, "layout");
   return outcome;

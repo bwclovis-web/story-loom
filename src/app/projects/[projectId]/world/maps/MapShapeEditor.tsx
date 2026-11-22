@@ -27,6 +27,7 @@ export function MapShapeEditor({
   onCancel,
   onSave,
   onDelete,
+  saveLabel = WORLD.drawSave,
 }: {
   draft: ShapeDraft;
   pending: boolean;
@@ -34,6 +35,7 @@ export function MapShapeEditor({
   onCancel: () => void;
   onSave: () => void;
   onDelete: (() => void) | null;
+  saveLabel?: string;
 }) {
   const [xPercent, setXPercent] = useState("50");
   const [yPercent, setYPercent] = useState("50");
@@ -42,9 +44,7 @@ export function MapShapeEditor({
   return (
     <fieldset className="map-shape-editor">
       <legend className="sr-only">{HINT[draft.kind]}</legend>
-      <p className="small" role="status">
-        {HINT[draft.kind]} {WORLD.geometryNote}
-      </p>
+      <p className="small muted">{WORLD.geometryNote}</p>
       <form
           className="row"
           style={{ gap: "0.35rem", flexWrap: "wrap" }}
@@ -160,7 +160,7 @@ export function MapShapeEditor({
           {WORLD.drawCancel}
         </Button>
         <Button type="button" size="sm" disabled={pending || !ready} onClick={onSave}>
-          {WORLD.drawSave}
+          {saveLabel}
         </Button>
         {onDelete ? (
           <Button type="button" size="sm" variant="secondary" disabled={pending} onClick={onDelete}>
