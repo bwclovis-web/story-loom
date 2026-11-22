@@ -10,12 +10,14 @@ import { IssueList } from "@/components/IssueList";
 import {
   AI_VISIBILITY,
   ARCHETYPE_LIBRARY,
+  ARCHETYPE_RANKS,
   ARC_MOVEMENTS,
   ARC_TEMPLATES,
   BEHAVIOR_TEXT_KEYS,
   CAPABILITIES_TEXT_KEYS,
   ENNEAGRAM_GUIDE,
   ENNEAGRAM_TYPES,
+  fieldMetaOf,
   FOUNDATION_TEXT_KEYS,
   IMPORTANCE_LEVELS,
   INHERITABLE_KEYS,
@@ -29,6 +31,7 @@ import {
   proposeProfileFillFromBody,
   applyProfileFillSuggestions,
   PSYCHOLOGY_TEXT_KEYS,
+  setFieldMeta,
   STATE_FACETS,
   VOICE_TEXT_KEYS,
   adjacentWings,
@@ -41,6 +44,7 @@ import {
   profileFreshness,
   visibleProfileSections,
   type ArchetypeAssignment,
+  type ArchetypeRank,
   type BehaviorTextKey,
   type CapabilitiesTextKey,
   type CharacterDevelopment,
@@ -64,15 +68,18 @@ import {
   type StateFacet,
   type VoiceTextKey,
 } from "@/domain/characterDevelopment";
-import { AUTHORITY_STATUSES } from "@/domain/statuses";
+import { AUTHORITY_STATUSES, type AuthorityStatus } from "@/domain/statuses";
 import type { Issue } from "@/domain/issues";
-import { CHARACTER_DEVELOPMENT as LABELS, CHARACTER_DOSSIER_UPGRADE } from "@/ui/labels";
+import type { DossierMarkdownArchive } from "@/domain/characterDossierUpgrade";
+import { emptyDossierMarkdownArchive } from "@/domain/characterDossierUpgrade";
+import { CHARACTER_DEVELOPMENT as LABELS, CHARACTER_DOSSIER_UPGRADE, CHARACTER_MIGRATION_HOLD } from "@/ui/labels";
 import {
   acceptCharacterReviewAction,
   acceptCharacterSuggestionsAction,
   markCharacterProfileCheckedAction,
   saveCharacterDevelopmentAction,
 } from "@/app/projects/[projectId]/records/[recordId]/characterDevelopmentActions";
+import { MigrationHoldArchivePanel } from "./MigrationHoldArchivePanel";
 
 export interface DevelopmentChoice {
   id: string;
@@ -168,6 +175,8 @@ export function CharacterDevelopmentPanel({
   catalog,
   traits,
   staleMilestoneIds,
+  archive = emptyDossierMarkdownArchive(),
+  archiveProblems = [],
 }: {
   projectId: string;
   recordId: string;
@@ -180,6 +189,8 @@ export function CharacterDevelopmentPanel({
   catalog: DevelopmentCatalog;
   traits: InheritedTrait[];
   staleMilestoneIds: string[];
+  archive?: DossierMarkdownArchive;
+  archiveProblems?: string[];
 }) {
   const [profile, setProfile] = useState(initialProfile);
   const [tab, setTab] = useState<TabId>("identity");
@@ -350,9 +361,23 @@ export function CharacterDevelopmentPanel({
           <HelpPopover label={LABELS.narrativeRole}>{LABELS.roleHint}</HelpPopover>
           <select
             value={profile.narrativeRole ?? ""}
-            onChange={(event) =>
-              setProfile({ ...profile, narrativeRole: (event.target.value || null) as NarrativeRole | null })
-            }
+            onChange={(event) => {
+              const narrativeRole = (event.target.value || null) as NarrativeRole | null;
+              setProfile(
+                setFieldMeta(
+                  { ...profile, narrativeRole },
+                  "narrativeRole",
+                  {
+                    approval: fieldMetaOf(profile, "narrativeRole").approval,
+                    provenance: {
+                      origin: "author",
+                      note: fieldMetaOf(profile, "narrativeRole").provenance.note,
+                      updatedAt: new Date().toISOString(),
+                    },
+                  },
+                ),
+              );
+            }}
           >
             <option value="">{LABELS.unset}</option>
             {NARRATIVE_ROLES.map((role) => (
@@ -361,6 +386,11 @@ export function CharacterDevelopmentPanel({
               </option>
             ))}
           </select>
+          <FieldAuthorityControl
+            profile={profile}
+            fieldPath="narrativeRole"
+            onChange={setProfile}
+          />
         </label>
       </div>
 
@@ -424,6 +454,24 @@ export function CharacterDevelopmentPanel({
           <KnowledgeFields profile={profile} catalog={catalog} projectId={projectId} onChange={setProfile} />
           <HistoryFields profile={profile} catalog={catalog} projectId={projectId} onChange={setProfile} />
         </div>
+      ) : null}
+
+      {(profile.migrationHold.length > 0 || archive.entries.length > 0 || archiveProblems.length > 0) &&
+      (currentTab === "continuity" || currentTab === "identity") ? (
+        <MigrationHoldArchivePanel
+          projectId={projectId}
+          recordId={recordId}
+          profile={profile}
+          archive={archive}
+          archiveProblems={archiveProblems}
+          onChange={setProfile}
+        />
+      ) : null}
+      {profile.migrationHold.length ? (
+        <p className="small muted">
+          {CHARACTER_MIGRATION_HOLD.heading}: {profile.migrationHold.length} held item
+          {profile.migrationHold.length === 1 ? "" : "s"} (open Identity or Continuity to review).
+        </p>
       ) : null}
 
       {fillSuggestions.length ? (
@@ -607,6 +655,50 @@ function FieldHelp({ field }: { field: keyof typeof LABELS.fieldHelp }) {
   const text = LABELS.fieldHelp[field];
   if (!text) return null;
   return <HelpPopover label={`Explain ${String(field)}`}>{text}</HelpPopover>;
+}
+
+function FieldAuthorityControl({
+  profile,
+  fieldPath,
+  onChange,
+}: {
+  profile: CharacterDevelopment;
+  fieldPath: string;
+  onChange: (next: CharacterDevelopment) => void;
+}) {
+  const meta = fieldMetaOf(profile, fieldPath);
+  return (
+    <div className="row" style={{ flexWrap: "wrap", gap: "0.5rem", alignItems: "center", marginTop: "0.25rem" }}>
+      <label className="small">
+        {LABELS.fieldAuthority}
+        <select
+          value={meta.approval}
+          onChange={(event) =>
+            onChange(
+              setFieldMeta(profile, fieldPath, {
+                approval: event.target.value as AuthorityStatus,
+                provenance: {
+                  ...meta.provenance,
+                  origin: meta.provenance.origin === "extracted" || meta.provenance.origin === "imported" ? meta.provenance.origin : "author",
+                  updatedAt: new Date().toISOString(),
+                },
+              }),
+            )
+          }
+        >
+          {AUTHORITY_STATUSES.map((status) => (
+            <option key={status} value={status}>
+              {status}
+            </option>
+          ))}
+        </select>
+      </label>
+      <span className="small muted">
+        {LABELS.fieldProvenance}: {meta.provenance.origin}
+        {meta.provenance.sourceHeading ? ` · ${meta.provenance.sourceHeading}` : ""}
+      </span>
+    </div>
+  );
 }
 
 function FoundationFields({
@@ -1116,6 +1208,24 @@ function KnowledgeFields({
   );
 }
 
+function stampAuthorField(
+  profile: CharacterDevelopment,
+  fieldPath: string,
+  patch: CharacterDevelopment,
+): CharacterDevelopment {
+  const previous = fieldMetaOf(profile, fieldPath);
+  return setFieldMeta(patch, fieldPath, {
+    approval: previous.approval,
+    provenance: {
+      origin: "author",
+      note: previous.provenance.note,
+      sourceHeading: previous.provenance.sourceHeading,
+      sourceBodyHash: previous.provenance.sourceBodyHash,
+      updatedAt: new Date().toISOString(),
+    },
+  });
+}
+
 function PsychologyFields({
   profile,
   onChange,
@@ -1131,10 +1241,22 @@ function PsychologyFields({
   const wings = numeric ? adjacentWings(numeric) : [];
   const guide = numeric ? ENNEAGRAM_GUIDE[numeric] : null;
   const empty = developmentIsEmpty({ ...emptyCharacterDevelopment(), importance: profile.importance, narrativeRole: profile.narrativeRole });
+  const primaryKeys = [
+    "coreDesire",
+    "coreFear",
+    "coreMotivation",
+    "consciousWants",
+    "unconsciousNeeds",
+    "internalMisbelief",
+    "strengths",
+    "blindSpots",
+    "contradictions",
+  ] as const;
+  const advancedKeys = PSYCHOLOGY_TEXT_KEYS.filter((key) => !(primaryKeys as readonly string[]).includes(key));
   return (
     <div className="stack">
       {empty && !psychology.enneagram ? <EmptyState>{LABELS.empty}</EmptyState> : null}
-      <p className="small muted">{LABELS.separate}</p>
+      <p className="small muted">{LABELS.psychologyLead}</p>
       {traits.length ? (
         <ul className="small">
           {traits.map((trait) => (
@@ -1153,10 +1275,12 @@ function PsychologyFields({
               const raw = event.target.value;
               const enneagram: EnneagramChoice | null =
                 raw === "" ? null : raw === "unknown" || raw === "undecided" || raw === "not_applicable" ? raw : (Number(raw) as EnneagramChoice);
-              onChange({
-                ...profile,
-                psychology: { ...psychology, enneagram, wing: null },
-              });
+              onChange(
+                stampAuthorField(profile, "psychology.enneagram", {
+                  ...profile,
+                  psychology: { ...psychology, enneagram, wing: null },
+                }),
+              );
             }}
           >
             <option value="">{LABELS.unset}</option>
@@ -1169,6 +1293,7 @@ function PsychologyFields({
             <option value="undecided">{LABELS.undecided}</option>
             <option value="not_applicable">{LABELS.notApplicable}</option>
           </select>
+          <FieldAuthorityControl profile={profile} fieldPath="psychology.enneagram" onChange={onChange} />
         </label>
         <label>
           {LABELS.wing}
@@ -1196,54 +1321,119 @@ function PsychologyFields({
           {guide.name}: desire {guide.desire}; fear {guide.fear}. {guide.wings}
         </p>
       ) : null}
-      {PSYCHOLOGY_TEXT_KEYS.map((key) => (
+      {primaryKeys.map((key) => (
         <label key={key}>
           {LABELS.fields[key]}
+          {key in LABELS.fieldHelp ? <FieldHelp field={key as keyof typeof LABELS.fieldHelp} /> : null}
           <textarea
             rows={2}
             value={psychology[key]}
-            onChange={(event) => onChange({ ...profile, psychology: { ...psychology, [key]: event.target.value } })}
+            onChange={(event) =>
+              onChange(
+                stampAuthorField(profile, `psychology.${key}`, {
+                  ...profile,
+                  psychology: { ...psychology, [key]: event.target.value },
+                }),
+              )
+            }
           />
+          <FieldAuthorityControl profile={profile} fieldPath={`psychology.${key}`} onChange={onChange} />
         </label>
       ))}
+      <details className="stack">
+        <summary>More psychology detail</summary>
+        {advancedKeys.map((key) => (
+          <label key={key}>
+            {LABELS.fields[key]}
+            {key in LABELS.fieldHelp ? <FieldHelp field={key as keyof typeof LABELS.fieldHelp} /> : null}
+            <textarea
+              rows={2}
+              value={psychology[key]}
+              onChange={(event) =>
+                onChange(
+                  stampAuthorField(profile, `psychology.${key}`, {
+                    ...profile,
+                    psychology: { ...psychology, [key]: event.target.value },
+                  }),
+                )
+              }
+            />
+            <FieldAuthorityControl profile={profile} fieldPath={`psychology.${key}`} onChange={onChange} />
+          </label>
+        ))}
+      </details>
       <fieldset className="stack">
         <legend>{LABELS.frameworks}</legend>
         {psychology.frameworks.map((framework) => (
-          <div key={framework.id} className="grid2">
-            <label>
-              {LABELS.frameworkName}
-              <input
-                value={framework.name}
+          <div key={framework.id} className="stack">
+            <div className="grid2">
+              <label>
+                {LABELS.frameworkName}
+                <input
+                  value={framework.name}
+                  onChange={(event) =>
+                    onChange({
+                      ...profile,
+                      psychology: {
+                        ...psychology,
+                        frameworks: psychology.frameworks.map((item) =>
+                          item.id === framework.id
+                            ? {
+                                ...item,
+                                name: event.target.value,
+                                provenance: { ...item.provenance, origin: "author", updatedAt: new Date().toISOString() },
+                              }
+                            : item,
+                        ),
+                      },
+                    })
+                  }
+                />
+              </label>
+              <label>
+                {LABELS.frameworkNotes}
+                <input
+                  value={framework.notes}
+                  onChange={(event) =>
+                    onChange({
+                      ...profile,
+                      psychology: {
+                        ...psychology,
+                        frameworks: psychology.frameworks.map((item) =>
+                          item.id === framework.id ? { ...item, notes: event.target.value } : item,
+                        ),
+                      },
+                    })
+                  }
+                />
+              </label>
+            </div>
+            <label className="small">
+              {LABELS.fieldAuthority}
+              <select
+                value={framework.approval}
                 onChange={(event) =>
                   onChange({
                     ...profile,
                     psychology: {
                       ...psychology,
                       frameworks: psychology.frameworks.map((item) =>
-                        item.id === framework.id ? { ...item, name: event.target.value } : item,
+                        item.id === framework.id ? { ...item, approval: event.target.value as AuthorityStatus } : item,
                       ),
                     },
                   })
                 }
-              />
+              >
+                {AUTHORITY_STATUSES.map((status) => (
+                  <option key={status} value={status}>
+                    {status}
+                  </option>
+                ))}
+              </select>
             </label>
-            <label>
-              {LABELS.frameworkNotes}
-              <input
-                value={framework.notes}
-                onChange={(event) =>
-                  onChange({
-                    ...profile,
-                    psychology: {
-                      ...psychology,
-                      frameworks: psychology.frameworks.map((item) =>
-                        item.id === framework.id ? { ...item, notes: event.target.value } : item,
-                      ),
-                    },
-                  })
-                }
-              />
-            </label>
+            <span className="small muted">
+              {LABELS.fieldProvenance}: {framework.provenance.origin}
+            </span>
           </div>
         ))}
         <Button
@@ -1252,7 +1442,13 @@ function PsychologyFields({
           onClick={() =>
             onChange({
               ...profile,
-              psychology: { ...psychology, frameworks: [...psychology.frameworks, { id: newId("frame"), name: "", notes: "" }] },
+              psychology: {
+                ...psychology,
+                frameworks: [
+                  ...psychology.frameworks,
+                  { id: newId("frame"), name: "", notes: "", approval: "draft", provenance: { origin: "author", note: "" } },
+                ],
+              },
             })
           }
         >
@@ -1273,9 +1469,25 @@ function ArchetypeFields({
   onChange: (next: CharacterDevelopment) => void;
 }) {
   const update = (id: string, patch: Partial<ArchetypeAssignment>) =>
-    onChange({ ...profile, archetypes: profile.archetypes.map((item) => (item.id === id ? { ...item, ...patch } : item)) });
+    onChange({
+      ...profile,
+      archetypes: profile.archetypes.map((item) =>
+        item.id === id
+          ? {
+              ...item,
+              ...patch,
+              provenance: patch.provenance ?? {
+                ...item.provenance,
+                origin: patch.approval ? item.provenance.origin : "author",
+                updatedAt: new Date().toISOString(),
+              },
+            }
+          : item,
+      ),
+    });
   return (
     <div className="stack">
+      <p className="small muted">{LABELS.archetypeLead}</p>
       {profile.archetypes.length === 0 ? <EmptyState>No archetypes yet. A character can have more than one, or none.</EmptyState> : null}
       {profile.archetypes.map((archetype) => (
         <fieldset key={archetype.id} className="stack">
@@ -1303,10 +1515,16 @@ function ArchetypeFields({
             </label>
           ) : null}
           <label>
-            {LABELS.primary}
-            <select value={archetype.rank} onChange={(event) => update(archetype.id, { rank: event.target.value === "secondary" ? "secondary" : "primary" })}>
-              <option value="primary">{LABELS.primary}</option>
-              <option value="secondary">{LABELS.secondary}</option>
+            Rank
+            <select
+              value={archetype.rank}
+              onChange={(event) => update(archetype.id, { rank: event.target.value as ArchetypeRank })}
+            >
+              {ARCHETYPE_RANKS.map((rank) => (
+                <option key={rank} value={rank}>
+                  {rank === "shadow" ? LABELS.shadow : rank === "secondary" ? LABELS.secondary : LABELS.primary}
+                </option>
+              ))}
             </select>
           </label>
           <label>
@@ -1328,9 +1546,59 @@ function ArchetypeFields({
             </select>
           </label>
           <label>
+            {LABELS.evolvesFrom}
+            <select
+              value={archetype.evolvesFromId ?? ""}
+              onChange={(event) => update(archetype.id, { evolvesFromId: event.target.value || null })}
+            >
+              <option value="">{LABELS.none}</option>
+              {profile.archetypes
+                .filter((item) => item.id !== archetype.id)
+                .map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.name || item.id} ({item.rank})
+                  </option>
+                ))}
+            </select>
+          </label>
+          <label>
+            {LABELS.evolutionNote}
+            <textarea rows={2} value={archetype.evolutionNote} onChange={(event) => update(archetype.id, { evolutionNote: event.target.value })} />
+          </label>
+          <label>
+            {LABELS.archetypeBook}
+            <select
+              value={archetype.bookProjectId ?? ""}
+              onChange={(event) => update(archetype.id, { bookProjectId: event.target.value || null })}
+            >
+              <option value="">{LABELS.none}</option>
+              {catalog.books.map((book) => (
+                <option key={book.id} value={book.id}>
+                  {book.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
             Description
             <textarea rows={2} value={archetype.description} onChange={(event) => update(archetype.id, { description: event.target.value })} />
           </label>
+          <label className="small">
+            {LABELS.fieldAuthority}
+            <select
+              value={archetype.approval}
+              onChange={(event) => update(archetype.id, { approval: event.target.value as AuthorityStatus })}
+            >
+              {AUTHORITY_STATUSES.map((status) => (
+                <option key={status} value={status}>
+                  {status}
+                </option>
+              ))}
+            </select>
+          </label>
+          <span className="small muted">
+            {LABELS.fieldProvenance}: {archetype.provenance.origin}
+          </span>
           <Button type="button" variant="secondary" onClick={() => onChange({ ...profile, archetypes: profile.archetypes.filter((item) => item.id !== archetype.id) })}>
             Remove
           </Button>
@@ -1349,9 +1617,14 @@ function ArchetypeFields({
                 name: "Hero",
                 custom: false,
                 description: "",
-                rank: profile.archetypes.length ? "secondary" : "primary",
+                rank: profile.archetypes.some((item) => item.rank === "primary") ? "secondary" : "primary",
                 periodLabel: "",
                 relationshipRecordId: null,
+                evolvesFromId: null,
+                evolutionNote: "",
+                bookProjectId: null,
+                approval: "draft",
+                provenance: { origin: "author", note: "" },
               },
             ],
           })

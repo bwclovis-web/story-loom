@@ -2,7 +2,7 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { API_KEY_ENV, MODEL_ENV, readAssistantConfig } from "@/assistant/config";
+import { API_KEY_ENVS, MODEL_ENV, readAssistantConfig } from "@/assistant/config";
 
 const KEY = "sk-test-settings-key-000000";
 
@@ -24,15 +24,16 @@ describe("assistant secrets from Settings", () => {
 
   it("loads empty secrets when the file is missing", async () => {
     const { loadAssistantSecrets, resolveAssistantEnv } = await import("@/server/assistantSecrets");
-    expect(loadAssistantSecrets()).toEqual({ apiKey: null, model: null, baseUrl: null });
-    expect(resolveAssistantEnv({})[API_KEY_ENV]).toBeUndefined();
+    expect(loadAssistantSecrets().keys).toEqual({});
+    const env = resolveAssistantEnv({});
+    expect(env[API_KEY_ENVS.openai]).toBeUndefined();
   });
 
   it("saves a key without writing it into status objects", async () => {
     const { saveAssistantSecrets, loadAssistantSecrets, assistantSecretsStatus, resolveAssistantEnv } =
       await import("@/server/assistantSecrets");
-    saveAssistantSecrets({ apiKey: KEY, model: "example-model-1", baseUrl: null });
-    expect(loadAssistantSecrets().apiKey).toBe(KEY);
+    saveAssistantSecrets({ provider: "openai", keys: { openai: KEY }, model: "example-model-1", baseUrl: null });
+    expect(loadAssistantSecrets().keys.openai).toBe(KEY);
     const status = assistantSecretsStatus();
     expect(status.keySaved).toBe(true);
     expect(status.model).toBe("example-model-1");
@@ -41,22 +42,44 @@ describe("assistant secrets from Settings", () => {
     expect(file).toContain(KEY);
 
     const env = resolveAssistantEnv({ [MODEL_ENV]: "from-dotenv" });
-    expect(env[API_KEY_ENV]).toBe(KEY);
+    expect(env[API_KEY_ENVS.openai]).toBe(KEY);
     expect(env[MODEL_ENV]).toBe("example-model-1");
     const config = readAssistantConfig(env);
     expect(config.status.configured).toBe(true);
     expect(JSON.stringify(config.status)).not.toContain(KEY);
   });
 
+  it("prefers desktop-injected key over the secrets file", async () => {
+    const { saveAssistantSecrets, loadAssistantSecrets } = await import("@/server/assistantSecrets");
+    saveAssistantSecrets({ provider: "openai", keys: { openai: KEY }, model: null, baseUrl: null });
+    const previousElectron = process.env.STORYLOOM_ELECTRON;
+    const previousKey = process.env.WORDLY_OPENAI_API_KEY;
+    process.env.STORYLOOM_ELECTRON = "1";
+    process.env.WORDLY_OPENAI_API_KEY = "sk-desktop-injected";
+    try {
+      expect(loadAssistantSecrets().keys.openai).toBe("sk-desktop-injected");
+    } finally {
+      if (previousElectron === undefined) delete process.env.STORYLOOM_ELECTRON;
+      else process.env.STORYLOOM_ELECTRON = previousElectron;
+      if (previousKey === undefined) delete process.env.WORDLY_OPENAI_API_KEY;
+      else process.env.WORDLY_OPENAI_API_KEY = previousKey;
+    }
+  });
+
   it("lets Settings override .env and falls back when cleared", async () => {
     const { saveAssistantSecrets, resolveAssistantEnv } = await import("@/server/assistantSecrets");
-    const base = { [API_KEY_ENV]: "sk-from-dotenv-aaaa", [MODEL_ENV]: "dotenv-model" };
-    saveAssistantSecrets({ apiKey: KEY, model: "settings-model", baseUrl: "http://127.0.0.1:11434/v1" });
-    expect(resolveAssistantEnv(base)[API_KEY_ENV]).toBe(KEY);
+    const base = { [API_KEY_ENVS.openai]: "sk-from-dotenv-aaaa", [MODEL_ENV]: "dotenv-model" };
+    saveAssistantSecrets({
+      provider: "openai",
+      keys: { openai: KEY },
+      model: "settings-model",
+      baseUrl: "http://127.0.0.1:11434/v1",
+    });
+    expect(resolveAssistantEnv(base)[API_KEY_ENVS.openai]).toBe(KEY);
     expect(resolveAssistantEnv(base)[MODEL_ENV]).toBe("settings-model");
     expect(resolveAssistantEnv(base).WORDLY_OPENAI_BASE_URL).toBe("http://127.0.0.1:11434/v1");
-    saveAssistantSecrets({ apiKey: null, model: null, baseUrl: null });
-    expect(resolveAssistantEnv(base)[API_KEY_ENV]).toBe("sk-from-dotenv-aaaa");
+    saveAssistantSecrets({ provider: "openai", keys: {}, model: null, baseUrl: null });
+    expect(resolveAssistantEnv(base)[API_KEY_ENVS.openai]).toBe("sk-from-dotenv-aaaa");
     expect(resolveAssistantEnv(base)[MODEL_ENV]).toBe("dotenv-model");
     expect(resolveAssistantEnv(base).WORDLY_OPENAI_BASE_URL).toBeUndefined();
   });

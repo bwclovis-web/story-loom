@@ -1,9 +1,10 @@
 import { z } from "zod";
 import { getDb } from "@/server/db";
 import { getAssistantConfig } from "@/server/assistantConfig";
+import { createAssistantProviderFromConfig } from "@/server/assistantProviderFactory";
 import { finishRun, registerRun } from "@/server/assistantRuns";
-import { createOpenAIProviderFromConfig } from "@/server/openai/openaiProvider";
 import { rejectCrossSite } from "@/server/sameOrigin";
+import { encodeSse, sseResponseHeaders } from "@/server/sseResponse";
 import { AssistantError, type AssistantErrorCode } from "@/server/services/assistantService";
 import { prepareBeatDraft, runBeatDraft } from "@/server/services/beatDraftAssistService";
 
@@ -14,6 +15,8 @@ const body = z.object({
   revision: z.number().int().min(1),
   beatId: z.string().min(1).max(100),
   scopeDraftId: z.string().max(100),
+  authorInstructionText: z.string().max(4000).nullable().optional(),
+  promptPresetId: z.string().min(1).max(100).nullable().optional(),
 });
 
 const HTTP_STATUS: Record<AssistantErrorCode, number> = {
@@ -58,27 +61,26 @@ export async function POST(request: Request, ctx: { params: Promise<{ projectId:
     return errorResponse("SERVER_ERROR", "The request could not be prepared.", 500);
   }
 
-  const provider = createOpenAIProviderFromConfig(config);
+  const provider = createAssistantProviderFromConfig(config);
   const run = registerRun(prep.runId);
   const signal = AbortSignal.any([run.signal, request.signal]);
-  const encoder = new TextEncoder();
 
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
-      const send = (event: object) => {
+      const send = (event: string, data: unknown) => {
         try {
-          controller.enqueue(encoder.encode(`${JSON.stringify(event)}\n`));
+          controller.enqueue(encodeSse(event, data));
         } catch {
           // client disconnected
         }
       };
-      send({ type: "started", runId: prep.runId });
+      send("started", { runId: prep.runId });
       try {
-        const result = await runBeatDraft(getDb(), provider, prep, signal);
-        send({ type: "done", result });
+        const result = await runBeatDraft(getDb(), provider, prep, signal, (text) => send("delta", { text }));
+        send("done", { result });
       } catch (error) {
         console.error("[beat-draft] run failed:", error instanceof Error ? error.name : "unknown");
-        send({ type: "error", message: "The result could not be saved." });
+        send("error", { message: "The result could not be saved." });
       } finally {
         finishRun(prep.runId);
         try {
@@ -93,11 +95,5 @@ export async function POST(request: Request, ctx: { params: Promise<{ projectId:
     },
   });
 
-  return new Response(stream, {
-    headers: {
-      "Content-Type": "application/x-ndjson; charset=utf-8",
-      "Cache-Control": "no-store",
-      "X-Content-Type-Options": "nosniff",
-    },
-  });
+  return new Response(stream, { headers: sseResponseHeaders() });
 }

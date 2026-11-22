@@ -236,6 +236,63 @@ describe("character development on the dossier", () => {
     expect(blob.capabilities?.linkedRecordIds).toEqual(["rec_world_ref_01"]);
   });
 
+  it("saves psychology extensions and shadow archetypes without rewriting dossier Markdown", async () => {
+    const profile = emptyCharacterDevelopment();
+    profile.psychology.coreMotivation = "Keep the salt ledger";
+    profile.psychology.blindSpots = "Cannot ask for help";
+    profile.psychology.selfPerception = "Reliable";
+    profile.psychology.externalPerception = "Cold";
+    profile.narrativeRole = "mentor";
+    profile.archetypes = [
+      {
+        id: "arch_primary",
+        name: "Sage",
+        custom: false,
+        description: "",
+        rank: "primary",
+        periodLabel: "",
+        relationshipRecordId: null,
+        evolvesFromId: null,
+        evolutionNote: "",
+        bookProjectId: null,
+        approval: "approved",
+        provenance: { origin: "author", note: "" },
+      },
+      {
+        id: "arch_shadow",
+        name: "Trickster",
+        custom: false,
+        description: "",
+        rank: "shadow",
+        periodLabel: "",
+        relationshipRecordId: null,
+        evolvesFromId: "arch_primary",
+        evolutionNote: "Denied face",
+        bookProjectId: null,
+        approval: "draft",
+        provenance: { origin: "author", note: "" },
+      },
+    ];
+    const saved = await saveCharacterDevelopment(t.db, IDS.project, {
+      recordId: IDS.dossier,
+      expectedRevision: 1,
+      profile,
+    });
+    expect(saved.revision).toBe(2);
+    const dossier = await getRecord(t.db, IDS.project, IDS.dossier);
+    expect(dossier.body).toBe("Archivist. Thirty years old.");
+    const blob = dossier.fields.characterDevelopment as {
+      psychology?: { coreMotivation?: string; blindSpots?: string };
+      narrativeRole?: string;
+      archetypes?: Array<{ rank: string; evolvesFromId?: string | null }>;
+    };
+    expect(blob.psychology?.coreMotivation).toBe("Keep the salt ledger");
+    expect(blob.psychology?.blindSpots).toBe("Cannot ask for help");
+    expect(blob.narrativeRole).toBe("mentor");
+    expect(blob.archetypes?.map((item) => item.rank)).toEqual(["primary", "shadow"]);
+    expect(blob.archetypes?.[1]?.evolvesFromId).toBe("arch_primary");
+  });
+
   it("rejects a change package that sets an invalid character development object", async () => {
     const current = await getRecord(t.db, IDS.project, IDS.dossier);
     const pkg = makePackage({

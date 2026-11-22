@@ -21,6 +21,7 @@ import { BookOpen, FileText, Shield, Sparkles, StickyNote, Waypoints, X } from "
 import { Banner } from "@/components/ui/Banner";
 import { Button, ButtonLink } from "@/components/ui/Button";
 import { Checkbox } from "@/components/ui/Checkbox";
+import { readAssistantJobStream } from "@/assistant/jobStream";
 import { applyTextareaEdit } from "@/components/writing/textareaEdit";
 import { useLayout } from "@/components/shell/LayoutContext";
 import { CONTEXT_TABS, type ContextTab } from "@/components/shell/preferences";
@@ -424,37 +425,27 @@ function PlotBeats({
         setBusyBeatId(null);
         return;
       }
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
-      for (;;) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        let lineEnd = buffer.indexOf("\n");
-        while (lineEnd >= 0) {
-          const line = buffer.slice(0, lineEnd);
-          buffer = buffer.slice(lineEnd + 1);
-          if (!line.trim()) {
-            lineEnd = buffer.indexOf("\n");
-            continue;
-          }
-          const event = JSON.parse(line) as {
-            type: string;
-            result?: { suggestion?: string | null; note?: string | null; errorMessage?: string | null; status?: string };
-            message?: string;
-          };
-          if (event.type === "done" && event.result) {
-            if (event.result.suggestion) {
-              setSuggestion({ beatId, text: event.result.suggestion, note: event.result.note ?? null });
-            } else {
-              setError(event.result.errorMessage ?? WEAVE.draftBeatEmpty);
-            }
-          }
-          if (event.type === "error") setError(event.message ?? "The request failed.");
-          lineEnd = buffer.indexOf("\n");
+      let preview = "";
+      await readAssistantJobStream(response, (event) => {
+        if (event.type === "delta" && event.text) {
+          preview += event.text;
+          setSuggestion({ beatId, text: preview, note: null });
         }
-      }
+        if (event.type === "done" && event.result) {
+          const result = event.result as {
+            suggestion?: string | null;
+            note?: string | null;
+            errorMessage?: string | null;
+          };
+          if (result.suggestion) {
+            setSuggestion({ beatId, text: result.suggestion, note: result.note ?? null });
+          } else {
+            setError(result.errorMessage ?? WEAVE.draftBeatEmpty);
+            setSuggestion(null);
+          }
+        }
+        if (event.type === "error") setError(event.message ?? "The request failed.");
+      });
     } catch {
       if (!controller.signal.aborted) setError("Could not reach the app server.");
     } finally {

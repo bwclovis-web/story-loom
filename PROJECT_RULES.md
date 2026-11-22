@@ -112,6 +112,17 @@ rewritten automatically, so do not put project rules inside it.
   not invent lived-experience notes or secrets. Approved opening or closing
   state for one book is not rewritten by an edit that only touches another book
   unless the author confirms that rewrite.
+- Psychology notes (Enneagram, desires, fears, motivations, misbeliefs,
+  strengths, blind spots, triggers, attachment, self vs external perception,
+  author frameworks) are writing aids, not diagnoses. Neurodivergence, trauma,
+  disability, and mental-health portrayal notes stay under `livedExperience`
+  (default AI omit) and must not be merged into psychology typologies. Habits
+  and learned behavior stay under `behavior`. Archetypes support primary,
+  secondary, and shadow ranks plus optional evolution links; they stay separate
+  from `narrativeRole`. Field-level `fieldMeta` and per-archetype/framework
+  approval distinguish draft, proposed, approved, and unresolved notes. AI
+  Extract and Markdown upgrade never auto-promote psychology or archetype
+  classifications to approved canon.
 - Character dossier upgrade (Markdown → Living Profile) is author-reviewed and
   non-destructive: it never creates a second dossier, never auto-approves
   proposals as canon, never treats planned growth as completed development,
@@ -119,6 +130,32 @@ rewritten automatically, so do not put project rules inside it.
   unclassified text. Approved profile writes go through `updateRecord` /
   change packages; the original Markdown body stays, with an optional archive
   snapshot in `fields.dossierMarkdownArchive`.
+- Living Character Profile authoritative ownership (one dossier, no parallel
+  character entity):
+  - `Record.id` — stable character identity across books and series links.
+  - `Record.body` — freeform author dossier prose (Markdown); never discarded
+    by upgrade or profile edits.
+  - `fields.characterDevelopment` — structured overlay (v1, additive) including
+    optional `fieldMeta` (per-path approval + provenance: author / imported /
+    extracted). Legacy fields without `fieldMeta` default to draft / author —
+    never auto-classified as approved.
+  - `RecordRelation` — canonical relationship graph; upgrade holds relationship
+    notes until the author creates or updates edges.
+  - `fields.dossierMarkdownArchive` — immutable migration source snapshots;
+    unsupported archive versions refuse overwrite on apply and in change
+    packages.
+  - `migrationHold` — held conflicts, unknowns, proposals, unclassified
+    passages, and continuity/relationship notes; not canon until resolved.
+  - `Revision` — atomic undo/restore history (`includeFields: true` restores
+    profile and archive with the body).
+  - `reviewNotes` / AI Extract suggestions — non-canon writing aids only.
+  Conflict resolution precedence: keep_existing, replace (accept when safe),
+  merge, modify, reject, or defer. Approved canon (`fieldMeta.approval ===
+  "approved"`) refuses silent bulk-accept overwrite. AI context prefers
+  approved structured fields under Established profile; draft/proposed/
+  extracted and held notes are labeled not-canon; body prose is included only
+  when not already represented by structured fields. Series-shared dossiers
+  are edited only in the home book.
 
 ## In-app help
 

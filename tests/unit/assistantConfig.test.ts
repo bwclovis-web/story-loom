@@ -27,6 +27,7 @@ describe("assistant configuration", () => {
   it("is configured with a key and a model, and the status never carries the key", () => {
     const config = readAssistantConfig({ WORDLY_OPENAI_API_KEY: KEY, OPENAI_MODEL: "example-model-1", ASSISTANT_MAX_INPUT_CHARS: "20000" });
     expect(config.status.configured).toBe(true);
+    expect(config.status.provider).toBe("openai");
     expect(config.status.model).toBe("example-model-1");
     expect(config.status.limits.maxInputChars).toBe(20000);
     expect(config.apiKey).toBe(KEY);
@@ -105,6 +106,26 @@ describe("OpenAI client settings", () => {
     const client = defaultClient(KEY, "http://127.0.0.1:11434/v1") as unknown as OpenAI;
     expect(client.baseURL).toBe("http://127.0.0.1:11434/v1");
     expect(client.apiKey).toBe(KEY);
+  });
+});
+
+describe("anthropic and gemini providers", () => {
+  it("requires WORDLY_ANTHROPIC_API_KEY when provider is anthropic", () => {
+    const config = readAssistantConfig({ WORDLY_ASSISTANT_PROVIDER: "anthropic", OPENAI_MODEL: "claude" });
+    expect(config.status.configured).toBe(false);
+    expect(config.status.provider).toBe("anthropic");
+    expect(config.status.problems.join(" ")).toContain("WORDLY_ANTHROPIC_API_KEY");
+  });
+
+  it("configures gemini with WORDLY_GEMINI_API_KEY", () => {
+    const config = readAssistantConfig({
+      WORDLY_ASSISTANT_PROVIDER: "gemini",
+      WORDLY_GEMINI_API_KEY: KEY,
+      OPENAI_MODEL: "gemini-pro",
+    });
+    expect(config.status.configured).toBe(true);
+    expect(config.status.provider).toBe("gemini");
+    expect(config.apiKey).toBe(KEY);
   });
 });
 

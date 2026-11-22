@@ -302,6 +302,22 @@ export const workspaceBackupV1Schema = z
           .strict(),
       )
       .optional(),
+    /** Saved assistant instruction lenses; omitted in older backups → none. Project-scoped only. */
+    assistantPromptPresets: z
+      .array(
+        z
+          .object({
+            id,
+            projectId: id,
+            title: z.string().min(1).max(120),
+            surface: z.enum(["selection", "chat", "beat"]),
+            instructionText: z.string().min(1).max(4000),
+            createdAt: timestamp,
+            updatedAt: timestamp,
+          })
+          .strict(),
+      )
+      .optional(),
     /** In-world calendar per project; omitted in older backups → none. */
     worldCalendars: z
       .array(
@@ -1051,6 +1067,7 @@ export const workspaceBackupV1Schema = z
         readingPins: z.number().int().optional(),
         writingGoals: z.number().int().optional(),
         smartCollections: z.number().int().optional(),
+        assistantPromptPresets: z.number().int().optional(),
         manuscriptAnnotations: z.number().int().optional(),
         compileProfiles: z.number().int().optional(),
         worldKindTemplates: z.number().int().optional(),

@@ -1,12 +1,46 @@
 # Progress
 
-## Chapter pages list nested scenes (Nov 22, 2026)
+## World calendar add month and era (Nov 22, 2026)
 
-A chapter’s writing page lists the scenes stored under that chapter, in book order. The Write outline opens the selected chapter’s scenes and names them in the side panel. Scene text stays on the scene page; Scrivenings still shows the chapter and its scenes in one scroll. Scenes stay on the draft where they were created.
+World Calendar can append a blank month or era (24 months, 32 eras) and drop a row before save. A nameless row is omitted. At least one month remains. No schema change. The working calendar was not saved.
 
 ### Rollback
 
-Revert the chapter scene list, outline inspector, Help, and this note. No schema change.
+Revert `WorldCalendarForm`, the remove labels, Help, and this note.
+
+## Responsive data table (Nov 22, 2026)
+
+`DataTable` (`@/components/ui/DataTable`) stays a table while its container is wide and becomes a labeled card per row under 48rem. The manuscript Outliner uses it, so words, target, point of view, status, location, synopsis, and continuity stay on the page at phone width. No schema change.
+
+### Rollback
+
+Revert `DataTable`, the Outliner markup, the `.sl-data-table` rules, Help, and this note.
+
+## Milestone 9: World graph, maps, wiki & live book preview (Nov 22, 2026)
+
+- **9A Maps:** Detail-map breadcrumb trail + Drill in / Link detail map; read-only travel-time estimates after measure/route; optional highlight filter by era / draft / book (dims non-matching pins).
+- **9B Knowledge graph:** World → Relationships **All connections** mode (relations + `RecordLink` + cross-ref mentions) with type/canon/draft/orphan filters.
+- **9C Series edit:** Sibling view of series-scoped refs stays read-only by default; **Edit here (cross-book)** routes saves through the owning `projectId` with revision, protection, audit, and a continuity banner.
+- **9D HTML wiki:** Export PDF → **Download HTML wiki** (`.zip`); optional approved-only and chapter established-fact ceilings (body text not fully filtered — documented).
+- **9E Images & preview:** Manuscript chapters/scenes may store images (`![alt](image:name)` in PDF/DOCX/EPUB); optional `CompileProfile.bookTheme`; paperback vs e-reader live preview on Export PDF.
+
+| Check | Result |
+| --- | --- |
+| `pnpm db:deploy` | Applied `20261122190000_compile_book_theme`; backup `backups/2026-11-22T17-21-07-079Z-pre-migrate` |
+| `pnpm exec tsc --noEmit` | pass |
+| Targeted vitest (maps, graph, series, wiki, images/export, help) | 33 passed (series alone 2/2 after one parallel hook timeout) |
+
+### Rollback
+
+Revert M9 UI/services/Help/labels. Working DB: restore `backups/2026-11-22T17-21-07-079Z-pre-migrate` or leave nullable `bookTheme` unused. Older backups omit `bookTheme` and wiki zips are downloads only.
+
+## Chapter editor shows nested scene text (Nov 22, 2026)
+
+Opening a chapter shows each nested scene’s text in the main editor, after the chapter text. Saving the chapter does not copy that text into the chapter record. The Write outline still names those scenes in the side panel.
+
+### Rollback
+
+Revert the nested scene editors in the chapter page, the outline inspector, Help, and this note. No schema change.
 
 ## Milestone 8: Outliner, smart collections & developmental insights (Nov 22, 2026)
 
@@ -129,6 +163,36 @@ Author-reviewed migration from Markdown character dossiers into Living Character
 ### Rollback
 
 Revert upgrade domain/service/UI, `migrationHold` key, archive field helpers, help, and labels. Archived snapshots and hold items already saved remain in dossier fields until an edit removes them. No manuscript rewrite.
+
+## Living Character Profiles — Psychology and Archetypes (Nov 22, 2026)
+
+Extended Living Profile psychology and archetypes on the same dossier overlay (`fields.characterDevelopment` v1, additive). Added optional psychology keys (core motivation, blind spots, emotional triggers, behavioral patterns, self/external perception), framework approval/provenance, archetype shadow rank and evolution fields, field-authority UI, extended Markdown heading map (Enneagram, archetypes, narrative role, psychology aliases, mental-health → lived boundary notes), upgrade apply/conflict guards, and context/export split for established vs draft archetypes/frameworks. Personality typologies stay non-clinical and separate from lived experience and behavior.
+
+| Check | Result |
+| --- | --- |
+| `pnpm exec vitest run` (character suites + help) | Pending verification this session |
+| `pnpm exec tsc --noEmit` | Pending |
+| `pnpm build` | Pending |
+| Schema | No SQLite migration; additive JSON keys only |
+
+### Rollback
+
+Revert psychology/archetype domain keys, panel authority UI, heading map entries, help, and labels. Existing saved keys remain in dossier fields until edited. No manuscript rewrite.
+
+## Living Character Profiles — Foundation Hardening (Nov 22, 2026)
+
+Hardened the Living Profile foundation on the same dossier record: shared Markdown heading extraction for fill and upgrade; migration holds & archive UI; field-level `fieldMeta` provenance/authority (imported/extracted stay draft — never auto-approved); expanded conflict detection across psychology/voice/behavior/capabilities with Keep existing / Replace / Merge / Defer and approved-canon guards; series-shared home-book apply enforcement; deterministic context slices (Established vs Draft/Proposed vs held; body dedup); archive version validation and idempotent apply keyed by bodyHash + decisions. Documented authoritative ownership in PROJECT_RULES and Help.
+
+| Check | Result |
+| --- | --- |
+| `pnpm exec vitest run tests/unit/character-dossier-upgrade.test.ts tests/unit/character-development.test.ts tests/acceptance/character-dossier-upgrade.test.ts tests/acceptance/character-development.test.ts tests/unit/help.test.ts` | 5 files, 53 tests passed |
+| `pnpm exec tsc --noEmit` | No errors |
+| `pnpm build` | Succeeded |
+| Schema | No SQLite migration; additive `fieldMeta` / hold / archive JSON only |
+
+### Rollback
+
+Revert foundation hardening domain/service/UI, shared heading module, help, and labels. Existing `fieldMeta`, holds, and archives remain in dossier fields until edited. No manuscript rewrite.
 
 ## Milestone 5: Export presets & compile validation (Nov 22, 2026)
 

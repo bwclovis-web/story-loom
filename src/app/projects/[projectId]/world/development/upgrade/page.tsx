@@ -46,10 +46,23 @@ export default async function ProjectDossierUpgradePage({
                 <td>{CHARACTER_DOSSIER_UPGRADE.itemsReady(row.itemCount)}</td>
                 <td>{row.needsReview}</td>
                 <td>{row.unclassified}</td>
-                <td>{row.alreadyMigrated ? CHARACTER_DOSSIER_UPGRADE.alreadyMigrated : row.hasProfile ? "Profile present" : "Markdown only"}</td>
                 <td>
-                  <Link href={`${base}/records/${encodeURIComponent(row.recordId)}/upgrade`}>
-                    {CHARACTER_DOSSIER_UPGRADE.reviewLink}
+                  {row.alreadyMigrated
+                    ? CHARACTER_DOSSIER_UPGRADE.alreadyMigrated
+                    : row.hasProfile
+                      ? "Profile present"
+                      : "Markdown only"}
+                  {!row.editableHere ? ` · ${row.homeLabel}` : ""}
+                </td>
+                <td>
+                  <Link
+                    href={
+                      row.editableHere
+                        ? `${base}/records/${encodeURIComponent(row.recordId)}/upgrade`
+                        : `/projects/${encodeURIComponent(row.homeProjectId)}/records/${encodeURIComponent(row.recordId)}/upgrade`
+                    }
+                  >
+                    {row.editableHere ? CHARACTER_DOSSIER_UPGRADE.reviewLink : CHARACTER_DOSSIER_UPGRADE.openHomeUpgrade}
                   </Link>
                 </td>
               </tr>

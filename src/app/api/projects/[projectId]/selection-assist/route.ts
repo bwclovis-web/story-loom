@@ -1,9 +1,10 @@
 import { z } from "zod";
 import { getDb } from "@/server/db";
 import { getAssistantConfig } from "@/server/assistantConfig";
+import { createAssistantProviderFromConfig } from "@/server/assistantProviderFactory";
 import { finishRun, registerRun } from "@/server/assistantRuns";
-import { createOpenAIProviderFromConfig } from "@/server/openai/openaiProvider";
 import { rejectCrossSite } from "@/server/sameOrigin";
+import { encodeSse, sseResponseHeaders } from "@/server/sseResponse";
 import { AssistantError, type AssistantErrorCode } from "@/server/services/assistantService";
 import { listReadingPins } from "@/server/services/readingPinService";
 import { prepareSelectionAssist, runSelectionAssist } from "@/server/services/selectionAssistService";
@@ -19,6 +20,8 @@ const body = z.object({
   action: z.enum(SELECTION_ASSIST_ACTIONS),
   scopeDraftId: z.string().max(100),
   excludeRecordIds: z.array(z.string().min(1).max(100)).max(100).optional(),
+  authorInstructionText: z.string().max(4000).nullable().optional(),
+  promptPresetId: z.string().min(1).max(100).nullable().optional(),
 });
 
 const HTTP_STATUS: Record<AssistantErrorCode, number> = {
@@ -55,7 +58,8 @@ export async function POST(request: Request, ctx: { params: Promise<{ projectId:
   let prep;
   let contextRecordIds: string[] = [];
   try {
-    const { recordId, revision, range, action, scopeDraftId, excludeRecordIds } = parsed.data;
+    const { recordId, revision, range, action, scopeDraftId, excludeRecordIds, authorInstructionText, promptPresetId } =
+      parsed.data;
     const excluded = new Set(excludeRecordIds ?? []);
     const pins = await listReadingPins(getDb(), projectId, scopeDraftId);
     contextRecordIds = pins.map((p) => p.recordId).filter((id) => !excluded.has(id));
@@ -67,6 +71,8 @@ export async function POST(request: Request, ctx: { params: Promise<{ projectId:
       action,
       scopeDraftId,
       excludeRecordIds,
+      authorInstructionText: authorInstructionText ?? undefined,
+      promptPresetId: promptPresetId ?? undefined,
     });
   } catch (error) {
     if (error instanceof AssistantError) {
@@ -76,28 +82,35 @@ export async function POST(request: Request, ctx: { params: Promise<{ projectId:
     return errorResponse("SERVER_ERROR", "The request could not be prepared.", 500);
   }
 
-  const provider = createOpenAIProviderFromConfig(config);
+  const provider = createAssistantProviderFromConfig(config);
   const run = registerRun(prep.runId);
   const signal = AbortSignal.any([run.signal, request.signal]);
-  const encoder = new TextEncoder();
+  const streamStructured = config.status.provider !== "openai";
 
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
-      const send = (event: object) => {
+      const send = (event: string, data: unknown) => {
         try {
-          controller.enqueue(encoder.encode(`${JSON.stringify(event)}\n`));
+          controller.enqueue(encodeSse(event, data));
         } catch {
           // client disconnected
         }
       };
-      send({ type: "started", runId: prep.runId });
+      send("started", { runId: prep.runId, streaming: streamStructured });
       try {
-        const result = await runSelectionAssist(getDb(), provider, prep, contextRecordIds, signal);
+        const result = await runSelectionAssist(
+          getDb(),
+          provider,
+          prep,
+          contextRecordIds,
+          signal,
+          streamStructured ? (text) => send("delta", { text }) : undefined,
+        );
         if (result.status === "failed") console.warn(`[selection-assist] run ${prep.runId} failed: ${result.errorCode}`);
-        send({ type: "done", result });
+        send("done", { result });
       } catch (error) {
         console.error("[selection-assist] could not store a run:", error instanceof Error ? error.name : "unknown error");
-        send({ type: "error", message: "The result could not be saved." });
+        send("error", { message: "The result could not be saved." });
       } finally {
         finishRun(prep.runId);
         try {
@@ -112,11 +125,5 @@ export async function POST(request: Request, ctx: { params: Promise<{ projectId:
     },
   });
 
-  return new Response(stream, {
-    headers: {
-      "Content-Type": "application/x-ndjson; charset=utf-8",
-      "Cache-Control": "no-store",
-      "X-Content-Type-Options": "nosniff",
-    },
-  });
+  return new Response(stream, { headers: sseResponseHeaders() });
 }

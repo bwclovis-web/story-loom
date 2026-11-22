@@ -7,4 +7,5 @@ contextBridge.exposeInMainWorld("storyLoomDesktop", {
   pickLibraryFolder: () => ipcRenderer.invoke("desktop:pick-library"),
   pickBackupMirrorFolder: () => ipcRenderer.invoke("desktop:pick-mirror"),
   getDesktopInfo: () => ipcRenderer.invoke("desktop:info"),
+  saveAssistantKey: (payload) => ipcRenderer.invoke("desktop:save-key", payload),
 });

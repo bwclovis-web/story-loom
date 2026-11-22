@@ -17,8 +17,12 @@ type DecisionState = Record<string, { decision: UpgradeDecision; modifiedValue: 
 function defaultDecisions(preview: CharacterDossierUpgradePreview): DecisionState {
   const state: DecisionState = {};
   for (const item of preview.analysis.items) {
+    const needsDefer =
+      item.alreadyApplied ||
+      item.requiresHumanReview ||
+      (item.existingAuthority === "approved" && item.existingCanonical.trim() !== "");
     state[item.id] = {
-      decision: item.alreadyApplied ? "defer" : item.requiresHumanReview ? "defer" : "accept",
+      decision: needsDefer ? "defer" : "accept",
       modifiedValue: item.proposedValue,
     };
   }
@@ -139,6 +143,19 @@ export function CharacterDossierUpgradeReview({
     <div className="stack">
       <p className="small muted">{LABELS.lead}</p>
       <p className="small muted">{LABELS.authorityNote}</p>
+      {!preview.editableHere ? (
+        <Banner tone="warn">
+          {LABELS.homeElsewhere} ({preview.homeLabel}){" "}
+          <ButtonLink
+            href={`/projects/${encodeURIComponent(preview.homeProjectId)}/records/${encodeURIComponent(preview.recordId)}/upgrade`}
+            variant="secondary"
+            size="sm"
+          >
+            {LABELS.openHomeUpgrade}
+          </ButtonLink>
+        </Banner>
+      ) : null}
+      {preview.archiveUnsupported ? <Banner tone="error">{LABELS.archiveUnsupported}</Banner> : null}
       {preview.issues.length ? (
         <Banner tone="error">{preview.issues.map((issue) => issue.message).join(" ")}</Banner>
       ) : null}
@@ -219,11 +236,15 @@ export function CharacterDossierUpgradeReview({
               )}
               <p className="small">
                 {LABELS.authority}: {item.authorityHint}
+                {item.existingCanonical.trim() ? ` · existing: ${item.existingAuthority}` : ""}
                 {item.conflictWithIds.length ? ` · ${LABELS.conflicts}` : ""}
                 {item.duplicateOfIds.length ? ` · ${LABELS.duplicates}` : ""}
                 {item.supersedesIds.length ? ` · ${LABELS.supersedes}` : ""}
                 {item.alreadyApplied ? ` · ${LABELS.itemAlreadyApplied}` : ""}
               </p>
+              {item.existingAuthority === "approved" && item.existingCanonical.trim() ? (
+                <Banner tone="warn">{LABELS.canonConflict}</Banner>
+              ) : null}
               {item.reviewReasons.length ? (
                 <ul className="small">
                   {item.reviewReasons.map((reason) => (
@@ -243,6 +264,8 @@ export function CharacterDossierUpgradeReview({
                   }
                 >
                   <option value="accept">{LABELS.accept}</option>
+                  <option value="keep_existing">{LABELS.keepExisting}</option>
+                  {item.mergeSupported ? <option value="merge">{LABELS.merge}</option> : null}
                   <option value="modify">{LABELS.modify}</option>
                   <option value="reject">{LABELS.reject}</option>
                   <option value="defer">{LABELS.defer}</option>
@@ -277,10 +300,19 @@ export function CharacterDossierUpgradeReview({
       ) : null}
 
       <div className="row" style={{ flexWrap: "wrap", gap: "0.75rem" }}>
-        <Button type="button" disabled={pending || preview.issues.length > 0} onClick={runApply}>
+        <Button
+          type="button"
+          disabled={pending || preview.issues.length > 0 || !preview.editableHere || preview.archiveUnsupported}
+          onClick={runApply}
+        >
           {LABELS.apply}
         </Button>
-        <Button type="button" variant="secondary" disabled={pending || preview.issues.length > 0} onClick={runPackage}>
+        <Button
+          type="button"
+          variant="secondary"
+          disabled={pending || preview.issues.length > 0 || !preview.editableHere || preview.archiveUnsupported}
+          onClick={runPackage}
+        >
           {LABELS.exportPackage}
         </Button>
       </div>

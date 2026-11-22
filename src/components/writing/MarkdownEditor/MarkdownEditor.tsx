@@ -4,7 +4,7 @@ import { defaultKeymap, history, historyKeymap, redo, undo } from "@codemirror/c
 import { markdown } from "@codemirror/lang-markdown";
 import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import { searchKeymap } from "@codemirror/search";
-import { Compartment, EditorState } from "@codemirror/state";
+import { Annotation, Compartment, EditorState, StateEffect, StateField } from "@codemirror/state";
 import { drawSelection, EditorView, keymap, placeholder as cmPlaceholder } from "@codemirror/view";
 import { tags } from "@lezer/highlight";
 import { forwardRef, useEffect, useImperativeHandle, useLayoutEffect, useRef } from "react";
@@ -15,6 +15,13 @@ import { codexHoverExtension } from "./codexHover";
 import { livePreviewExtension } from "./livePreview";
 import { setSpellFlagsEffect, spellDecorationExtension } from "./spellDecorations";
 import { manuscriptTheme } from "./theme";
+import {
+  chapterOffsetToDoc,
+  chapterWithoutScenes,
+  composeChapterWithScenes,
+  docOffsetToChapter,
+  type LockedRange,
+} from "@/writing/nestedSceneTail";
 
 export type EditorChrome = "live" | "raw";
 
@@ -24,6 +31,11 @@ export interface MarkdownEditorProps {
   "aria-label"?: string;
   "aria-describedby"?: string;
   initialDoc: string;
+  /**
+   * Ranges in `initialDoc` that stay visible but are omitted from `value` and
+   * `onChange`, so a chapter save does not store scene text.
+   */
+  lockedRanges?: readonly LockedRange[];
   editable?: boolean;
   language?: string;
   chrome?: EditorChrome;
@@ -34,6 +46,30 @@ export interface MarkdownEditorProps {
   onChange?: (doc: string) => void;
   onSelectionChange?: (selection: { start: number; end: number }) => void;
   onDomKeyDown?: (event: KeyboardEvent) => void;
+}
+
+const replaceWholeDoc = Annotation.define<boolean>();
+
+const setLockedRanges = StateEffect.define<readonly LockedRange[]>();
+
+const lockedRangesField = StateField.define<readonly LockedRange[]>({
+  create: () => [],
+  update(value, tr) {
+    for (const effect of tr.effects) if (effect.is(setLockedRanges)) return effect.value;
+    if (!tr.docChanged) return value;
+    return value.map((range) => ({
+      start: tr.changes.mapPos(range.start),
+      end: tr.changes.mapPos(range.end),
+    }));
+  },
+});
+
+function rangesOf(state: EditorState): readonly LockedRange[] {
+  return state.field(lockedRangesField, false) ?? [];
+}
+
+function hitsLocked(from: number, to: number, ranges: readonly LockedRange[]): boolean {
+  return ranges.some((range) => from < range.end && to > range.start);
 }
 
 const mdHighlight = HighlightStyle.define([
@@ -50,26 +86,34 @@ const mdHighlight = HighlightStyle.define([
 function createSurface(view: EditorView, host: HTMLElement): EditorSurface {
   return {
     get value() {
-      return view.state.doc.toString();
+      return chapterWithoutScenes(view.state.doc.toString(), rangesOf(view.state));
     },
     set value(next: string) {
       const current = view.state.doc.toString();
-      if (current === next) return;
+      const ranges = rangesOf(view.state);
+      const bodies = ranges
+        .map((range) => current.slice(range.start, range.end).replace(/^\n+/, "").replace(/\s+$/, ""))
+        .filter((body) => body.length > 0);
+      const composed = composeChapterWithScenes(next, bodies.map((body) => ({ body })));
+      if (composed.doc === current) return;
       view.dispatch({
-        changes: { from: 0, to: current.length, insert: next },
+        changes: { from: 0, to: current.length, insert: composed.doc },
+        effects: setLockedRanges.of(composed.locked),
+        annotations: replaceWholeDoc.of(true),
         userEvent: "input",
       });
     },
     get selectionStart() {
-      return view.state.selection.main.from;
+      return docOffsetToChapter(view.state.selection.main.from, rangesOf(view.state));
     },
     get selectionEnd() {
-      return view.state.selection.main.to;
+      return docOffsetToChapter(view.state.selection.main.to, rangesOf(view.state));
     },
     setSelectionRange(start, end) {
+      const ranges = rangesOf(view.state);
       const len = view.state.doc.length;
-      const from = Math.max(0, Math.min(start, len));
-      const to = Math.max(0, Math.min(end, len));
+      const from = Math.max(0, Math.min(chapterOffsetToDoc(start, ranges), len));
+      const to = Math.max(0, Math.min(chapterOffsetToDoc(end, ranges), len));
       view.dispatch({ selection: { anchor: from, head: to }, scrollIntoView: true });
     },
     focus(options) {
@@ -92,9 +136,10 @@ function createSurface(view: EditorView, host: HTMLElement): EditorSurface {
       return view.scrollDOM.clientWidth;
     },
     applyEdit(edit) {
+      const ranges = rangesOf(view.state);
       const len = view.state.doc.length;
-      const from = Math.max(0, Math.min(edit.start, len));
-      const to = Math.max(from, Math.min(edit.end, len));
+      const from = Math.max(0, Math.min(chapterOffsetToDoc(edit.start, ranges), len));
+      const to = Math.max(from, Math.min(chapterOffsetToDoc(edit.end, ranges), len));
       const insert = edit.text;
       view.focus();
       view.dispatch({
@@ -123,6 +168,7 @@ export const MarkdownEditor = forwardRef<EditorSurface, MarkdownEditorProps>(fun
     "aria-label": ariaLabel,
     "aria-describedby": ariaDescribedBy,
     initialDoc,
+    lockedRanges = [],
     editable = true,
     language = "en",
     chrome = "live",
@@ -210,12 +256,23 @@ export const MarkdownEditor = forwardRef<EditorSurface, MarkdownEditorProps>(fun
     const state = EditorState.create({
       doc: initialDoc,
       extensions: [
+        lockedRangesField.init(() => lockedRanges),
         history(),
         markdown(),
         drawSelection(),
         syntaxHighlighting(mdHighlight),
         manuscriptTheme,
         spellDecorationExtension(),
+        EditorState.changeFilter.of((tr) => {
+          if (!tr.docChanged || tr.annotation(replaceWholeDoc)) return true;
+          const ranges = tr.startState.field(lockedRangesField, false) ?? [];
+          if (ranges.length === 0) return true;
+          let allowed = true;
+          tr.changes.iterChanges((from, to) => {
+            if (hitsLocked(from, to, ranges)) allowed = false;
+          });
+          return allowed;
+        }),
         chromeCompartment.current.of(livePreviewExtension(chrome === "live")),
         codexCompartment.current.of(codexHoverExtension(codexEntries)),
         editableCompartment.current.of(EditorView.editable.of(editable)),
@@ -234,10 +291,14 @@ export const MarkdownEditor = forwardRef<EditorSurface, MarkdownEditorProps>(fun
         EditorView.lineWrapping,
         placeholder ? cmPlaceholder(placeholder) : [],
         EditorView.updateListener.of((update) => {
-          if (update.docChanged) onChangeRef.current?.(update.state.doc.toString());
+          const ranges = rangesOf(update.state);
+          if (update.docChanged) onChangeRef.current?.(chapterWithoutScenes(update.state.doc.toString(), ranges));
           if (update.selectionSet || update.docChanged) {
             const sel = update.state.selection.main;
-            onSelectionRef.current?.({ start: sel.from, end: sel.to });
+            onSelectionRef.current?.({
+              start: docOffsetToChapter(sel.from, ranges),
+              end: docOffsetToChapter(sel.to, ranges),
+            });
           }
         }),
         EditorView.domEventHandlers({

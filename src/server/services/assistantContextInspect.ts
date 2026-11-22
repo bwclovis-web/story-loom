@@ -6,6 +6,7 @@ import { isRecordType } from "@/domain/recordTypes";
 import { normalizeNewlines } from "@/proofread/anchors";
 import { buildProofreadRequest } from "@/proofread/prompt";
 import { dictionaryWordsIn } from "@/spelling/dictionary";
+import { getPromptPreset, normalizeAuthorInstructionText } from "./promptPresetService";
 import { buildSelectionAssistRequest } from "@/selectionAssist/prompt";
 import { SELECTION_ASSIST_SCHEMA_CHARS, type SelectionAssistAction } from "@/selectionAssist/output";
 import type { Db } from "../db";
@@ -168,6 +169,8 @@ export async function inspectSelectionAssistContext(
     scopeDraftId: string;
     /** Pin record ids to omit from the payload. */
     excludeRecordIds?: readonly string[];
+    authorInstructionText?: string | null;
+    promptPresetId?: string | null;
   },
 ): Promise<ContextInspectReport> {
   if (!runtime.configured || !runtime.model) {
@@ -197,6 +200,14 @@ export async function inspectSelectionAssistContext(
   const pins = await listReadingPins(db, input.projectId, input.scopeDraftId);
   const pinRefs = pins.filter((p) => !excluded.has(p.recordId)).map((p) => ({ recordId: p.recordId, revision: p.currentRevision }));
   const contextDocs = await loadAuthorReferenceDocuments(db, input.projectId, pinRefs);
+  let authorInstructionText = normalizeAuthorInstructionText(input.authorInstructionText);
+  if (input.promptPresetId) {
+    const preset = await getPromptPreset(db, input.projectId, input.promptPresetId);
+    if (preset.surface !== "selection") {
+      throw new AssistantError("INVALID_REQUEST", "That preset is for a different assistant surface. Choose a selection preset.");
+    }
+    if (!authorInstructionText) authorInstructionText = preset.instructionText;
+  }
   const boundary = chooseBoundary([sent, ...contextDocs.map((d) => d.text)], () => randomBytes(6).toString("hex"));
   const built = buildSelectionAssistRequest(
     {
@@ -211,6 +222,7 @@ export async function inspectSelectionAssistContext(
     contextDocs,
     boundary,
     SELECTION_ASSIST_SCHEMA_CHARS,
+    authorInstructionText,
   );
   const size = checkSize(built, runtime.limits.maxInputChars);
   if (size) {

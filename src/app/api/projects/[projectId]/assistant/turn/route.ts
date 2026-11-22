@@ -2,7 +2,7 @@ import { z } from "zod";
 import { getDb } from "@/server/db";
 import { getAssistantConfig } from "@/server/assistantConfig";
 import { finishRun, registerRun } from "@/server/assistantRuns";
-import { createOpenAIProviderFromConfig } from "@/server/openai/openaiProvider";
+import { createAssistantProviderFromConfig } from "@/server/assistantProviderFactory";
 import { rejectCrossSite } from "@/server/sameOrigin";
 import { runProposalTurn } from "@/server/services/assistantProposalService";
 import { AssistantError, prepareTurn, runTurn, type AssistantErrorCode } from "@/server/services/assistantService";
@@ -44,6 +44,8 @@ const body = z.discriminatedUnion("kind", [
       includeMessageIds: z.array(z.string().min(1).max(100)).max(500),
       excludeRecordIds: z.array(z.string().min(1).max(100)).max(500).optional(),
     }),
+    authorInstructionText: z.string().max(4000).nullable().optional(),
+    promptPresetId: z.string().min(1).max(100).nullable().optional(),
   }),
   z.object({ kind: z.literal("retry"), conversationId: z.string().min(1).max(100), messageId: z.string().min(1).max(100) }),
 ]);
@@ -90,7 +92,7 @@ export async function POST(request: Request, ctx: { params: Promise<{ projectId:
     return errorResponse("SERVER_ERROR", "The request could not be prepared.", 500);
   }
 
-  const provider = createOpenAIProviderFromConfig(config);
+  const provider = createAssistantProviderFromConfig(config);
   const run = registerRun(turn.assistantMessageId);
   const signal = AbortSignal.any([run.signal, request.signal]);
   const encoder = new TextEncoder();

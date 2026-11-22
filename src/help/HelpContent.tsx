@@ -39,6 +39,7 @@ import {
   RECORD,
   CHARACTER_DEVELOPMENT,
   CHARACTER_DOSSIER_UPGRADE,
+  CHARACTER_MIGRATION_HOLD,
   RECORD_RENAME,
   RELATIONSHIP,
   REFERENCE_FORM,
@@ -918,9 +919,9 @@ export function HelpContent() {
         <h3>Manuscript chapters and scenes</h3>
         <p>
           Chapters and scenes open on their own writing page, with a <L>{WRITE.save}</L> button instead of{" "}
-          <L>{RECORD.saveAsRevision("N")}</L>. Saving works the same way. See <See anchor="write" />. A chapter page
-          lists the scenes nested under that chapter. Those scenes stay separate pages; their text is not copied into
-          the chapter. <L>{WRITE.scrivenings}</L> on Write opens the chapter and those scenes in one scroll.
+          <L>{RECORD.saveAsRevision("N")}</L>. Saving works the same way. See <See anchor="write" />. A chapter’s
+          main editor includes the text of the scenes nested under it, after the chapter text. That scene text is not
+          saved into the chapter. Edit a scene on its own page.
         </p>
       </Section>
 
@@ -1191,7 +1192,8 @@ export function HelpContent() {
           <p>
             On <L>{SHELL.write}</L>, open the <L>{WRITE.outlinerTab}</L> tab (beside <L>{WRITE.chaptersTab}</L>,{" "}
             <L>{WRITE.scenesTab}</L>, and <L>{MANUSCRIPT_ANNOTATIONS.corkboardTab}</L>). It shows chapters and scenes in a
-            table. {WRITE.outlinerLead}
+            table. On a narrow screen each chapter or scene stacks into a labeled card, so every column stays
+            reachable. {WRITE.outlinerLead}
           </p>
           <h4>What you can edit in the table</h4>
           <ul>
@@ -2172,7 +2174,10 @@ export function HelpContent() {
         <Sub id="world-calendar">
           <p>
             <L>{WORLD.worldCalendar}</L> on <L>{SHELL.world}</L> holds one calendar per project: month names, how many days
-            each month has, and optional eras with an abbreviation and a year offset for comparing dates across eras. Saving
+            each month has, and optional eras with an abbreviation and a year offset for comparing dates across eras.{" "}
+            <L>{WORLD.worldCalendarAddMonth}</L> and <L>{WORLD.worldCalendarAddEra}</L> append a blank row (up to 24
+            months and 32 eras). A row with no name is left out of the save. <L>{WORLD.worldCalendarRemoveMonth}</L> and{" "}
+            <L>{WORLD.worldCalendarRemoveEra}</L> drop a row before you save; at least one month stays. Saving
             a new calendar clears structured dates on story events so nothing points at removed months or eras. Calendar data
             is included in workspace backups.
           </p>
@@ -2282,11 +2287,14 @@ export function HelpContent() {
           </p>
           <p>
             Sections cover Identity, Psychology, Voice, Behavior, Lived experience, Relationships, Capabilities,
-            Development, and Continuity. Enneagram types, wings, and archetypes are writing aids, not diagnoses or
-            behavioral rules. <L>{CHARACTER_DEVELOPMENT.livedTab}</L> holds author-written formative experience,
-            neurodivergence, trauma, coping, and portrayal guidance. Those notes default to omit from AI context, and
-            Extract or Review will not invent them. Capabilities can link existing worldbuilding records instead of
-            copying their prose.
+            Development, and Continuity. Enneagram types, wings, motivations, fears, blind spots, triggers, and
+            archetypes (primary, secondary, or shadow, with optional evolution) are writing aids, not diagnoses or
+            behavioral rules. Narrative role stays under Identity and is not an archetype.{" "}
+            <L>{CHARACTER_DEVELOPMENT.livedTab}</L> holds author-written formative experience, neurodivergence, trauma,
+            mental-health portrayal notes, coping, and guidance. Those notes default to omit from AI context, and
+            Extract or Review will not invent them. Habits and learned behavior stay under Behavior. Capabilities can
+            link existing worldbuilding records instead of copying their prose. You can mark individual psychology
+            fields and archetypes draft, proposed, or approved; Extract and Upgrade never auto-approve them.
           </p>
           <p>
             Development arcs use the same approval words as other records: draft, proposed, approved, superseded, and
@@ -2312,11 +2320,21 @@ export function HelpContent() {
             destinations (identity, psychology, voice, behavior, lived experience, relationships, capabilities,
             development, continuity, plus historical amendments, protected unknowns, proposed material, and
             unclassified). You preview each item with its source text, existing profile content, conflicts, and
-            authority hints, then accept, modify, reject, or defer. Nothing is written until you apply. The original
-            Markdown body and revision history stay put; an archive snapshot is stored on the dossier fields. Proposals
-            never become approved canon automatically, planned growth is not treated as completed development, and
-            protected unknowns stay unresolved. You can also analyze pasted Markdown, review upgrades across the project
-            from Character development, or export a proposed change package for Import package.
+            authority hints, then choose Keep existing, Replace, Merge, Modify, Reject, or Defer. Nothing is written
+            until you apply. The original Markdown body and revision history stay put; an archive snapshot is stored on
+            the dossier fields. Proposals never become approved canon automatically (even when Markdown says approved),
+            planned growth is not treated as completed development, and protected unknowns stay unresolved. Approved
+            profile fields refuse a silent bulk replace — pick an explicit conflict choice. Series-shared characters
+            are reviewed from any book in the series but applied only in the home book. You can also analyze pasted
+            Markdown, review upgrades across the project from Character development, or export a proposed change package
+            for Import package.
+          </p>
+          <p>
+            After an upgrade, <L>{CHARACTER_MIGRATION_HOLD.heading}</L> on the character profile lists held items and the{" "}
+            <L>{CHARACTER_MIGRATION_HOLD.archiveHeading}</L>. You can keep a hold, defer it, resolve it into a draft
+            field, or dismiss it. Field authority stays draft or proposed until you mark a field approved. Assistant
+            context prefers approved structured notes as established profile; draft, proposed, extracted, and held
+            notes are labeled not canon, and dossier Markdown is not repeated when the profile already covers it.
           </p>
         </Sub>
 
@@ -3409,8 +3427,9 @@ export function HelpContent() {
 
         <Sub id="assistant-setup">
           <p>
-            The assistant talks to an OpenAI-compatible Responses API: either OpenAI cloud with your own key, or a
-            local server such as Ollama or LM Studio. Story Loom never ships a shared key. Prefer{" "}
+            The assistant can use OpenAI (Responses API), Anthropic, Gemini, or any OpenAI-compatible endpoint (local
+            Ollama/LM Studio, OpenRouter, …). Choose the provider on <L>{SETTINGS.heading}</L>. Story Loom never ships a
+            shared key. Prefer{" "}
             <L>{SETTINGS.heading}</L> in the app. Developers can still set <code>.env</code> instead.
           </p>
           <ol>
@@ -3432,8 +3451,10 @@ export function HelpContent() {
             </li>
           </ol>
           <p>
-            Developers: you may instead put <code>WORDLY_OPENAI_API_KEY</code>, <code>OPENAI_MODEL</code>, and optional{" "}
-            <code>WORDLY_OPENAI_BASE_URL</code> in <code>.env</code> and restart with <Cmd script="dev" />. A value
+            Developers: you may instead put <code>WORDLY_ASSISTANT_PROVIDER</code>, the matching{" "}
+            <code>WORDLY_*_API_KEY</code> for that provider, <code>OPENAI_MODEL</code>, and optional{" "}
+            <code>WORDLY_OPENAI_BASE_URL</code> (required for <code>openai_compatible</code>) in <code>.env</code> and
+            restart with <Cmd script="dev" />. A value
             saved in Settings overrides the matching <code>.env</code> line until you clear it. Clearing Settings falls
             back to <code>.env</code>.
           </p>
@@ -4163,6 +4184,22 @@ export function HelpContent() {
               <code>WORDLY_BACKUP_MIRROR_DIR</code> in <code>.env</code> overrides the path saved in the app.
             </li>
           </ul>
+        </Sub>
+
+        <Sub id="rolling-backup">
+          <p>
+            <L>{BACKUP.rollingLead}</L> Save the retention count and enable the schedule on <L>{SHELL.settings}</L> or
+            on <L>{SHELL.backups}</L>. Use <L>{BACKUP.rollingRunNow}</L> on the web to run one immediately.
+          </p>
+          <p>{BACKUP.rollingDesktopNote}</p>
+        </Sub>
+
+        <Sub id="sync-bundle">
+          <p>
+            <L>{BACKUP.syncLead}</L> Download <L>{BACKUP.syncExportLink}</L> for a workspace, move the JSON to another
+            computer, then use <L>{BACKUP.syncHeading}</L> to inspect differences. Merging builds a change package and
+            applies only what you confirm—it never overwrites the SQLite file directly.
+          </p>
         </Sub>
 
         <Sub id="restore">

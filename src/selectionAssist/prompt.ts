@@ -1,4 +1,5 @@
 import type { BuiltRequest, SizeItem } from "@/assistant/prompt";
+import { formatAuthorInstructionLens } from "@/domain/promptPreset";
 import { documentLabel, type ContextDocument } from "@/assistant/prompt";
 import { RECORD_TYPE_LABELS, type RecordType } from "@/domain/recordTypes";
 import type { SelectionAssistAction } from "./output";
@@ -37,6 +38,7 @@ export function buildSelectionAssistRequest(
   contextDocs: ContextDocument[],
   boundary: string,
   schemaChars: number,
+  authorInstructionText?: string | null,
 ): BuiltRequest {
   const task = ACTION_INSTRUCTIONS[src.action];
   const selAttrs = [
@@ -73,10 +75,19 @@ export function buildSelectionAssistRequest(
   const content = `${contextText}Task: ${task}\n\nEdit this selected passage:\n\n${selectionBlock}`;
   items.push({ label: "Labels and task framing", chars: content.length - contextText.length - selectionBlock.length - task.length });
 
+  const authorLens = formatAuthorInstructionLens(authorInstructionText ?? "");
+  let instructions = `${SELECTION_ASSIST_INSTRUCTIONS}\n\n${task}`;
+  let totalChars = SELECTION_ASSIST_INSTRUCTIONS.length + task.length + schemaChars + content.length;
+  if (authorLens) {
+    instructions = `${instructions}${authorLens}`;
+    totalChars += authorLens.length;
+    items.push({ label: "Author instruction lens", chars: authorLens.length });
+  }
+
   return {
-    instructions: `${SELECTION_ASSIST_INSTRUCTIONS}\n\n${task}`,
+    instructions,
     input: [{ role: "user", content }],
-    totalChars: SELECTION_ASSIST_INSTRUCTIONS.length + task.length + schemaChars + content.length,
+    totalChars,
     items,
   };
 }

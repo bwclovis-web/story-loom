@@ -5,6 +5,8 @@ import { listWorkspacesWithProjects } from "@/server/services/projectService";
 import { BACKUP } from "@/ui/labels";
 import { BackupMirrorSettings } from "./BackupMirrorSettings";
 import { RestoreClient } from "./RestoreClient";
+import { RollingBackupPanel } from "./RollingBackupPanel";
+import { SyncBundleClient } from "./SyncBundleClient";
 
 export const dynamic = "force-dynamic";
 
@@ -50,6 +52,29 @@ export default async function BackupPage() {
           Optional mirror for full backups only—not a substitute for copying workspace JSON files elsewhere.
         </HelpHint>
         <BackupMirrorSettings mirrorDir={mirror.mirrorDir} fromEnv={fromEnv} settingsPath={backupMirrorSettingsPath()} />
+        <RollingBackupPanel
+          scheduleEnabled={mirror.scheduleEnabled ?? false}
+          retentionCount={mirror.retentionCount ?? 14}
+          lastScheduledBackupAt={mirror.lastScheduledBackupAt ?? null}
+          mirrorConfigured={Boolean(mirror.mirrorDir)}
+          fromEnv={fromEnv}
+        />
+      </section>
+      <section className="panel">
+        <h2 style={{ marginTop: 0 }}>{BACKUP.syncHeading}</h2>
+        <HelpHint anchor="sync-bundle" topic="sync bundles">
+          Compare record revisions between machines without overwriting the database directly.
+        </HelpHint>
+        <ul>
+          {workspaces.map((w) => (
+            <li key={`sync-${w.id}`}>
+              <a href={`/backup/sync-bundle/${w.id}`} download>
+                {BACKUP.syncExportLink}: {w.name}
+              </a>
+            </li>
+          ))}
+        </ul>
+        <SyncBundleClient workspaces={workspaces} />
       </section>
       <section className="panel">
         <h2 style={{ marginTop: 0 }}>{BACKUP.restoreHeading}</h2>

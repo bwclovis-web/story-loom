@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { sha256 } from "@/domain/json";
 import { milestoneFreshness } from "@/domain/characterDevelopment";
+import { readDossierMarkdownArchiveWithStatus } from "@/domain/characterDossierUpgrade";
 import { CharacterDevelopmentPanel } from "@/components/world/CharacterDevelopment";
 import { getAssistantConfig } from "@/server/assistantConfig";
 import { getDb } from "@/server/db";
@@ -75,6 +76,7 @@ export async function CharacterDevelopmentSection({ projectId, recordId }: { pro
   );
 
   const assistant = getAssistantConfig().status;
+  const archiveRead = readDossierMarkdownArchiveWithStatus(loaded.record.fields);
   return (
     <section className="panel" id="character-development" aria-label={CHARACTER_DEVELOPMENT.heading}>
       <h2>{CHARACTER_DEVELOPMENT.heading}</h2>
@@ -89,6 +91,8 @@ export async function CharacterDevelopmentSection({ projectId, recordId }: { pro
         fieldAge={fieldAge}
         traits={visibleTraits(loaded.profile, loaded.foundation?.profile ?? null)}
         staleMilestoneIds={staleMilestoneIds}
+        archive={archiveRead.archive}
+        archiveProblems={archiveRead.problems.map((problem) => problem.message)}
         catalog={{
           books: overview.books,
           characters: overview.characters

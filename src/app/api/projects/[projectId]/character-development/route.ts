@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { getDb } from "@/server/db";
 import { getAssistantConfig } from "@/server/assistantConfig";
-import { createOpenAIProviderFromConfig } from "@/server/openai/openaiProvider";
+import { createAssistantProviderFromConfig } from "@/server/assistantProviderFactory";
 import { rejectCrossSite } from "@/server/sameOrigin";
 import { AssistantError, type AssistantErrorCode } from "@/server/services/assistantService";
 import {
@@ -59,7 +59,7 @@ export async function POST(request: Request, ctx: { params: Promise<{ projectId:
     if (loaded.record.projectId !== projectId) {
       return errorResponse("INVALID_REQUEST", "Edit this character from the book that holds the dossier.", 400);
     }
-    const provider = createOpenAIProviderFromConfig(config);
+    const provider = createAssistantProviderFromConfig(config);
     const runtime = { ...config.status, model: config.status.model };
     const signal = request.signal;
     if (parsed.data.mode === "extract") {

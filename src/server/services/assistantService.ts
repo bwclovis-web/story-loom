@@ -39,6 +39,7 @@ import { hasSectionStatus, listSections, outermostSections, sectionPath, type Do
 import type { Db, DbOrTx } from "../db";
 import { writeAudit } from "./auditService";
 import { LIVE_PROJECT } from "./trashFilters";
+import { applyAuthorInstructionLens, getPromptPreset, normalizeAuthorInstructionText } from "./promptPresetService";
 
 import { clampRecentBudget, DEFAULT_RECENT_BUDGET } from "@/assistant/recentBudget";
 
@@ -126,6 +127,9 @@ export type TurnInput =
       write?: WriteHandoff | null;
       /** When false, discussion has no tools (manual sources only). Default true for chat. */
       enableTools?: boolean;
+      /** Optional saved preset or custom lens for this turn. */
+      authorInstructionText?: string | null;
+      promptPresetId?: string | null;
     }
   | { kind: "retry"; projectId: string; conversationId: string; messageId: string };
 
@@ -849,6 +853,18 @@ export async function prepareTurn(db: Db, runtime: AssistantRuntime, input: Turn
   if (scopeLine) {
     built.instructions = `${built.instructions}\n${scopeLine}`;
     built.totalChars += scopeLine.length + 1;
+  }
+
+  if (input.kind === "ask") {
+    let authorInstructionText = normalizeAuthorInstructionText(input.authorInstructionText);
+    if (input.promptPresetId) {
+      const preset = await getPromptPreset(db, input.projectId, input.promptPresetId);
+      if (preset.surface !== "chat") {
+        throw new AssistantError("INVALID_REQUEST", "That preset is for a different assistant surface. Choose a chat preset.");
+      }
+      if (!authorInstructionText) authorInstructionText = preset.instructionText;
+    }
+    applyAuthorInstructionLens(built, authorInstructionText);
   }
 
   const size = checkSize(built, limits.maxInputChars);

@@ -8,6 +8,7 @@ import type { Db } from "../db";
 import { AssistantError, checkRequestLimits, estimatedUsage, loadAuthorReferenceDocuments, type AssistantRuntime } from "./assistantService";
 import { listReadingPins } from "./readingPinService";
 import { LIVE_RECORD } from "./trashFilters";
+import { applyAuthorInstructionLens, getPromptPreset, normalizeAuthorInstructionText } from "./promptPresetService";
 import { listWeaveBeatsForManuscript } from "./weaveService";
 
 /*
@@ -22,6 +23,8 @@ export interface BeatDraftInput {
   revision: number;
   beatId: string;
   scopeDraftId: string;
+  authorInstructionText?: string | null;
+  promptPresetId?: string | null;
 }
 
 export interface PreparedBeatDraft {
@@ -117,17 +120,25 @@ export async function prepareBeatDraft(
     ? `Pinned references:\n\n${contextBlocks.join("\n\n")}\n\n`
     : "No pinned references.\n\n";
   const content = `${contextText}Draft prose from this Weave beat for the unlocked scene “${record.title}”:\n\n<<BEAT-${boundary}>>\n${beatText}\n<<END-BEAT-${boundary}>>`;
-  const totalChars = BEAT_DRAFT_INSTRUCTIONS.length + content.length;
   const built = {
     instructions: BEAT_DRAFT_INSTRUCTIONS,
     input: [{ role: "user" as const, content }],
-    totalChars,
+    totalChars: BEAT_DRAFT_INSTRUCTIONS.length + content.length,
     items: [
       { label: "Beat-draft instructions", chars: BEAT_DRAFT_INSTRUCTIONS.length },
       { label: `Beat: ${beat.title}`, chars: beatText.length },
       ...contextDocs.map((d) => ({ label: d.title, chars: d.text.length })),
     ],
   };
+  let authorInstructionText = normalizeAuthorInstructionText(input.authorInstructionText);
+  if (input.promptPresetId) {
+    const preset = await getPromptPreset(db, input.projectId, input.promptPresetId);
+    if (preset.surface !== "beat") {
+      throw new AssistantError("INVALID_REQUEST", "That preset is for a different assistant surface. Choose a beat preset.");
+    }
+    if (!authorInstructionText) authorInstructionText = preset.instructionText;
+  }
+  applyAuthorInstructionLens(built, authorInstructionText);
   const size = checkSize(built, runtime.limits.maxInputChars);
   if (size) throw new AssistantError("TOO_LARGE", describeSizeProblem(size), size);
   await checkRequestLimits(db, runtime.limits, built.totalChars, now);
@@ -176,6 +187,7 @@ export async function runBeatDraft(
   provider: AssistantProvider,
   prep: PreparedBeatDraft,
   signal: AbortSignal,
+  onDelta?: (text: string) => void,
 ): Promise<BeatDraftResult> {
   let status: BeatDraftResult["status"] = "failed";
   let errorCode: string | null = null;
@@ -186,29 +198,29 @@ export async function runBeatDraft(
   let note: string | null = null;
 
   try {
-    if (!provider.complete) {
-      throw new ProviderError(
-        "provider_failed",
-        "This assistant connection cannot draft a beat suggestion. Configure a provider that supports complete responses.",
-      );
+    let streamedText = "";
+    let streamIncomplete = false;
+    for await (const event of provider.stream(prep.request, signal)) {
+      if (event.type === "delta") {
+        streamedText += event.text;
+        onDelta?.(event.text);
+      } else if (event.type === "done") {
+        if (event.usage) usage = event.usage;
+        streamIncomplete = event.status === "incomplete";
+      }
     }
-    const round = await provider.complete(prep.request, signal);
     if (signal.aborted) throw new ProviderError("cancelled", "The request was cancelled.");
-    if (round.usage) usage = round.usage;
-    else {
-      usage = estimatedUsage(prep.requestChars, round.kind === "message" ? round.text.length : 0);
+    if (!usage) {
+      usage = estimatedUsage(prep.requestChars, streamedText.length);
       usageEstimated = true;
     }
-    if (round.kind !== "message") {
-      errorCode = "unexpected_tools";
-      errorMessage = "The model returned tool calls instead of prose. Try again.";
-    } else if (round.status === "incomplete") {
+    if (streamIncomplete) {
       status = "incomplete";
       errorCode = "incomplete";
       errorMessage = "The model stopped before finishing. You can still copy any partial suggestion below.";
-      suggestion = round.text.trim() || null;
+      suggestion = streamedText.trim() || null;
     } else {
-      suggestion = round.text.trim() || null;
+      suggestion = streamedText.trim() || null;
       if (!suggestion) {
         errorCode = "empty";
         errorMessage = "The model returned no prose.";

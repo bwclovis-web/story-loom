@@ -1,6 +1,6 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
-import { API_KEY_ENV, readAssistantConfig } from "@/assistant/config";
+import { apiKeyEnvForProvider, readAssistantConfig } from "@/assistant/config";
 import type { Db } from "@/server/db";
 import { fileGrantSource, isMcpDisabled, resolveGrantPath, type LocalGrant, type McpEnv } from "./grant";
 import { createWordlyMcpServer, WORDLY_MCP_TOOLS } from "./server";
@@ -110,14 +110,15 @@ export function inspectAssistant(env: McpEnv): AssistantInspection {
       notChecked: ["No request was sent to OpenAI."],
     };
   }
+  const keyEnv = apiKeyEnvForProvider(status.provider);
   return {
     state: "connection_not_verified",
     model: status.model,
     checked: [
-      `${API_KEY_ENV} is set in the server environment. The key is not shown.`,
+      `Provider ${status.provider}; ${keyEnv} is set in the server environment. The key is not shown.`,
       `OPENAI_MODEL is set to ${status.model}.`,
     ],
-    notChecked: ["No request was sent to OpenAI, so the assistant connection was not verified."],
+    notChecked: ["No request was sent to the provider, so the assistant connection was not verified."],
   };
 }
 

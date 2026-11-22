@@ -13,12 +13,23 @@ const { spawn } = require("node:child_process");
 const { createServer } = require("node:net");
 const path = require("node:path");
 const { existsSync, mkdirSync, writeFileSync } = require("node:fs");
-const { loadConfig, saveConfig, readEncryptedKey, writeEncryptedKey, readFallbackKey } = require("./config.cjs");
+const {
+  loadConfig,
+  saveConfig,
+  readEncryptedKey,
+  writeEncryptedKey,
+  readFallbackKey,
+  writeAssistantBridge,
+  readOrCreateDesktopToken,
+} = require("./config.cjs");
+const { readFileSync, existsSync: fsExists } = require("node:fs");
 
 const isDev = !app.isPackaged;
 let mainWindow = null;
 let serverProcess = null;
 let serverPort = null;
+let dailyBackupTimer = null;
+let desktopToken = null;
 
 function appRoot() {
   if (isDev) return path.resolve(__dirname, "..");
@@ -104,20 +115,75 @@ function writeDevLibraryBridge(config) {
     `${JSON.stringify({ libraryDir: config.libraryDir }, null, 2)}\n`,
     "utf8",
   );
+  const mirrorFile = path.join(localDir, "backup-mirror.json");
   if (config.backupMirrorDir) {
+    let schedule = { scheduleEnabled: false, retentionCount: 14, lastScheduledBackupAt: null };
+    if (fsExists(mirrorFile)) {
+      try {
+        schedule = { ...schedule, ...JSON.parse(readFileSync(mirrorFile, "utf8")) };
+      } catch {
+        // ignore
+      }
+    }
     writeFileSync(
-      path.join(localDir, "backup-mirror.json"),
-      `${JSON.stringify({ mirrorDir: config.backupMirrorDir }, null, 2)}\n`,
+      mirrorFile,
+      `${JSON.stringify({ mirrorDir: config.backupMirrorDir, ...schedule }, null, 2)}\n`,
       "utf8",
     );
   }
 }
 
+function readMirrorSchedule(appRootDir) {
+  const file = path.join(appRootDir, "local", "backup-mirror.json");
+  if (!fsExists(file)) return { scheduleEnabled: false, retentionCount: 14 };
+  try {
+    const parsed = JSON.parse(readFileSync(file, "utf8"));
+    return {
+      scheduleEnabled: parsed.scheduleEnabled === true,
+      retentionCount: typeof parsed.retentionCount === "number" ? parsed.retentionCount : 14,
+    };
+  } catch {
+    return { scheduleEnabled: false, retentionCount: 14 };
+  }
+}
+
+async function triggerRollingBackup(port, label) {
+  if (!port || !desktopToken) return;
+  try {
+    await fetch(`http://127.0.0.1:${port}/api/desktop/rolling-backup`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-storyloom-desktop-token": desktopToken,
+      },
+      body: JSON.stringify({ label }),
+      signal: AbortSignal.timeout(120_000),
+    });
+  } catch {
+    // best effort; backups must never block quit
+  }
+}
+
+function scheduleDailyRollingBackup(config, port) {
+  if (dailyBackupTimer) clearInterval(dailyBackupTimer);
+  const schedule = readMirrorSchedule(appRoot());
+  if (!schedule.scheduleEnabled || !config.backupMirrorDir) return;
+  dailyBackupTimer = setInterval(
+    () => {
+      void triggerRollingBackup(port, "scheduled-daily");
+    },
+ 24 * 60 * 60 * 1000);
+  dailyBackupTimer.unref?.();
+}
+
 function buildChildEnv(config, port) {
+  desktopToken = readOrCreateDesktopToken(userData());
+  writeAssistantBridge(appRoot(), userData(), safeStorage, config);
   const env = {
     ...process.env,
     STORYLOOM_ELECTRON: "1",
     STORYLOOM_DESKTOP: isDev ? process.env.STORYLOOM_DESKTOP || "" : "1",
+    STORYLOOM_DESKTOP_TOKEN: desktopToken,
     PORT: String(port),
     HOSTNAME: "127.0.0.1",
     WORDLY_LIBRARY_DIR: config.libraryDir || "",
@@ -269,6 +335,11 @@ app.whenReady().then(async () => {
     }
     const port = await startServer(config);
     createWindow(port);
+    const schedule = readMirrorSchedule(appRoot());
+    if (schedule.scheduleEnabled && config.backupMirrorDir) {
+      scheduleDailyRollingBackup(config, port);
+      void triggerRollingBackup(port, "scheduled-launch");
+    }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     dialog.showErrorBox("Story Loom failed to start", message);
@@ -283,6 +354,12 @@ app.on("window-all-closed", () => {
 });
 
 app.on("before-quit", () => {
+  const config = loadConfig(userData());
+  const schedule = readMirrorSchedule(appRoot());
+  if (schedule.scheduleEnabled && config.backupMirrorDir && serverPort) {
+    void triggerRollingBackup(serverPort, "scheduled-close");
+  }
+  if (dailyBackupTimer) clearInterval(dailyBackupTimer);
   stopServer();
 });
 

@@ -6,8 +6,11 @@ import { IssueList } from "@/components/IssueList";
 import { Banner } from "@/components/ui/Banner";
 import { Button, ButtonLink } from "@/components/ui/Button";
 import type { Issue } from "@/domain/issues";
+import type { AssistantProviderId } from "@/assistant/config";
+import type { AssistantKeySource } from "@/server/assistantSecrets";
 import { BACKUP, SETTINGS } from "@/ui/labels";
 import {
+  ASSISTANT_PROVIDER_OPTIONS,
   clearAssistantKeyAction,
   saveAssistantKeyAction,
   saveLibraryDirAction,
@@ -31,27 +34,42 @@ function applyResult(
 }
 
 export function AssistantSettingsForm({
+  provider,
   keySaved,
   model,
   baseUrl,
   secretsPath,
+  keySource,
 }: {
+  provider: AssistantProviderId;
   keySaved: boolean;
   model: string;
   baseUrl: string;
   secretsPath: string;
+  keySource: AssistantKeySource;
 }) {
   const [apiKey, setApiKey] = useState("");
+  const [providerValue, setProviderValue] = useState<AssistantProviderId>(provider);
   const [modelValue, setModelValue] = useState(model);
   const [baseUrlValue, setBaseUrlValue] = useState(baseUrl);
   const [issues, setIssues] = useState<Issue[]>([]);
   const [message, setMessage] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
+  const isDesktop = typeof window !== "undefined" && Boolean(window.storyLoomDesktop?.isDesktop);
+
   const save = () => {
     startTransition(async () => {
+      if (isDesktop && window.storyLoomDesktop) {
+        if (apiKey.trim()) {
+          await window.storyLoomDesktop.saveAssistantKey({ apiKey: apiKey.trim(), model: modelValue });
+        } else if (modelValue.trim()) {
+          await window.storyLoomDesktop.saveAssistantKey({ model: modelValue });
+        }
+      }
       const data = new FormData();
-      data.set("apiKey", apiKey);
+      data.set("provider", providerValue);
+      data.set("apiKey", isDesktop ? "" : apiKey);
       data.set("model", modelValue);
       data.set("baseUrl", baseUrlValue);
       const result = await saveAssistantKeyAction(data);
@@ -62,6 +80,9 @@ export function AssistantSettingsForm({
 
   const clearKey = () => {
     startTransition(async () => {
+      if (isDesktop && window.storyLoomDesktop) {
+        await window.storyLoomDesktop.saveAssistantKey({ clear: true });
+      }
       const result = await clearAssistantKeyAction();
       applyResult(result, setIssues, setMessage);
       if (result.ok) setApiKey("");
@@ -84,8 +105,25 @@ export function AssistantSettingsForm({
       ) : (
         <p className="small muted">{SETTINGS.aiKeyMissing}</p>
       )}
+      {keySource === "desktop-keychain" ? <p className="small muted">{SETTINGS.aiKeySourceDesktop}</p> : null}
       <IssueList issues={issues} />
       {message ? <Banner tone="ok">{message}</Banner> : null}
+      <label>
+        {SETTINGS.aiProviderLabel}
+        <select
+          name="provider"
+          value={providerValue}
+          disabled={pending}
+          onChange={(e) => setProviderValue(e.target.value as AssistantProviderId)}
+        >
+          {ASSISTANT_PROVIDER_OPTIONS.map((id) => (
+            <option key={id} value={id}>
+              {id}
+            </option>
+          ))}
+        </select>
+      </label>
+      <p className="small muted">{SETTINGS.aiProviderHint}</p>
       <label>
         {SETTINGS.aiKeyLabel}
         <input

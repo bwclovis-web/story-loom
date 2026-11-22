@@ -6,15 +6,25 @@ import {
   analyzeImportedMarkdown,
   applyUpgradeDecisions,
   buildUpgradeChangePackage,
+  dismissHold,
   emptyDossierMarkdownArchive,
   fieldsAfterUpgrade,
   parseMarkdownSections,
   readDossierMarkdownArchive,
+  readDossierMarkdownArchiveWithStatus,
+  resolveHoldIntoField,
+  updateHoldDecision,
+  upgradeDecisionFingerprint,
 } from "@/domain/characterDossierUpgrade";
+import { CHARACTER_HEADING_MAP, findHeadingMapping } from "@/domain/characterHeadingExtraction";
 import {
   characterProfileMarkdown,
   emptyCharacterDevelopment,
+  fieldMetaOf,
+  proposeProfileFillFromBody,
   readCharacterDevelopment,
+  renderCharacterContextSlice,
+  setFieldMeta,
   withCharacterDevelopment,
 } from "@/domain/characterDevelopment";
 
@@ -176,5 +186,300 @@ describe("character dossier upgrade analysis", () => {
     expect(sections[0]?.body).toContain("Intro line");
     expect(sections[1]?.tags).toContain("SELECTED");
     expect(sections[1]?.cleanHeading).toBe("Role");
+  });
+
+  it("shares heading extraction with proposeProfileFillFromBody", () => {
+    const body = "## Appearance\nSalt-grey cloak.\n\n## Voice\nClipped.\n\n## Desire\nTruth.\n";
+    const analysis = analyzeDossierUpgrade(body, emptyCharacterDevelopment());
+    const fills = proposeProfileFillFromBody(body, emptyCharacterDevelopment());
+    expect(findHeadingMapping("Appearance")?.fieldPath).toBe("foundation.appearance");
+    expect(CHARACTER_HEADING_MAP.some((row) => row.heading === "Voice")).toBe(true);
+    expect(analysis.items.find((item) => item.fieldPath === "foundation.appearance")?.proposedValue).toContain(
+      "Salt-grey cloak",
+    );
+    expect(fills.map((row) => row.key).sort()).toEqual(["appearance", "coreDesire", "diction"].sort());
+  });
+
+  it("stamps imported draft provenance and never auto-approves Markdown [APPROVED]", () => {
+    const body = "## Appearance [APPROVED]\nSalt-grey cloak.\n";
+    const analysis = analyzeDossierUpgrade(body, emptyCharacterDevelopment());
+    const item = analysis.items[0]!;
+    expect(item.authorityHint).toBe("approved");
+    expect(item.requiresHumanReview).toBe(true);
+    const applied = applyUpgradeDecisions(
+      emptyCharacterDevelopment(),
+      analysis,
+      [{ itemId: item.id, decision: "accept" }],
+      emptyDossierMarkdownArchive(),
+      { body, sourceRevision: 1 },
+    );
+    const meta = fieldMetaOf(applied.profile, "foundation.appearance");
+    expect(meta.approval).toBe("draft");
+    expect(meta.provenance.origin).toBe("imported");
+    expect(meta.provenance.sourceHeading).toContain("Appearance");
+  });
+
+  it("detects psychology/voice/behavior conflicts and supports keep/merge/replace", () => {
+    const profile = emptyCharacterDevelopment();
+    profile.psychology.coreDesire = "Safety.";
+    profile.voice.diction = "Soft.";
+    profile.behavior.habits = "Paces.";
+    const body =
+      "## Desire\nTruth at any cost.\n\n## Voice\nClipped answers.\n\n## Habits\nChecks locks twice.\n";
+    const analysis = analyzeDossierUpgrade(body, profile);
+    const desire = analysis.items.find((item) => item.fieldPath === "psychology.coreDesire")!;
+    const voice = analysis.items.find((item) => item.fieldPath === "voice.diction")!;
+    const habits = analysis.items.find((item) => item.fieldPath === "behavior.habits")!;
+    expect(desire.existingCanonical).toBe("Safety.");
+    expect(voice.requiresHumanReview).toBe(true);
+    expect(habits.mergeSupported).toBe(true);
+
+    const applied = applyUpgradeDecisions(
+      profile,
+      analysis,
+      [
+        { itemId: desire.id, decision: "keep_existing" },
+        { itemId: voice.id, decision: "merge" },
+        { itemId: habits.id, decision: "accept" },
+      ],
+      emptyDossierMarkdownArchive(),
+      { body, sourceRevision: 1 },
+    );
+    expect(applied.profile.psychology.coreDesire).toBe("Safety.");
+    expect(applied.profile.voice.diction).toContain("Soft.");
+    expect(applied.profile.voice.diction).toContain("Clipped answers.");
+    expect(applied.profile.behavior.habits).toContain("Checks locks");
+  });
+
+  it("refuses silent overwrite of approved canon on accept", () => {
+    const profile = setFieldMeta(emptyCharacterDevelopment(), "foundation.appearance", {
+      approval: "approved",
+      provenance: { origin: "author", note: "", updatedAt: "2026-01-01T00:00:00.000Z" },
+    });
+    profile.foundation.appearance = "Black coat.";
+    const body = "## Appearance\nSalt-grey cloak.\n";
+    const analysis = analyzeDossierUpgrade(body, profile);
+    const item = analysis.items[0]!;
+    expect(item.existingAuthority).toBe("approved");
+    expect(item.requiresHumanReview).toBe(true);
+    const blocked = applyUpgradeDecisions(
+      profile,
+      analysis,
+      [{ itemId: item.id, decision: "accept" }],
+      emptyDossierMarkdownArchive(),
+      { body, sourceRevision: 1 },
+    );
+    expect(blocked.profile.foundation.appearance).toBe("Black coat.");
+    expect(blocked.deferredItemIds).toContain(item.id);
+  });
+
+  it("surfaces unsupported archive versions and resolves holds into draft fields", () => {
+    const bad = readDossierMarkdownArchiveWithStatus({
+      dossierMarkdownArchive: { version: 99, entries: [], appliedFingerprints: [] },
+    });
+    expect(bad.unsupportedVersion).toBe(true);
+    expect(bad.problems.length).toBeGreaterThan(0);
+
+    const analysis = analyzeDossierUpgrade("## Appearance\nCloak.\n\n## Unknowns\nWho forged the ledger?\n", emptyCharacterDevelopment());
+    const mystery = analysis.items.find((item) => item.destination === "protected_unknowns")!;
+    const appearance = analysis.items.find((item) => item.fieldPath === "foundation.appearance")!;
+    const applied = applyUpgradeDecisions(
+      emptyCharacterDevelopment(),
+      analysis,
+      [
+        { itemId: appearance.id, decision: "defer" },
+        { itemId: mystery.id, decision: "accept" },
+        ...analysis.items
+          .filter((item) => item.id !== appearance.id && item.id !== mystery.id)
+          .map((item) => ({ itemId: item.id, decision: "defer" as const })),
+      ],
+      emptyDossierMarkdownArchive(),
+      { body: "## Appearance\nCloak.\n\n## Unknowns\nWho forged the ledger?\n", sourceRevision: 1 },
+    );
+    const holdId = applied.profile.migrationHold[0]!.id;
+    const deferred = updateHoldDecision(applied.profile, holdId, "deferred");
+    expect(deferred.migrationHold[0]?.decision).toBe("deferred");
+    const dismissed = dismissHold(deferred, holdId);
+    expect(dismissed.migrationHold).toHaveLength(0);
+
+    const heldProfile = emptyCharacterDevelopment();
+    heldProfile.migrationHold = [
+      {
+        id: "hold_appearance",
+        kind: "unclassified",
+        fieldPath: "foundation.appearance",
+        heading: "Appearance",
+        text: "Salt-grey cloak.",
+        sourceText: "Salt-grey cloak.",
+        note: "test",
+        decision: "retained",
+      },
+    ];
+    const resolved = resolveHoldIntoField(heldProfile, "hold_appearance")!;
+    expect(resolved.foundation.appearance).toBe("Salt-grey cloak.");
+    expect(fieldMetaOf(resolved, "foundation.appearance").approval).toBe("draft");
+    expect(resolved.migrationHold).toHaveLength(0);
+  });
+
+  it("keeps decision fingerprints stable across profile fills for idempotency", () => {
+    const body = "## Appearance\nCloak.\n";
+    const empty = analyzeDossierUpgrade(body, emptyCharacterDevelopment());
+    const filled = emptyCharacterDevelopment();
+    filled.foundation.appearance = "Cloak.";
+    const again = analyzeDossierUpgrade(body, filled);
+    expect(empty.bodyHash).toBe(again.bodyHash);
+    expect(empty.fingerprint).not.toBe(again.fingerprint);
+    const decisions = empty.items.map((item) => ({ itemId: item.id, decision: "accept" as const }));
+    expect(upgradeDecisionFingerprint(empty.bodyHash, decisions)).toBe(
+      upgradeDecisionFingerprint(again.bodyHash, decisions),
+    );
+  });
+
+  it("classifies Enneagram, archetypes, narrative role, and new psychology headings", () => {
+    const body = [
+      "## Enneagram",
+      "Type 5w4.",
+      "",
+      "## Primary archetype",
+      "Sage",
+      "",
+      "## Shadow archetype",
+      "Trickster — denied face",
+      "",
+      "## Narrative role",
+      "Mentor",
+      "",
+      "## Core motivation",
+      "To keep the record intact.",
+      "",
+      "## Blind spots",
+      "Cannot ask for help.",
+      "",
+      "## Mental health",
+      "Author portrayal note only.",
+    ].join("\n");
+    const analysis = analyzeDossierUpgrade(body, emptyCharacterDevelopment());
+    expect(analysis.items.find((item) => item.fieldPath === "psychology.enneagram")?.requiresHumanReview).toBe(true);
+    expect(analysis.items.find((item) => item.fieldPath === "archetypes")?.requiresHumanReview).toBe(true);
+    expect(analysis.items.find((item) => item.fieldPath === "narrativeRole")?.requiresHumanReview).toBe(true);
+    expect(analysis.items.find((item) => item.fieldPath === "psychology.coreMotivation")?.proposedValue).toContain(
+      "keep the record",
+    );
+    expect(analysis.items.find((item) => item.fieldPath === "psychology.blindSpots")).toBeTruthy();
+    expect(analysis.items.find((item) => item.fieldPath === "livedExperience.boundaryNote")?.destination).toBe("lived");
+
+    const applied = applyUpgradeDecisions(
+      emptyCharacterDevelopment(),
+      analysis,
+      analysis.items.map((item) => ({ itemId: item.id, decision: "accept" as const })),
+      emptyDossierMarkdownArchive(),
+      { body, sourceRevision: 1 },
+    );
+    expect(applied.profile.psychology.enneagram).toBe(5);
+    expect(applied.profile.psychology.wing).toBe(4);
+    expect(applied.profile.narrativeRole).toBe("mentor");
+    expect(applied.profile.archetypes.some((item) => item.rank === "primary" && item.name === "Sage")).toBe(true);
+    expect(applied.profile.archetypes.some((item) => item.rank === "shadow")).toBe(true);
+    expect(applied.profile.archetypes.every((item) => item.approval !== "approved")).toBe(true);
+    expect(fieldMetaOf(applied.profile, "psychology.enneagram").approval).not.toBe("approved");
+    expect(applied.profile.psychology.coreMotivation).toContain("keep the record");
+    expect(applied.profile.livedExperience.boundaryNote).toContain("portrayal");
+    expect(applied.profile.livedExperience.aiVisibility).toBe("omit");
+  });
+
+  it("refuses silent overwrite of approved Enneagram and archetypes on re-import", () => {
+    let profile = emptyCharacterDevelopment();
+    profile.psychology.enneagram = 5;
+    profile = setFieldMeta(profile, "psychology.enneagram", {
+      approval: "approved",
+      provenance: { origin: "author", note: "", updatedAt: "2026-01-01T00:00:00.000Z" },
+    });
+    profile.archetypes = [
+      {
+        id: "arch_1",
+        name: "Sage",
+        custom: false,
+        description: "",
+        rank: "primary",
+        periodLabel: "",
+        relationshipRecordId: null,
+        evolvesFromId: null,
+        evolutionNote: "",
+        bookProjectId: null,
+        approval: "approved",
+        provenance: { origin: "author", note: "" },
+      },
+    ];
+    const body = "## Enneagram\nType 8.\n\n## Archetypes\nRebel\n";
+    const analysis = analyzeDossierUpgrade(body, profile);
+    const enneagram = analysis.items.find((item) => item.fieldPath === "psychology.enneagram")!;
+    const archetypes = analysis.items.find((item) => item.fieldPath === "archetypes")!;
+    expect(enneagram.existingAuthority).toBe("approved");
+    expect(archetypes.existingAuthority).toBe("approved");
+    const blocked = applyUpgradeDecisions(
+      profile,
+      analysis,
+      [
+        { itemId: enneagram.id, decision: "accept" },
+        { itemId: archetypes.id, decision: "accept" },
+      ],
+      emptyDossierMarkdownArchive(),
+      { body, sourceRevision: 1 },
+    );
+    expect(blocked.profile.psychology.enneagram).toBe(5);
+    expect(blocked.profile.archetypes[0]?.name).toBe("Sage");
+    expect(blocked.deferredItemIds).toEqual(expect.arrayContaining([enneagram.id, archetypes.id]));
+  });
+
+  it("separates approved canon from draft notes in context slices and dedupes body", () => {
+    const profile = emptyCharacterDevelopment();
+    profile.foundation.appearance = "Salt-grey cloak.";
+    profile.voice.diction = "Clipped.";
+    const withMeta = setFieldMeta(
+      setFieldMeta(profile, "foundation.appearance", {
+        approval: "approved",
+        provenance: { origin: "author", note: "", updatedAt: "2026-01-01T00:00:00.000Z" },
+      }),
+      "voice.diction",
+      {
+        approval: "draft",
+        provenance: { origin: "imported", note: "", sourceHeading: "Voice", updatedAt: "2026-01-01T00:00:00.000Z" },
+      },
+    );
+    withMeta.migrationHold = [
+      {
+        id: "hold_1",
+        kind: "unclassified",
+        fieldPath: "hold.unclassified",
+        heading: "Odd note",
+        text: "Held secret passage.",
+        sourceText: "Held secret passage.",
+        note: "held",
+        decision: "retained",
+      },
+    ];
+    const body = "Narrative preamble about the quay.\n\n## Appearance\nSalt-grey cloak.\n";
+    const dialogue = renderCharacterContextSlice({
+      title: "Mara",
+      body,
+      profile: withMeta,
+      slice: "dialogue",
+    });
+    expect(dialogue).toMatch(/Established profile/i);
+    expect(dialogue).toContain("Salt-grey cloak");
+    expect(dialogue).toMatch(/Draft \/ Proposed notes \(not canon\)/i);
+    expect(dialogue).toContain("Clipped");
+    expect(dialogue).not.toContain("Held secret passage");
+
+    const continuity = renderCharacterContextSlice({
+      title: "Mara",
+      body,
+      profile: withMeta,
+      slice: "continuity",
+    });
+    expect(continuity).toContain("quay");
+    expect(continuity).toContain("Held secret passage");
+    // Appearance section prose already represented by structured field — omit redundant heading dump.
+    expect(continuity).not.toMatch(/## Appearance\nSalt-grey cloak/);
   });
 });

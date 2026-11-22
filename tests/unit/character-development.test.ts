@@ -6,6 +6,8 @@ import {
   characterProfileMarkdown,
   cuesForManuscript,
   emptyCharacterDevelopment,
+  fieldIsEstablishedCanon,
+  fieldMetaOf,
   inheritedTraits,
   milestoneFreshness,
   parseProfileSuggestions,
@@ -15,7 +17,9 @@ import {
   resolveCharacterState,
   resolveKnowledgeAtPoint,
   seriesMatrix,
+  setFieldMeta,
   unsupportedCharacterDevelopmentVersion,
+  validateCharacterDevelopment,
   variantWouldCycle,
   visibleProfileSections,
   wingIsValid,
@@ -384,6 +388,59 @@ describe("character development", () => {
     expect(next.foundation.appearance).toBe("Salt-grey cloak.");
     expect(next.voice.diction).toBe("Clipped answers.");
     expect(next.livedExperience.trauma).toBe("");
+    expect(next.fieldMeta["foundation.appearance"]?.provenance.origin).toBe("imported");
+    expect(next.fieldMeta["foundation.appearance"]?.approval).toBe("draft");
+  });
+
+  it("defaults legacy fields without fieldMeta to draft author provenance", () => {
+    const profile = emptyCharacterDevelopment();
+    profile.foundation.appearance = "Old cloak";
+    expect(fieldMetaOf(profile, "foundation.appearance").approval).toBe("draft");
+    expect(fieldMetaOf(profile, "foundation.appearance").provenance.origin).toBe("author");
+    const approved = setFieldMeta(profile, "foundation.appearance", {
+      approval: "approved",
+      provenance: { origin: "author", note: "Canon", updatedAt: "2026-01-01T00:00:00.000Z" },
+    });
+    expect(fieldIsEstablishedCanon(approved, "foundation.appearance")).toBe(true);
+    const markdown = characterProfileMarkdown("Mara", approved, "full");
+    expect(markdown).toContain("Old cloak");
+  });
+
+  it("labels draft and held notes separately from approved canon in context slices", () => {
+    let profile = emptyCharacterDevelopment();
+    profile.foundation.appearance = "Approved cloak";
+    profile.psychology.coreDesire = "Draft desire";
+    profile = setFieldMeta(profile, "foundation.appearance", {
+      approval: "approved",
+      provenance: { origin: "author", note: "", updatedAt: "2026-01-01T00:00:00.000Z" },
+    });
+    profile = setFieldMeta(profile, "psychology.coreDesire", {
+      approval: "proposed",
+      provenance: { origin: "extracted", note: "", updatedAt: "2026-01-01T00:00:00.000Z" },
+    });
+    profile.migrationHold = [
+      {
+        id: "h1",
+        kind: "protected_unknowns",
+        fieldPath: "hold.unknowns",
+        heading: "Mystery",
+        text: "Who forged it?",
+        sourceText: "Who forged it?",
+        note: "held",
+        decision: "retained",
+      },
+    ];
+    const slice = renderCharacterContextSlice({
+      title: "Mara",
+      body: "## Appearance\nApproved cloak\n\nFreeform quay memory.",
+      profile,
+      slice: "continuity",
+    });
+    expect(slice).toMatch(/Established profile/i);
+    expect(slice).toContain("Approved cloak");
+    expect(slice).toMatch(/not canon/i);
+    expect(slice).toContain("Draft desire");
+    expect(slice).not.toMatch(/## Established profile[\s\S]*Who forged it/);
   });
 
   it("keeps Phase 1 identity, behavior, and capabilities through a round trip", () => {
@@ -417,6 +474,199 @@ describe("character development", () => {
     profile.importance = "major";
     expect(visibleProfileSections(profile)).toContain("psychology");
     expect(profile.behavior.habits).toBe("Checks the lock twice");
+  });
+
+  it("loads legacy psychology without new keys and keeps optional psychology fields", () => {
+    const stored = {
+      characterDevelopment: {
+        version: 1,
+        psychology: { coreDesire: "truth", coreFear: "erasure" },
+        archetypes: [{ id: "arch_legacy", name: "Sage", rank: "primary" }],
+      },
+    };
+    const read = readCharacterDevelopment(stored);
+    expect(read.problems).toEqual([]);
+    expect(read.profile.psychology.coreDesire).toBe("truth");
+    expect(read.profile.psychology.coreMotivation).toBe("");
+    expect(read.profile.psychology.blindSpots).toBe("");
+    expect(read.profile.psychology.selfPerception).toBe("");
+    expect(read.profile.archetypes[0]?.approval).toBe("draft");
+    expect(read.profile.archetypes[0]?.evolvesFromId).toBeNull();
+    expect(read.profile.archetypes[0]?.rank).toBe("primary");
+
+    const next = emptyCharacterDevelopment();
+    next.psychology.coreMotivation = "to keep the record";
+    next.psychology.blindSpots = "Cannot see her own need for help";
+    next.psychology.emotionalTriggers = "Forged seals";
+    next.psychology.behavioralPatterns = "Withdraws into ledgers";
+    next.psychology.selfPerception = "Reliable clerk";
+    next.psychology.externalPerception = "Cold archivist";
+    next.psychology.frameworks = [
+      {
+        id: "frame_1",
+        name: "Author notes",
+        notes: "Not a diagnosis",
+        approval: "draft",
+        provenance: { origin: "author", note: "" },
+      },
+    ];
+    next.archetypes = [
+      {
+        id: "arch_1",
+        name: "Sage",
+        custom: false,
+        description: "",
+        rank: "primary",
+        periodLabel: "Books 1-2",
+        relationshipRecordId: null,
+        evolvesFromId: null,
+        evolutionNote: "",
+        bookProjectId: null,
+        approval: "approved",
+        provenance: { origin: "author", note: "" },
+      },
+      {
+        id: "arch_2",
+        name: "Shadow",
+        custom: false,
+        description: "What she denies",
+        rank: "shadow",
+        periodLabel: "",
+        relationshipRecordId: null,
+        evolvesFromId: "arch_1",
+        evolutionNote: "After the quay fire",
+        bookProjectId: "book-1",
+        approval: "draft",
+        provenance: { origin: "author", note: "" },
+      },
+      {
+        id: "arch_3",
+        name: "Saltkeeper",
+        custom: true,
+        description: "Custom",
+        rank: "secondary",
+        periodLabel: "",
+        relationshipRecordId: null,
+        evolvesFromId: null,
+        evolutionNote: "",
+        bookProjectId: null,
+        approval: "proposed",
+        provenance: { origin: "imported", note: "" },
+      },
+    ];
+    next.narrativeRole = "mentor";
+    const round = readCharacterDevelopment(withCharacterDevelopment({}, next));
+    expect(round.problems).toEqual([]);
+    expect(round.profile.psychology.coreMotivation).toBe("to keep the record");
+    expect(round.profile.archetypes.map((item) => item.rank)).toEqual(["primary", "shadow", "secondary"]);
+    expect(round.profile.archetypes[1]?.evolvesFromId).toBe("arch_1");
+    expect(round.profile.narrativeRole).toBe("mentor");
+  });
+
+  it("rejects cyclic archetype evolution and keeps Extract archetypes draft", () => {
+    const profile = emptyCharacterDevelopment();
+    profile.archetypes = [
+      {
+        id: "arch_a",
+        name: "Hero",
+        custom: false,
+        description: "",
+        rank: "primary",
+        periodLabel: "",
+        relationshipRecordId: null,
+        evolvesFromId: "arch_b",
+        evolutionNote: "",
+        bookProjectId: null,
+        approval: "draft",
+        provenance: { origin: "author", note: "" },
+      },
+      {
+        id: "arch_b",
+        name: "Rebel",
+        custom: false,
+        description: "",
+        rank: "secondary",
+        periodLabel: "",
+        relationshipRecordId: null,
+        evolvesFromId: "arch_a",
+        evolutionNote: "",
+        bookProjectId: null,
+        approval: "draft",
+        provenance: { origin: "author", note: "" },
+      },
+    ];
+    expect(validateCharacterDevelopment(profile).some((problem) => /circle/i.test(problem.message))).toBe(true);
+
+    const applied = applyProfileSuggestions(
+      emptyCharacterDevelopment(),
+      [
+        {
+          id: "sug_1",
+          kind: "archetype",
+          key: "shadow",
+          value: "Trickster",
+          evidence: "from the dossier",
+          confidence: "medium",
+        },
+        {
+          id: "sug_2",
+          kind: "psychology",
+          key: "blindSpots",
+          value: "Cannot ask for help",
+          evidence: "clip",
+          confidence: "high",
+        },
+      ],
+      (prefix) => `${prefix}_test`,
+    );
+    expect(applied.archetypes[0]?.rank).toBe("shadow");
+    expect(applied.archetypes[0]?.approval).toBe("draft");
+    expect(applied.archetypes[0]?.provenance.origin).toBe("extracted");
+    expect(applied.psychology.blindSpots).toBe("Cannot ask for help");
+    expect(applied.fieldMeta["psychology.blindSpots"]?.approval).toBe("draft");
+    expect(applied.fieldMeta["psychology.blindSpots"]?.provenance.origin).toBe("extracted");
+  });
+
+  it("emits approved and draft archetypes separately in context and export", () => {
+    const profile = emptyCharacterDevelopment();
+    profile.archetypes = [
+      {
+        id: "arch_1",
+        name: "Sage",
+        custom: false,
+        description: "",
+        rank: "primary",
+        periodLabel: "",
+        relationshipRecordId: null,
+        evolvesFromId: null,
+        evolutionNote: "Settled",
+        bookProjectId: null,
+        approval: "approved",
+        provenance: { origin: "author", note: "" },
+      },
+      {
+        id: "arch_2",
+        name: "Trickster",
+        custom: false,
+        description: "",
+        rank: "shadow",
+        periodLabel: "",
+        relationshipRecordId: null,
+        evolvesFromId: "arch_1",
+        evolutionNote: "Denied face",
+        bookProjectId: null,
+        approval: "draft",
+        provenance: { origin: "extracted", note: "" },
+      },
+    ];
+    const slice = renderCharacterContextSlice({ title: "Mara", profile, slice: "dialogue" });
+    expect(slice).toMatch(/Established profile — Archetypes/);
+    expect(slice).toContain("primary: Sage");
+    expect(slice).toMatch(/Draft \/ Proposed notes \(not canon\) — Archetypes/);
+    expect(slice).toContain("shadow: Trickster");
+    const markdown = characterProfileMarkdown("Mara", profile, "full");
+    expect(markdown).toContain("## Archetypes (established)");
+    expect(markdown).toContain("## Archetypes (draft / proposed)");
   });
 });
 

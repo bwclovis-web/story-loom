@@ -20,6 +20,7 @@ import {
   type StoredComposerState,
 } from "@/components/assistant/assistantComposerState";
 import { loadAssistantDraft, saveAssistantDraft } from "@/components/assistant/assistantDraft";
+import { PromptPresetSelect } from "@/components/assistant/PromptPresetSelect";
 import { extraRetrievalSources, SourcePills } from "@/components/assistant/SourcePills";
 import { budgetRecentMessageIds } from "@/assistant/recentBudget";
 import { retrievalSourceHref, retrievalSourceLabel } from "@/assistant/sourceHref";
@@ -32,6 +33,7 @@ import type {
   SelectableRecord,
   SelectableSection,
 } from "@/server/services/assistantService";
+import type { PromptPresetView } from "@/server/services/promptPresetService";
 import { ASSISTANT, DRAFT } from "@/ui/labels";
 import { loadManuscriptAction, newConversationForRailAction } from "./actions";
 import { useRegisterAssistantComposer } from "./AssistantComposerBridge";
@@ -118,6 +120,7 @@ export function AssistantPanel(props: {
   } | null;
   layout?: "home" | "workbench";
   onOpenSettings?: () => void;
+  chatPresets?: PromptPresetView[];
 }) {
   const { projectId, records } = props;
   const conversation = props.conversation;
@@ -138,6 +141,9 @@ export function AssistantPanel(props: {
   const [mode, setMode] = useState<"whole" | "passage">("whole");
   const [includeIds, setIncludeIds] = useState<string[]>([]);
   const [question, setQuestion] = useState("");
+  const [chatPresetId, setChatPresetId] = useState("");
+  const [chatInstructionLens, setChatInstructionLens] = useState("");
+  const presetFieldId = useId().replace(/:/g, "");
   const [retrievalScope, setRetrievalScope] = useState<RetrievalScope>("book");
   const [enableTools, setEnableTools] = useState(true);
   const [writeHandoff, setWriteHandoff] = useState<{
@@ -506,6 +512,8 @@ export function AssistantPanel(props: {
         includeMessageIds: includeIds,
         excludeRecordIds: excludedIds,
       },
+      ...(chatInstructionLens.trim() ? { authorInstructionText: chatInstructionLens.trim() } : {}),
+      ...(chatPresetId ? { promptPresetId: chatPresetId } : {}),
     };
   };
 
@@ -556,6 +564,8 @@ export function AssistantPanel(props: {
         includeMessageIds: stored.includeIds,
         excludeRecordIds: stored.excludedIds,
       },
+      ...(chatInstructionLens.trim() ? { authorInstructionText: chatInstructionLens.trim() } : {}),
+      ...(chatPresetId ? { promptPresetId: chatPresetId } : {}),
     };
   };
 
@@ -779,6 +789,15 @@ export function AssistantPanel(props: {
             <p className="error-text small">Over the limit. Remove records or earlier messages, or use a shorter passage. Nothing is cut automatically.</p>
           ) : null}
           {passageMissing ? <p className="error-text small">Select a passage, or switch to {ASSISTANT.wholeChapter}.</p> : null}
+          <PromptPresetSelect
+            id={presetFieldId}
+            presets={props.chatPresets ?? []}
+            presetId={chatPresetId}
+            onPresetIdChange={setChatPresetId}
+            instructionLens={chatInstructionLens}
+            onInstructionLensChange={setChatInstructionLens}
+            disabled={busy}
+          />
           <label>
             <span className="sr-only">{ASSISTANT.question}</span>
             <textarea

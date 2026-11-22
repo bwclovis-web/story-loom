@@ -7,24 +7,44 @@
  */
 
 import {
+  ARCHETYPE_LIBRARY,
+  ARCHETYPE_RANKS,
   BEHAVIOR_TEXT_KEYS,
   CAPABILITIES_TEXT_KEYS,
   CHARACTER_DEVELOPMENT_KEY,
   emptyCharacterDevelopment,
+  ENNEAGRAM_TYPES,
+  fieldMetaOf,
   FOUNDATION_TEXT_KEYS,
   LIVED_EXPERIENCE_TEXT_KEYS,
+  NARRATIVE_ROLES,
   PSYCHOLOGY_TEXT_KEYS,
   VOICE_TEXT_KEYS,
+  wingIsValid,
   withCharacterDevelopment,
+  type ArchetypeAssignment,
+  type ArchetypeRank,
   type BehaviorTextKey,
   type CapabilitiesTextKey,
   type CharacterDevelopment,
+  type EnneagramChoice,
+  type EnneagramNumber,
+  type FieldAuthorityMeta,
   type FoundationTextKey,
   type LivedExperienceTextKey,
   type MigrationHoldItem,
+  type NarrativeRole,
   type PsychologyTextKey,
   type VoiceTextKey,
 } from "@/domain/characterDevelopment";
+import {
+  CHARACTER_HEADING_MAP,
+  findHeadingMapping,
+  parseMarkdownSections,
+  type MarkdownSection,
+  type UpgradeConfidence,
+  type UpgradeDestination,
+} from "@/domain/characterHeadingExtraction";
 import { newId } from "@/domain/ids";
 import type { JsonObject } from "@/domain/json";
 import { sha256, stableStringify } from "@/domain/json";
@@ -34,6 +54,9 @@ import {
   CHANGE_PACKAGE_FORMAT_VERSION,
   type ChangePackageV1,
 } from "@/changePackage/schema.v1";
+
+export type { MarkdownSection, UpgradeConfidence, UpgradeDestination };
+export { parseMarkdownSections, CHARACTER_HEADING_MAP as UPGRADE_HEADING_MAP };
 
 export const DOSSIER_MARKDOWN_ARCHIVE_KEY = "dossierMarkdownArchive";
 export const DOSSIER_MARKDOWN_ARCHIVE_VERSION = 1 as const;
@@ -53,105 +76,16 @@ export const UPGRADE_DESTINATIONS = [
   "proposed_unapproved",
   "unclassified",
 ] as const;
-export type UpgradeDestination = (typeof UPGRADE_DESTINATIONS)[number];
 
-export const UPGRADE_DECISIONS = ["accept", "modify", "reject", "defer"] as const;
+export const UPGRADE_DECISIONS = [
+  "accept",
+  "keep_existing",
+  "merge",
+  "modify",
+  "reject",
+  "defer",
+] as const;
 export type UpgradeDecision = (typeof UPGRADE_DECISIONS)[number];
-
-export type UpgradeConfidence = "high" | "medium" | "low";
-
-/** Heading → structured field. Lived/trauma headings are classified but never auto-approved. */
-export const UPGRADE_HEADING_MAP: ReadonlyArray<{
-  heading: string;
-  destination: UpgradeDestination;
-  fieldPath: string;
-  confidence: UpgradeConfidence;
-}> = [
-  { heading: "Appearance", destination: "identity", fieldPath: "foundation.appearance", confidence: "high" },
-  { heading: "Physical characteristics", destination: "identity", fieldPath: "foundation.physicalCharacteristics", confidence: "high" },
-  { heading: "Pronouns", destination: "identity", fieldPath: "foundation.pronouns", confidence: "high" },
-  { heading: "Ancestry", destination: "identity", fieldPath: "foundation.ancestry", confidence: "high" },
-  { heading: "Age", destination: "identity", fieldPath: "foundation.lifeStage", confidence: "medium" },
-  { heading: "Life stage", destination: "identity", fieldPath: "foundation.lifeStage", confidence: "high" },
-  { heading: "Role", destination: "identity", fieldPath: "foundation.publicRole", confidence: "high" },
-  { heading: "Public role", destination: "identity", fieldPath: "foundation.publicRole", confidence: "high" },
-  { heading: "Private self", destination: "identity", fieldPath: "foundation.privateSelf", confidence: "high" },
-  { heading: "Occupation", destination: "identity", fieldPath: "foundation.occupation", confidence: "high" },
-  { heading: "Culture", destination: "identity", fieldPath: "foundation.culturalIdentity", confidence: "high" },
-  { heading: "Cultural identity", destination: "identity", fieldPath: "foundation.culturalIdentity", confidence: "high" },
-  { heading: "Background", destination: "identity", fieldPath: "foundation.formativeBackground", confidence: "high" },
-  { heading: "Goals", destination: "identity", fieldPath: "foundation.externalGoal", confidence: "high" },
-  { heading: "External goal", destination: "identity", fieldPath: "foundation.externalGoal", confidence: "high" },
-  { heading: "Personality", destination: "psychology", fieldPath: "psychology.values", confidence: "medium" },
-  { heading: "Desire", destination: "psychology", fieldPath: "psychology.coreDesire", confidence: "high" },
-  { heading: "Core desire", destination: "psychology", fieldPath: "psychology.coreDesire", confidence: "high" },
-  { heading: "Fear", destination: "psychology", fieldPath: "psychology.coreFear", confidence: "high" },
-  { heading: "Core fear", destination: "psychology", fieldPath: "psychology.coreFear", confidence: "high" },
-  { heading: "Wants", destination: "psychology", fieldPath: "psychology.consciousWants", confidence: "high" },
-  { heading: "Needs", destination: "psychology", fieldPath: "psychology.unconsciousNeeds", confidence: "medium" },
-  { heading: "Misbelief", destination: "psychology", fieldPath: "psychology.internalMisbelief", confidence: "high" },
-  { heading: "Wound", destination: "psychology", fieldPath: "psychology.emotionalWound", confidence: "medium" },
-  { heading: "Values", destination: "psychology", fieldPath: "psychology.values", confidence: "high" },
-  { heading: "Strengths", destination: "psychology", fieldPath: "psychology.strengths", confidence: "high" },
-  { heading: "Weaknesses", destination: "psychology", fieldPath: "psychology.weaknesses", confidence: "high" },
-  { heading: "Contradictions", destination: "psychology", fieldPath: "psychology.contradictions", confidence: "high" },
-  { heading: "Voice", destination: "voice", fieldPath: "voice.diction", confidence: "high" },
-  { heading: "Diction", destination: "voice", fieldPath: "voice.diction", confidence: "high" },
-  { heading: "Dialogue", destination: "voice", fieldPath: "voice.exampleDialogue", confidence: "high" },
-  { heading: "Speech", destination: "voice", fieldPath: "voice.speechPatterns", confidence: "high" },
-  { heading: "Speech patterns", destination: "voice", fieldPath: "voice.speechPatterns", confidence: "high" },
-  { heading: "Humor", destination: "voice", fieldPath: "voice.humor", confidence: "high" },
-  { heading: "Internal narrative", destination: "voice", fieldPath: "voice.internalNarrative", confidence: "high" },
-  { heading: "Habits", destination: "behavior", fieldPath: "behavior.habits", confidence: "high" },
-  { heading: "Mannerisms", destination: "behavior", fieldPath: "behavior.mannerisms", confidence: "high" },
-  { heading: "Under pressure", destination: "behavior", fieldPath: "behavior.underPressure", confidence: "high" },
-  { heading: "Social behavior", destination: "behavior", fieldPath: "behavior.socialBehavior", confidence: "high" },
-  { heading: "Behavior", destination: "behavior", fieldPath: "behavior.habits", confidence: "medium" },
-  { heading: "Lived experience", destination: "lived", fieldPath: "livedExperience.formativeExperiences", confidence: "high" },
-  { heading: "Formative experience", destination: "lived", fieldPath: "livedExperience.formativeExperiences", confidence: "high" },
-  { heading: "Formative experiences", destination: "lived", fieldPath: "livedExperience.formativeExperiences", confidence: "high" },
-  { heading: "Trauma", destination: "lived", fieldPath: "livedExperience.trauma", confidence: "high" },
-  { heading: "Neurodivergence", destination: "lived", fieldPath: "livedExperience.neurodivergence", confidence: "high" },
-  { heading: "Disability", destination: "lived", fieldPath: "livedExperience.disability", confidence: "high" },
-  { heading: "Coping", destination: "lived", fieldPath: "livedExperience.coping", confidence: "high" },
-  { heading: "Portrayal", destination: "lived", fieldPath: "livedExperience.portrayalGuidance", confidence: "high" },
-  { heading: "Portrayal guidance", destination: "lived", fieldPath: "livedExperience.portrayalGuidance", confidence: "high" },
-  { heading: "Relationships", destination: "relationships", fieldPath: "hold.relationships", confidence: "medium" },
-  { heading: "Allies", destination: "relationships", fieldPath: "hold.relationships", confidence: "medium" },
-  { heading: "Enemies", destination: "relationships", fieldPath: "hold.relationships", confidence: "medium" },
-  { heading: "Skills", destination: "capabilities", fieldPath: "capabilities.skills", confidence: "high" },
-  { heading: "Abilities", destination: "capabilities", fieldPath: "capabilities.skills", confidence: "medium" },
-  { heading: "Limitations", destination: "capabilities", fieldPath: "capabilities.limitations", confidence: "high" },
-  { heading: "Magic", destination: "capabilities", fieldPath: "capabilities.magicalAbilities", confidence: "high" },
-  { heading: "Equipment", destination: "capabilities", fieldPath: "capabilities.equipment", confidence: "high" },
-  { heading: "Arc", destination: "development", fieldPath: "hold.development", confidence: "medium" },
-  { heading: "Character arc", destination: "development", fieldPath: "hold.development", confidence: "medium" },
-  { heading: "Development", destination: "development", fieldPath: "hold.development", confidence: "medium" },
-  { heading: "Growth", destination: "development", fieldPath: "hold.development", confidence: "low" },
-  { heading: "Knowledge", destination: "continuity", fieldPath: "hold.continuity", confidence: "medium" },
-  { heading: "Secrets", destination: "continuity", fieldPath: "hold.continuity", confidence: "medium" },
-  { heading: "Continuity", destination: "continuity", fieldPath: "hold.continuity", confidence: "medium" },
-  { heading: "History", destination: "historical_amendments", fieldPath: "hold.historical", confidence: "medium" },
-  { heading: "Amendments", destination: "historical_amendments", fieldPath: "hold.historical", confidence: "high" },
-  { heading: "Changelog", destination: "historical_amendments", fieldPath: "hold.historical", confidence: "high" },
-  { heading: "Unknown", destination: "protected_unknowns", fieldPath: "hold.unknowns", confidence: "high" },
-  { heading: "Unknowns", destination: "protected_unknowns", fieldPath: "hold.unknowns", confidence: "high" },
-  { heading: "Mysteries", destination: "protected_unknowns", fieldPath: "hold.unknowns", confidence: "high" },
-  { heading: "Protected", destination: "protected_unknowns", fieldPath: "hold.unknowns", confidence: "high" },
-  { heading: "Proposed", destination: "proposed_unapproved", fieldPath: "hold.proposed", confidence: "high" },
-  { heading: "Draft", destination: "proposed_unapproved", fieldPath: "hold.proposed", confidence: "high" },
-  { heading: "Ideas", destination: "proposed_unapproved", fieldPath: "hold.proposed", confidence: "medium" },
-];
-
-export interface MarkdownSection {
-  heading: string;
-  /** Heading with status tags stripped for classification. */
-  cleanHeading: string;
-  body: string;
-  startOffset: number;
-  endOffset: number;
-  tags: string[];
-}
 
 export interface DossierUpgradeItem {
   id: string;
@@ -164,6 +98,7 @@ export interface DossierUpgradeItem {
   sourceStartOffset: number;
   sourceEndOffset: number;
   existingCanonical: string;
+  existingAuthority: AuthorityStatus;
   conflictWithIds: string[];
   supersedesIds: string[];
   supersededByIds: string[];
@@ -173,6 +108,7 @@ export interface DossierUpgradeItem {
   classificationConfidence: UpgradeConfidence;
   alreadyApplied: boolean;
   duplicateOfIds: string[];
+  mergeSupported: boolean;
 }
 
 export interface DossierUpgradeAnalysis {
@@ -205,6 +141,12 @@ export interface DossierMarkdownArchive {
   appliedFingerprints: string[];
 }
 
+export interface ArchiveReadResult {
+  archive: DossierMarkdownArchive;
+  problems: Array<{ path: string; message: string }>;
+  unsupportedVersion: boolean;
+}
+
 export interface ApplyUpgradeResult {
   profile: CharacterDevelopment;
   archive: DossierMarkdownArchive;
@@ -215,10 +157,6 @@ export interface ApplyUpgradeResult {
   noEffectiveChange: boolean;
 }
 
-const STATUS_TAG_RE =
-  /\[(APPROVED(?:\s+FRAMEWORK)?|PROPOSED|DRAFT|UNKNOWN|PROTECTED|SUPERSEDED|UNRESOLVED|SELECTED)\]/gi;
-const EM_DASH_STATUS_RE = /[—–-]\s*(SELECTED|PROPOSED|DRAFT|UNKNOWN|PROTECTED)\b/gi;
-
 const SUPERSEDE_RE =
   /\b(supersedes?|replaces?|no longer|formerly|was previously|amendment|updated to|retcon)\b/i;
 const PLANNED_RE =
@@ -227,60 +165,16 @@ const MYSTERY_RE =
   /\b(unknown|mystery|unresolved|do not (resolve|reveal)|protected mystery|leave blank)\b/i;
 const PROPOSED_RE = /\b(proposed|draft only|not canon|unapproved|maybe|consider)\b/i;
 
-export function parseMarkdownSections(body: string): MarkdownSection[] {
-  if (!body.trim()) return [];
-  const parts = body.split(/\n(?=##\s+)/);
-  const sections: MarkdownSection[] = [];
-  let cursor = 0;
-  for (const part of parts) {
-    const startOffset = body.indexOf(part, cursor);
-    const endOffset = startOffset + part.length;
-    cursor = endOffset;
-    const match = part.match(/^##\s+(.+?)\s*(?:\n|$)([\s\S]*)$/);
-    if (!match) {
-      if (!part.trim()) continue;
-      sections.push({
-        heading: "(preamble)",
-        cleanHeading: "(preamble)",
-        body: part.trim(),
-        startOffset,
-        endOffset,
-        tags: [],
-      });
-      continue;
-    }
-    const heading = match[1]!.trim();
-    const tags = extractTags(heading);
-    sections.push({
-      heading,
-      cleanHeading: cleanHeadingText(heading),
-      body: (match[2] ?? "").trim(),
-      startOffset,
-      endOffset,
-      tags,
-    });
-  }
-  return sections;
-}
+const STRUCTURED_CONFLICT_PREFIXES = [
+  "foundation.",
+  "psychology.",
+  "voice.",
+  "behavior.",
+  "capabilities.",
+  "livedExperience.",
+] as const;
 
-function extractTags(heading: string): string[] {
-  const tags: string[] = [];
-  for (const match of heading.matchAll(STATUS_TAG_RE)) {
-    tags.push(match[1]!.toUpperCase().replace(/\s+/g, " "));
-  }
-  for (const match of heading.matchAll(EM_DASH_STATUS_RE)) {
-    tags.push(match[1]!.toUpperCase());
-  }
-  return tags;
-}
-
-function cleanHeadingText(heading: string): string {
-  return heading
-    .replace(STATUS_TAG_RE, "")
-    .replace(EM_DASH_STATUS_RE, "")
-    .replace(/\s+/g, " ")
-    .trim();
-}
+const STRUCTURED_EXACT_PATHS = ["narrativeRole", "archetypes", "psychology.enneagram"] as const;
 
 function normalizeText(value: string): string {
   return value.replace(/\s+/g, " ").trim().toLowerCase();
@@ -292,7 +186,24 @@ function excerptOf(value: string, max = 160): string {
   return `${trimmed.slice(0, max - 1)}…`;
 }
 
+function summarizeArchetypes(archetypes: readonly ArchetypeAssignment[]): string {
+  return archetypes
+    .map((item) => {
+      const period = item.periodLabel ? ` (${item.periodLabel})` : "";
+      return `${item.rank}: ${item.name}${period}`.trim();
+    })
+    .join("\n");
+}
+
 function existingAtPath(profile: CharacterDevelopment, fieldPath: string): string {
+  if (fieldPath === "narrativeRole") return profile.narrativeRole ?? "";
+  if (fieldPath === "archetypes") return summarizeArchetypes(profile.archetypes);
+  if (fieldPath === "psychology.enneagram") {
+    if (profile.psychology.enneagram === null) return "";
+    return profile.psychology.wing
+      ? `${profile.psychology.enneagram}w${profile.psychology.wing}`
+      : String(profile.psychology.enneagram);
+  }
   const [root, key] = fieldPath.split(".");
   if (!root || !key) return "";
   if (root === "foundation" && (FOUNDATION_TEXT_KEYS as readonly string[]).includes(key)) {
@@ -314,10 +225,24 @@ function existingAtPath(profile: CharacterDevelopment, fieldPath: string): strin
     return profile.capabilities[key as CapabilitiesTextKey];
   }
   if (root === "hold") {
-    const held = profile.migrationHold.filter((item) => item.kind === holdKindForPath(fieldPath) || item.fieldPath === fieldPath);
+    const held = profile.migrationHold.filter(
+      (item) => item.kind === holdKindForPath(fieldPath) || item.fieldPath === fieldPath,
+    );
     return held.map((item) => item.text).join("\n\n");
   }
   return "";
+}
+
+function existingAuthorityAtPath(profile: CharacterDevelopment, fieldPath: string): AuthorityStatus {
+  if (fieldPath === "archetypes") {
+    if (profile.archetypes.some((item) => item.approval === "approved")) return "approved";
+    if (profile.archetypes.some((item) => item.approval === "proposed")) return "proposed";
+    return profile.archetypes.length ? "draft" : fieldMetaOf(profile, fieldPath).approval;
+  }
+  if (fieldPath === "psychology.enneagram" || fieldPath === "narrativeRole") {
+    return fieldMetaOf(profile, fieldPath).approval;
+  }
+  return fieldMetaOf(profile, fieldPath).approval;
 }
 
 function holdKindForPath(fieldPath: string): MigrationHoldItem["kind"] {
@@ -332,10 +257,10 @@ function holdKindForPath(fieldPath: string): MigrationHoldItem["kind"] {
 function mapSection(
   section: MarkdownSection,
 ): { destination: UpgradeDestination; fieldPath: string; confidence: UpgradeConfidence } {
-  const lower = section.cleanHeading.toLowerCase();
-  const mapped = UPGRADE_HEADING_MAP.find((item) => item.heading.toLowerCase() === lower);
-  if (mapped) return mapped;
-
+  const mapped = findHeadingMapping(section.cleanHeading);
+  if (mapped) {
+    return { destination: mapped.destination, fieldPath: mapped.fieldPath, confidence: mapped.confidence };
+  }
   if (section.tags.some((tag) => /UNKNOWN|PROTECTED|UNRESOLVED/.test(tag))) {
     return { destination: "protected_unknowns", fieldPath: "hold.unknowns", confidence: "medium" };
   }
@@ -375,6 +300,19 @@ function itemId(destination: UpgradeDestination, fieldPath: string, sourceText: 
   return `upg_${sha256(`${destination}|${fieldPath}|${normalizeText(sourceText)}|${normalizeText(heading)}`).slice(0, 24)}`;
 }
 
+function isStructuredConflictPath(fieldPath: string): boolean {
+  if ((STRUCTURED_EXACT_PATHS as readonly string[]).includes(fieldPath)) return true;
+  return STRUCTURED_CONFLICT_PREFIXES.some((prefix) => fieldPath.startsWith(prefix));
+}
+
+function isInferredClassificationPath(fieldPath: string): boolean {
+  return fieldPath === "psychology.enneagram" || fieldPath === "archetypes" || fieldPath === "narrativeRole";
+}
+
+function mergeSupportedForPath(fieldPath: string): boolean {
+  return isStructuredConflictPath(fieldPath);
+}
+
 /**
  * Analyze Markdown into reviewable upgrade items. Does not invent facts, does
  * not approve canon, and keeps every section that cannot be classified.
@@ -392,9 +330,14 @@ export function analyzeDossierUpgrade(body: string, profile: CharacterDevelopmen
 
     const authorityHint = authorityForSection(section, mapped.destination);
     const existingCanonical = existingAtPath(profile, mapped.fieldPath);
+    const existingAuthority = existingAuthorityAtPath(profile, mapped.fieldPath);
     const reviewReasons: string[] = [];
     let requiresHumanReview = false;
 
+    if (isInferredClassificationPath(mapped.fieldPath)) {
+      requiresHumanReview = true;
+      reviewReasons.push("Inferred classification requires author approval.");
+    }
     if (mapped.confidence === "low") {
       requiresHumanReview = true;
       reviewReasons.push("Classification confidence is low.");
@@ -410,6 +353,9 @@ export function analyzeDossierUpgrade(body: string, profile: CharacterDevelopmen
     if (existingCanonical.trim() && normalizeText(existingCanonical) !== normalizeText(section.body)) {
       requiresHumanReview = true;
       reviewReasons.push("Existing profile content differs from this source passage.");
+      if (existingAuthority === "approved") {
+        reviewReasons.push("Existing content is approved canon; choose Keep existing, Replace, Merge, or Defer.");
+      }
     }
     if (mapped.destination === "lived") {
       requiresHumanReview = true;
@@ -427,7 +373,11 @@ export function analyzeDossierUpgrade(body: string, profile: CharacterDevelopmen
       requiresHumanReview = true;
       reviewReasons.push("Amendment language detected; confirm what this supersedes.");
     }
-    if (mapped.destination === "relationships" || mapped.destination === "development" || mapped.destination === "continuity") {
+    if (
+      mapped.destination === "relationships" ||
+      mapped.destination === "development" ||
+      mapped.destination === "continuity"
+    ) {
       requiresHumanReview = true;
       reviewReasons.push("This destination is held for review rather than written as approved structured fields.");
     }
@@ -435,7 +385,8 @@ export function analyzeDossierUpgrade(body: string, profile: CharacterDevelopmen
     const alreadyApplied =
       (existingCanonical.trim() !== "" && normalizeText(existingCanonical) === normalizeText(section.body)) ||
       profile.migrationHold.some(
-        (held) => normalizeText(held.sourceText) === normalizeText(section.body) && held.fieldPath === mapped.fieldPath,
+        (held) =>
+          normalizeText(held.sourceText) === normalizeText(section.body) && held.fieldPath === mapped.fieldPath,
       );
 
     items.push({
@@ -449,6 +400,7 @@ export function analyzeDossierUpgrade(body: string, profile: CharacterDevelopmen
       sourceStartOffset: section.startOffset,
       sourceEndOffset: section.endOffset,
       existingCanonical,
+      existingAuthority,
       conflictWithIds: [],
       supersedesIds: [],
       supersededByIds: [],
@@ -458,10 +410,10 @@ export function analyzeDossierUpgrade(body: string, profile: CharacterDevelopmen
       classificationConfidence: mapped.confidence,
       alreadyApplied,
       duplicateOfIds: [],
+      mergeSupported: mergeSupportedForPath(mapped.fieldPath),
     });
   }
 
-  // Duplicates and contradictions by normalized text / shared field path.
   for (let i = 0; i < items.length; i++) {
     for (let j = i + 1; j < items.length; j++) {
       const a = items[i]!;
@@ -476,7 +428,7 @@ export function analyzeDossierUpgrade(body: string, profile: CharacterDevelopmen
       }
       if (
         a.fieldPath === b.fieldPath &&
-        a.fieldPath.startsWith("foundation.") &&
+        isStructuredConflictPath(a.fieldPath) &&
         normalizeText(a.proposedValue) !== normalizeText(b.proposedValue)
       ) {
         a.conflictWithIds.push(b.id);
@@ -489,7 +441,6 @@ export function analyzeDossierUpgrade(body: string, profile: CharacterDevelopmen
     }
   }
 
-  // Explicit supersession: later amendment sections point at earlier same-path items.
   for (let i = 0; i < items.length; i++) {
     const later = items[i]!;
     const section = sections.find((s) => s.startOffset === later.sourceStartOffset);
@@ -497,9 +448,6 @@ export function analyzeDossierUpgrade(body: string, profile: CharacterDevelopmen
     if (!(SUPERSEDE_RE.test(section.heading) || SUPERSEDE_RE.test(section.body))) continue;
     for (let j = 0; j < i; j++) {
       const earlier = items[j]!;
-      if (earlier.fieldPath !== later.fieldPath && earlier.destination === later.destination) {
-        // same destination bucket is enough for historical holds
-      }
       if (earlier.fieldPath === later.fieldPath || earlier.destination === later.destination) {
         later.supersedesIds.push(earlier.id);
         earlier.supersededByIds.push(later.id);
@@ -518,6 +466,7 @@ export function analyzeDossierUpgrade(body: string, profile: CharacterDevelopmen
         fieldPath: item.fieldPath,
         proposed: normalizeText(item.proposedValue),
         existing: normalizeText(item.existingCanonical),
+        existingAuthority: item.existingAuthority,
       })),
     }),
   );
@@ -530,10 +479,36 @@ export function emptyDossierMarkdownArchive(): DossierMarkdownArchive {
 }
 
 export function readDossierMarkdownArchive(fields: Readonly<Record<string, unknown>>): DossierMarkdownArchive {
+  return readDossierMarkdownArchiveWithStatus(fields).archive;
+}
+
+export function readDossierMarkdownArchiveWithStatus(
+  fields: Readonly<Record<string, unknown>>,
+): ArchiveReadResult {
   const raw = fields[DOSSIER_MARKDOWN_ARCHIVE_KEY];
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return emptyDossierMarkdownArchive();
+  if (raw === undefined || raw === null) {
+    return { archive: emptyDossierMarkdownArchive(), problems: [], unsupportedVersion: false };
+  }
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    return {
+      archive: emptyDossierMarkdownArchive(),
+      problems: [{ path: DOSSIER_MARKDOWN_ARCHIVE_KEY, message: "Dossier Markdown archive is not an object." }],
+      unsupportedVersion: false,
+    };
+  }
   const row = raw as Record<string, unknown>;
-  if (row.version !== DOSSIER_MARKDOWN_ARCHIVE_VERSION) return emptyDossierMarkdownArchive();
+  if (row.version !== undefined && row.version !== DOSSIER_MARKDOWN_ARCHIVE_VERSION) {
+    return {
+      archive: emptyDossierMarkdownArchive(),
+      problems: [
+        {
+          path: "version",
+          message: `This dossier Markdown archive version (${String(row.version)}) is not supported. The stored archive was left unread so it is not overwritten.`,
+        },
+      ],
+      unsupportedVersion: true,
+    };
+  }
   const entries = Array.isArray(row.entries)
     ? row.entries.flatMap((item, index) => {
         if (!item || typeof item !== "object" || Array.isArray(item)) return [];
@@ -556,7 +531,29 @@ export function readDossierMarkdownArchive(fields: Readonly<Record<string, unkno
   const appliedFingerprints = Array.isArray(row.appliedFingerprints)
     ? row.appliedFingerprints.filter((value): value is string => typeof value === "string")
     : [];
-  return { version: DOSSIER_MARKDOWN_ARCHIVE_VERSION, entries, appliedFingerprints };
+  return {
+    archive: { version: DOSSIER_MARKDOWN_ARCHIVE_VERSION, entries, appliedFingerprints },
+    problems: [],
+    unsupportedVersion: false,
+  };
+}
+
+/** Problems that block writing an archive object from a change package or upgrade. */
+export function dossierMarkdownArchiveWriteProblems(value: unknown): Array<{ path: string; message: string }> {
+  if (value === undefined || value === null) return [];
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return [{ path: DOSSIER_MARKDOWN_ARCHIVE_KEY, message: "Dossier Markdown archive is not an object." }];
+  }
+  const row = value as Record<string, unknown>;
+  if (row.version !== undefined && row.version !== DOSSIER_MARKDOWN_ARCHIVE_VERSION) {
+    return [
+      {
+        path: "version",
+        message: `This dossier Markdown archive version (${String(row.version)}) is not supported.`,
+      },
+    ];
+  }
+  return [];
 }
 
 export function withDossierMarkdownArchive(fields: JsonObject, archive: DossierMarkdownArchive): JsonObject {
@@ -601,34 +598,198 @@ function decisionMap(decisions: readonly DossierUpgradeDecisionInput[]): Map<str
   return map;
 }
 
-function setFieldPath(profile: CharacterDevelopment, fieldPath: string, value: string): void {
+function importedMeta(
+  item: DossierUpgradeItem,
+  bodyHash: string,
+  approval: AuthorityStatus,
+): FieldAuthorityMeta {
+  return {
+    approval,
+    provenance: {
+      origin: "imported",
+      note: "Accepted from dossier upgrade",
+      sourceHeading: item.sourceHeading,
+      sourceBodyHash: bodyHash,
+      updatedAt: new Date().toISOString(),
+    },
+  };
+}
+
+function approvalFromHint(hint: AuthorityStatus | "ambiguous"): AuthorityStatus {
+  if (hint === "proposed") return "proposed";
+  if (hint === "unresolved") return "unresolved";
+  if (hint === "superseded") return "superseded";
+  // Never promote Markdown [APPROVED] or ambiguous tags to approved canon.
+  return "draft";
+}
+
+function parseEnneagramValue(value: string): { enneagram: EnneagramChoice | null; wing: EnneagramNumber | null; leftover: string } {
+  const trimmed = value.trim();
+  const match = trimmed.match(/\b([1-9])\s*[wW]\s*([1-9])\b/) || trimmed.match(/\btype\s*([1-9])\b/i) || trimmed.match(/\b([1-9])\b/);
+  if (!match) {
+    const choice =
+      /\bunknown\b/i.test(trimmed)
+        ? ("unknown" as const)
+        : /\bundecided\b/i.test(trimmed)
+          ? ("undecided" as const)
+          : /\bnot\s*applicable\b/i.test(trimmed)
+            ? ("not_applicable" as const)
+            : null;
+    return { enneagram: choice, wing: null, leftover: choice ? "" : trimmed };
+  }
+  const type = Number(match[1]) as EnneagramNumber;
+  if (!(ENNEAGRAM_TYPES as readonly number[]).includes(type)) {
+    return { enneagram: null, wing: null, leftover: trimmed };
+  }
+  const wingRaw = match[2] ? (Number(match[2]) as EnneagramNumber) : null;
+  const wing = wingRaw && wingIsValid(type, wingRaw) ? wingRaw : null;
+  return { enneagram: type, wing, leftover: "" };
+}
+
+function parseNarrativeRole(value: string): NarrativeRole | null {
+  const normalized = value.trim().toLowerCase().replace(/\s+/g, "_");
+  if ((NARRATIVE_ROLES as readonly string[]).includes(normalized)) return normalized as NarrativeRole;
+  const aliases: Record<string, NarrativeRole> = {
+    hero: "protagonist",
+    villain: "antagonist",
+    sidekick: "supporting",
+    "supporting_character": "supporting",
+  };
+  return aliases[normalized] ?? null;
+}
+
+function rankFromHeading(heading: string): ArchetypeRank {
+  if (/shadow/i.test(heading)) return "shadow";
+  if (/secondary/i.test(heading)) return "secondary";
+  if (/primary/i.test(heading)) return "primary";
+  return "primary";
+}
+
+function parseArchetypeLines(
+  value: string,
+  heading: string,
+  meta: FieldAuthorityMeta,
+  idPrefix: string,
+): { archetypes: ArchetypeAssignment[]; leftover: string } {
+  const lines = value
+    .split(/\n+/)
+    .map((line) => line.replace(/^[-*]\s*/, "").trim())
+    .filter(Boolean);
+  const defaultRank = rankFromHeading(heading);
+  const archetypes: ArchetypeAssignment[] = [];
+  const leftover: string[] = [];
+  lines.forEach((line, index) => {
+    const rankMatch = line.match(/^(primary|secondary|shadow)\s*[:\-–—]\s*(.+)$/i);
+    const rank = rankMatch ? ((rankMatch[1]!.toLowerCase() as ArchetypeRank) || defaultRank) : defaultRank;
+    const namePart = (rankMatch ? rankMatch[2]! : line).trim();
+    const libraryHit = (ARCHETYPE_LIBRARY as readonly string[]).find(
+      (name) => name.toLowerCase() === namePart.toLowerCase() || namePart.toLowerCase().startsWith(name.toLowerCase()),
+    );
+    if (libraryHit || namePart.length <= 48) {
+      const name = libraryHit ?? namePart.replace(/\s*\(.+\)\s*$/, "").trim();
+      if (!name) {
+        leftover.push(line);
+        return;
+      }
+      archetypes.push({
+        id: `${idPrefix}_${index}`,
+        name,
+        custom: !(ARCHETYPE_LIBRARY as readonly string[]).includes(name),
+        description: libraryHit && namePart.length > libraryHit.length ? namePart.slice(libraryHit.length).trim() : "",
+        rank: (ARCHETYPE_RANKS as readonly string[]).includes(rank) ? rank : defaultRank,
+        periodLabel: "",
+        relationshipRecordId: null,
+        evolvesFromId: null,
+        evolutionNote: "",
+        bookProjectId: null,
+        approval: meta.approval === "approved" ? "draft" : meta.approval,
+        provenance: meta.provenance,
+      });
+      return;
+    }
+    leftover.push(line);
+  });
+  return { archetypes, leftover: leftover.join("\n") };
+}
+
+function setFieldPath(
+  profile: CharacterDevelopment,
+  fieldPath: string,
+  value: string,
+  meta: FieldAuthorityMeta,
+): void {
+  if (fieldPath === "narrativeRole") {
+    const role = parseNarrativeRole(value);
+    if (role) {
+      profile.narrativeRole = role;
+      profile.fieldMeta[fieldPath] = { ...meta, approval: meta.approval === "approved" ? "draft" : meta.approval };
+    }
+    return;
+  }
+  if (fieldPath === "psychology.enneagram") {
+    const parsed = parseEnneagramValue(value);
+    if (parsed.enneagram) {
+      profile.psychology.enneagram = parsed.enneagram;
+      if (parsed.wing) profile.psychology.wing = parsed.wing;
+      profile.fieldMeta[fieldPath] = { ...meta, approval: meta.approval === "approved" ? "draft" : meta.approval };
+    }
+    return;
+  }
+  if (fieldPath === "archetypes") {
+    const parsed = parseArchetypeLines(value, meta.provenance.sourceHeading ?? "Archetypes", meta, `arch_upg_${profile.archetypes.length}`);
+    for (const archetype of parsed.archetypes) {
+      const duplicate = profile.archetypes.some(
+        (item) => item.name.toLowerCase() === archetype.name.toLowerCase() && item.rank === archetype.rank,
+      );
+      if (!duplicate) profile.archetypes.push(archetype);
+    }
+    if (parsed.leftover.trim()) {
+      profile.migrationHold.push({
+        id: `mhold_arch_${profile.migrationHold.length}`,
+        kind: "unclassified",
+        fieldPath: "archetypes",
+        heading: meta.provenance.sourceHeading ?? "Archetypes",
+        text: parsed.leftover.trim(),
+        sourceText: parsed.leftover.trim(),
+        note: "Unparsed archetype notes retained for author review.",
+        decision: "retained",
+      });
+    }
+    return;
+  }
   const [root, key] = fieldPath.split(".");
   if (!root || !key) return;
   if (root === "foundation" && (FOUNDATION_TEXT_KEYS as readonly string[]).includes(key)) {
     profile.foundation[key as FoundationTextKey] = value;
+    profile.fieldMeta[fieldPath] = meta;
     return;
   }
   if (root === "voice" && (VOICE_TEXT_KEYS as readonly string[]).includes(key)) {
     profile.voice[key as VoiceTextKey] = value;
+    profile.fieldMeta[fieldPath] = meta;
     return;
   }
   if (root === "psychology" && (PSYCHOLOGY_TEXT_KEYS as readonly string[]).includes(key)) {
     profile.psychology[key as PsychologyTextKey] = value;
+    profile.fieldMeta[fieldPath] = meta;
     return;
   }
   if (root === "behavior" && (BEHAVIOR_TEXT_KEYS as readonly string[]).includes(key)) {
     profile.behavior[key as BehaviorTextKey] = value;
+    profile.fieldMeta[fieldPath] = meta;
     return;
   }
   if (root === "livedExperience" && (LIVED_EXPERIENCE_TEXT_KEYS as readonly string[]).includes(key)) {
     profile.livedExperience[key as LivedExperienceTextKey] = value;
-    profile.livedExperience.approval = "draft";
+    profile.livedExperience.approval = meta.approval === "approved" ? "draft" : meta.approval;
     profile.livedExperience.aiVisibility = "omit";
-    profile.livedExperience.provenance = { origin: "imported", note: "Accepted from dossier upgrade" };
+    profile.livedExperience.provenance = meta.provenance;
+    profile.fieldMeta[fieldPath] = { ...meta, approval: profile.livedExperience.approval };
     return;
   }
   if (root === "capabilities" && (CAPABILITIES_TEXT_KEYS as readonly string[]).includes(key)) {
     profile.capabilities[key as CapabilitiesTextKey] = value;
+    profile.fieldMeta[fieldPath] = meta;
   }
 }
 
@@ -651,7 +812,11 @@ function holdKindForDestination(destination: UpgradeDestination): MigrationHoldI
 }
 
 function pushHold(profile: CharacterDevelopment, item: DossierUpgradeItem, text: string, note: string): void {
-  if (profile.migrationHold.some((held) => held.id === item.id || normalizeText(held.sourceText) === normalizeText(item.sourceText))) {
+  if (
+    profile.migrationHold.some(
+      (held) => held.id === item.id || normalizeText(held.sourceText) === normalizeText(item.sourceText),
+    )
+  ) {
     return;
   }
   profile.migrationHold.push({
@@ -664,6 +829,25 @@ function pushHold(profile: CharacterDevelopment, item: DossierUpgradeItem, text:
     note,
     decision: "retained",
   });
+}
+
+function mergeText(existing: string, incoming: string, heading: string): string {
+  const a = existing.trim();
+  const b = incoming.trim();
+  if (!a) return b;
+  if (!b || normalizeText(a) === normalizeText(b)) return a;
+  return `${a}\n\n---\nFrom ${heading}:\n${b}`;
+}
+
+export function decisionsRequireExplicitConflictChoice(
+  item: DossierUpgradeItem,
+  decision: UpgradeDecision,
+): boolean {
+  if (decision === "defer" || decision === "reject" || decision === "keep_existing") return false;
+  if (item.existingAuthority === "approved" && item.existingCanonical.trim()) {
+    return decision === "accept";
+  }
+  return false;
 }
 
 /**
@@ -680,6 +864,7 @@ export function applyUpgradeDecisions(
 ): ApplyUpgradeResult {
   const next: CharacterDevelopment = JSON.parse(JSON.stringify(profile)) as CharacterDevelopment;
   next.migrationHold = [...(next.migrationHold ?? [])];
+  next.fieldMeta = { ...(next.fieldMeta ?? {}) };
   const chosen = decisionMap(decisions);
   const appliedItemIds: string[] = [];
   const deferredItemIds: string[] = [];
@@ -691,32 +876,54 @@ export function applyUpgradeDecisions(
       deferredItemIds.push(item.id);
       continue;
     }
-    if (pick.decision === "reject") {
-      rejectedItemIds.push(item.id);
+    if (pick.decision === "reject" || pick.decision === "keep_existing") {
+      if (pick.decision === "reject") rejectedItemIds.push(item.id);
+      else appliedItemIds.push(item.id);
       continue;
     }
-    const value = (pick.decision === "modify" ? pick.modifiedValue ?? item.proposedValue : item.proposedValue).trim();
+
+    if (decisionsRequireExplicitConflictChoice(item, pick.decision)) {
+      // Caller must validate; leave unchanged if they slipped through.
+      deferredItemIds.push(item.id);
+      continue;
+    }
+
+    const rawValue =
+      pick.decision === "modify"
+        ? pick.modifiedValue ?? item.proposedValue
+        : pick.decision === "merge"
+          ? mergeText(item.existingCanonical, item.proposedValue, item.sourceHeading)
+          : item.proposedValue;
+    const value = rawValue.trim();
     if (!value) {
       deferredItemIds.push(item.id);
       continue;
     }
 
-    const structured =
-      item.fieldPath.startsWith("foundation.") ||
-      item.fieldPath.startsWith("voice.") ||
-      item.fieldPath.startsWith("psychology.") ||
-      item.fieldPath.startsWith("behavior.") ||
-      item.fieldPath.startsWith("livedExperience.") ||
-      item.fieldPath.startsWith("capabilities.");
+    if (item.alreadyApplied && pick.decision !== "modify") {
+      appliedItemIds.push(item.id);
+      continue;
+    }
 
-    if (structured && (pick.decision === "accept" || pick.decision === "modify")) {
-      // Never treat migration as resolving mysteries into filled facts when destination is protected.
+    const structured = isStructuredConflictPath(item.fieldPath);
+    const fieldApproval = approvalFromHint(item.authorityHint);
+
+    if (structured && (pick.decision === "accept" || pick.decision === "modify" || pick.decision === "merge")) {
       if (item.destination === "protected_unknowns") {
         pushHold(next, item, value, "Protected unknown retained; not written as a fact.");
         appliedItemIds.push(item.id);
         continue;
       }
-      setFieldPath(next, item.fieldPath, value);
+      const existingValue = existingAtPath(next, item.fieldPath);
+      if (
+        pick.decision === "accept" &&
+        existingValue.trim() &&
+        normalizeText(existingValue) === normalizeText(value)
+      ) {
+        appliedItemIds.push(item.id);
+        continue;
+      }
+      setFieldPath(next, item.fieldPath, value, importedMeta(item, analysis.bodyHash, fieldApproval));
       appliedItemIds.push(item.id);
       continue;
     }
@@ -734,7 +941,7 @@ export function applyUpgradeDecisions(
     appliedItemIds.push(item.id);
   }
 
-  const decisionFingerprint = upgradeDecisionFingerprint(analysis.fingerprint, decisions);
+  const decisionFingerprint = upgradeDecisionFingerprint(analysis.bodyHash, decisions);
   const already = archive.appliedFingerprints.includes(decisionFingerprint);
   const nextArchive =
     appliedItemIds.length || rejectedItemIds.length
@@ -746,7 +953,8 @@ export function applyUpgradeDecisions(
       : archive;
 
   const profileUnchanged = stableStringify(next) === stableStringify(profile);
-  const noEffectiveChange = already || (profileUnchanged && appliedItemIds.length === 0);
+  const archiveUnchanged = stableStringify(nextArchive) === stableStringify(archive);
+  const noEffectiveChange = already || (profileUnchanged && archiveUnchanged);
 
   return {
     profile: next,
@@ -759,13 +967,18 @@ export function applyUpgradeDecisions(
   };
 }
 
+/**
+ * Idempotency key for an upgrade apply. Uses bodyHash (not the profile-dependent
+ * analysis fingerprint) so re-applying the same decisions on the same Markdown
+ * after fields are filled returns already_applied.
+ */
 export function upgradeDecisionFingerprint(
-  analysisFingerprint: string,
+  bodyHash: string,
   decisions: readonly DossierUpgradeDecisionInput[],
 ): string {
   return sha256(
     stableStringify({
-      analysis: analysisFingerprint,
+      bodyHash,
       decisions: [...decisions]
         .map((d) => ({ id: d.itemId, decision: d.decision, value: d.modifiedValue ?? "" }))
         .sort((a, b) => a.id.localeCompare(b.id)),
@@ -773,7 +986,6 @@ export function upgradeDecisionFingerprint(
   );
 }
 
-/** Build fields payload: characterDevelopment + archive, preserving other keys. */
 export function fieldsAfterUpgrade(
   currentFields: JsonObject,
   profile: CharacterDevelopment,
@@ -787,8 +999,17 @@ export function upgradePreviewToken(input: {
   revision: number;
   bodyHash: string;
   fingerprint: string;
+  archiveVersion?: number;
 }): string {
-  return sha256(stableStringify(input));
+  return sha256(
+    stableStringify({
+      recordId: input.recordId,
+      revision: input.revision,
+      bodyHash: input.bodyHash,
+      fingerprint: input.fingerprint,
+      archiveVersion: input.archiveVersion ?? DOSSIER_MARKDOWN_ARCHIVE_VERSION,
+    }),
+  );
 }
 
 export function buildUpgradeChangePackage(input: {
@@ -834,11 +1055,55 @@ export function buildUpgradeChangePackage(input: {
   };
 }
 
-/** Analyze pasted/imported Markdown without a stored dossier body. */
-export function analyzeImportedMarkdown(markdown: string, profile?: CharacterDevelopment): DossierUpgradeAnalysis {
+export function analyzeImportedMarkdown(
+  markdown: string,
+  profile?: CharacterDevelopment,
+): DossierUpgradeAnalysis {
   return analyzeDossierUpgrade(markdown, profile ?? emptyCharacterDevelopment());
 }
 
 export function isUpgradeDecision(value: string): value is UpgradeDecision {
   return (UPGRADE_DECISIONS as readonly string[]).includes(value);
+}
+
+/** Promote a migration-hold item into a structured draft field (never approved). */
+export function resolveHoldIntoField(
+  profile: CharacterDevelopment,
+  holdId: string,
+): CharacterDevelopment | null {
+  const held = profile.migrationHold.find((item) => item.id === holdId);
+  if (!held || !isStructuredConflictPath(held.fieldPath)) return null;
+  const next: CharacterDevelopment = JSON.parse(JSON.stringify(profile)) as CharacterDevelopment;
+  next.migrationHold = next.migrationHold.filter((item) => item.id !== holdId);
+  next.fieldMeta = { ...next.fieldMeta };
+  setFieldPath(next, held.fieldPath, held.text, {
+    approval: "draft",
+    provenance: {
+      origin: "imported",
+      note: "Resolved from migration hold",
+      sourceHeading: held.heading,
+      updatedAt: new Date().toISOString(),
+    },
+  });
+  return next;
+}
+
+export function updateHoldDecision(
+  profile: CharacterDevelopment,
+  holdId: string,
+  decision: "retained" | "deferred",
+): CharacterDevelopment {
+  return {
+    ...profile,
+    migrationHold: profile.migrationHold.map((item) =>
+      item.id === holdId ? { ...item, decision } : item,
+    ),
+  };
+}
+
+export function dismissHold(profile: CharacterDevelopment, holdId: string): CharacterDevelopment {
+  return {
+    ...profile,
+    migrationHold: profile.migrationHold.filter((item) => item.id !== holdId),
+  };
 }

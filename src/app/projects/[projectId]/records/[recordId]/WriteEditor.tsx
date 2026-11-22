@@ -47,6 +47,7 @@ import { useSpellcheck } from "@/components/writing/useSpellcheck";
 import { WordCounts } from "@/components/writing/WordCounts";
 import type { AuthorityStatus } from "@/domain/statuses";
 import { normalizeNewlines } from "@/proofread/anchors";
+import { nestedSceneTail } from "@/writing/nestedSceneTail";
 import type { DictionaryWord } from "@/spelling/dictionary";
 import { WriteModeSwitch } from "@/components/writing/WriteModeSwitch";
 import { WriteProtectionRow } from "@/components/writing/WriteProtectionRow";
@@ -102,8 +103,15 @@ export function WriteEditor(props: {
   isProtected: boolean;
   canvasBack?: { href: string; label: string } | { unavailable: true } | null;
   parent: { id: string; title: string } | null;
-  /** Scenes nested under this chapter, in book order. Empty for a scene. */
-  scenes?: ReadonlyArray<{ id: string; title: string }>;
+  /** Scenes nested under this chapter, in book order. Their text stays on the scene. */
+  scenes?: ReadonlyArray<{
+    id: string;
+    title: string;
+    body: string;
+    fieldsJson: string;
+    revision: number;
+    protected: boolean;
+  }>;
   /** Opens Find with this text, from a manuscript search result. */
   initialFind: { query: string; matchCase: boolean } | null;
   initialStyleRange: { start: number; end: number } | null;
@@ -159,6 +167,7 @@ export function WriteEditor(props: {
   const spokenPassRef = useRef("");
   // The text box reports line endings as "\n"; keep offsets in the same terms.
   const savedText = normalizeNewlines(props.body);
+  const sceneTail = nestedSceneTail(props.kind === "chapter" ? (props.scenes ?? []) : []);
   const [text, setText] = useState(savedText);
   const [title, setTitle] = useState(props.title);
   const [fields, setFields] = useState(props.fieldsJson);
@@ -706,19 +715,6 @@ export function WriteEditor(props: {
                     onInput={(e) => setTitle(e.currentTarget.value)}
                   />
                 </h1>
-                {props.kind === "chapter" && props.scenes && props.scenes.length > 0 ? (
-                  <nav className="write-scenes" aria-label={WRITE.scenesTab}>
-                    <ol>
-                      {props.scenes.map((scene) => (
-                        <li key={scene.id}>
-                          <Link href={`/projects/${encodeURIComponent(props.projectId)}/records/${encodeURIComponent(scene.id)}`}>
-                            {scene.title}
-                          </Link>
-                        </li>
-                      ))}
-                    </ol>
-                  </nav>
-                ) : null}
               </div>
               <div className="write-title-tools">
                 {splitPeers.length > 0 ? (
@@ -872,6 +868,7 @@ export function WriteEditor(props: {
                 aria-label={WRITE.editorLabel}
                 aria-describedby={writeMode === "focus" ? `${idPrefix}-focus-hint` : undefined}
                 initialDoc={savedText}
+                lockedTail={sceneTail}
                 editable={editable}
                 language={language}
                 chrome={editorChrome}

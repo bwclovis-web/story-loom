@@ -201,6 +201,8 @@ export const HELP_SECTIONS = [
     children: [
       { id: "full-backup", title: "Full backup" },
       { id: "backup-mirror", title: "Backup mirror folder" },
+      { id: "rolling-backup", title: "Rolling mirror backups" },
+      { id: "sync-bundle", title: "Sync bundles" },
       { id: "restore", title: "Restore" },
     ],
   },
@@ -278,6 +280,7 @@ export const HELP_ROUTES = [
   "/projects/[projectId]/epub",
   "/projects/[projectId]/pdf",
   "/projects/[projectId]/markdown",
+  "/projects/[projectId]/wiki",
   "/projects/[projectId]/history",
   "/projects/[projectId]/assistant",
   "/projects/[projectId]/dictionary",

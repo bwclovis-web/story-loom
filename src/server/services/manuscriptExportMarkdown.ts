@@ -83,7 +83,7 @@ function inlineToDocxChildren(
         runs.push(new TextRun({ text: inlineText(node.children), bold: true, ...runOpts(style) }));
         break;
       case "em":
-        runs.push(new TextRun({ text: inlineText(node.children), italics: true, ...runOpts(style) }));
+        runs.push(new TextRun({ text: inlineText(node.children), ...runOpts(style, { italics: true }) }));
         break;
       case "del":
         runs.push(new TextRun({ text: inlineText(node.children), strike: true, ...runOpts(style) }));

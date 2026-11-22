@@ -19,6 +19,7 @@ import { parseKindTemplateFields } from "@/world/kindTemplates";
 import { parseStoredPoints } from "@/world/mapGeometry";
 import { orderGraphHasCycle } from "@/world/storyOrder";
 import { validateDictionaryWord, wordKey } from "@/spelling/dictionary";
+import { parseBookTheme } from "@/writing/bookThemes";
 import type { Db, DbOrTx, Tx } from "../db";
 import { writeAudit } from "./auditService";
 import { NotFoundError } from "./errors";
@@ -86,6 +87,10 @@ function writingGoalsOf(b: WorkspaceBackupV1) {
 
 function smartCollectionsOf(b: WorkspaceBackupV1) {
   return b.smartCollections ?? [];
+}
+
+function assistantPromptPresetsOf(b: WorkspaceBackupV1) {
+  return b.assistantPromptPresets ?? [];
 }
 
 function worldCalendarsOf(b: WorkspaceBackupV1) {
@@ -421,6 +426,21 @@ async function smartCollectionRows(db: DbOrTx, projectIds: string[]) {
     return await db.smartCollection.findMany({
       where: { projectId: { in: projectIds } },
       orderBy: [{ projectId: "asc" }, { scope: "asc" }, { position: "asc" }, { id: "asc" }],
+    });
+  } catch (error) {
+    if (isMissingSchemaError(error, "P2021")) return [];
+    throw error;
+  }
+}
+
+async function assistantPromptPresetRows(db: DbOrTx, projectIds: string[]) {
+  if (!("assistantPromptPreset" in db) || !(db as { assistantPromptPreset?: { findMany: unknown } }).assistantPromptPreset) {
+    return [];
+  }
+  try {
+    return await db.assistantPromptPreset.findMany({
+      where: { projectId: { in: projectIds } },
+      orderBy: [{ projectId: "asc" }, { surface: "asc" }, { title: "asc" }, { id: "asc" }],
     });
   } catch (error) {
     if (isMissingSchemaError(error, "P2021")) return [];
@@ -1102,6 +1122,7 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
     readingPins,
     writingGoals,
     smartCollections,
+    assistantPromptPresets,
     worldCalendars,
     manuscriptAnnotations,
     compileProfiles,
@@ -1148,6 +1169,7 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
     readingPinRows(db, projectIds),
     writingGoalRows(db, projectIds),
     smartCollectionRows(db, projectIds),
+    assistantPromptPresetRows(db, projectIds),
     worldCalendarRows(db, projectIds),
     manuscriptAnnotationRows(db, projectIds),
     compileProfileRows(db, projectIds),
@@ -1405,6 +1427,19 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
           })),
         }
       : {}),
+    ...(assistantPromptPresets.length
+      ? {
+          assistantPromptPresets: assistantPromptPresets.map((row) => ({
+            id: row.id,
+            projectId: row.projectId,
+            title: row.title,
+            surface: row.surface === "selection" || row.surface === "beat" ? row.surface : ("chat" as const),
+            instructionText: row.instructionText,
+            createdAt: iso(row.createdAt),
+            updatedAt: iso(row.updatedAt),
+          })),
+        }
+      : {}),
     ...(worldCalendars.length
       ? {
           worldCalendars: worldCalendars.map((calendar) => ({
@@ -1470,7 +1505,13 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
             runningHeader: p.runningHeader,
             runningFooter: p.runningFooter,
             fontPreset: p.fontPreset === "sans" || p.fontPreset === "mono" ? p.fontPreset : ("serif" as const),
-            ...("bookTheme" in p && p.bookTheme ? { bookTheme: p.bookTheme } : {}),
+            ...(() => {
+              const theme =
+                "bookTheme" in p && typeof p.bookTheme === "string"
+                  ? parseBookTheme(p.bookTheme)
+                  : null;
+              return theme ? { bookTheme: theme } : {};
+            })(),
             spacingPreset: p.spacingPreset === "tight" || p.spacingPreset === "loose" ? p.spacingPreset : ("novel" as const),
             firstParagraphNoIndent: p.firstParagraphNoIndent,
             dropCap: p.dropCap,
@@ -2029,6 +2070,7 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
       ...(readingPins.length ? { readingPins: readingPins.length } : {}),
       ...(writingGoals.length ? { writingGoals: writingGoals.length } : {}),
       ...(smartCollections.length ? { smartCollections: smartCollections.length } : {}),
+      ...(assistantPromptPresets.length ? { assistantPromptPresets: assistantPromptPresets.length } : {}),
       ...(manuscriptAnnotations.length ? { manuscriptAnnotations: manuscriptAnnotations.length } : {}),
       ...(compileProfiles.length ? { compileProfiles: compileProfiles.length } : {}),
       ...(worldKindTemplates.length ? { worldKindTemplates: worldKindTemplates.length } : {}),
@@ -2119,6 +2161,7 @@ function checkInternalConsistency(b: WorkspaceBackupV1): Issue[] {
     readingPins: readingPinsOf(b).length,
     writingGoals: writingGoalsOf(b).length,
     smartCollections: smartCollectionsOf(b).length,
+    assistantPromptPresets: assistantPromptPresetsOf(b).length,
     manuscriptAnnotations: manuscriptAnnotationsOf(b).length,
     compileProfiles: compileProfilesOf(b).length,
     worldKindTemplates: worldKindTemplatesOf(b).length,
@@ -2207,6 +2250,12 @@ function checkInternalConsistency(b: WorkspaceBackupV1): Issue[] {
   checkUnique(
     smartCollectionsOf(b).map((c) => `${c.projectId}/${c.scope}/${c.title}`),
     "smart collection title",
+    issues,
+  );
+  checkUnique(assistantPromptPresetsOf(b).map((p) => p.id), "assistant prompt preset", issues);
+  checkUnique(
+    assistantPromptPresetsOf(b).map((p) => `${p.projectId}/${p.surface}/${p.title}`),
+    "assistant prompt preset title",
     issues,
   );
   checkUnique(manuscriptAnnotationsOf(b).map((a) => a.id), "manuscript annotation", issues);
@@ -2416,6 +2465,15 @@ function checkInternalConsistency(b: WorkspaceBackupV1): Issue[] {
       }
     } catch {
       issues.push(integrity(`Smart collection ${c.id} filterJson is not valid JSON.`));
+    }
+  });
+  assistantPromptPresetsOf(b).forEach((p) => {
+    needProject(p.projectId, `Assistant prompt preset ${p.id}`);
+    if (p.surface !== "selection" && p.surface !== "chat" && p.surface !== "beat") {
+      issues.push(integrity(`Assistant prompt preset ${p.id} has unknown surface ${p.surface}.`));
+    }
+    if (!p.instructionText.trim()) {
+      issues.push(integrity(`Assistant prompt preset ${p.id} needs instruction text.`));
     }
   });
   worldKindTemplatesOf(b).forEach((template) => {
@@ -2991,6 +3049,12 @@ async function findCollisions(db: DbOrTx, b: WorkspaceBackupV1): Promise<Issue[]
       db.smartCollection.count({ where: { id: { in: smartCollectionsOf(b).map((c) => c.id) } } }),
     );
   }
+  if (assistantPromptPresetsOf(b).length && "assistantPromptPreset" in db) {
+    await check(
+      "assistant prompt preset",
+      db.assistantPromptPreset.count({ where: { id: { in: assistantPromptPresetsOf(b).map((p) => p.id) } } }),
+    );
+  }
   if (manuscriptAnnotationsOf(b).length) {
     await check(
       "manuscript annotation",
@@ -3270,6 +3334,7 @@ export async function restoreWorkspaceBackup(db: Db, input: string | unknown, op
   readingPinsOf(b).forEach((p) => assign(p.id, "pin"));
   writingGoalsOf(b).forEach((g) => assign(g.id, "wgoal"));
   smartCollectionsOf(b).forEach((c) => assign(c.id, "scol"));
+  assistantPromptPresetsOf(b).forEach((p) => assign(p.id, "apre"));
   manuscriptAnnotationsOf(b).forEach((a) => assign(a.id, "man"));
   compileProfilesOf(b).forEach((p) => assign(p.id, "cprof"));
   worldKindTemplatesOf(b).forEach((template) => assign(template.id, "wkt"));
@@ -3585,6 +3650,20 @@ export async function restoreWorkspaceBackup(db: Db, input: string | unknown, op
               scope: row.scope,
               filterJson: row.filterJson,
               position: row.position,
+              createdAt: new Date(row.createdAt),
+              updatedAt: new Date(row.updatedAt),
+            })),
+          });
+        }
+        const promptPresets = assistantPromptPresetsOf(b);
+        if (promptPresets.length && "assistantPromptPreset" in tx) {
+          await tx.assistantPromptPreset.createMany({
+            data: promptPresets.map((row) => ({
+              id: m(row.id),
+              projectId: m(row.projectId),
+              title: row.title,
+              surface: row.surface,
+              instructionText: row.instructionText,
               createdAt: new Date(row.createdAt),
               updatedAt: new Date(row.updatedAt),
             })),

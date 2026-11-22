@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState, useTransition } from "react";
+import { DataTable } from "@/components/ui/DataTable";
 import { saveSynopsisAction } from "@/app/projects/[projectId]/records/[recordId]/annotationActions";
 import { saveChapterGoalAction, clearChapterGoalAction } from "@/app/projects/[projectId]/write/goals/actions";
 import { saveOutlinerMetaAction } from "@/app/projects/[projectId]/write/outlinerActions";
@@ -191,116 +192,107 @@ export function Outliner({
       {visible.length === 0 ? (
         <p className="outline-empty">{local.length === 0 ? MANUSCRIPT_ANNOTATIONS.corkboardEmpty : WRITE.noMatches}</p>
       ) : (
-        <div className="outliner-scroll">
-          <table className="outliner-table">
-            <thead>
-              <tr>
-                <th scope="col">{WRITE.outlinerColTitle}</th>
-                <th scope="col">{WRITE.outlinerColWords}</th>
-                <th scope="col">{WRITE.outlinerColTarget}</th>
-                <th scope="col">{SCENE_META.pov}</th>
-                <th scope="col">{SCENE_META.status}</th>
-                <th scope="col">{WRITE.outlinerColLocation}</th>
-                <th scope="col">{WRITE.outlinerColSynopsis}</th>
-                <th scope="col">{WRITE.outlinerColContinuity}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {visible.map((row) => (
-                <tr key={row.recordId} data-type={row.type} data-protected={row.isProtected ? "" : undefined}>
-                  <td className="outliner-title-cell">
-                    {row.number ? <span className="outliner-number">{row.number}</span> : null}
-                    <span className="outliner-kind">
-                      {row.type === "manuscript_chapter" ? WRITE.chapterKind : WRITE.sceneKind}
-                    </span>
-                    <Link href={recordHref(base, row.recordId)} className="outliner-title">
-                      {row.title}
-                    </Link>
-                    {row.chapterTitle ? <span className="small muted">{row.chapterTitle}</span> : null}
-                    {row.isProtected ? <span className="badge subtle">{MANUSCRIPT_REPLACE.protected}</span> : null}
-                  </td>
-                  <td className="outliner-num">{row.words}</td>
-                  <td>
-                    {row.type === "manuscript_chapter" ? (
-                      <input
-                        type="number"
-                        min={1}
-                        className="outliner-input outliner-input-num"
-                        defaultValue={row.wordTarget ?? ""}
-                        disabled={pending}
-                        aria-label={WRITE.outlinerColTarget}
-                        onBlur={(event) => {
-                          const next = event.target.value.trim();
-                          const prev = row.wordTarget == null ? "" : String(row.wordTarget);
-                          if (next === prev) return;
-                          saveTarget(row, next);
-                        }}
-                      />
-                    ) : (
-                      <span className="muted">—</span>
-                    )}
-                  </td>
-                  <td>
-                    <input
-                      type="text"
-                      className="outliner-input"
-                      defaultValue={row.pov}
-                      disabled={pending || row.isProtected}
-                      aria-label={SCENE_META.pov}
-                      onBlur={(event) => {
-                        const next = event.target.value;
-                        if (next === row.pov) return;
-                        saveMeta(row, { pov: next });
-                      }}
-                    />
-                  </td>
-                  <td>
-                    <select
-                      className="outliner-input"
-                      defaultValue={row.sceneStatus}
-                      disabled={pending || row.isProtected}
-                      aria-label={SCENE_META.status}
-                      onChange={(event) => {
-                        const next = event.target.value;
-                        if (next === row.sceneStatus) return;
-                        saveMeta(row, { sceneStatus: next });
-                      }}
-                    >
-                      <option value="">{SCENE_META.statusNone}</option>
-                      {MANUSCRIPT_SCENE_STATUSES.map((status) => (
-                        <option key={status} value={status}>
-                          {STATUS_LABEL[status]}
-                        </option>
-                      ))}
-                    </select>
-                  </td>
-                  <td className="small">{row.locationTitle ?? <span className="muted">—</span>}</td>
-                  <td>
-                    <textarea
-                      className="outliner-synopsis"
-                      defaultValue={row.synopsis}
-                      rows={2}
-                      disabled={pending}
-                      aria-label={MANUSCRIPT_ANNOTATIONS.synopsis}
-                      onBlur={(event) => {
-                        const next = event.target.value;
-                        if (next === row.synopsis) return;
-                        saveSynopsis(row, next);
-                      }}
-                    />
-                  </td>
-                  <td className="outliner-num">
-                    {row.continuityOpen > 0 ? (
-                      <Link href={`${base}/continuity`}>{row.continuityOpen}</Link>
-                    ) : (
-                      <span className="muted">0</span>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <DataTable
+          label={WRITE.outlinerTab}
+          columns={[
+            { id: "title", header: WRITE.outlinerColTitle, className: "outliner-title-cell" },
+            { id: "words", header: WRITE.outlinerColWords, className: "outliner-num" },
+            { id: "target", header: WRITE.outlinerColTarget },
+            { id: "pov", header: SCENE_META.pov },
+            { id: "status", header: SCENE_META.status },
+            { id: "location", header: WRITE.outlinerColLocation, className: "small" },
+            { id: "synopsis", header: WRITE.outlinerColSynopsis },
+            { id: "continuity", header: WRITE.outlinerColContinuity, className: "outliner-num" },
+          ]}
+          rows={visible.map((row) => ({
+            id: row.recordId,
+            "data-type": row.type,
+            "data-protected": row.isProtected ? "" : undefined,
+            cells: [
+              <>
+                {row.number ? <span className="outliner-number">{row.number}</span> : null}
+                <span className="outliner-kind">
+                  {row.type === "manuscript_chapter" ? WRITE.chapterKind : WRITE.sceneKind}
+                </span>
+                <Link href={recordHref(base, row.recordId)} className="outliner-title">
+                  {row.title}
+                </Link>
+                {row.chapterTitle ? <span className="small muted">{row.chapterTitle}</span> : null}
+                {row.isProtected ? <span className="badge subtle">{MANUSCRIPT_REPLACE.protected}</span> : null}
+              </>,
+              row.words,
+              row.type === "manuscript_chapter" ? (
+                <input
+                  type="number"
+                  min={1}
+                  className="outliner-input outliner-input-num"
+                  defaultValue={row.wordTarget ?? ""}
+                  disabled={pending}
+                  aria-label={WRITE.outlinerColTarget}
+                  onBlur={(event) => {
+                    const next = event.target.value.trim();
+                    const prev = row.wordTarget == null ? "" : String(row.wordTarget);
+                    if (next === prev) return;
+                    saveTarget(row, next);
+                  }}
+                />
+              ) : (
+                <span className="muted">—</span>
+              ),
+              <input
+                key={`${row.recordId}-pov`}
+                type="text"
+                className="outliner-input"
+                defaultValue={row.pov}
+                disabled={pending || row.isProtected}
+                aria-label={SCENE_META.pov}
+                onBlur={(event) => {
+                  const next = event.target.value;
+                  if (next === row.pov) return;
+                  saveMeta(row, { pov: next });
+                }}
+              />,
+              <select
+                key={`${row.recordId}-status`}
+                className="outliner-input"
+                defaultValue={row.sceneStatus}
+                disabled={pending || row.isProtected}
+                aria-label={SCENE_META.status}
+                onChange={(event) => {
+                  const next = event.target.value;
+                  if (next === row.sceneStatus) return;
+                  saveMeta(row, { sceneStatus: next });
+                }}
+              >
+                <option value="">{SCENE_META.statusNone}</option>
+                {MANUSCRIPT_SCENE_STATUSES.map((status) => (
+                  <option key={status} value={status}>
+                    {STATUS_LABEL[status]}
+                  </option>
+                ))}
+              </select>,
+              row.locationTitle ?? <span className="muted">—</span>,
+              <textarea
+                key={`${row.recordId}-synopsis`}
+                className="outliner-synopsis"
+                defaultValue={row.synopsis}
+                rows={2}
+                disabled={pending}
+                aria-label={MANUSCRIPT_ANNOTATIONS.synopsis}
+                onBlur={(event) => {
+                  const next = event.target.value;
+                  if (next === row.synopsis) return;
+                  saveSynopsis(row, next);
+                }}
+              />,
+              row.continuityOpen > 0 ? (
+                <Link href={`${base}/continuity`}>{row.continuityOpen}</Link>
+              ) : (
+                <span className="muted">0</span>
+              ),
+            ],
+          }))}
+        />
       )}
       <p className="small muted">
         {RECORD_TYPE_LABELS.manuscript_chapter} / {RECORD_TYPE_LABELS.manuscript_scene} · {WRITE.outlinerSortNote}{" "}

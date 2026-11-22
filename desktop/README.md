@@ -26,7 +26,11 @@ First launch asks for a **library folder**. That path is written to Electron `us
 
 ## API keys
 
-Prefer **Settings** in the app (your own OpenAI key). The desktop shell can also keep an OS-encrypted copy under Electron `userData` and inject `WORDLY_OPENAI_API_KEY` when starting the server.
+Prefer **Settings** in the app (your own OpenAI key). The desktop shell keeps an OS-encrypted copy under Electron `userData` when `safeStorage` is available (fallback: a file only inside `userData`). On each launch it writes `local/desktop-assistant-bridge.json` and injects `WORDLY_OPENAI_API_KEY` for the local server. Precedence: **desktop encrypted > `local/assistant-secrets.json` > `.env` WORDLY_* only** (web Settings still use the JSON file when not on desktop).
+
+## Rolling backups
+
+When **rolling schedule** is enabled in `local/backup-mirror.json`, the shell calls `POST /api/desktop/rolling-backup` on launch, once per day, and on window close (mirror folder required). Retention pruning runs on the server after each rolling backup.
 
 ## Installer build
 

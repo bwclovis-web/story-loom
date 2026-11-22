@@ -2,7 +2,7 @@ import { z } from "zod";
 import { getDb } from "@/server/db";
 import { getAssistantConfig } from "@/server/assistantConfig";
 import { finishRun, registerRun } from "@/server/assistantRuns";
-import { createOpenAIProviderFromConfig } from "@/server/openai/openaiProvider";
+import { createAssistantProviderFromConfig } from "@/server/assistantProviderFactory";
 import { rejectCrossSite } from "@/server/sameOrigin";
 import { AssistantError, type AssistantErrorCode } from "@/server/services/assistantService";
 import { prepareProofread, runProofread } from "@/server/services/proofreadService";
@@ -60,7 +60,7 @@ export async function POST(request: Request, ctx: { params: Promise<{ projectId:
     return errorResponse("SERVER_ERROR", "The request could not be prepared.", 500);
   }
 
-  const provider = createOpenAIProviderFromConfig(config);
+  const provider = createAssistantProviderFromConfig(config);
   const run = registerRun(prep.runId);
   const signal = AbortSignal.any([run.signal, request.signal]);
   const encoder = new TextEncoder();

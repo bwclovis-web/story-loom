@@ -2,6 +2,7 @@ import { HelpHint } from "@/components/HelpHint";
 import { getAssistantConfig } from "@/server/assistantConfig";
 import { SETTINGS } from "@/ui/labels";
 import { loadSettingsViewAction } from "./actions";
+import { RollingBackupPanel } from "../backup/RollingBackupPanel";
 import { AssistantSettingsForm, LibrarySettingsForm, MirrorSettingsForm, SettingsLinks } from "./SettingsForms";
 
 export const dynamic = "force-dynamic";
@@ -28,7 +29,8 @@ export default async function SettingsPage() {
         </HelpHint>
         {status.configured ? (
           <p className="small muted">
-            Assistant is configured{status.model ? ` (model ${status.model})` : ""}.
+            Assistant is configured ({status.provider}
+            {status.model ? `, model ${status.model}` : ""}).
           </p>
         ) : (
           <ul className="small muted">
@@ -38,10 +40,12 @@ export default async function SettingsPage() {
           </ul>
         )}
         <AssistantSettingsForm
+          provider={view.provider}
           keySaved={view.keySaved}
           model={view.model}
           baseUrl={view.baseUrl}
           secretsPath={view.secretsPath}
+          keySource={view.keySource}
         />
       </section>
 
@@ -67,6 +71,20 @@ export default async function SettingsPage() {
           mirrorDir={view.mirrorDir}
           fromEnv={view.mirrorFromEnv}
           settingsPath={view.mirrorSettingsPath}
+        />
+      </section>
+
+      <section className="panel stack" aria-labelledby="settings-schedule">
+        <h2 id="settings-schedule" style={{ marginTop: 0 }}>
+          {SETTINGS.scheduleHeading}
+        </h2>
+        <p className="small muted">{SETTINGS.scheduleLead}</p>
+        <RollingBackupPanel
+          scheduleEnabled={view.scheduleEnabled}
+          retentionCount={view.retentionCount}
+          lastScheduledBackupAt={view.lastScheduledBackupAt}
+          mirrorConfigured={Boolean(view.mirrorDir)}
+          fromEnv={view.mirrorFromEnv}
         />
       </section>
     </>

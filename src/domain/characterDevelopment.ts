@@ -1,7 +1,14 @@
+import {
+  CHARACTER_HEADING_FIELD_MAP as SHARED_HEADING_FIELD_MAP,
+  CHARACTER_HEADING_MAP,
+  parseMarkdownSections,
+} from "@/domain/characterHeadingExtraction";
 import type { JsonObject, JsonValue } from "@/domain/json";
 import type { AuthorityStatus } from "@/domain/statuses";
 import { isAuthorityStatus } from "@/domain/statuses";
 import { orderRelation, type OrderEdge } from "@/world/storyOrder";
+
+export { CHARACTER_HEADING_FIELD_MAP } from "@/domain/characterHeadingExtraction";
 
 /**
  * Optional structured character metadata stored on an existing character
@@ -39,6 +46,7 @@ export const CHARACTER_DEVELOPMENT_KNOWN_KEYS = [
   "capabilities",
   "knowledge",
   "migrationHold",
+  "fieldMeta",
 ] as const;
 
 /** Panel sections for progressive disclosure. Changing importance never deletes filled data. */
@@ -132,9 +140,14 @@ export const ARCHETYPE_LIBRARY = [
   "Herald",
 ] as const;
 
+/** Psychological archetype ranks. Narrative role stays on CharacterDevelopment.narrativeRole. */
+export const ARCHETYPE_RANKS = ["primary", "secondary", "shadow"] as const;
+export type ArchetypeRank = (typeof ARCHETYPE_RANKS)[number];
+
 export const PSYCHOLOGY_TEXT_KEYS = [
   "coreDesire",
   "coreFear",
+  "coreMotivation",
   "consciousWants",
   "unconsciousNeeds",
   "internalMisbelief",
@@ -146,10 +159,15 @@ export const PSYCHOLOGY_TEXT_KEYS = [
   "secureBehavior",
   "strengths",
   "weaknesses",
+  "blindSpots",
   "contradictions",
   "emotionalExpression",
+  "emotionalTriggers",
+  "behavioralPatterns",
   "attachmentTendencies",
   "copingStrategies",
+  "selfPerception",
+  "externalPerception",
 ] as const;
 export type PsychologyTextKey = (typeof PSYCHOLOGY_TEXT_KEYS)[number];
 
@@ -278,6 +296,9 @@ export interface PersonalityFramework {
   id: string;
   name: string;
   notes: string;
+  /** Defaults to draft for legacy rows; never inferred as approved. */
+  approval: AuthorityStatus;
+  provenance: ClaimProvenance;
 }
 
 export interface PsychologyProfile {
@@ -285,6 +306,7 @@ export interface PsychologyProfile {
   wing: EnneagramNumber | null;
   coreDesire: string;
   coreFear: string;
+  coreMotivation: string;
   consciousWants: string;
   unconsciousNeeds: string;
   internalMisbelief: string;
@@ -296,10 +318,15 @@ export interface PsychologyProfile {
   secureBehavior: string;
   strengths: string;
   weaknesses: string;
+  blindSpots: string;
   contradictions: string;
   emotionalExpression: string;
+  emotionalTriggers: string;
+  behavioralPatterns: string;
   attachmentTendencies: string;
   copingStrategies: string;
+  selfPerception: string;
+  externalPerception: string;
   frameworks: PersonalityFramework[];
 }
 
@@ -308,11 +335,19 @@ export interface ArchetypeAssignment {
   name: string;
   custom: boolean;
   description: string;
-  rank: "primary" | "secondary";
+  rank: ArchetypeRank;
   /** Empty means the assignment is not limited to one narrative period. */
   periodLabel: string;
   /** When set, this archetype is how the character shows up in that relationship, not their only archetype. */
   relationshipRecordId: string | null;
+  /** Optional pointer to an earlier archetype row this one evolves from. */
+  evolvesFromId: string | null;
+  evolutionNote: string;
+  /** Optional book scope for this archetype expression. */
+  bookProjectId: string | null;
+  /** Defaults to draft for legacy rows; never inferred as approved. */
+  approval: AuthorityStatus;
+  provenance: ClaimProvenance;
 }
 
 export interface BookImportance {
@@ -422,6 +457,49 @@ export interface ReviewNote {
 export interface ClaimProvenance {
   origin: ProvenanceOrigin;
   note: string;
+  sourceHeading?: string;
+  sourceBodyHash?: string | null;
+  updatedAt?: string;
+}
+
+/** Per-field authority for foundation / psychology / voice / behavior / capabilities text. */
+export interface FieldAuthorityMeta {
+  approval: AuthorityStatus;
+  provenance: ClaimProvenance;
+}
+
+/**
+ * Legacy plain-text fields without fieldMeta are treated as draft author notes —
+ * never auto-classified as approved canon.
+ */
+export function defaultFieldMeta(origin: ProvenanceOrigin = "author"): FieldAuthorityMeta {
+  return {
+    approval: "draft",
+    provenance: { origin, note: "" },
+  };
+}
+
+export function fieldMetaOf(
+  profile: CharacterDevelopment,
+  fieldPath: string,
+): FieldAuthorityMeta {
+  return profile.fieldMeta[fieldPath] ?? defaultFieldMeta("author");
+}
+
+export function setFieldMeta(
+  profile: CharacterDevelopment,
+  fieldPath: string,
+  meta: FieldAuthorityMeta,
+): CharacterDevelopment {
+  return {
+    ...profile,
+    fieldMeta: { ...profile.fieldMeta, [fieldPath]: meta },
+  };
+}
+
+/** True when a structured text field may appear as established canon in AI context. */
+export function fieldIsEstablishedCanon(profile: CharacterDevelopment, fieldPath: string): boolean {
+  return fieldMetaOf(profile, fieldPath).approval === "approved";
 }
 
 export interface FoundationProfile {
@@ -558,6 +636,11 @@ export interface CharacterDevelopment {
   knowledge: KnowledgeItem[];
   /** Author-reviewed upgrade hold: conflicts, unknowns, proposals, unclassified. */
   migrationHold: MigrationHoldItem[];
+  /**
+   * Optional per-path authority for structured text fields
+   * (e.g. foundation.appearance). Missing entries default to draft/author.
+   */
+  fieldMeta: Record<string, FieldAuthorityMeta>;
 }
 
 export interface ProfileProblem {
@@ -643,6 +726,7 @@ function emptyPsychology(): PsychologyProfile {
     wing: null,
     coreDesire: "",
     coreFear: "",
+    coreMotivation: "",
     consciousWants: "",
     unconsciousNeeds: "",
     internalMisbelief: "",
@@ -654,10 +738,15 @@ function emptyPsychology(): PsychologyProfile {
     secureBehavior: "",
     strengths: "",
     weaknesses: "",
+    blindSpots: "",
     contradictions: "",
     emotionalExpression: "",
+    emotionalTriggers: "",
+    behavioralPatterns: "",
     attachmentTendencies: "",
     copingStrategies: "",
+    selfPerception: "",
+    externalPerception: "",
     frameworks: [],
   };
 }
@@ -759,6 +848,7 @@ export function emptyCharacterDevelopment(): CharacterDevelopment {
     capabilities: emptyCapabilities(),
     knowledge: [],
     migrationHold: [],
+    fieldMeta: {},
   };
 }
 
@@ -864,10 +954,23 @@ function readPsychology(raw: unknown, problems: ProfileProblem[]): PsychologyPro
       const frame = asRecord(item);
       if (!frame) return [];
       const name = text(frame.name);
-      return [{ id: idOf(frame.id, `frame_${index}_saved`), name, notes: text(frame.notes) }];
+      return [
+        {
+          id: idOf(frame.id, `frame_${index}_saved`),
+          name,
+          notes: text(frame.notes),
+          // Legacy rows without approval stay draft — never inferred as approved.
+          approval: approvalOf(frame.approval),
+          provenance: readProvenance(frame.provenance),
+        },
+      ];
     });
   }
   return next;
+}
+
+function archetypeRankOf(value: unknown): ArchetypeRank {
+  return oneOf(value, ARCHETYPE_RANKS) ?? "primary";
 }
 
 function readArchetypes(raw: unknown): ArchetypeAssignment[] {
@@ -883,9 +986,15 @@ function readArchetypes(raw: unknown): ArchetypeAssignment[] {
         name,
         custom: row.custom === true || !library,
         description: text(row.description),
-        rank: row.rank === "secondary" ? "secondary" : "primary",
+        rank: archetypeRankOf(row.rank),
         periodLabel: text(row.periodLabel),
         relationshipRecordId: text(row.relationshipRecordId) || null,
+        evolvesFromId: text(row.evolvesFromId) || null,
+        evolutionNote: text(row.evolutionNote),
+        bookProjectId: text(row.bookProjectId) || null,
+        // Legacy rows without approval stay draft — never inferred as approved.
+        approval: approvalOf(row.approval),
+        provenance: readProvenance(row.provenance),
       },
     ];
   });
@@ -1115,7 +1224,25 @@ function readProvenance(raw: unknown): ClaimProvenance {
   return {
     origin: oneOf(row.origin, PROVENANCE_ORIGINS) ?? "author",
     note: text(row.note),
+    sourceHeading: text(row.sourceHeading) || undefined,
+    sourceBodyHash: text(row.sourceBodyHash) || null,
+    updatedAt: text(row.updatedAt) || undefined,
   };
+}
+
+function readFieldMeta(raw: unknown): Record<string, FieldAuthorityMeta> {
+  const row = asRecord(raw);
+  if (!row) return {};
+  const out: Record<string, FieldAuthorityMeta> = {};
+  for (const [path, value] of Object.entries(row)) {
+    const meta = asRecord(value);
+    if (!meta) continue;
+    out[path] = {
+      approval: approvalOf(meta.approval),
+      provenance: readProvenance(meta.provenance),
+    };
+  }
+  return out;
 }
 
 function readLivedExperience(raw: unknown): LivedExperienceProfile {
@@ -1250,6 +1377,7 @@ export function readCharacterDevelopment(fields: Readonly<Record<string, unknown
     capabilities: readCapabilities(row.capabilities),
     knowledge: readKnowledge(row.knowledge),
     migrationHold: readMigrationHold(row.migrationHold),
+    fieldMeta: readFieldMeta(row.fieldMeta),
   };
   problems.push(...validateCharacterDevelopment(profile));
   return { profile, problems };
@@ -1263,8 +1391,25 @@ export function validateCharacterDevelopment(profile: CharacterDevelopment): Pro
   for (const framework of profile.psychology.frameworks) {
     if (!framework.name.trim()) problems.push({ path: `frameworks.${framework.id}`, message: "A personality framework needs a name." });
   }
+  const archetypeIds = new Set(profile.archetypes.map((item) => item.id));
   for (const archetype of profile.archetypes) {
     if (!archetype.name.trim()) problems.push({ path: `archetypes.${archetype.id}`, message: "An archetype needs a name." });
+    if (archetype.evolvesFromId) {
+      if (!archetypeIds.has(archetype.evolvesFromId)) {
+        problems.push({
+          path: `archetypes.${archetype.id}.evolvesFromId`,
+          message: "Archetype evolution must point to another archetype on this character.",
+        });
+      } else if (archetype.evolvesFromId === archetype.id) {
+        problems.push({
+          path: `archetypes.${archetype.id}.evolvesFromId`,
+          message: "An archetype cannot evolve from itself.",
+        });
+      }
+    }
+  }
+  if (archetypeEvolutionCycle(profile.archetypes)) {
+    problems.push({ path: "archetypes", message: "Archetype evolution links cannot form a circle." });
   }
   const arcIds = new Set<string>();
   for (const arc of profile.arcs) {
@@ -1326,6 +1471,20 @@ function arcParentCycle(arcs: readonly DevelopmentArc[]): boolean {
   for (const arc of arcs) {
     const seen = new Set<string>();
     let cursor: string | null = arc.id;
+    while (cursor) {
+      if (seen.has(cursor)) return true;
+      seen.add(cursor);
+      cursor = parent.get(cursor) ?? null;
+    }
+  }
+  return false;
+}
+
+function archetypeEvolutionCycle(archetypes: readonly ArchetypeAssignment[]): boolean {
+  const parent = new Map(archetypes.map((item) => [item.id, item.evolvesFromId]));
+  for (const archetype of archetypes) {
+    const seen = new Set<string>();
+    let cursor: string | null = archetype.id;
     while (cursor) {
       if (seen.has(cursor)) return true;
       seen.add(cursor);
@@ -1681,32 +1840,65 @@ export function applyProfileSuggestions(
     psychology: { ...profile.psychology, frameworks: [...profile.psychology.frameworks] },
     archetypes: [...profile.archetypes],
     arcs: [...profile.arcs],
+    fieldMeta: { ...profile.fieldMeta },
+  };
+  const stamp = (path: string) => {
+    next.fieldMeta[path] = {
+      approval: "draft",
+      provenance: {
+        origin: "extracted",
+        note: "Accepted from Extract. Not canon until you approve it.",
+        updatedAt: new Date().toISOString(),
+      },
+    };
   };
   for (const suggestion of accepted) {
     const evidence = suggestion.evidence.trim();
     if (suggestion.kind === "psychology" && (PSYCHOLOGY_TEXT_KEYS as readonly string[]).includes(suggestion.key)) {
       const key = suggestion.key as PsychologyTextKey;
       next.psychology[key] = suggestion.value.trim();
+      stamp(`psychology.${key}`);
     } else if (suggestion.kind === "foundation" && (FOUNDATION_TEXT_KEYS as readonly string[]).includes(suggestion.key)) {
       next.foundation[suggestion.key as FoundationTextKey] = suggestion.value.trim();
+      stamp(`foundation.${suggestion.key}`);
     } else if (suggestion.kind === "voice" && (VOICE_TEXT_KEYS as readonly string[]).includes(suggestion.key)) {
       next.voice[suggestion.key as VoiceTextKey] = suggestion.value.trim();
+      stamp(`voice.${suggestion.key}`);
     } else if (suggestion.kind === "enneagram") {
       const choice = enneagramOf(suggestion.value.trim()) ?? enneagramOf(Number(suggestion.value));
-      if (choice) next.psychology.enneagram = choice;
+      if (choice) {
+        next.psychology.enneagram = choice;
+        stamp("psychology.enneagram");
+      }
     } else if (suggestion.kind === "wing") {
       const wing = wingOf(Number(suggestion.value));
-      if (wing && wingIsValid(next.psychology.enneagram, wing)) next.psychology.wing = wing;
+      if (wing && wingIsValid(next.psychology.enneagram, wing)) {
+        next.psychology.wing = wing;
+        stamp("psychology.wing");
+      }
     } else if (suggestion.kind === "archetype" && suggestion.value.trim()) {
       const name = suggestion.value.trim();
+      const rank: ArchetypeRank =
+        suggestion.key === "shadow"
+          ? "shadow"
+          : suggestion.key === "secondary"
+            ? "secondary"
+            : next.archetypes.some((item) => item.rank === "primary")
+              ? "secondary"
+              : "primary";
       next.archetypes.push({
         id: idFor("arch"),
         name,
         custom: !(ARCHETYPE_LIBRARY as readonly string[]).includes(name),
         description: evidence,
-        rank: next.archetypes.some((item) => item.rank === "primary") ? "secondary" : "primary",
+        rank,
         periodLabel: "",
         relationshipRecordId: null,
+        evolvesFromId: null,
+        evolutionNote: "",
+        bookProjectId: null,
+        approval: "draft",
+        provenance: { origin: "extracted", note: "Accepted from Extract. Not canon until you approve it." },
       });
     } else if (suggestion.kind === "arc" && suggestion.value.trim()) {
       next.arcs.push({
@@ -1895,11 +2087,26 @@ function pushTextGroup(
   lines: string[],
   heading: string,
   values: Readonly<Record<string, string>> | FoundationProfile | VoiceProfile | BehaviorProfile | CapabilitiesProfile | LivedExperienceProfile,
+  options?: { prefix?: string; pathRoot?: string; profile?: CharacterDevelopment; canonOnly?: boolean; draftOnly?: boolean },
 ) {
-  const filled = Object.entries(values).filter(([, value]) => typeof value === "string" && value.trim());
+  const filled = Object.entries(values).filter(([key, value]) => {
+    if (typeof value !== "string" || !value.trim()) return false;
+    if (!options?.profile || !options.pathRoot) return true;
+    if (key === "linkedRecordIds" || key === "approval" || key === "aiVisibility" || key === "provenance") return false;
+    const path = `${options.pathRoot}.${key}`;
+    const approved = fieldIsEstablishedCanon(options.profile, path);
+    if (options.canonOnly) return approved;
+    if (options.draftOnly) return !approved;
+    return true;
+  });
   if (!filled.length) return;
   lines.push("", `## ${heading}`);
-  for (const [key, value] of filled) lines.push(`- ${key}: ${value}`);
+  for (const [key, value] of filled) {
+    const path = options?.pathRoot ? `${options.pathRoot}.${key}` : "";
+    const meta = options?.profile && path ? fieldMetaOf(options.profile, path) : null;
+    const label = meta && meta.approval !== "approved" ? `${key} [${meta.approval}]` : key;
+    lines.push(`- ${options?.prefix ?? ""}${label}: ${value}`);
+  }
 }
 
 /**
@@ -1914,25 +2121,63 @@ export function characterProfileMarkdown(
   const lines = [`# ${title}`, "", "Writing aid. Not a diagnosis, and not a rule the character must obey.", ""];
   if (profile.importance) lines.push(`Importance: ${profile.importance}`);
   if (profile.narrativeRole) lines.push(`Narrative role: ${profile.narrativeRole.replaceAll("_", " ")}`);
-  pushTextGroup(lines, "Identity", profile.foundation);
-  pushTextGroup(lines, "Voice", profile.voice);
+  pushTextGroup(lines, "Identity (established)", profile.foundation, { pathRoot: "foundation", profile, canonOnly: true });
+  pushTextGroup(lines, "Identity (draft / proposed)", profile.foundation, { pathRoot: "foundation", profile, draftOnly: true });
+  pushTextGroup(lines, "Voice (established)", profile.voice, { pathRoot: "voice", profile, canonOnly: true });
+  pushTextGroup(lines, "Voice (draft / proposed)", profile.voice, { pathRoot: "voice", profile, draftOnly: true });
   for (const book of profile.bookVoices) {
     pushTextGroup(lines, `Voice (${book.projectId})`, book.voice);
   }
-  pushTextGroup(lines, "Behavior", profile.behavior);
+  pushTextGroup(lines, "Behavior (established)", profile.behavior, { pathRoot: "behavior", profile, canonOnly: true });
+  pushTextGroup(lines, "Behavior (draft / proposed)", profile.behavior, { pathRoot: "behavior", profile, draftOnly: true });
   const psych = profile.psychology;
-  if (psych.enneagram) lines.push(`Enneagram: ${psych.enneagram}${psych.wing ? ` wing ${psych.wing}` : ""}`);
-  for (const key of PSYCHOLOGY_TEXT_KEYS) {
-    if (psych[key]) lines.push(`${key}: ${psych[key]}`);
+  const establishedPsych: string[] = [];
+  const draftPsych: string[] = [];
+  if (psych.enneagram) {
+    const line = `Enneagram: ${psych.enneagram}${psych.wing ? ` wing ${psych.wing}` : ""}`;
+    (fieldIsEstablishedCanon(profile, "psychology.enneagram") ? establishedPsych : draftPsych).push(line);
   }
-  if (profile.archetypes.length) {
-    lines.push("", "## Archetypes");
-    for (const archetype of profile.archetypes) {
+  for (const key of PSYCHOLOGY_TEXT_KEYS) {
+    if (!psych[key]) continue;
+    const line = `${key}: ${psych[key]}`;
+    (fieldIsEstablishedCanon(profile, `psychology.${key}`) ? establishedPsych : draftPsych).push(line);
+  }
+  if (establishedPsych.length) lines.push("", "## Psychology (established)", ...establishedPsych.map((line) => `- ${line}`));
+  if (draftPsych.length) lines.push("", "## Psychology (draft / proposed)", ...draftPsych.map((line) => `- ${line}`));
+  const establishedArchetypes = profile.archetypes.filter((item) => item.approval === "approved");
+  const draftArchetypes = profile.archetypes.filter((item) => item.approval !== "approved");
+  if (establishedArchetypes.length) {
+    lines.push("", "## Archetypes (established)");
+    for (const archetype of establishedArchetypes) {
       const period = archetype.periodLabel ? ` (${archetype.periodLabel})` : "";
-      lines.push(`- ${archetype.rank}: ${archetype.name}${period}`);
+      const evolution = archetype.evolutionNote ? ` — ${archetype.evolutionNote}` : "";
+      lines.push(`- ${archetype.rank}: ${archetype.name}${period}${evolution}`);
     }
   }
-  pushTextGroup(lines, "Capabilities", profile.capabilities);
+  if (draftArchetypes.length) {
+    lines.push("", "## Archetypes (draft / proposed)");
+    for (const archetype of draftArchetypes) {
+      const period = archetype.periodLabel ? ` (${archetype.periodLabel})` : "";
+      const evolution = archetype.evolutionNote ? ` — ${archetype.evolutionNote}` : "";
+      lines.push(`- ${archetype.rank}: ${archetype.name}${period}${evolution} [${archetype.approval}]`);
+    }
+  }
+  const establishedFrameworks = psych.frameworks.filter((item) => item.approval === "approved");
+  const draftFrameworks = psych.frameworks.filter((item) => item.approval !== "approved");
+  if (establishedFrameworks.length) {
+    lines.push("", "## Personality frameworks (established)");
+    for (const framework of establishedFrameworks) {
+      lines.push(`- ${framework.name}${framework.notes ? `: ${framework.notes}` : ""}`);
+    }
+  }
+  if (draftFrameworks.length) {
+    lines.push("", "## Personality frameworks (draft / proposed)");
+    for (const framework of draftFrameworks) {
+      lines.push(`- ${framework.name}${framework.notes ? `: ${framework.notes}` : ""} [${framework.approval}]`);
+    }
+  }
+  pushTextGroup(lines, "Capabilities (established)", profile.capabilities, { pathRoot: "capabilities", profile, canonOnly: true });
+  pushTextGroup(lines, "Capabilities (draft / proposed)", profile.capabilities, { pathRoot: "capabilities", profile, draftOnly: true });
   if (profile.capabilities.linkedRecordIds.length) {
     lines.push(`- linkedRecordIds: ${profile.capabilities.linkedRecordIds.join(", ")}`);
   }
@@ -1959,6 +2204,12 @@ export function characterProfileMarkdown(
     for (const key of LIVED_EXPERIENCE_TEXT_KEYS) lived[key] = profile.livedExperience[key];
     pushTextGroup(lines, "Lived experience", lived);
   }
+  if (profile.migrationHold.length && mode === "full") {
+    lines.push("", "## Migration holds (not canon)");
+    for (const held of profile.migrationHold) {
+      lines.push(`- [${held.kind}/${held.decision}] ${held.heading}: ${held.text.slice(0, 120)}`);
+    }
+  }
   return `${lines.join("\n")}\n`;
 }
 
@@ -1981,9 +2232,71 @@ function knowledgeLinesForSlice(items: readonly KnowledgeItem[], slice: ContextS
     .map((item) => `- ${item.kind} (${item.holder}): ${item.statement}`);
 }
 
+function pathIsRepresented(profile: CharacterDevelopment, fieldPath: string): boolean {
+  if (fieldPath === "narrativeRole") return !!profile.narrativeRole;
+  if (fieldPath === "psychology.enneagram") return profile.psychology.enneagram !== null;
+  if (fieldPath === "archetypes") return profile.archetypes.length > 0;
+  const [root, key] = fieldPath.split(".");
+  if (!root || !key) return false;
+  if (root === "foundation" && (FOUNDATION_TEXT_KEYS as readonly string[]).includes(key)) {
+    return !!profile.foundation[key as FoundationTextKey].trim();
+  }
+  if (root === "voice" && (VOICE_TEXT_KEYS as readonly string[]).includes(key)) {
+    return !!profile.voice[key as VoiceTextKey].trim();
+  }
+  if (root === "psychology" && (PSYCHOLOGY_TEXT_KEYS as readonly string[]).includes(key)) {
+    return !!profile.psychology[key as PsychologyTextKey].trim();
+  }
+  if (root === "behavior" && (BEHAVIOR_TEXT_KEYS as readonly string[]).includes(key)) {
+    return !!profile.behavior[key as BehaviorTextKey].trim();
+  }
+  if (root === "livedExperience" && (LIVED_EXPERIENCE_TEXT_KEYS as readonly string[]).includes(key)) {
+    return !!profile.livedExperience[key as LivedExperienceTextKey].trim();
+  }
+  if (root === "capabilities" && (CAPABILITIES_TEXT_KEYS as readonly string[]).includes(key)) {
+    return !!profile.capabilities[key as CapabilitiesTextKey].trim();
+  }
+  return false;
+}
+
+/**
+ * When body is supplied, omit Markdown sections already represented by filled
+ * structured fields so assistant context does not double-count the same facts.
+ * Heading recognition is driven from the shared CHARACTER_HEADING_MAP.
+ */
+export function supplementBodyWithoutStructuredOverlap(body: string, profile: CharacterDevelopment): string {
+  const headingHints: Record<string, boolean> = {};
+  for (const mapping of CHARACTER_HEADING_MAP) {
+    const key = mapping.heading.toLowerCase();
+    headingHints[key] = headingHints[key] || pathIsRepresented(profile, mapping.fieldPath);
+  }
+  headingHints.personality = headingHints.personality || !!profile.psychology.values.trim();
+  headingHints.role = headingHints.role || !!profile.foundation.publicRole.trim() || !!profile.narrativeRole;
+  const parts = body.split(/\n(?=##\s+)/);
+  const kept: string[] = [];
+  for (const part of parts) {
+    const match = part.match(/^##\s+(.+?)\s*(?:\n|$)([\s\S]*)$/);
+    if (!match) {
+      if (part.trim()) kept.push(part.trim());
+      continue;
+    }
+    const clean = match[1]!
+      .replace(/\[[^\]]+\]/g, "")
+      .replace(/[—–-]\s*\w+/g, "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .toLowerCase();
+    if (headingHints[clean]) continue;
+    kept.push(part.trim());
+  }
+  return kept.join("\n\n").trim();
+}
+
 /**
  * Task-specific character context. Lived experience and omit-secrets stay out
  * of every default slice. Spoiler items appear only when slice is "spoiler".
+ * Approved structured fields are preferred; draft/proposed are labeled; holds
+ * are never presented as established canon.
  */
 export function renderCharacterContextSlice(input: {
   title: string;
@@ -2002,52 +2315,129 @@ export function renderCharacterContextSlice(input: {
   const state = resolveCharacterState(profile, point, edges);
   const knowledge = resolveKnowledgeAtPoint(profile, point, edges);
   const lines: string[] = [`# ${input.title}`];
-  if (input.body?.trim() && input.slice !== "dialogue") lines.push(input.body.trim(), "");
-  pushTextGroup(lines, "Identity", profile.foundation);
-  pushTextGroup(lines, "Voice", voice);
-  if (input.slice === "dialogue") pushTextGroup(lines, "Behavior", profile.behavior);
-  if (input.slice === "dialogue" || input.slice === "continuity" || input.slice === "spoiler") {
-    const psychBits = PSYCHOLOGY_TEXT_KEYS.flatMap((key) => (profile.psychology[key] ? [`${key}: ${profile.psychology[key]}`] : []));
-    if (profile.psychology.enneagram) {
-      psychBits.unshift(`Enneagram: ${profile.psychology.enneagram}${profile.psychology.wing ? ` wing ${profile.psychology.wing}` : ""}`);
-    }
-    if (psychBits.length) {
-      lines.push("", "## Psychology", ...psychBits.map((bit) => `- ${bit}`));
-    }
-    pushTextGroup(lines, "Capabilities", profile.capabilities);
+
+  pushTextGroup(lines, "Established profile — Identity", profile.foundation, {
+    pathRoot: "foundation",
+    profile,
+    canonOnly: true,
+  });
+  pushTextGroup(lines, "Established profile — Voice", voice, { pathRoot: "voice", profile, canonOnly: true });
+  if (input.slice === "dialogue") {
+    pushTextGroup(lines, "Established profile — Behavior", profile.behavior, {
+      pathRoot: "behavior",
+      profile,
+      canonOnly: true,
+    });
   }
+  if (input.slice === "dialogue" || input.slice === "continuity" || input.slice === "spoiler") {
+    const psychBits = PSYCHOLOGY_TEXT_KEYS.flatMap((key) =>
+      profile.psychology[key] && fieldIsEstablishedCanon(profile, `psychology.${key}`)
+        ? [`${key}: ${profile.psychology[key]}`]
+        : [],
+    );
+    if (profile.psychology.enneagram && fieldIsEstablishedCanon(profile, "psychology.enneagram")) {
+      psychBits.unshift(
+        `Enneagram: ${profile.psychology.enneagram}${profile.psychology.wing ? ` wing ${profile.psychology.wing}` : ""}`,
+      );
+    }
+    for (const framework of profile.psychology.frameworks.filter((item) => item.approval === "approved")) {
+      psychBits.push(`${framework.name}${framework.notes ? `: ${framework.notes}` : ""}`);
+    }
+    if (psychBits.length) lines.push("", "## Established profile — Psychology", ...psychBits.map((bit) => `- ${bit}`));
+    const establishedArchetypes = profile.archetypes.filter((item) => item.approval === "approved");
+    if (establishedArchetypes.length) {
+      lines.push(
+        "",
+        "## Established profile — Archetypes",
+        ...establishedArchetypes.map((item) => {
+          const period = item.periodLabel ? ` (${item.periodLabel})` : "";
+          const evolution = item.evolutionNote ? ` — ${item.evolutionNote}` : "";
+          return `- ${item.rank}: ${item.name}${period}${evolution}`;
+        }),
+      );
+    }
+    pushTextGroup(lines, "Established profile — Capabilities", profile.capabilities, {
+      pathRoot: "capabilities",
+      profile,
+      canonOnly: true,
+    });
+  }
+
+  pushTextGroup(lines, "Draft / Proposed notes (not canon) — Identity", profile.foundation, {
+    pathRoot: "foundation",
+    profile,
+    draftOnly: true,
+  });
+  pushTextGroup(lines, "Draft / Proposed notes (not canon) — Voice", voice, {
+    pathRoot: "voice",
+    profile,
+    draftOnly: true,
+  });
+  if (input.slice === "dialogue" || input.slice === "continuity" || input.slice === "spoiler") {
+    const draftPsych = PSYCHOLOGY_TEXT_KEYS.flatMap((key) =>
+      profile.psychology[key] && !fieldIsEstablishedCanon(profile, `psychology.${key}`)
+        ? [`${key}: ${profile.psychology[key]}`]
+        : [],
+    );
+    for (const framework of profile.psychology.frameworks.filter((item) => item.approval !== "approved")) {
+      draftPsych.push(`${framework.name}${framework.notes ? `: ${framework.notes}` : ""} [${framework.approval}]`);
+    }
+    if (draftPsych.length) {
+      lines.push("", "## Draft / Proposed notes (not canon) — Psychology", ...draftPsych.map((bit) => `- ${bit}`));
+    }
+    const draftArchetypes = profile.archetypes.filter((item) => item.approval !== "approved");
+    if (draftArchetypes.length) {
+      lines.push(
+        "",
+        "## Draft / Proposed notes (not canon) — Archetypes",
+        ...draftArchetypes.map((item) => {
+          const period = item.periodLabel ? ` (${item.periodLabel})` : "";
+          const evolution = item.evolutionNote ? ` — ${item.evolutionNote}` : "";
+          return `- ${item.rank}: ${item.name}${period}${evolution} [${item.approval}]`;
+        }),
+      );
+    }
+    pushTextGroup(lines, "Draft / Proposed notes (not canon) — Capabilities", profile.capabilities, {
+      pathRoot: "capabilities",
+      profile,
+      draftOnly: true,
+    });
+  }
+
   const facetSummary = formatFacetSummary(state);
   if (facetSummary) lines.push("", `Resolved state: ${facetSummary}`);
   if (input.slice === "continuity" || input.slice === "spoiler") {
     const canonArcs = profile.arcs.filter((arc) => arc.approval === "approved").map((arc) => arc.title);
     const plannedArcs = profile.arcs.filter((arc) => arc.approval !== "approved").map((arc) => arc.title);
     lines.push("", `Canon arcs: ${canonArcs.join(", ") || "(none)"}`);
-    lines.push(`Planned arcs: ${plannedArcs.join(", ") || "(none)"}`);
+    lines.push(`Planned arcs (not canon): ${plannedArcs.join(", ") || "(none)"}`);
   }
-  const knowLines = knowledgeLinesForSlice(knowledge, input.slice);
+  const knowLines = knowledgeLinesForSlice(
+    knowledge.filter((item) => item.approval === "approved" || input.slice === "spoiler"),
+    input.slice,
+  );
   if (knowLines.length) lines.push("", "## Knowledge", ...knowLines);
+
+  if (input.body?.trim() && input.slice !== "dialogue") {
+    const supplement = supplementBodyWithoutStructuredOverlap(input.body, profile);
+    if (supplement) lines.push("", "## Dossier prose (unstructured supplement)", supplement);
+  }
+
+  const heldNotes = profile.migrationHold.filter(
+    (item) => item.kind === "unclassified" || item.kind === "relationships_notes" || item.kind === "continuity_notes",
+  );
+  if (heldNotes.length && (input.slice === "continuity" || input.slice === "spoiler")) {
+    lines.push("", "## Unclassified / held notes (not canon)");
+    for (const held of heldNotes.slice(0, 12)) {
+      lines.push(`- ${held.heading}: ${held.text.slice(0, 200)}`);
+    }
+  }
+
   for (const passage of input.passages ?? []) {
     lines.push("", `## ${passage.label}`, passage.excerpt);
   }
   return lines.join("\n");
 }
-
-/** Map dossier Markdown headings to empty profile fields for author confirmation. */
-export const CHARACTER_HEADING_FIELD_MAP: ReadonlyArray<{
-  heading: string;
-  target: "foundation" | "voice" | "psychology";
-  key: string;
-}> = [
-  { heading: "Appearance", target: "foundation", key: "appearance" },
-  { heading: "Role", target: "foundation", key: "publicRole" },
-  { heading: "Background", target: "foundation", key: "formativeBackground" },
-  { heading: "Goals", target: "foundation", key: "externalGoal" },
-  { heading: "Voice", target: "voice", key: "diction" },
-  { heading: "Dialogue", target: "voice", key: "exampleDialogue" },
-  { heading: "Personality", target: "psychology", key: "values" },
-  { heading: "Desire", target: "psychology", key: "coreDesire" },
-  { heading: "Fear", target: "psychology", key: "coreFear" },
-];
 
 export interface ProfileFillSuggestion {
   id: string;
@@ -2057,16 +2447,17 @@ export interface ProfileFillSuggestion {
   heading: string;
 }
 
+/**
+ * Propose empty-field fills from dossier headings. Uses the shared heading map
+ * so panel fill and dossier upgrade cannot diverge.
+ */
 export function proposeProfileFillFromBody(body: string, profile: CharacterDevelopment): ProfileFillSuggestion[] {
-  const sections = body.split(/\n(?=##\s+)/);
   const suggestions: ProfileFillSuggestion[] = [];
-  for (const section of sections) {
-    const match = section.match(/^##\s+(.+?)\s*\n([\s\S]*)$/);
-    if (!match) continue;
-    const heading = match[1]!.trim();
-    const textBody = match[2]!.trim();
-    if (!textBody) continue;
-    const mapped = CHARACTER_HEADING_FIELD_MAP.find((item) => item.heading.toLowerCase() === heading.toLowerCase());
+  for (const section of parseMarkdownSections(body)) {
+    if (!section.body.trim() || section.cleanHeading === "(preamble)") continue;
+    const mapped = SHARED_HEADING_FIELD_MAP.find(
+      (item) => item.heading.toLowerCase() === section.cleanHeading.toLowerCase(),
+    );
     if (!mapped) continue;
     const current =
       mapped.target === "foundation"
@@ -2079,8 +2470,8 @@ export function proposeProfileFillFromBody(body: string, profile: CharacterDevel
       id: `fill_${mapped.target}_${mapped.key}`,
       target: mapped.target,
       key: mapped.key,
-      value: textBody,
-      heading,
+      value: section.body,
+      heading: section.heading,
     });
   }
   return suggestions;
@@ -2095,16 +2486,31 @@ export function applyProfileFillSuggestions(
     foundation: { ...profile.foundation },
     voice: { ...profile.voice },
     psychology: { ...profile.psychology, frameworks: [...profile.psychology.frameworks] },
+    fieldMeta: { ...profile.fieldMeta },
+  };
+  const stamp = (path: string, heading: string) => {
+    next.fieldMeta[path] = {
+      approval: "draft",
+      provenance: {
+        origin: "imported",
+        note: "Filled from dossier heading",
+        sourceHeading: heading,
+        updatedAt: new Date().toISOString(),
+      },
+    };
   };
   for (const suggestion of accepted) {
     const value = suggestion.value.trim();
     if (!value) continue;
     if (suggestion.target === "foundation" && (FOUNDATION_TEXT_KEYS as readonly string[]).includes(suggestion.key)) {
       next.foundation[suggestion.key as FoundationTextKey] = value;
+      stamp(`foundation.${suggestion.key}`, suggestion.heading);
     } else if (suggestion.target === "voice" && (VOICE_TEXT_KEYS as readonly string[]).includes(suggestion.key)) {
       next.voice[suggestion.key as VoiceTextKey] = value;
+      stamp(`voice.${suggestion.key}`, suggestion.heading);
     } else if (suggestion.target === "psychology" && (PSYCHOLOGY_TEXT_KEYS as readonly string[]).includes(suggestion.key)) {
       next.psychology[suggestion.key as PsychologyTextKey] = value;
+      stamp(`psychology.${suggestion.key}`, suggestion.heading);
     }
   }
   return next;
@@ -2211,10 +2617,12 @@ export const REVIEW_OBSERVATION_JSON_SCHEMA = {
 export function extractInstructions(): string {
   return [
     "You propose optional character-writing notes from one dossier.",
-    "Personality frameworks are writing aids, not diagnoses or rules.",
-    "Do not infer trauma, disability, or neurodivergence.",
+    "Personality frameworks and Enneagram are writing aids, not clinical diagnoses or behavioural rules.",
+    "Keep psychological patterns separate from neurodivergence, trauma, mental health conditions, and lived experience.",
+    "Do not infer trauma, disability, neurodivergence, or mental-health conditions.",
     "Do not suggest lived-experience fields or secrets.",
-    "You may suggest foundation, voice, psychology, enneagram, archetype, or arc notes when the dossier supports them.",
+    "You may suggest foundation, voice, psychology, enneagram, archetype (including shadow via key \"shadow\"), or arc notes when the dossier supports them.",
+    "Narrative role is not an archetype; do not conflate them.",
     "Every suggestion needs a short evidence quote from the dossier.",
     "If the dossier does not support a field, omit it.",
     "Nothing you return is canon.",
@@ -2226,8 +2634,8 @@ export function reviewInstructions(): string {
     "You review one character at one narrative point.",
     "Cite only the evidence you were given.",
     "Approved arcs and approved state changes are canon. Drafts, proposals, and planned changes are author plans.",
-    "Personality profiles are optional writing aids, not rules the prose must satisfy.",
-    "Do not invent trauma, disability, neurodivergence, or secrets.",
+    "Personality profiles and archetypes are optional writing aids, not diagnoses or rules the prose must satisfy.",
+    "Do not invent trauma, disability, neurodivergence, mental-health conditions, or secrets.",
     "Say when you are uncertain.",
     "Suggest notes for the author. Do not rewrite manuscript prose.",
   ].join(" ");

@@ -97,6 +97,44 @@ function readFallbackKey(userData) {
   }
 }
 
+function assistantKeySource(userData, safeStorage) {
+  if (readEncryptedKey(userData, safeStorage)) return "os-encrypted";
+  if (readFallbackKey(userData)) return "fallback-plaintext";
+  return null;
+}
+
+function writeAssistantBridge(appRoot, userData, safeStorage, config) {
+  const localDir = path.join(appRoot, "local");
+  mkdirSync(localDir, { recursive: true });
+  const keySource = assistantKeySource(userData, safeStorage);
+  const bridge = {
+    keySource,
+    model: config.openaiModel || null,
+    precedenceNote: "desktop encrypted > assistant-secrets.json > .env WORDLY_* only",
+    updatedAt: new Date().toISOString(),
+  };
+  writeFileSync(path.join(localDir, "desktop-assistant-bridge.json"), `${JSON.stringify(bridge, null, 2)}\n`, "utf8");
+}
+
+function desktopTokenPath(userData) {
+  return path.join(userData, "desktop-server-token.txt");
+}
+
+function readOrCreateDesktopToken(userData) {
+  const file = desktopTokenPath(userData);
+  if (existsSync(file)) {
+    try {
+      const token = readFileSync(file, "utf8").trim();
+      if (token) return token;
+    } catch {
+      // fall through
+    }
+  }
+  const token = require("node:crypto").randomBytes(24).toString("hex");
+  writeFileSync(file, `${token}\n`, "utf8");
+  return token;
+}
+
 module.exports = {
   configPath,
   loadConfig,
@@ -104,4 +142,7 @@ module.exports = {
   readEncryptedKey,
   writeEncryptedKey,
   readFallbackKey,
+  assistantKeySource,
+  writeAssistantBridge,
+  readOrCreateDesktopToken,
 };

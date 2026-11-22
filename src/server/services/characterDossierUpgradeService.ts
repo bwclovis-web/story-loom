@@ -3,8 +3,10 @@ import {
   analyzeImportedMarkdown,
   applyUpgradeDecisions,
   buildUpgradeChangePackage,
+  decisionsRequireExplicitConflictChoice,
+  DOSSIER_MARKDOWN_ARCHIVE_VERSION,
   fieldsAfterUpgrade,
-  readDossierMarkdownArchive,
+  readDossierMarkdownArchiveWithStatus,
   upgradeDecisionFingerprint,
   upgradePreviewToken,
   type DossierUpgradeAnalysis,
@@ -23,9 +25,10 @@ import { toRecordView, type RecordView } from "@/domain/records";
 import type { ChangePackageV1 } from "@/changePackage/schema.v1";
 import type { Db, DbOrTx } from "../db";
 import { writeAudit } from "./auditService";
-import { MutationRejectedError } from "./errors";
+import { MutationRejectedError, NotFoundError } from "./errors";
 import { getProject } from "./projectService";
 import { getRecord, updateRecord } from "./recordService";
+import { getSeriesSharedRecord, listSeriesSharedRecords } from "./seriesBibleService";
 import { LIVE_RECORD } from "./trashFilters";
 
 export interface CharacterDossierUpgradePreview {
@@ -41,6 +44,11 @@ export interface CharacterDossierUpgradePreview {
   archiveEntryCount: number;
   alreadyMigrated: boolean;
   issues: Issue[];
+  /** When previewing a series-shared dossier from a sibling book. */
+  homeProjectId: string;
+  homeLabel: string;
+  editableHere: boolean;
+  archiveUnsupported: boolean;
   summary: {
     total: number;
     needsReview: number;
@@ -61,6 +69,9 @@ export interface ProjectDossierUpgradeSummary {
     unclassified: number;
     alreadyMigrated: boolean;
     hasProfile: boolean;
+    homeProjectId: string;
+    homeLabel: string;
+    editableHere: boolean;
   }>;
 }
 
@@ -75,12 +86,36 @@ export type ApplyDossierUpgradeResult =
   | { status: "already_applied"; revision: number }
   | { status: "rejected"; issues: Issue[] };
 
-async function loadDossier(db: DbOrTx, projectId: string, recordId: string): Promise<RecordView> {
-  const record = await getRecord(db, projectId, recordId);
-  if (record.type !== "character_dossier") {
-    throw new MutationRejectedError([errorIssue("INVALID_CHANGE", "Upgrade applies only to character dossiers.")]);
+async function loadDossier(
+  db: DbOrTx,
+  projectId: string,
+  recordId: string,
+): Promise<{ record: RecordView; homeProjectId: string; homeLabel: string; editableHere: boolean }> {
+  try {
+    const record = await getRecord(db, projectId, recordId);
+    if (record.type !== "character_dossier") {
+      throw new MutationRejectedError([errorIssue("INVALID_CHANGE", "Upgrade applies only to character dossiers.")]);
+    }
+    return {
+      record,
+      homeProjectId: projectId,
+      homeLabel: "This book",
+      editableHere: true,
+    };
+  } catch (error) {
+    if (!(error instanceof NotFoundError) && !(error instanceof MutationRejectedError)) throw error;
+    if (error instanceof MutationRejectedError) throw error;
+    const shared = await getSeriesSharedRecord(db, projectId, recordId);
+    if (!shared || shared.record.type !== "character_dossier") {
+      throw new NotFoundError("Character dossier not found in this project.");
+    }
+    return {
+      record: shared.record,
+      homeProjectId: shared.home.projectId,
+      homeLabel: shared.home.bookName?.trim() || shared.home.title,
+      editableHere: false,
+    };
   }
-  return record;
 }
 
 function summarize(items: readonly DossierUpgradeItem[]) {
@@ -88,7 +123,8 @@ function summarize(items: readonly DossierUpgradeItem[]) {
     total: items.length,
     needsReview: items.filter((item) => item.requiresHumanReview).length,
     unclassified: items.filter((item) => item.destination === "unclassified").length,
-    conflicts: items.filter((item) => item.conflictWithIds.length > 0).length,
+    conflicts: items.filter((item) => item.conflictWithIds.length > 0 || (item.existingCanonical.trim() && item.existingCanonical !== item.proposedValue))
+      .length,
     alreadyApplied: items.filter((item) => item.alreadyApplied).length,
   };
 }
@@ -99,7 +135,8 @@ export async function previewCharacterDossierUpgrade(
   recordId: string,
   options: { markdownOverride?: string } = {},
 ): Promise<CharacterDossierUpgradePreview> {
-  const record = await loadDossier(db, projectId, recordId);
+  const loaded = await loadDossier(db, projectId, recordId);
+  const { record } = loaded;
   const issues: Issue[] = [];
   if (unsupportedCharacterDevelopmentVersion(record.fields)) {
     issues.push(
@@ -108,18 +145,22 @@ export async function previewCharacterDossierUpgrade(
       }),
     );
   }
+  const archiveRead = readDossierMarkdownArchiveWithStatus(record.fields);
+  for (const problem of archiveRead.problems) {
+    issues.push(errorIssue("INVALID_CHANGE", problem.message, { path: problem.path }));
+  }
   const read = readCharacterDevelopment(record.fields);
   for (const problem of read.problems) {
     issues.push(errorIssue("INVALID_CHANGE", problem.message, { path: problem.path }));
   }
   const body = options.markdownOverride ?? record.body;
   const analysis = analyzeDossierUpgrade(body, read.profile);
-  const archive = readDossierMarkdownArchive(record.fields);
   const previewToken = upgradePreviewToken({
     recordId: record.id,
     revision: record.currentRevision,
     bodyHash: analysis.bodyHash,
     fingerprint: analysis.fingerprint,
+    archiveVersion: archiveRead.unsupportedVersion ? -1 : DOSSIER_MARKDOWN_ARCHIVE_VERSION,
   });
   return {
     projectId,
@@ -131,14 +172,18 @@ export async function previewCharacterDossierUpgrade(
     previewToken,
     analysis,
     profile: read.profile,
-    archiveEntryCount: archive.entries.length,
-    alreadyMigrated: archive.appliedFingerprints.length > 0 && analysis.items.every((item) => item.alreadyApplied),
+    archiveEntryCount: archiveRead.archive.entries.length,
+    alreadyMigrated:
+      archiveRead.archive.appliedFingerprints.length > 0 && analysis.items.every((item) => item.alreadyApplied),
     issues,
+    homeProjectId: loaded.homeProjectId,
+    homeLabel: loaded.homeLabel,
+    editableHere: loaded.editableHere,
+    archiveUnsupported: archiveRead.unsupportedVersion,
     summary: summarize(analysis.items),
   };
 }
 
-/** Analyze pasted Markdown against the current profile without writing. */
 export async function previewImportedDossierMarkdown(
   db: DbOrTx,
   projectId: string,
@@ -157,11 +202,11 @@ export async function previewProjectDossierUpgrades(db: DbOrTx, projectId: strin
     where: { projectId, ...LIVE_RECORD, type: "character_dossier" },
     orderBy: [{ title: "asc" }, { id: "asc" }],
   });
-  const dossiers = rows.map((row) => {
+  const local = rows.map((row) => {
     const record = toRecordView(row);
     const read = readCharacterDevelopment(record.fields);
     const analysis = analyzeDossierUpgrade(record.body, read.profile);
-    const archive = readDossierMarkdownArchive(record.fields);
+    const archiveRead = readDossierMarkdownArchiveWithStatus(record.fields);
     const summary = summarize(analysis.items);
     return {
       recordId: record.id,
@@ -170,11 +215,67 @@ export async function previewProjectDossierUpgrades(db: DbOrTx, projectId: strin
       itemCount: summary.total,
       needsReview: summary.needsReview,
       unclassified: summary.unclassified,
-      alreadyMigrated: archive.appliedFingerprints.length > 0 && analysis.items.every((item) => item.alreadyApplied),
+      alreadyMigrated:
+        archiveRead.archive.appliedFingerprints.length > 0 && analysis.items.every((item) => item.alreadyApplied),
       hasProfile: Boolean(record.fields.characterDevelopment),
+      homeProjectId: projectId,
+      homeLabel: "This book",
+      editableHere: true,
     };
   });
+
+  const shared = await listSeriesSharedRecords(db, projectId);
+  const sharedDossiers = shared
+    .filter((item) => item.record.type === "character_dossier")
+    .map((item) => {
+      const read = readCharacterDevelopment(item.record.fields);
+      const analysis = analyzeDossierUpgrade(item.record.body, read.profile);
+      const archiveRead = readDossierMarkdownArchiveWithStatus(item.record.fields);
+      const summary = summarize(analysis.items);
+      return {
+        recordId: item.record.id,
+        title: item.record.title,
+        revision: item.record.currentRevision,
+        itemCount: summary.total,
+        needsReview: summary.needsReview,
+        unclassified: summary.unclassified,
+        alreadyMigrated:
+          archiveRead.archive.appliedFingerprints.length > 0 && analysis.items.every((row) => row.alreadyApplied),
+        hasProfile: Boolean(item.record.fields.characterDevelopment),
+        homeProjectId: item.home.projectId,
+        homeLabel: item.home.bookName?.trim() || item.home.title,
+        editableHere: false,
+      };
+    });
+
+  const seen = new Set(local.map((item) => item.recordId));
+  const dossiers = [...local, ...sharedDossiers.filter((item) => !seen.has(item.recordId))];
   return { projectId, dossiers };
+}
+
+function validateConflictDecisions(
+  analysis: DossierUpgradeAnalysis,
+  decisions: readonly DossierUpgradeDecisionInput[],
+): Issue[] {
+  const issues: Issue[] = [];
+  const byId = new Map(decisions.map((d) => [d.itemId, d]));
+  for (const item of analysis.items) {
+    const pick = byId.get(item.id);
+    if (!pick) continue;
+    if (decisionsRequireExplicitConflictChoice(item, pick.decision)) {
+      issues.push(
+        errorIssue(
+          "INVALID_CHANGE",
+          `Approved canon on ${item.fieldPath} needs Keep existing, Replace (modify), Merge, or Defer — not a silent Accept.`,
+          { path: item.id },
+        ),
+      );
+    }
+    if (item.authorityHint === "ambiguous" && pick.decision === "accept" && item.requiresHumanReview) {
+      // Accept on ambiguous is allowed (author is the review) but replace/merge/modify preferred when conflicting.
+    }
+  }
+  return issues;
 }
 
 export async function applyCharacterDossierUpgrade(
@@ -184,12 +285,23 @@ export async function applyCharacterDossierUpgrade(
     recordId: string;
     previewToken: string;
     decisions: DossierUpgradeDecisionInput[];
-    /** When set, analyze this Markdown instead of the stored body (import path). Body is not replaced. */
     markdownOverride?: string;
     unlockProtected?: boolean;
   },
 ): Promise<ApplyDossierUpgradeResult> {
-  const record = await loadDossier(db, projectId, input.recordId);
+  const loaded = await loadDossier(db, projectId, input.recordId);
+  if (!loaded.editableHere || loaded.homeProjectId !== projectId) {
+    return {
+      status: "rejected",
+      issues: [
+        errorIssue(
+          "INVALID_CHANGE",
+          `This series character is edited in its home book (${loaded.homeLabel}). Open the home dossier to apply the upgrade.`,
+        ),
+      ],
+    };
+  }
+  const record = loaded.record;
   if (unsupportedCharacterDevelopmentVersion(record.fields)) {
     return {
       status: "rejected",
@@ -201,6 +313,14 @@ export async function applyCharacterDossierUpgrade(
     };
   }
 
+  const archiveRead = readDossierMarkdownArchiveWithStatus(record.fields);
+  if (archiveRead.unsupportedVersion) {
+    return {
+      status: "rejected",
+      issues: archiveRead.problems.map((problem) => errorIssue("INVALID_CHANGE", problem.message, { path: problem.path })),
+    };
+  }
+
   const read = readCharacterDevelopment(record.fields);
   const body = input.markdownOverride ?? record.body;
   const analysis = analyzeDossierUpgrade(body, read.profile);
@@ -209,6 +329,7 @@ export async function applyCharacterDossierUpgrade(
     revision: record.currentRevision,
     bodyHash: analysis.bodyHash,
     fingerprint: analysis.fingerprint,
+    archiveVersion: DOSSIER_MARKDOWN_ARCHIVE_VERSION,
   });
   if (input.previewToken !== expectedToken) {
     return {
@@ -226,15 +347,11 @@ export async function applyCharacterDossierUpgrade(
     }
   }
 
-  const pendingReview = analysis.items.filter((item) => {
-    const pick = input.decisions.find((decision) => decision.itemId === item.id);
-    if (!pick || pick.decision === "defer" || pick.decision === "reject") return false;
-    return item.requiresHumanReview && pick.decision === "accept" && item.authorityHint === "ambiguous";
-  });
-  // Accepting ambiguous items is allowed — the author is the review. No auto-approve of canon happens in applyUpgradeDecisions.
+  const conflictIssues = validateConflictDecisions(analysis, input.decisions);
+  if (conflictIssues.length) return { status: "rejected", issues: conflictIssues };
 
-  const archive = readDossierMarkdownArchive(record.fields);
-  const decisionFingerprint = upgradeDecisionFingerprint(analysis.fingerprint, input.decisions);
+  const archive = archiveRead.archive;
+  const decisionFingerprint = upgradeDecisionFingerprint(analysis.bodyHash, input.decisions);
   if (archive.appliedFingerprints.includes(decisionFingerprint)) {
     return { status: "already_applied", revision: record.currentRevision };
   }
@@ -244,7 +361,7 @@ export async function applyCharacterDossierUpgrade(
     sourceRevision: record.currentRevision,
   });
 
-  if (applied.noEffectiveChange && applied.appliedItemIds.length === 0) {
+  if (applied.noEffectiveChange) {
     return { status: "already_applied", revision: record.currentRevision };
   }
 
@@ -260,8 +377,6 @@ export async function applyCharacterDossierUpgrade(
   if (stableStringify(fields) === stableStringify(record.fields)) {
     return { status: "already_applied", revision: record.currentRevision };
   }
-  // Same profile content with an archive body already stored is a no-op even if
-  // a new decision fingerprint would only annotate the archive.
   if (
     stableStringify(applied.profile) === stableStringify(read.profile) &&
     archive.entries.some((entry) => entry.bodyHash === analysis.bodyHash)
@@ -289,7 +404,6 @@ export async function applyCharacterDossierUpgrade(
         rejectedItemIds: applied.rejectedItemIds,
         bodyHash: analysis.bodyHash,
         decisionFingerprint,
-        pendingReviewCount: pendingReview.length,
         markdownOverride: Boolean(input.markdownOverride),
       },
     });
@@ -317,7 +431,26 @@ export async function buildCharacterDossierUpgradePackage(
   },
 ): Promise<{ ok: true; pkg: ChangePackageV1 } | { ok: false; issues: Issue[] }> {
   const project = await getProject(db, projectId);
-  const record = await loadDossier(db, projectId, input.recordId);
+  const loaded = await loadDossier(db, projectId, input.recordId);
+  if (!loaded.editableHere || loaded.homeProjectId !== projectId) {
+    return {
+      ok: false,
+      issues: [
+        errorIssue(
+          "INVALID_CHANGE",
+          `This series character is edited in its home book (${loaded.homeLabel}). Open the home dossier to export a package.`,
+        ),
+      ],
+    };
+  }
+  const record = loaded.record;
+  const archiveRead = readDossierMarkdownArchiveWithStatus(record.fields);
+  if (archiveRead.unsupportedVersion) {
+    return {
+      ok: false,
+      issues: archiveRead.problems.map((problem) => errorIssue("INVALID_CHANGE", problem.message, { path: problem.path })),
+    };
+  }
   const read = readCharacterDevelopment(record.fields);
   const body = input.markdownOverride ?? record.body;
   const analysis = analyzeDossierUpgrade(body, read.profile);
@@ -326,12 +459,14 @@ export async function buildCharacterDossierUpgradePackage(
     revision: record.currentRevision,
     bodyHash: analysis.bodyHash,
     fingerprint: analysis.fingerprint,
+    archiveVersion: DOSSIER_MARKDOWN_ARCHIVE_VERSION,
   });
   if (input.previewToken !== expectedToken) {
     return { ok: false, issues: [errorIssue("STALE_PREVIEW", "The dossier changed since this upgrade preview. Preview again.")] };
   }
-  const archive = readDossierMarkdownArchive(record.fields);
-  const applied = applyUpgradeDecisions(read.profile, analysis, input.decisions, archive, {
+  const conflictIssues = validateConflictDecisions(analysis, input.decisions);
+  if (conflictIssues.length) return { ok: false, issues: conflictIssues };
+  const applied = applyUpgradeDecisions(read.profile, analysis, input.decisions, archiveRead.archive, {
     body,
     sourceRevision: record.currentRevision,
   });

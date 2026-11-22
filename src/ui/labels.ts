@@ -71,14 +71,17 @@ export const SETTINGS = {
   lead: "Library location, backup mirror, and your own OpenAI API key for the optional assistant. Keys stay on this computer.",
   aiHeading: "AI provider (your key)",
   aiLead:
-    "Story Loom never ships a shared key. Paste a key from your OpenAI API account, or point at a local OpenAI-compatible server (Ollama, LM Studio) with no cloud key. Credentials stay on this computer and are never shown again after you save.",
+    "Story Loom never ships a shared key. Choose a provider (OpenAI, Anthropic, Gemini, or an OpenAI-compatible endpoint such as OpenRouter or Ollama). Each provider's key is stored separately. Credentials stay on this computer and are never shown again after you save.",
+  aiProviderLabel: "Provider",
+  aiProviderHint:
+    "openai uses OpenAI cloud (optional custom base URL). openai_compatible requires a base URL (e.g. OpenRouter). anthropic and gemini use their native APIs.",
   aiKeyLabel: "API key",
   aiKeyPlaceholder: "sk-… (optional for local loopback servers)",
   aiKeySaved: "A key is saved on this computer. Leave the box blank to keep it, or paste a new key to replace it.",
   aiKeyMissing: "No key is saved in Settings. You can still use WORDLY_OPENAI_API_KEY from .env when developing, or leave the key blank for a local loopback endpoint.",
   aiModelLabel: "Model ID",
   aiModelPlaceholder: "e.g. gpt-5.4 or llama3.2",
-  aiModelHint: "A text model your API project (or local server) can use with the Responses API.",
+  aiModelHint: "A text model your provider account (or local server) accepts. OpenAI uses the Responses API; other providers use their native chat APIs.",
   aiBaseUrlLabel: "API base URL (optional)",
   aiBaseUrlPlaceholder: "https://api.openai.com/v1",
   aiBaseUrlHint:
@@ -89,7 +92,8 @@ export const SETTINGS = {
   aiTestHint: "Sends one small request: “Reply with the single word: connected.” Uses your saved base URL when set.",
   aiSecretsFile: "Saved in",
   aiEnvNote:
-    "Settings overrides .env for the key, model, and base URL when a value is saved here. Clearing Settings falls back to .env. Shared OPENAI_API_KEY is never used.",
+    "Precedence: desktop OS keychain (Electron) > assistant-secrets.json > .env WORDLY_* only. Settings overrides .env when a value is saved in the file. Shared OPENAI_API_KEY is never used.",
+  aiKeySourceDesktop: "API key is stored in the OS keychain by the desktop app. Model and base URL still save to assistant-secrets.json.",
   libraryHeading: "Library folder",
   libraryLead:
     "Optional folder for the desktop app. When set, the database is storyloom.db inside that folder. Leave empty to use the default prisma/dev.db path (or DATABASE_URL).",
@@ -105,6 +109,8 @@ export const SETTINGS = {
   libraryLockStale: "A previous session left a lock file; it looked stale and can be replaced on next open.",
   mirrorHeading: "Backup mirror folder",
   mirrorLead: "Same optional mirror as Backup & restore. Full database backups are copied here after they succeed under backups/.",
+  scheduleHeading: "Rolling mirror schedule",
+  scheduleLead: "Keep the last N mirrored full backups and optionally run rolling backups from the desktop app on launch, daily, and on close.",
   openBackup: "Open Backup & restore",
   openConnections: "Open Connections",
 } as const;
@@ -1788,6 +1794,8 @@ export const WORLD = {
   worldCalendarSave: "Save calendar",
   worldCalendarAddMonth: "Add month",
   worldCalendarAddEra: "Add era",
+  worldCalendarRemoveMonth: "Remove month",
+  worldCalendarRemoveEra: "Remove era",
   worldCalendarOpen: "Edit in-world calendar",
   structuredDate: "Structured date",
   structuredDateUse: "Use project calendar",
@@ -2266,6 +2274,30 @@ export const DICTIONARY = {
   findNames: "Find names",
   noNames: "No unknown names found in reference records.",
   foundIn: "Found in",
+} as const;
+
+export const PROMPT_PRESETS = {
+  manageHeading: "Instruction presets",
+  manageLead:
+    "Saved lenses for selection assist, assistant chat, and Weave beat drafting. Presets are project-scoped (not workspace-wide). They append to each request's instructions until you clear them.",
+  new: "New preset",
+  name: "Name",
+  surface: "Surface",
+  surfaceSelection: "Selection assist",
+  surfaceChat: "Assistant chat",
+  surfaceBeat: "Beat draft",
+  instructions: "Instruction text",
+  save: "Save preset",
+  created: "Preset saved.",
+  deleted: "Preset deleted.",
+  delete: "Delete",
+  deleteConfirm: (title: string) => `Delete preset “${title}”?`,
+  empty: "No presets yet. Add one above, or send a one-off lens without saving.",
+  presetLabel: "Preset (optional)",
+  none: "None",
+  lensLabel: "Instruction lens for this request",
+  lensPlaceholder: "Optional one-off instructions, or pick a preset to fill this box.",
+  lensHint: "Choosing a preset replaces this box with its text. You can edit before sending.",
 } as const;
 
 export const SELECTION_ASSIST = {
@@ -2796,6 +2828,44 @@ export const BACKUP = {
   mirrorSettingsFile: "Saved in",
   mirrorEnvOverride: "WORDLY_BACKUP_MIRROR_DIR in .env overrides this setting.",
   mirrorAppliesTo: "Workspace JSON downloads from this page are not mirrored—only full database backups.",
+  rollingLead:
+    "Rolling backups call the same full backup as pnpm db:backup, mirror the folder, then delete older mirror subfolders beyond your retention count. Preferences are stored in backup-mirror.json alongside the mirror path.",
+  rollingRetention: "Keep last N mirrored backups",
+  rollingScheduleEnable: "Enable rolling schedule (desktop app)",
+  rollingScheduleSave: "Save schedule",
+  rollingRunNow: "Run rolling backup now",
+  rollingNeedsMirror: "Set a mirror folder above before enabling the schedule or running a rolling backup.",
+  rollingLastRun: (iso: string) => `Last rolling backup: ${iso}`,
+  rollingDesktopNote:
+    "On desktop, when the schedule is on, Story Loom also runs a rolling backup on launch, once per day, and on close. The web UI can run one manually at any time.",
+  syncHeading: "Export or merge a sync bundle",
+  syncLead:
+    "A sync bundle lists every record's revision and content hash for one workspace—lighter than a full backup. Inspect a bundle from another machine and merge selected differences through the same review rules as a change package. Nothing writes until you apply.",
+  syncWorkspace: "Workspace to compare against",
+  syncProject: "Project for merge apply",
+  syncChoiceLegend: "Merge choice",
+  syncChoiceSkip: "Skip",
+  syncChoiceLocal: "Keep this copy",
+  syncChoiceRemote: "Take bundle copy",
+  syncConfirmProtected: "I confirm merging into protected records selected above.",
+  syncApplyMerge: "Apply selected merge",
+  syncNoDiffs: "Every shared record matches revision and content hash.",
+  syncInspectReady: (n: number) =>
+    n === 0 ? "Bundle loaded; no differences to review." : `Bundle loaded; ${n} record${n === 1 ? "" : "s"} to review.`,
+  syncBundleFrom: (name: string, exportedAt: string) => `Imported from workspace “${name}”, exported ${exportedAt}.`,
+  syncKind: (kind: string) => {
+    switch (kind) {
+      case "conflict":
+        return "Conflict";
+      case "local_only":
+        return "Only on this computer";
+      case "remote_only":
+        return "Only in bundle";
+      default:
+        return kind;
+    }
+  },
+  syncExportLink: "Download sync bundle",
   restore: "Restore as new workspace",
   cannotRestore: "This backup cannot be restored. Nothing was written.",
 } as const;
@@ -2986,7 +3056,19 @@ export const CHARACTER_DEVELOPMENT = {
   lead: "Optional living profile beside the dossier Markdown. Name, aliases, images, and relationship edges stay on the record; these notes add structure without replacing them.",
   aid: "Personality frameworks are writing guidance, not rules the character must obey.",
   separate:
-    "Lived-experience notes are optional writing context you add yourself. They are not diagnoses, and they stay out of AI context unless you choose otherwise.",
+    "Psychology and archetypes are writing aids, not diagnoses. Lived-experience notes (neurodivergence, trauma, mental health) stay separate and out of AI context unless you choose otherwise.",
+  psychologyLead:
+    "Optional psychological notes for drafting. Personality typologies are writing aids, not clinical diagnoses. Keep them separate from Behavior and Lived experience.",
+  archetypeLead:
+    "Psychological archetypes can be primary, secondary, or shadow, and may evolve. Narrative role (protagonist, antagonist, mentor) is set under Identity and is not an archetype.",
+  fieldAuthority: "Authority",
+  fieldProvenance: "Provenance",
+  markFieldApproved: "Mark approved",
+  markFieldDraft: "Keep as draft",
+  shadow: "Shadow",
+  evolvesFrom: "Evolves from",
+  evolutionNote: "Evolution note",
+  archetypeBook: "Book for this archetype",
   save: "Save development",
   saved: "Character development saved.",
   unlock: "Unlock this protected dossier for this save",
@@ -3063,10 +3145,16 @@ export const CHARACTER_DEVELOPMENT = {
     externalGoal: "What they chase in the outer plot.",
     coreDesire: "What they want at the deepest level.",
     coreFear: "What they most want to avoid.",
-    consciousWants: "What they say they want.",
-    unconsciousNeeds: "What the story shows they need.",
+    coreMotivation: "What drives them through the story, beyond a single want.",
+    consciousWants: "What they say they want (external want).",
+    unconsciousNeeds: "What the story shows they need (internal need).",
     internalMisbelief: "Limiting belief that steers choices until it is challenged.",
     contradictions: "Where desire and behaviour pull apart.",
+    blindSpots: "What they cannot see about themselves.",
+    emotionalTriggers: "Moments or topics that set them off.",
+    behavioralPatterns: "Recurring psychological patterns (not habits — those live under Behavior).",
+    selfPerception: "How they see themselves.",
+    externalPerception: "How others see them.",
     values: "What they treat as right.",
     moralBoundaries: "Lines they will not cross, or claim they will not.",
     strengths: "Reliable assets in conflict.",
@@ -3237,21 +3325,27 @@ export const CHARACTER_DEVELOPMENT = {
   fields: {
     coreDesire: "Core desire",
     coreFear: "Core fear",
-    consciousWants: "Conscious wants",
-    unconsciousNeeds: "Unconscious needs",
+    coreMotivation: "Core motivation",
+    consciousWants: "Conscious wants / external want",
+    unconsciousNeeds: "Unconscious needs / internal need",
     internalMisbelief: "Internal misbelief",
     emotionalWound: "Emotional wound",
     values: "Values",
     moralBoundaries: "Moral boundaries",
     defenceMechanisms: "Defence mechanisms",
-    stressBehavior: "Under stress",
-    secureBehavior: "When secure",
+    stressBehavior: "Stress responses",
+    secureBehavior: "Growth responses / when secure",
     strengths: "Strengths",
     weaknesses: "Weaknesses",
+    blindSpots: "Blind spots",
     contradictions: "Contradictions",
     emotionalExpression: "Emotional expression",
-    attachmentTendencies: "Attachment tendencies",
+    emotionalTriggers: "Emotional triggers",
+    behavioralPatterns: "Behavioral patterns",
+    attachmentTendencies: "Attachment and relationship patterns",
     copingStrategies: "Coping strategies",
+    selfPerception: "Self-perception",
+    externalPerception: "External perception",
   },
 } as const;
 
@@ -3293,7 +3387,9 @@ export const CHARACTER_DOSSIER_UPGRADE = {
   needsReview: "Needs human review",
   ready: "Ready",
   decision: "Decision",
-  accept: "Accept",
+  accept: "Accept (replace)",
+  keepExisting: "Keep existing",
+  merge: "Merge",
   modify: "Modify",
   reject: "Reject",
   defer: "Defer",
@@ -3308,4 +3404,32 @@ export const CHARACTER_DOSSIER_UPGRADE = {
   noDossiers: "No character dossiers in this project.",
   reviewLink: "Review upgrade",
   itemsReady: (count: number) => `${count} item${count === 1 ? "" : "s"}`,
+  homeElsewhere: "This series character is upgraded in its home book.",
+  openHomeUpgrade: "Open upgrade in home book",
+  archiveUnsupported: "The stored Markdown archive uses an unsupported version. Apply is blocked so the archive is not overwritten.",
+  canonConflict: "Existing content is approved canon. Choose Keep existing, Replace, Merge, or Defer.",
+} as const;
+
+export const CHARACTER_MIGRATION_HOLD = {
+  heading: "Migration holds & archive",
+  lead:
+    "Held passages from dossier upgrade: unclassified text, protected unknowns, proposals, relationship notes, and continuity notes. Nothing here is approved canon until you resolve it.",
+  empty: "No migration holds. Run Upgrade from Markdown when you want to classify dossier sections.",
+  whyHeld: "Why held",
+  resolveDraft: "Resolve into field (draft)",
+  keepHold: "Keep in hold",
+  deferHold: "Defer",
+  dismiss: "Dismiss",
+  archiveHeading: "Original Markdown archive",
+  archiveEmpty: "No archive snapshots yet. Applying an upgrade stores the source Markdown here without changing the live body.",
+  archiveRevision: (revision: number) => `Source revision ${revision}`,
+  archiveAt: "Archived",
+  viewBody: "Show archived Markdown",
+  hideBody: "Hide archived Markdown",
+  historyLink: "Open revision history",
+  archiveWarning: "Archive warning",
+  retained: "Retained",
+  deferred: "Deferred",
+  markApproved: "Mark field approved",
+  fieldAuthority: "Field authority",
 } as const;

@@ -27,6 +27,7 @@ export type IdPrefix =
   | "pin" // reading pin (reference beside prose)
   | "wgoal" // writing goal (word target)
   | "scol" // smart collection (saved manuscript/world filter)
+  | "apre" // assistant prompt preset (saved instruction lens)
   | "man" // manuscript annotation (synopsis or margin comment)
   | "cprof" // manuscript compile profile (export front/back matter)
   | "brd" // world board

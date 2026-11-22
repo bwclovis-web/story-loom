@@ -763,6 +763,69 @@ table { border-collapse: collapse; width: 100%; font-size: 0.9rem; }
 th, td { text-align: left; padding: 0.4rem 0.5rem; border-bottom: 1px solid var(--border); vertical-align: top; }
 td { overflow-wrap: anywhere; }
 th { color: var(--muted); font-weight: 600; }
+/* Shared data table. Wide containers keep columns; narrow ones stack each row. */
+.sl-data-table { container: sl-data-table / inline-size; min-width: 0; width: 100%; overflow-x: auto; }
+.sl-data-table table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+.sl-data-table th,
+.sl-data-table td {
+  text-align: left;
+  vertical-align: top;
+  padding: 0.45rem 0.5rem;
+  border-bottom: 1px solid var(--color-border);
+}
+.sl-data-table th {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+.sl-data-table-value { display: block; min-width: 0; }
+@container sl-data-table (max-width: 48rem) {
+  .sl-data-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
+  }
+  .sl-data-table table,
+  .sl-data-table tbody,
+  .sl-data-table tr,
+  .sl-data-table td { display: block; width: 100%; }
+  .sl-data-table tbody { display: flex; flex-direction: column; gap: 0.65rem; }
+  .sl-data-table tr {
+    padding: 0.7rem 0.75rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+  }
+  .sl-data-table td {
+    display: grid;
+    grid-template-columns: minmax(6.5rem, 34%) minmax(0, 1fr);
+    gap: 0.25rem 0.75rem;
+    align-items: start;
+    padding: 0.28rem 0;
+    border: 0;
+  }
+  .sl-data-table td::before {
+    content: attr(data-label);
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+  }
+  .sl-data-table td:first-child { grid-template-columns: minmax(0, 1fr); padding-bottom: 0.35rem; }
+  .sl-data-table td:first-child::before { content: none; }
+}
+@container sl-data-table (max-width: 22rem) {
+  .sl-data-table td { grid-template-columns: minmax(0, 1fr); }
+}
+
 /* Record lists have no header row, so on narrow workspaces each row becomes a small stacked card. */
 @container workspace (max-width: 34rem) {
   .record-table, .record-table tbody, .record-table tr, .record-table td { display: block; }
@@ -2530,9 +2593,6 @@ label.map-source-choice { flex-direction: row; align-items: center; justify-cont
 .write-title-row { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 0.5rem 1rem; }
 .write-title-block { flex: 1 1 16rem; min-width: 0; }
 .write-crumb { margin: 0 0 0.1rem; }
-.write-scenes { margin: 0.35rem 0 0; }
-.write-scenes ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.15rem; }
-.write-scenes a { font-size: 0.92rem; }
 h1.write-title { margin: 0; }
 h1.write-title label { display: block; color: inherit; font-size: inherit; }
 h1.write-title input {
@@ -2882,6 +2942,11 @@ input.sl-field:disabled {
   cursor: not-allowed;
   background: var(--color-surface-sunken);
 }
+.calendar-fields { align-items: end; }
+.calendar-fields > .sl-text-field { flex: 1 1 12rem; width: auto; }
+.calendar-fields > .calendar-short { flex: 0 1 8rem; }
+.calendar-fields > .calendar-days { flex: 0 1 7.5rem; }
+.calendar-fields > .calendar-remove { flex: 0 0 auto; align-self: end; }
 .write-column {
   position: relative;
   flex: 1; width: 100%; max-width: calc(84ch * var(--text-measure) + 4rem); margin: 0 auto; padding: 1.5rem 2rem 2rem;
@@ -4282,28 +4347,9 @@ button.manuscript-comment-excerpt:focus-visible {
   border-radius: 2px;
   padding: 0.35rem 0.45rem;
 }
-.outliner-input-num { max-width: 5.5rem; }
-.outliner-scroll { overflow-x: auto; margin-top: 0.35rem; }
-.outliner-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.9rem;
-}
-.outliner-table th,
-.outliner-table td {
-  border-bottom: 1px solid var(--color-border);
-  padding: 0.45rem 0.4rem;
-  vertical-align: top;
-  text-align: left;
-}
-.outliner-table th {
-  font-family: var(--font-ui);
-  font-weight: 600;
-  font-size: 0.78rem;
-  color: var(--color-text-muted);
-  white-space: nowrap;
-}
-.outliner-title-cell { min-width: 10rem; }
+.outliner-input-num { width: 100%; max-width: 7rem; }
+.outliner .sl-data-table { margin-top: 0.35rem; }
+.outliner-title-cell { min-width: 0; }
 .outliner-number {
   display: inline-block;
   margin-right: 0.35rem;
@@ -4319,8 +4365,14 @@ button.manuscript-comment-excerpt:focus-visible {
 }
 .outliner-title { font-weight: 550; }
 .outliner-num { font-variant-numeric: tabular-nums; white-space: nowrap; }
-.outliner-synopsis { min-width: 12rem; min-height: 3.2rem; resize: vertical; }
-.outliner-table tr[data-protected] .outliner-input { opacity: 0.72; }
+.outliner-synopsis { width: 100%; min-width: 0; min-height: 3.2rem; resize: vertical; }
+@container sl-data-table (min-width: 48rem) {
+  .outliner-title-cell { min-width: 11rem; }
+  .outliner-synopsis { min-width: 12rem; }
+  .outliner .sl-data-table th:nth-child(5),
+  .outliner .sl-data-table td:nth-child(5) { min-width: 7.5rem; }
+}
+.outliner tr[data-protected] .outliner-input { opacity: 0.72; }
 .corkboard-board { display: flex; flex-direction: column; gap: 1.25rem; margin-top: 0.75rem; }
 .corkboard-group { display: flex; flex-direction: column; gap: 0.5rem; }
 .manuscript-corkboard-card.is-drop { outline: 2px solid var(--color-accent); outline-offset: 2px; }

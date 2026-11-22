@@ -286,7 +286,7 @@ export function createOpenAIProvider(
   };
 }
 
-/** Build a provider from getAssistantConfig() so every route uses the same base URL. */
+/** @deprecated Use createAssistantProviderFromConfig from assistantProviderFactory. */
 export function createOpenAIProviderFromConfig(config: {
   apiKey: string | null;
   status: { baseUrl: string; configured: boolean };

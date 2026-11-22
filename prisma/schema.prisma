@@ -92,8 +92,24 @@ model Project {
   worldKindTemplates     WorldKindTemplate[]
   continuitySuppressions ContinuitySuppression[]
   smartCollections       SmartCollection[]
+  assistantPromptPresets AssistantPromptPreset[]
 
   @@index([workspaceId])
+}
+
+/// Reusable author instruction lens for assistant surfaces. Project-scoped; not revisioned content.
+model AssistantPromptPreset {
+  id              String   @id
+  projectId       String
+  project         Project  @relation(fields: [projectId], references: [id])
+  title           String
+  /// selection | chat | beat
+  surface         String
+  instructionText String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([projectId, surface])
 }
 
 /// Saved dynamic filter for manuscript or world lists. Not revisioned content.

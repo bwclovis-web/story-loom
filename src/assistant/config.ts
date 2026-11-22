@@ -55,12 +55,23 @@ export const LIMIT_SPECS: Record<keyof AssistantLimits, LimitSpec> = {
   analysisOutputTokens: { env: "ASSISTANT_ANALYSIS_OUTPUT_TOKENS", defaultValue: 8_000, min: 500, max: 100_000 },
 };
 
+export const ASSISTANT_PROVIDERS = ["openai", "anthropic", "gemini", "openai_compatible"] as const;
+export type AssistantProviderId = (typeof ASSISTANT_PROVIDERS)[number];
+
+export const PROVIDER_ENV = "WORDLY_ASSISTANT_PROVIDER";
+
 /**
- * Story Loom's own key. The generic OPENAI_API_KEY is never used: it is
- * often set for the whole computer and shared by other apps, and this app is
- * responsible for its own key, usage and billing.
+ * Story Loom's own keys per provider. Shared OPENAI_API_KEY (and other non-WORDLY_* keys) are never used.
  */
-export const API_KEY_ENV = "WORDLY_OPENAI_API_KEY";
+export const API_KEY_ENVS: Record<AssistantProviderId, string> = {
+  openai: "WORDLY_OPENAI_API_KEY",
+  openai_compatible: "WORDLY_OPENAI_API_KEY",
+  anthropic: "WORDLY_ANTHROPIC_API_KEY",
+  gemini: "WORDLY_GEMINI_API_KEY",
+};
+
+/** @deprecated Use API_KEY_ENVS.openai */
+export const API_KEY_ENV = API_KEY_ENVS.openai;
 export const SHARED_API_KEY_ENV = "OPENAI_API_KEY";
 /** The OpenAI library adds these headers to every request and has no option to ignore them. */
 export const SHARED_HEADERS_ENV = "OPENAI_CUSTOM_HEADERS";
@@ -77,6 +88,8 @@ const MAX_BASE_URL = 200;
 
 export interface AssistantStatus {
   configured: boolean;
+  /** Active provider (WORDLY_ASSISTANT_PROVIDER). Not secret. */
+  provider: AssistantProviderId;
   /** Model ID from OPENAI_MODEL; not secret. */
   model: string | null;
   /**
@@ -145,27 +158,61 @@ export function isLoopbackBaseUrl(baseUrl: string): boolean {
   }
 }
 
+export function parseAssistantProvider(raw: string | undefined, problems: string[]): AssistantProviderId {
+  const trimmed = raw?.trim().toLowerCase() ?? "";
+  if (!trimmed || trimmed === "openai") return "openai";
+  if ((ASSISTANT_PROVIDERS as readonly string[]).includes(trimmed)) return trimmed as AssistantProviderId;
+  problems.push(`${PROVIDER_ENV} must be one of: ${ASSISTANT_PROVIDERS.join(", ")}.`);
+  return "openai";
+}
+
+export function apiKeyEnvForProvider(provider: AssistantProviderId): string {
+  return API_KEY_ENVS[provider];
+}
+
 export function readAssistantConfig(env: Env): AssistantConfig {
   const problems: string[] = [];
-  const savedKey = env[API_KEY_ENV]?.trim() || null;
+  const provider = parseAssistantProvider(env[PROVIDER_ENV], problems);
+  const keyEnv = apiKeyEnvForProvider(provider);
+  const savedKey = env[keyEnv]?.trim() || null;
   const model = env[MODEL_ENV]?.trim() || null;
   const customBase = parseAssistantBaseUrl(env[BASE_URL_ENV], problems);
-  const baseUrl = customBase ?? DEFAULT_OPENAI_BASE_URL;
-  const usingCustomBaseUrl = baseUrl !== DEFAULT_OPENAI_BASE_URL;
-  const localCompatible = usingCustomBaseUrl && isLoopbackBaseUrl(baseUrl);
+  const usesOpenAiTransport = provider === "openai" || provider === "openai_compatible";
+  const baseUrl =
+    provider === "openai_compatible"
+      ? customBase ?? DEFAULT_OPENAI_BASE_URL
+      : provider === "openai"
+        ? customBase ?? DEFAULT_OPENAI_BASE_URL
+        : provider === "anthropic"
+          ? "https://api.anthropic.com/v1"
+          : "https://generativelanguage.googleapis.com/v1beta";
+  const usingCustomBaseUrl = usesOpenAiTransport && baseUrl !== DEFAULT_OPENAI_BASE_URL;
+  const localCompatible = usesOpenAiTransport && usingCustomBaseUrl && isLoopbackBaseUrl(baseUrl);
 
-  if (!savedKey && env[SHARED_API_KEY_ENV]?.trim()) {
+  if (provider === "openai_compatible" && !customBase) {
     problems.push(
-      `${API_KEY_ENV} is not set. ${SHARED_API_KEY_ENV} is set, but that name is shared with other apps on this computer, so Story Loom does not use it. Add a key for this app on the Settings page, or put it in ${API_KEY_ENV} in this folder's .env file.`,
-    );
-  } else if (!savedKey && !localCompatible) {
-    problems.push(
-      usingCustomBaseUrl
-        ? `${API_KEY_ENV} is not set. Remote OpenAI-compatible endpoints need a key (or use a loopback URL such as http://127.0.0.1:11434/v1 for a local server without a key).`
-        : `${API_KEY_ENV} is not set. Add your OpenAI API key on the Settings page, or set ${API_KEY_ENV} in .env.`,
+      `${BASE_URL_ENV} is required for provider openai_compatible (e.g. https://openrouter.ai/api/v1).`,
     );
   }
-  if (env[SHARED_HEADERS_ENV]?.trim()) {
+
+  if (!savedKey && env[SHARED_API_KEY_ENV]?.trim() && usesOpenAiTransport) {
+    problems.push(
+      `${keyEnv} is not set. ${SHARED_API_KEY_ENV} is set, but that name is shared with other apps on this computer, so Story Loom does not use it. Add a key for this app on the Settings page, or put it in ${keyEnv} in this folder's .env file.`,
+    );
+  } else if (!savedKey && !localCompatible) {
+    if (provider === "anthropic") {
+      problems.push(`${keyEnv} is not set. Add an Anthropic API key on Settings or set ${keyEnv} in .env.`);
+    } else if (provider === "gemini") {
+      problems.push(`${keyEnv} is not set. Add a Gemini API key on Settings or set ${keyEnv} in .env.`);
+    } else {
+      problems.push(
+        usingCustomBaseUrl
+          ? `${keyEnv} is not set. Remote OpenAI-compatible endpoints need a key (or use a loopback URL such as http://127.0.0.1:11434/v1 for a local server without a key).`
+          : `${keyEnv} is not set. Add your API key on the Settings page, or set ${keyEnv} in .env.`,
+      );
+    }
+  }
+  if (usesOpenAiTransport && env[SHARED_HEADERS_ENV]?.trim()) {
     problems.push(
       `${SHARED_HEADERS_ENV} is set. The OpenAI library would add those headers to this app's requests, so remove it from the environment Story Loom runs in.`,
     );
@@ -192,6 +239,7 @@ export function readAssistantConfig(env: Env): AssistantConfig {
   return {
     status: {
       configured,
+      provider,
       model: model && MODEL_PATTERN.test(model) ? model : null,
       baseUrl,
       usingCustomBaseUrl,

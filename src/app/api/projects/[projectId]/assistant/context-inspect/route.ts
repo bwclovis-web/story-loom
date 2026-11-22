@@ -27,6 +27,8 @@ const body = z.discriminatedUnion("kind", [
     action: z.enum(SELECTION_ASSIST_ACTIONS),
     scopeDraftId: z.string().max(100),
     excludeRecordIds: z.array(z.string().min(1).max(100)).max(100).optional(),
+    authorInstructionText: z.string().max(4000).nullable().optional(),
+    promptPresetId: z.string().min(1).max(100).nullable().optional(),
   }),
 ]);
 

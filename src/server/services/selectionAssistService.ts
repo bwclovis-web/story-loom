@@ -15,6 +15,7 @@ import { buildSelectionAssistRequest } from "@/selectionAssist/prompt";
 import type { Db } from "../db";
 import { LIVE_RECORD } from "./trashFilters";
 import { AssistantError, checkRequestLimits, estimatedUsage, loadAuthorReferenceDocuments, type AssistantRuntime } from "./assistantService";
+import { getPromptPreset, normalizeAuthorInstructionText } from "./promptPresetService";
 import { listReadingPins } from "./readingPinService";
 
 /*
@@ -36,6 +37,9 @@ export interface SelectionAssistInput {
   scopeDraftId: string;
   /** Pin record ids omitted after Context Inspector toggles. */
   excludeRecordIds?: readonly string[];
+  /** Optional saved preset or custom lens text appended to instructions. */
+  authorInstructionText?: string | null;
+  promptPresetId?: string | null;
 }
 
 export interface PreparedSelectionAssist {
@@ -124,6 +128,15 @@ export async function prepareSelectionAssist(
     pins.map((p) => ({ recordId: p.recordId, revision: p.currentRevision })),
   );
 
+  let authorInstructionText = normalizeAuthorInstructionText(input.authorInstructionText);
+  if (input.promptPresetId) {
+    const preset = await getPromptPreset(db, input.projectId, input.promptPresetId);
+    if (preset.surface !== "selection") {
+      throw new AssistantError("INVALID_REQUEST", "That preset is for a different assistant surface. Choose a selection preset.");
+    }
+    if (!authorInstructionText) authorInstructionText = preset.instructionText;
+  }
+
   const boundary = chooseBoundary([sent, ...contextDocs.map((d) => d.text)], () => randomBytes(6).toString("hex"));
   const built = buildSelectionAssistRequest(
     {
@@ -138,6 +151,7 @@ export async function prepareSelectionAssist(
     contextDocs,
     boundary,
     SELECTION_ASSIST_SCHEMA_CHARS,
+    authorInstructionText,
   );
   const size = checkSize(built, limits.maxInputChars);
   if (size) throw new AssistantError("TOO_LARGE", describeSizeProblem(size), size);
@@ -188,6 +202,7 @@ export async function runSelectionAssist(
   prep: PreparedSelectionAssist,
   contextRecordIds: string[],
   signal: AbortSignal,
+  onDelta?: (text: string) => void,
 ): Promise<SelectionAssistResult> {
   let status: SelectionAssistStatus = "failed";
   let errorCode: string | null = null;
@@ -199,39 +214,76 @@ export async function runSelectionAssist(
   let note: string | null = null;
 
   try {
-    const result = await provider.structured(
-      prep.request,
-      { name: SELECTION_ASSIST_SCHEMA_NAME, schema: SELECTION_ASSIST_OUTPUT_JSON_SCHEMA },
-      signal,
-    );
-    if (signal.aborted) throw new ProviderError("cancelled", "The request was cancelled.");
-    responseId = result.responseId;
-    const outputChars = result.status === "complete" ? result.text.length : result.status === "refused" ? result.refusal.length : 0;
-    if (result.usage) usage = result.usage;
-    else {
-      usage = estimatedUsage(prep.requestChars, outputChars);
-      usageEstimated = true;
-    }
-
-    if (result.status === "refused") {
-      errorCode = "refused";
-      errorMessage = "The model declined to suggest a revision. No suggestion was made.";
-    } else if (result.status === "incomplete") {
-      status = "incomplete";
-      errorCode = result.incompleteReason ?? "incomplete";
-      errorMessage =
-        result.incompleteReason === "max_output_tokens"
-          ? "The response stopped at the output limit (ASSISTANT_MAX_OUTPUT_TOKENS) before it finished. Nothing from the partial response is shown. Try a shorter selection."
-          : `The response is incomplete (${result.incompleteReason ?? "no reason given"}). Nothing from the partial response is shown.`;
-    } else {
-      const parsed = parseSelectionAssistOutput(result.text);
-      if (!parsed.ok) {
-        errorCode = "malformed_output";
-        errorMessage = `The model's response did not match the expected format, so no suggestion is shown. ${parsed.problems.join(" ")}`;
+    const schema = { name: SELECTION_ASSIST_SCHEMA_NAME, schema: SELECTION_ASSIST_OUTPUT_JSON_SCHEMA };
+  if (onDelta) {
+      let streamed = "";
+      let doneStatus: "complete" | "incomplete" = "complete";
+      let incompleteReason: string | undefined;
+      for await (const event of provider.stream(prep.request, signal)) {
+        if (event.type === "delta") {
+          streamed += event.text;
+          onDelta(event.text);
+        } else if (event.type === "done") {
+          if (event.usage) usage = event.usage;
+          doneStatus = event.status;
+          incompleteReason = event.incompleteReason;
+          responseId = event.responseId;
+        }
+      }
+      if (signal.aborted) throw new ProviderError("cancelled", "The request was cancelled.");
+      if (!usage) {
+        usage = estimatedUsage(prep.requestChars, streamed.length);
+        usageEstimated = true;
+      }
+      if (doneStatus === "incomplete") {
+        status = "incomplete";
+        errorCode = incompleteReason ?? "incomplete";
+        errorMessage =
+          incompleteReason === "max_output_tokens"
+            ? "The response stopped at the output limit (ASSISTANT_MAX_OUTPUT_TOKENS) before it finished. Nothing from the partial response is shown. Try a shorter selection."
+            : `The response is incomplete (${incompleteReason ?? "no reason given"}). Nothing from the partial response is shown.`;
       } else {
-        status = "complete";
-        replacement = parsed.replacement;
-        note = parsed.note;
+        const parsed = parseSelectionAssistOutput(streamed);
+        if (!parsed.ok) {
+          errorCode = "malformed_output";
+          errorMessage = `The model's response did not match the expected format, so no suggestion is shown. ${parsed.problems.join(" ")}`;
+        } else {
+          status = "complete";
+          replacement = parsed.replacement;
+          note = parsed.note;
+        }
+      }
+    } else {
+      const result = await provider.structured(prep.request, schema, signal);
+      if (signal.aborted) throw new ProviderError("cancelled", "The request was cancelled.");
+      responseId = result.responseId;
+      const outputChars = result.status === "complete" ? result.text.length : result.status === "refused" ? result.refusal.length : 0;
+      if (result.usage) usage = result.usage;
+      else {
+        usage = estimatedUsage(prep.requestChars, outputChars);
+        usageEstimated = true;
+      }
+
+      if (result.status === "refused") {
+        errorCode = "refused";
+        errorMessage = "The model declined to suggest a revision. No suggestion was made.";
+      } else if (result.status === "incomplete") {
+        status = "incomplete";
+        errorCode = result.incompleteReason ?? "incomplete";
+        errorMessage =
+          result.incompleteReason === "max_output_tokens"
+            ? "The response stopped at the output limit (ASSISTANT_MAX_OUTPUT_TOKENS) before it finished. Nothing from the partial response is shown. Try a shorter selection."
+            : `The response is incomplete (${result.incompleteReason ?? "no reason given"}). Nothing from the partial response is shown.`;
+      } else {
+        const parsed = parseSelectionAssistOutput(result.text);
+        if (!parsed.ok) {
+          errorCode = "malformed_output";
+          errorMessage = `The model's response did not match the expected format, so no suggestion is shown. ${parsed.problems.join(" ")}`;
+        } else {
+          status = "complete";
+          replacement = parsed.replacement;
+          note = parsed.note;
+        }
       }
     }
   } catch (error) {

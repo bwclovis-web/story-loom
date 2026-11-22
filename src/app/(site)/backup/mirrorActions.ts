@@ -18,15 +18,26 @@ export async function saveBackupMirrorDirAction(
     };
   }
   const trimmed = raw.trim();
+  const current = loadBackupMirrorSettings();
   if (!trimmed) {
-    saveBackupMirrorSettings(null);
+    saveBackupMirrorSettings(null, {
+      scheduleEnabled: false,
+      retentionCount: current.retentionCount,
+      lastScheduledBackupAt: current.lastScheduledBackupAt,
+    });
     revalidatePath("/backup");
+    revalidatePath("/settings");
     return { ok: true, mirrorDir: null };
   }
   const check = validateMirrorDir(trimmed);
   if (!check.ok) return { ok: false, issues: [errorIssue("INVALID_CHANGE", check.message)] };
-  saveBackupMirrorSettings(check.path);
+  saveBackupMirrorSettings(check.path, {
+    scheduleEnabled: current.scheduleEnabled,
+    retentionCount: current.retentionCount,
+    lastScheduledBackupAt: current.lastScheduledBackupAt,
+  });
   revalidatePath("/backup");
+  revalidatePath("/settings");
   return { ok: true, mirrorDir: check.path };
 }
 
@@ -39,8 +50,14 @@ export async function clearBackupMirrorDirAction(): Promise<
       issues: [errorIssue("INVALID_CHANGE", "Clear WORDLY_BACKUP_MIRROR_DIR in .env to turn off the mirror.")],
     };
   }
-  saveBackupMirrorSettings(null);
+  const current = loadBackupMirrorSettings();
+  saveBackupMirrorSettings(null, {
+    scheduleEnabled: false,
+    retentionCount: current.retentionCount,
+    lastScheduledBackupAt: current.lastScheduledBackupAt,
+  });
   revalidatePath("/backup");
+  revalidatePath("/settings");
   return { ok: true, mirrorDir: null };
 }
 

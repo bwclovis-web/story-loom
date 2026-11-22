@@ -3,6 +3,10 @@ import {
   CHARACTER_DEVELOPMENT_KEY,
   characterDevelopmentWriteProblems,
 } from "@/domain/characterDevelopment";
+import {
+  DOSSIER_MARKDOWN_ARCHIVE_KEY,
+  dossierMarkdownArchiveWriteProblems,
+} from "@/domain/characterDossierUpgrade";
 import { newId } from "@/domain/ids";
 import { errorIssue, warningIssue, type Issue } from "@/domain/issues";
 import { stableStringify, type JsonObject } from "@/domain/json";
@@ -44,6 +48,16 @@ function issuesForCharacterDevelopmentField(
 ): Issue[] {
   if (!(CHARACTER_DEVELOPMENT_KEY in fields)) return [];
   return characterDevelopmentWriteProblems(fields[CHARACTER_DEVELOPMENT_KEY]).map((problem) =>
+    errorIssue("INVALID_CHANGE", problem.message, { ...path, path: problem.path }),
+  );
+}
+
+function issuesForDossierMarkdownArchiveField(
+  fields: JsonObject,
+  path: { path?: string; recordId?: string },
+): Issue[] {
+  if (!(DOSSIER_MARKDOWN_ARCHIVE_KEY in fields)) return [];
+  return dossierMarkdownArchiveWriteProblems(fields[DOSSIER_MARKDOWN_ARCHIVE_KEY]).map((problem) =>
     errorIssue("INVALID_CHANGE", problem.message, { ...path, path: problem.path }),
   );
 }
@@ -274,6 +288,7 @@ export async function planMutations(
         issues.push(errorIssue("INVALID_CHANGE", "Title must not be empty.", at("title")));
       }
       issues.push(...issuesForCharacterDevelopmentField(m.fields, { ...at("fields"), recordId }));
+      issues.push(...issuesForDossierMarkdownArchiveField(m.fields, { ...at("fields"), recordId }));
       if (m.draftId && !draftsInProject.has(m.draftId)) {
         issues.push(errorIssue("INVALID_CHANGE", `Draft ${m.draftId} does not exist in this project.`, at("draftId")));
       }
@@ -377,6 +392,7 @@ export async function planMutations(
         }
         Object.assign(after.fields, set);
         issues.push(...issuesForCharacterDevelopmentField(set, { ...at("changes.fields.set"), recordId: record.id }));
+        issues.push(...issuesForDossierMarkdownArchiveField(set, { ...at("changes.fields.set"), recordId: record.id }));
       }
       if (m.authorityStatus !== undefined) {
         after.authorityStatus = m.authorityStatus;

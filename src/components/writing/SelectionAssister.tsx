@@ -1,11 +1,14 @@
 "use client";
 
-import { useRef, useState, type RefObject } from "react";
+import { useId, useRef, useState, type RefObject } from "react";
+import { PromptPresetSelect } from "@/components/assistant/PromptPresetSelect";
 import { ContextInspector, useDisabledInspectIds } from "@/components/assistant/ContextInspector";
 import { HelpHint } from "@/components/HelpHint";
 import type { ContextInspectReport } from "@/server/services/assistantContextInspect";
 import type { SelectionAssistResult } from "@/server/services/selectionAssistService";
+import { readAssistantJobStream } from "@/assistant/jobStream";
 import type { SelectionAssistAction } from "@/selectionAssist/output";
+import type { PromptPresetView } from "@/server/services/promptPresetService";
 import { ASSISTANT, SELECTION_ASSIST } from "@/ui/labels";
 import type { ProofreadConfig } from "./Proofreader";
 import { ProtectionTick } from "./ProtectionTick";
@@ -34,6 +37,7 @@ export function SelectionAssister({
   onUnlock,
   onTextChange,
   config,
+  selectionPresets = [],
 }: {
   projectId: string;
   recordId: string;
@@ -47,7 +51,11 @@ export function SelectionAssister({
   onUnlock: () => void;
   onTextChange: (value: string) => void;
   config: ProofreadConfig;
+  selectionPresets?: PromptPresetView[];
 }) {
+  const fieldId = useId().replace(/:/g, "");
+  const [presetId, setPresetId] = useState("");
+  const [instructionLens, setInstructionLens] = useState("");
   const [result, setResult] = useState<SelectionAssistResult | null>(null);
   const [sourceText, setSourceText] = useState<string | null>(null);
   const [busy, setBusy] = useState<{ runId: string | null } | null>(null);
@@ -100,6 +108,8 @@ export function SelectionAssister({
           range: { start: selection.start, end: selection.end },
           action,
           scopeDraftId,
+          authorInstructionText: instructionLens.trim() || undefined,
+          promptPresetId: presetId || undefined,
         }),
       });
       const json = (await response.json()) as { report?: ContextInspectReport; error?: ApiError };
@@ -139,6 +149,8 @@ export function SelectionAssister({
           action,
           scopeDraftId,
           excludeRecordIds,
+          authorInstructionText: instructionLens.trim() || undefined,
+          promptPresetId: presetId || undefined,
         }),
         signal: controller.signal,
       });
@@ -154,30 +166,17 @@ export function SelectionAssister({
       return;
     }
 
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = "";
     try {
-      for (;;) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        let lineEnd = buffer.indexOf("\n");
-        while (lineEnd >= 0) {
-          const line = buffer.slice(0, lineEnd);
-          buffer = buffer.slice(lineEnd + 1);
-          if (!line.trim()) continue;
-          const event = JSON.parse(line) as { type: string; runId?: string; result?: SelectionAssistResult; message?: string };
-          if (event.type === "started" && event.runId) setBusy({ runId: event.runId });
-          if (event.type === "done" && event.result) {
-            setSourceText(source);
-            setResult(event.result);
-            selectRange(textareaRef.current!, range.start, range.end);
-          }
-          if (event.type === "error") setError({ code: "SERVER", message: event.message ?? "The request failed." });
-          lineEnd = buffer.indexOf("\n");
+      await readAssistantJobStream(response, (event) => {
+        if (event.type === "started" && event.runId) setBusy({ runId: event.runId });
+        // Token deltas may be raw JSON while the model streams; the final done event has the parsed result.
+        if (event.type === "done" && event.result) {
+          setSourceText(source);
+          setResult(event.result as SelectionAssistResult);
+          selectRange(textareaRef.current!, range.start, range.end);
         }
-      }
+        if (event.type === "error") setError({ code: "SERVER", message: event.message ?? "The request failed." });
+      });
     } catch {
       if (!controller.signal.aborted) setError({ code: "STREAM", message: "The response ended unexpectedly." });
     } finally {
@@ -221,6 +220,15 @@ export function SelectionAssister({
         {SELECTION_ASSIST.privacyNote}
       </HelpHint>
       <p className="small muted">{SELECTION_ASSIST.pinNote}</p>
+      <PromptPresetSelect
+        id={fieldId}
+        presets={selectionPresets}
+        presetId={presetId}
+        onPresetIdChange={setPresetId}
+        instructionLens={instructionLens}
+        onInstructionLensChange={setInstructionLens}
+        disabled={!!busy}
+      />
       <div className="row" style={{ flexWrap: "wrap", gap: "0.5rem" }}>
         <Button type="button" variant="secondary" disabled={!!busy || !hasSelection || dirty || selectionOver} onClick={() => void openInspect("rewrite")}>
           {SELECTION_ASSIST.rewrite}

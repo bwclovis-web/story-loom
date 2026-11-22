@@ -258,15 +258,15 @@ export async function listManuscriptNav(
   return all.filter((r) => r.type === "manuscript_chapter" || r.type === "manuscript_scene");
 }
 
-/** Scenes nested directly under a chapter, in book order. */
+/** Scenes nested directly under a chapter, in book order, with their own text. */
 export async function listScenesInChapter(
   db: DbOrTx,
   projectId: string,
   chapterId: string,
-): Promise<Array<{ id: string; title: string }>> {
+): Promise<Array<{ id: string; title: string; body: string; fieldsJson: string; revision: number; protected: boolean }>> {
   const rows = await db.record.findMany({
     where: { projectId, parentRecordId: chapterId, type: "manuscript_scene", trashedAt: null },
-    select: { id: true, title: true, position: true, createdAt: true },
+    select: { id: true, title: true, body: true, fields: true, currentRevision: true, protected: true, position: true, createdAt: true },
   });
   return rows
     .sort((a, b) =>
@@ -275,7 +275,14 @@ export async function listScenesInChapter(
         { id: b.id, position: b.position, createdAt: b.createdAt.toISOString() },
       ),
     )
-    .map((row) => ({ id: row.id, title: row.title }));
+    .map((row) => ({
+      id: row.id,
+      title: row.title,
+      body: row.body,
+      fieldsJson: row.fields,
+      revision: row.currentRevision,
+      protected: row.protected,
+    }));
 }
 
 /** Scene notes on a chapter or scene, oldest first. */
