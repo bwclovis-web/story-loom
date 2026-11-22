@@ -70,6 +70,7 @@ export function useContextRail(options?: { forceHidden?: boolean }): ContextRail
     }
     if (wide) {
       if (!layout.contextHidden) updateLayout({ contextHidden: true });
+      toggleRef.current?.focus();
     } else {
       setOverlayOpen(false);
       toggleRef.current?.focus();

@@ -30,7 +30,9 @@ import {
   worldKindLabel,
 } from "@/world/worldKinds";
 import { Banner } from "@/components/ui/Banner";
+import { CanvasReturnBanner } from "@/components/world/CanvasReturnBanner";
 import { MENTIONED_BY, RECORD, REFERENCE_FORM, SERIES, SHELL, WORLD, WORLD_KIND, XREF } from "@/ui/labels";
+import { keepCanvas } from "@/world/canvasReturn";
 import { groupOfType } from "@/ui/navigation";
 import { categoryLabel, isWorldType, worldHref } from "@/ui/world";
 import { crossRefsFor, type CrossRefIndex } from "@/writing/crossRefs";
@@ -97,6 +99,7 @@ export interface ReferenceViewProps {
   projectId: string;
   record: RecordView;
   editing: boolean;
+  canvasBack?: { href: string; label: string } | { unavailable: true } | null;
   query: { from?: string; to?: string };
   revisions: RevisionWithSource[];
   parent: { id: string; title: string; type: string } | null;
@@ -220,6 +223,7 @@ export function ReferenceView(props: ReferenceViewProps) {
   const { projectId, record, revisions, editing } = props;
   const base = `/projects/${encodeURIComponent(projectId)}`;
   const recordHref = `${base}/records/${encodeURIComponent(record.id)}`;
+  const canvasPath = props.canvasBack && "href" in props.canvasBack ? props.canvasBack.href : null;
   const doc = parseMarkdown(record.body);
   const current = revisions[0];
   const previous = revisions[1] ?? null;
@@ -304,6 +308,7 @@ export function ReferenceView(props: ReferenceViewProps) {
   return (
     <div className="reference-page">
       {props.seriesShared ? <Banner>{SERIES.sharedHere}</Banner> : null}
+      <CanvasReturnBanner back={props.canvasBack ?? null} />
       <LandingHeader
         projectId={projectId}
         title={record.title}
@@ -319,7 +324,7 @@ export function ReferenceView(props: ReferenceViewProps) {
         actions={
           <div className="page-actions">
             {editing ? null : (
-              <ButtonLink href={`${recordHref}?edit=1`}>{REFERENCE_FORM.editReference}</ButtonLink>
+              <ButtonLink href={keepCanvas(`${recordHref}?edit=1`, canvasPath)}>{REFERENCE_FORM.editReference}</ButtonLink>
             )}
             <ButtonLink variant="secondary" href={`${base}/import-markdown`}>
               {WORLD.importReferences}
@@ -363,7 +368,7 @@ export function ReferenceView(props: ReferenceViewProps) {
       {!editing && props.infobox?.rows.length ? <ReferenceInfobox model={props.infobox} factsOnly /> : null}
       {!editing && !props.infobox?.rows.length ? (
         <p className="reference-add-details">
-          <Link href={`${recordHref}?edit=1#reference-editor`}>{REFERENCE_FORM.addDetails}</Link>
+          <Link href={keepCanvas(`${recordHref}?edit=1#reference-editor`, canvasPath)}>{REFERENCE_FORM.addDetails}</Link>
         </p>
       ) : null}
 
@@ -372,7 +377,7 @@ export function ReferenceView(props: ReferenceViewProps) {
         <div className="reference-main write-main">
           <div className="doc-toolbar">
             {editing ? (
-              <ButtonLink href={recordHref} variant="secondary">
+              <ButtonLink href={keepCanvas(recordHref, canvasPath)} variant="secondary">
                 {WORLD.doneEditing}
               </ButtonLink>
             ) : null}

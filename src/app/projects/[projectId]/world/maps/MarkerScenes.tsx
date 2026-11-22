@@ -6,9 +6,20 @@ import { ButtonLink } from "@/components/ui/Button";
 import type { Issue } from "@/domain/issues";
 import type { SceneAtLocation, SceneLocationCatalog } from "@/server/services/sceneLocationService";
 import { WORLD } from "@/ui/labels";
+import { withCanvasReturn } from "@/world/canvasReturn";
 import { listScenesAtLocationAction } from "../../write/actions";
 
-export function MarkerScenes({ projectId, locationRecordId }: { projectId: string; locationRecordId: string }) {
+export function MarkerScenes({
+  projectId,
+  locationRecordId,
+  returnPath = null,
+  refreshKey = 0,
+}: {
+  projectId: string;
+  locationRecordId: string;
+  returnPath?: string | null;
+  refreshKey?: number;
+}) {
   const idPrefix = useId();
   const [draft, setDraft] = useState("all");
   const [book, setBook] = useState("all");
@@ -34,7 +45,7 @@ export function MarkerScenes({ projectId, locationRecordId }: { projectId: strin
     return () => {
       cancelled = true;
     };
-  }, [projectId, locationRecordId, draft, book]);
+  }, [projectId, locationRecordId, draft, book, refreshKey]);
 
   return (
     <section className="stack" aria-labelledby={`${idPrefix}-scenes`}>
@@ -76,7 +87,7 @@ export function MarkerScenes({ projectId, locationRecordId }: { projectId: strin
       ) : (
         <ul className="context-list">
           {catalog.scenes.map((scene) => (
-            <SceneRow key={scene.recordId} projectId={projectId} scene={scene} />
+            <SceneRow key={scene.recordId} projectId={projectId} scene={scene} returnPath={returnPath} />
           ))}
         </ul>
       )}
@@ -84,8 +95,17 @@ export function MarkerScenes({ projectId, locationRecordId }: { projectId: strin
   );
 }
 
-function SceneRow({ projectId, scene }: { projectId: string; scene: SceneAtLocation }) {
-  const href = `/projects/${projectId}/records/${scene.recordId}`;
+function SceneRow({
+  projectId,
+  scene,
+  returnPath,
+}: {
+  projectId: string;
+  scene: SceneAtLocation;
+  returnPath: string | null;
+}) {
+  const recordPath = `/projects/${encodeURIComponent(projectId)}/records/${encodeURIComponent(scene.recordId)}`;
+  const sceneHref = returnPath ? withCanvasReturn(recordPath, returnPath) : recordPath;
   const openLabel = scene.type === "manuscript_scene" ? WORLD.openSceneInWrite : WORLD.openChapterInWrite;
   return (
     <li>
@@ -97,7 +117,7 @@ function SceneRow({ projectId, scene }: { projectId: string; scene: SceneAtLocat
         {scene.draftLabel ? `${scene.draftLabel} · ` : ""}
         {scene.isPrimary ? WORLD.primaryBadge : ""}
       </span>
-      <ButtonLink href={href} variant="secondary" size="sm">
+      <ButtonLink href={sceneHref} variant="secondary" size="sm">
         {openLabel}
         <span className="sr-only"> {scene.title}</span>
       </ButtonLink>

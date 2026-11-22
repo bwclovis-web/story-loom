@@ -55,6 +55,8 @@ export interface RenderContext {
   novelIndent?: number;
   /** When true, the next body paragraph is not indented. */
   firstParagraphFree?: boolean;
+  /** Body font size in points (defaults to SIZES.body). */
+  bodySize?: number;
 }
 
 export interface PdfPageLayout {
@@ -330,13 +332,14 @@ export function drawBlocks(doc: PDFKit.PDFDocument, blocks: readonly Block[], ct
       case "paragraph": {
         const indent = ctx.novelIndent && !ctx.firstParagraphFree ? ctx.novelIndent : 0;
         if (ctx.firstParagraphFree) ctx.firstParagraphFree = false;
+        const bodySize = ctx.bodySize ?? SIZES.body;
         drawInlineBlock(
           doc,
           block.children,
           {
             x: x + indent,
             width: width - indent,
-            size: SIZES.body,
+            size: bodySize,
             gapAfter: tight ? 2 : (ctx.paragraphGap ?? 7),
             lineGap: ctx.lineGap,
           },
@@ -346,11 +349,12 @@ export function drawBlocks(doc: PDFKit.PDFDocument, blocks: readonly Block[], ct
       }
       case "list": {
         const indent = 16;
+        const bodySize = ctx.bodySize ?? SIZES.body;
         block.items.forEach((item, i) => {
-          ensureSpace(doc, SIZES.body * 2);
+          ensureSpace(doc, bodySize * 2);
           const marker = block.ordered ? `${block.start + i}.` : "•";
           const y = doc.y;
-          doc.font("body").fontSize(SIZES.body).fillColor(COLORS.text).text(marker, x, y, { width: indent, lineBreak: false });
+          doc.font("body").fontSize(bodySize).fillColor(COLORS.text).text(marker, x, y, { width: indent, lineBreak: false });
           doc.y = y;
           drawBlocks(doc, item, ctx, x + indent, width - indent, block.tight);
         });

@@ -48,6 +48,7 @@ const TRAIL_PREFIX = "wordly-map-trail:";
 const MODE_KEY = "wordly-map-mode";
 const HIDDEN_KEY = "wordly-map-hidden-groups";
 const HIDDEN_LAYERS_PREFIX = "wordly-map-hidden-layers:";
+const SEARCH_PREFIX = "wordly-map-search:";
 
 function storage(): Storage | null {
   return typeof sessionStorage === "undefined" ? null : sessionStorage;
@@ -137,4 +138,16 @@ export function readHiddenLayers(mapId: string): string[] {
 
 export function writeHiddenLayers(mapId: string, layerIds: readonly string[]): void {
   storage()?.setItem(`${HIDDEN_LAYERS_PREFIX}${mapId}`, JSON.stringify(layerIds));
+}
+
+export function readMapSearch(mapId: string): string {
+  return storage()?.getItem(`${SEARCH_PREFIX}${mapId}`) ?? "";
+}
+
+export function writeMapSearch(mapId: string, query: string): void {
+  const store = storage();
+  if (!store) return;
+  const key = `${SEARCH_PREFIX}${mapId}`;
+  if (!query) store.removeItem(key);
+  else store.setItem(key, query);
 }

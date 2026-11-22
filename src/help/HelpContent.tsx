@@ -1838,16 +1838,20 @@ export function HelpContent() {
               Add a reference, an image from a reference, or <L>{WORLD.writeNote}</L>. A board note is not a World
               reference document, and it is not turned into one. <L>{WORLD.boardToolSelect}</L> chooses a card. Drag the
               card&apos;s move handle to reposition it; a click, selecting the text, or editing the note does not. The
-              position is stored on that board only and does not change the reference. <L>{WORLD.boardToolPan}</L>{" "}
+              position is stored on that board only and does not change the reference. An unsaved note asks before you
+              leave the board. <L>{WORLD.boardToolPan}</L>{" "}
               scrolls the board. <L>{WORLD.boardLockLayout}</L> stops moving and resizing. Escape during a move puts the
               card back before anything is saved.
             </li>
             <li>
-              The same record can appear on several boards. Selecting a reference or image card opens that record in the
-              reference inspector (Overview, Sections, Images, Relationships, and Established in when the record supports
-              it). <L>{WORLD.inspectorOpenRecord}</L> opens the record page. The record&apos;s Overview lists the boards
-              and maps that contain it. The rail still collapses, resizes, and overlays on a narrow window. Filter by
-              card kind. <L>{WORLD.boardViewCanvas}</L> and <L>{WORLD.boardViewList}</L> show the same cards, filter, and
+              The same record can appear on several boards. Selecting a reference or image card keeps you on the board
+              and shows a short summary in the rail: title, type, kind when one is set, and the lead.{" "}
+              <L>{WORLD.openReference}</L> and <L>{REFERENCE_FORM.editReference}</L> open the full record and return to
+              this board, the selected card, the filter, and Canvas or List. <L>{WORLD.linkScene}</L> assigns a chapter
+              or scene you choose. A protected reference asks you to confirm. Manuscript text is not changed. The
+              record&apos;s own page still holds sections, images, relationships, and established facts. The rail still
+              collapses, resizes, and overlays on a narrow window. Filter by card kind.{" "}
+              <L>{WORLD.boardViewCanvas}</L> and <L>{WORLD.boardViewList}</L> show the same cards, filter, and
               selection. The list count says when the filter is hiding cards, and each row can inspect, open, or edit.{" "}
               <L>{WORLD.boardCenterSelection}</L> and <L>{WORLD.boardCenterAll}</L> scroll the board so those cards sit
               in the middle. They do not zoom. Arrow keys move between visible cards.{" "}
@@ -1862,7 +1866,9 @@ export function HelpContent() {
           </ul>
           <p>
             Boards and cards are included in workspace backups. Older backups that omit them restore with no boards.
-            Named camera or filter views for a board are not stored yet; that is a next increment if needed.
+            The current filter and Canvas or List choice are remembered in this browser tab. Named camera views are not
+            stored. <L>{WORLD.boardPositionX}</L> and <L>{WORLD.boardPositionY}</L> save a card&apos;s position when the
+            layout is unlocked. They do not change the reference.
           </p>
           <p>
             <L>{WORLD.askAboutBoard}</L> previews the linked records and their sections, then opens the assistant with
@@ -1915,9 +1921,13 @@ export function HelpContent() {
           </p>
           <ul>
             <li>
-              A marker can link a reference, another map, or both. <L>{WORLD.openReference}</L> opens the record.{" "}
-              <L>{WORLD.openDetailedMap}</L> opens that map and keeps a path you can follow back. Zoom and pan are
-              restored for the map you return to. The same place can appear on several maps.
+              A marker can link a reference, another map, or both. Selecting a marker stays on the map. The rail shows a
+              short summary, <L>{WORLD.openReference}</L>, <L>{REFERENCE_FORM.editReference}</L>, chapters and scenes
+              already assigned, and <L>{WORLD.linkScene}</L>. Planned events stay on the map rail. Opening the reference
+              and coming back restores this map, the marker, the search, hidden layers, zoom, and the map path. A
+              missing marker or a deleted map is said on the page.{" "}
+              <L>{WORLD.openDetailedMap}</L> opens that map and keeps a path you can follow back. The same place can
+              appear on several maps.
             </li>
             <li>
               <L>{WORLD.mapModeBrowse}</L> pans and zooms without moving markers. <L>{WORLD.mapModeEdit}</L> opens on{" "}
@@ -1928,7 +1938,8 @@ export function HelpContent() {
               ticked. A route is an ordered path. An area is a closed boundary. A label is text at one position. While
               a route, area, or label is being drawn, a short instruction sits above the map and the point list sits in
               the inspector. Enter, or <L>{WORLD.mapFinishDrawing}</L>, finishes a valid drawing and leaves it unsaved.
-              Escape, or <L>{WORLD.drawCancel}</L>, drops that drawing. Neither key is taken while you are typing in a
+              Escape, or <L>{WORLD.drawCancel}</L>, drops that drawing. A drawing that is not saved asks before you leave
+              the map. Neither key is taken while you are typing in a
               field. <L>{WORLD.mapSaveRoute}</L>, <L>{WORLD.mapSaveArea}</L>, and <L>{WORLD.mapSaveLabel}</L> are the
               writes. If the marker was saved again after you started, the write is refused, the stored shape stays as
               it was, and the draft you were editing stays on screen. The marker list and the point fields (
@@ -2695,11 +2706,26 @@ export function HelpContent() {
           breaks use your glyph when scene titles are off. Synopses and unresolved margin comments are optional.{" "}
           <L>{COMPILE_PROFILE.trimSize}</L>, <L>{COMPILE_PROFILE.marginInches}</L>, <L>{COMPILE_PROFILE.runningHeader}</L>,{" "}
           <L>{COMPILE_PROFILE.runningFooter}</L>, <L>{COMPILE_PROFILE.fontPreset}</L>, and{" "}
-          <L>{COMPILE_PROFILE.spacingPreset}</L> shape the manuscript PDF. <L>{COMPILE_PROFILE.includeToc}</L> adds a
-          contents page whose chapter titles jump to those chapters. <L>{COMPILE_PROFILE.dropCap}</L> sets the first
+          <L>{COMPILE_PROFILE.spacingPreset}</L> shape the manuscript PDF and DOCX. <L>{COMPILE_PROFILE.includeToc}</L>{" "}
+          adds a contents page whose chapter titles jump to those chapters. <L>{COMPILE_PROFILE.dropCap}</L> sets the first
           letter of each chapter larger in the PDF. <L>{COMPILE_PROFILE.includeInCompile}</L> leaves unticked chapters
           and scenes out of PDF, DOCX, and EPUB without changing the manuscript. <L>{COMPILE_PROFILE.backMatter}</L>{" "}
           follows the chapters.
+        </p>
+        <h4>Export presets</h4>
+        <p>
+          On <L>{NAV.exportPdf}</L>, <L>{COMPILE_PROFILE.presetStandard}</L> fills Letter size, mono type, double spacing,
+          one-inch margins, and <code>#</code> scene breaks for a Shunn-style submission DOCX or PDF, with the approximate
+          word count on the title page and a short-title running header. <L>{COMPILE_PROFILE.presetFormatter}</L> fills
+          6×9, serif, novel spacing, <code>***</code> breaks, and a contents page for a clean DOCX or EPUB handoff to
+          Atticus, Vellum, or a similar formatter. Applying a preset stores the layout immediately and keeps your front
+          and back matter text and compile exclusions.
+        </p>
+        <h4>Export preview</h4>
+        <p>
+          <L>{COMPILE_PROFILE.previewHeading}</L> lists chapter and scene counts, word count, and read-only warnings
+          (empty chapters, unplaced scenes, possible <code>[[links]]</code>, synopses or margin comments left on). It
+          does not change the manuscript. {COMPILE_PROFILE.handoffNote}
         </p>
         <h4>What a PDF contains</h4>
         <ul>

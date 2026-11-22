@@ -83,6 +83,7 @@ export function CompileProfileForm({
             <option value="novel">{COMPILE_PROFILE.spacingNovel}</option>
             <option value="tight">{COMPILE_PROFILE.spacingTight}</option>
             <option value="loose">{COMPILE_PROFILE.spacingLoose}</option>
+            <option value="manuscript">{COMPILE_PROFILE.spacingManuscript}</option>
           </select>
         </label>
       </div>

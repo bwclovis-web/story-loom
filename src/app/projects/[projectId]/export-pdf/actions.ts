@@ -3,8 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { errorIssue, type Issue } from "@/domain/issues";
 import { getDb } from "@/server/db";
-import { upsertCompileProfile } from "@/server/services/compileProfileService";
+import { getCompileProfile, upsertCompileProfile } from "@/server/services/compileProfileService";
 import { MutationRejectedError } from "@/server/services/errors";
+import { isExportPresetId, layoutForPreset, type ExportPresetId } from "@/writing/exportPresets";
+import { COMPILE_PROFILE } from "@/ui/labels";
 
 export interface CompileProfileFormResult {
   ok: boolean;
@@ -50,6 +52,42 @@ export async function saveCompileProfileAction(
     });
     revalidatePath(`/projects/${projectId}/export-pdf`);
     return { ok: true, message: "Compile profile saved." };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+export async function applyExportPresetAction(
+  projectId: string,
+  _prev: CompileProfileFormResult,
+  formData: FormData,
+): Promise<CompileProfileFormResult> {
+  const raw = String(formData.get("preset") ?? "");
+  if (!isExportPresetId(raw)) {
+    return { ok: false, issues: [errorIssue("INVALID_CHANGE", "Unknown export preset.")] };
+  }
+  const presetId: ExportPresetId = raw;
+  try {
+    const db = getDb();
+    const current = await getCompileProfile(db, projectId);
+    const layout = layoutForPreset(presetId);
+    await upsertCompileProfile(db, projectId, {
+      titlePageBody: current.titlePageBody,
+      copyrightPageBody: current.copyrightPageBody,
+      dedicationBody: current.dedicationBody,
+      acknowledgementsBody: current.acknowledgementsBody,
+      backMatterBody: current.backMatterBody,
+      excludedRecordIds: current.excludedRecordIds,
+      ...layout,
+    });
+    revalidatePath(`/projects/${projectId}/export-pdf`);
+    return {
+      ok: true,
+      message:
+        presetId === "standard_manuscript"
+          ? COMPILE_PROFILE.presetStandardApplied
+          : COMPILE_PROFILE.presetFormatterApplied,
+    };
   } catch (error) {
     return failure(error);
   }

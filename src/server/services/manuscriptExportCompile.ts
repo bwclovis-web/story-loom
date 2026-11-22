@@ -8,6 +8,7 @@ import {
 import { buildManuscriptExportModel, type ManuscriptExportModel } from "./manuscriptExportModel";
 import { listExportMarginCommentsForRecords, listSynopsesForRecords } from "./manuscriptAnnotationService";
 import { filterCompileTree } from "@/writing/compileLayout";
+import { countWords } from "@/writing/wordCount";
 import type { DbOrTx } from "../db";
 
 export interface ManuscriptExportBuildOptions {
@@ -82,13 +83,35 @@ export function usesCustomTitlePage(compile: CompileProfileView): boolean {
   return compile.titlePageBody.trim().length > 0;
 }
 
-export function matterSections(compile: CompileProfileView): { key: string; body: string }[] {
+/** Front matter only (before chapters). */
+export function frontMatterSections(compile: CompileProfileView): { key: string; body: string }[] {
   const sections: { key: string; body: string }[] = [];
   if (compile.dedicationBody.trim()) sections.push({ key: "dedication", body: compile.dedicationBody });
   if (compile.copyrightPageBody.trim()) sections.push({ key: "copyright", body: compile.copyrightPageBody });
   if (compile.acknowledgementsBody.trim()) sections.push({ key: "acknowledgements", body: compile.acknowledgementsBody });
-  if (compile.backMatterBody.trim()) sections.push({ key: "back-matter", body: compile.backMatterBody });
   return sections;
+}
+
+/** Back matter only (after chapters). */
+export function backMatterSections(compile: CompileProfileView): { key: string; body: string }[] {
+  if (!compile.backMatterBody.trim()) return [];
+  return [{ key: "back-matter", body: compile.backMatterBody }];
+}
+
+/** All matter pages in PDF/DOCX/EPUB reading order (front then back). Prefer front/back helpers for builders. */
+export function matterSections(compile: CompileProfileView): { key: string; body: string }[] {
+  return [...frontMatterSections(compile), ...backMatterSections(compile)];
+}
+
+/** Word count of every body included in this export (visible prose). */
+export function manuscriptExportWordCount(ctx: ManuscriptExportContext): number {
+  let total = 0;
+  for (const chapter of ctx.model.chapters) {
+    total += countWords(chapter.record.body);
+    for (const scene of chapter.scenes) total += countWords(scene.record.body);
+  }
+  for (const scene of ctx.model.unplacedScenes) total += countWords(scene.record.body);
+  return total;
 }
 
 export function sceneBreakText(compile: Pick<CompileProfileView, "sceneBreakGlyph">): string {

@@ -19,6 +19,7 @@ import {
   type ReactNode,
 } from "react";
 import { IssueList } from "@/components/IssueList";
+import { CanvasReturnBanner } from "@/components/world/CanvasReturnBanner";
 import { MarkdownView } from "@/components/MarkdownView";
 import { type DraftOption } from "@/components/drafts/DraftControls";
 import { StoryLoomMark } from "@/components/library/StoryLoomMark";
@@ -97,6 +98,7 @@ export function WriteEditor(props: {
   fieldsJson: string;
   authorityStatus: AuthorityStatus;
   isProtected: boolean;
+  canvasBack?: { href: string; label: string } | { unavailable: true } | null;
   parent: { id: string; title: string } | null;
   /** Opens Find with this text, from a manuscript search result. */
   initialFind: { query: string; matchCase: boolean } | null;
@@ -529,6 +531,7 @@ export function WriteEditor(props: {
   return (
     <div className="write-layout">
       <div className="write-main">
+        <CanvasReturnBanner back={props.canvasBack ?? null} />
         <form ref={formRef} onSubmit={submitWithoutReset(action)} onKeyDown={onFormKey} className="write-form">
           <input type="hidden" name="expectedRevision" value={knownRevision} />
           <input type="hidden" name="authorityStatus" value={props.authorityStatus} />

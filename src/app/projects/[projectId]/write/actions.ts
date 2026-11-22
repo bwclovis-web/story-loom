@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { errorIssue, type Issue } from "@/domain/issues";
+import { WORLD } from "@/ui/labels";
 import { isLinkableReferenceType, RECORD_TYPE_LABELS } from "@/domain/recordTypes";
 import type { AuthorityStatus } from "@/domain/statuses";
 import { listSections } from "@/writing/sections";
@@ -12,7 +13,9 @@ import { getSeriesSharedRecord } from "@/server/services/seriesBibleService";
 import { linkReference, unlinkReference } from "@/server/services/linkService";
 import {
   assignSceneLocation,
+  listSceneLocationsForManuscript,
   listScenesForLocation,
+  listUnassignedManuscripts,
   removeSceneLocation,
   setSceneLocationPrimary,
   type SceneListFilter,
@@ -282,6 +285,43 @@ export async function removeReadingPinAction(
 function revalidateSceneLocations(projectId: string, manuscriptRecordId: string) {
   revalidatePath(`/projects/${projectId}/records/${manuscriptRecordId}`);
   revalidatePath(`/projects/${projectId}/world/maps`);
+}
+
+export async function listLinkableManuscriptsAction(
+  projectId: string,
+  locationRecordId: string,
+): Promise<{ ok: true; manuscripts: Awaited<ReturnType<typeof listUnassignedManuscripts>> } | { ok: false; issues: Issue[] }> {
+  try {
+    const manuscripts = await listUnassignedManuscripts(getDb(), projectId, locationRecordId);
+    return { ok: true, manuscripts };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+/** Links a chapter or scene the author picked. A protected reference needs an explicit tick. */
+export async function linkSceneToReferenceAction(
+  projectId: string,
+  locationRecordId: string,
+  manuscriptRecordId: string,
+  input: { isPrimary: boolean; confirmProtected: boolean },
+): Promise<{ ok: true; set: SceneLocationSet } | { ok: false; issues: Issue[] }> {
+  try {
+    const location = await getRecord(getDb(), projectId, locationRecordId);
+    if (location.protected && !input.confirmProtected) {
+      return {
+        ok: false,
+        issues: [errorIssue("INVALID_CHANGE", WORLD.linkSceneProtected)],
+      };
+    }
+    const current = await listSceneLocationsForManuscript(getDb(), projectId, manuscriptRecordId);
+    return await assignSceneLocationAction(projectId, manuscriptRecordId, locationRecordId, {
+      isPrimary: input.isPrimary,
+      expectedFingerprint: current.fingerprint,
+    });
+  } catch (error) {
+    return failure(error);
+  }
 }
 
 export async function assignSceneLocationAction(

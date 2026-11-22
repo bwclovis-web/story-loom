@@ -13,7 +13,29 @@ export function escapeHtml(text: string): string {
 
 const DEFAULT_SCENE_BREAK = "***";
 
-function blockToParagraphs(block: Block): Paragraph[] {
+export interface DocxBodyStyle {
+  font?: string;
+  size?: number;
+  line?: number;
+  indentTwips?: number;
+}
+
+function runOpts(style: DocxBodyStyle | undefined, extra?: { italics?: boolean; font?: string; size?: number }) {
+  return {
+    font: extra?.font ?? style?.font,
+    size: extra?.size ?? style?.size,
+    italics: extra?.italics,
+  };
+}
+
+function paraSpacing(style: DocxBodyStyle | undefined, indent = false) {
+  return {
+    spacing: style?.line ? { line: style.line } : undefined,
+    indent: indent && style?.indentTwips ? { firstLine: style.indentTwips } : undefined,
+  };
+}
+
+function blockToParagraphs(block: Block, style?: DocxBodyStyle): Paragraph[] {
   switch (block.kind) {
     case "heading": {
       const level =
@@ -24,32 +46,69 @@ function blockToParagraphs(block: Block): Paragraph[] {
             : block.level === 3
               ? HeadingLevel.HEADING_3
               : HeadingLevel.HEADING_4;
-      return [new Paragraph({ heading: level, children: [new TextRun(block.text || inlineText(block.children))] })];
+      return [
+        new Paragraph({
+          heading: level,
+          ...paraSpacing(style),
+          children: [new TextRun({ text: block.text || inlineText(block.children), ...runOpts(style) })],
+        }),
+      ];
     }
     case "paragraph":
-      return [new Paragraph({ children: [new TextRun(inlineText(block.children))] })];
+      return [
+        new Paragraph({
+          ...paraSpacing(style, true),
+          children: [new TextRun({ text: inlineText(block.children), ...runOpts(style) })],
+        }),
+      ];
     case "list":
       return block.items.flatMap((item, index) => {
         const text = item.map((b) => (b.kind === "paragraph" ? inlineText(b.children) : blockKindPlain(b))).join(" ");
         const prefix = block.ordered ? `${block.start + index}. ` : "• ";
-        return [new Paragraph({ children: [new TextRun(prefix + text)] })];
+        return [
+          new Paragraph({
+            ...paraSpacing(style),
+            children: [new TextRun({ text: prefix + text, ...runOpts(style) })],
+          }),
+        ];
       });
     case "quote":
       return block.children.flatMap((child) => {
         if (child.kind === "paragraph") {
-          return [new Paragraph({ children: [new TextRun({ text: inlineText(child.children), italics: true })] })];
+          return [
+            new Paragraph({
+              ...paraSpacing(style),
+              children: [new TextRun({ text: inlineText(child.children), ...runOpts(style, { italics: true }) })],
+            }),
+          ];
         }
-        return blockToParagraphs(child);
+        return blockToParagraphs(child, style);
       });
     case "code":
-      return [new Paragraph({ children: [new TextRun({ text: block.text, font: "Courier New" })] })];
+      return [
+        new Paragraph({
+          ...paraSpacing(style),
+          children: [new TextRun({ text: block.text, font: "Courier New", size: style?.size })],
+        }),
+      ];
     case "table": {
       const head = block.head.map((cell) => plainText(cell)).join(" | ");
       const rows = block.rows.map((row) => row.map((cell) => plainText(cell)).join(" | ")).join("\n");
-      return [new Paragraph({ children: [new TextRun([head, rows].filter(Boolean).join("\n"))] })];
+      return [
+        new Paragraph({
+          ...paraSpacing(style),
+          children: [new TextRun({ text: [head, rows].filter(Boolean).join("\n"), ...runOpts(style) })],
+        }),
+      ];
     }
     case "rule":
-      return [new Paragraph({ children: [new TextRun("—")], alignment: AlignmentType.CENTER })];
+      return [
+        new Paragraph({
+          ...paraSpacing(style),
+          children: [new TextRun({ text: "—", ...runOpts(style) })],
+          alignment: AlignmentType.CENTER,
+        }),
+      ];
     default:
       return [];
   }
@@ -62,9 +121,9 @@ function blockKindPlain(block: Block): string {
   return "";
 }
 
-export function bodyToDocxChildren(body: string): FileChild[] {
+export function bodyToDocxChildren(body: string, style?: DocxBodyStyle): FileChild[] {
   const parsed = parseMarkdown(body);
-  return parsed.blocks.flatMap(blockToParagraphs);
+  return parsed.blocks.flatMap((block) => blockToParagraphs(block, style));
 }
 
 export function bodyToEpubSectionHtml(body: string): string {
@@ -147,9 +206,13 @@ function blockToEpubHtml(block: Block): string {
   }
 }
 
-export function sceneBreakParagraph(glyph = DEFAULT_SCENE_BREAK): Paragraph {
+export function sceneBreakParagraph(glyph = DEFAULT_SCENE_BREAK, style?: DocxBodyStyle): Paragraph {
   const text = glyph.trim() || DEFAULT_SCENE_BREAK;
-  return new Paragraph({ children: [new TextRun(text)], alignment: AlignmentType.CENTER });
+  return new Paragraph({
+    ...paraSpacing(style),
+    children: [new TextRun({ text, ...runOpts(style) })],
+    alignment: AlignmentType.CENTER,
+  });
 }
 
 export function sceneBreakHtml(glyph = DEFAULT_SCENE_BREAK): string {

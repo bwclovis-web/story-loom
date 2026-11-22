@@ -18,13 +18,18 @@ import { Button, ButtonLink } from "@/components/ui/Button";
 import { CanvasToolbar, CanvasToolbarGroup } from "@/components/ui/CanvasToolbar";
 import { IconButton } from "@/components/ui/IconButton";
 import { SegmentedControl, SegmentedOption } from "@/components/ui/SegmentedControl";
-import { ReferenceInspector } from "@/components/world/ReferenceInspector";
+import { CanvasReferenceSummary } from "@/components/world/CanvasReferenceSummary";
+import { LinkSceneForm } from "@/components/world/LinkSceneForm";
 import { ContextRail, ContextRailToggle, useContextRail } from "@/components/shell/ContextRail";
+import { setUnsaved } from "@/components/shell/unsaved";
 import { CloseIcon } from "@/components/shell/icons";
 import type { Issue } from "@/domain/issues";
+import { isLinkableReferenceType } from "@/domain/recordTypes";
 import type { BoardCardView, BoardView } from "@/server/services/boardService";
 import type { LoadedInspector } from "@/server/services/referenceInspectorService";
 import { WORLD, WRITE } from "@/ui/labels";
+import { readBoardFilter, readBoardView, writeBoardFilter, writeBoardView } from "@/world/boardViewState";
+import { canvasReturnPath, withCanvasReturn } from "@/world/canvasReturn";
 import {
   centerScroll,
   dragExceeded,
@@ -36,6 +41,7 @@ import {
   type BoardSurfaceView,
   type BoardTool,
 } from "@/world/boardInteraction";
+import { MarkerScenes } from "../maps/MarkerScenes";
 import { inspectReferenceAction } from "../inspectorActions";
 import { AskAboutBoard } from "./AskAboutBoard";
 import {
@@ -89,6 +95,11 @@ export function BoardCanvas({
   const railRef = useRef(rail);
   railRef.current = rail;
   const [issues, setIssues] = useState<Issue[]>([]);
+  const [status, setStatus] = useState("");
+  const [sceneRefresh, setSceneRefresh] = useState(0);
+  const [missingSelection, setMissingSelection] = useState("");
+  const [posX, setPosX] = useState("");
+  const [posY, setPosY] = useState("");
   const [pending, startTransition] = useTransition();
   const [title, setTitle] = useState(initial.title);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -130,6 +141,16 @@ export function BoardCanvas({
     });
   }, [initial]);
 
+  useEffect(() => {
+    setView(readBoardView(initial.id));
+    setKindFilter(readBoardFilter(initial.id));
+  }, [initial.id]);
+
+  useEffect(() => {
+    const key = `board-notes-${board.id}`;
+    return () => setUnsaved(key, false);
+  }, [board.id]);
+
   cardsRef.current = cards;
   const selected = cards.find((c) => c.id === selectedId) ?? null;
 
@@ -142,12 +163,27 @@ export function BoardCanvas({
   const inspectRecordId = selected && selected.kind !== "note" ? selected.recordId : null;
 
   useEffect(() => {
-    if (!didDeepLink.current && initialCardId && initial.cards.some((card) => card.id === initialCardId)) {
+    if (!initialCardId) {
+      setMissingSelection("");
+      return;
+    }
+    if (!initial.cards.some((card) => card.id === initialCardId)) {
+      setMissingSelection(WORLD.cardMissing);
+      return;
+    }
+    setMissingSelection("");
+    if (!didDeepLink.current) {
       didDeepLink.current = true;
       setSelectedId(initialCardId);
       if (!railRef.current.visible) railRef.current.toggle();
     }
   }, [initialCardId, initial.cards]);
+
+  useEffect(() => {
+    if (!selected) return;
+    setPosX(String(Math.round(selected.x)));
+    setPosY(String(Math.round(selected.y)));
+  }, [selected?.id, selected?.x, selected?.y]);
 
   const selectedNoteId = selected?.kind === "note" ? selected.id : null;
 
@@ -344,6 +380,7 @@ export function BoardCanvas({
       draft,
       saved ? { title: saved.noteTitle, body: saved.noteBody } : draft,
     );
+    setUnsaved(`board-notes-${board.id}`, Object.keys(noteDraftsRef.current).length > 0);
   };
 
   const beginNoteEdit = (card: BoardCardView) => {
@@ -411,17 +448,70 @@ export function BoardCanvas({
     });
   };
 
+  const positionForm = selected ? (
+    <form
+      className="row"
+      aria-label={WORLD.boardPosition}
+      style={{ gap: "0.35rem", flexWrap: "wrap" }}
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (layoutLocked) return;
+        const x = Number(posX);
+        const y = Number(posY);
+        if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+        const cardId = selected.id;
+        startTransition(async () => {
+          const result = await moveBoardCardAction(projectId, board.id, cardId, { x, y });
+          if (!result.ok) {
+            setIssues(result.issues);
+            return;
+          }
+          setIssues([]);
+          setCards((list) => list.map((card) => (card.id === result.card.id ? result.card : card)));
+          setStatus(WORLD.boardPositionSaved);
+          router.refresh();
+        });
+      }}
+    >
+      <label>
+        {WORLD.boardPositionX}
+        <input
+          type="number"
+          step={1}
+          value={posX}
+          disabled={layoutLocked || pending}
+          onChange={(event) => setPosX(event.target.value)}
+        />
+      </label>
+      <label>
+        {WORLD.boardPositionY}
+        <input
+          type="number"
+          step={1}
+          value={posY}
+          disabled={layoutLocked || pending}
+          onChange={(event) => setPosY(event.target.value)}
+        />
+      </label>
+      <Button type="submit" size="sm" variant="secondary" disabled={layoutLocked || pending}>
+        {WORLD.savePosition}
+      </Button>
+    </form>
+  ) : null;
+
   return (
     <div className="write-layout reference-write-layout board-layout visual-canvas">
       <div className="write-main board-main">
         <IssueList issues={issues} />
+        {status ? <p className="small" role="status">{status}</p> : null}
+        {missingSelection ? <p className="small" role="status">{missingSelection}</p> : null}
 
         <CanvasToolbar label={WORLD.boardCanvas}>
           <SegmentedControl size="sm" label={WORLD.boardViews}>
-            <SegmentedOption selected={view === "canvas"} onClick={() => setView("canvas")}>
+            <SegmentedOption selected={view === "canvas"} onClick={() => { setView("canvas"); writeBoardView(board.id, "canvas"); }}>
               {WORLD.boardViewCanvas}
             </SegmentedOption>
-            <SegmentedOption selected={view === "list"} onClick={() => setView("list")}>
+            <SegmentedOption selected={view === "list"} onClick={() => { setView("list"); writeBoardView(board.id, "list"); }}>
               {WORLD.boardViewList}
             </SegmentedOption>
           </SegmentedControl>
@@ -477,7 +567,11 @@ export function BoardCanvas({
               <select
                 value={kindFilter}
                 aria-label={WORLD.filterCardKind}
-                onChange={(e) => setKindFilter(e.target.value as typeof kindFilter)}
+                onChange={(e) => {
+                  const next = e.target.value as typeof kindFilter;
+                  setKindFilter(next);
+                  writeBoardFilter(board.id, next);
+                }}
               >
                 <option value="all">{WORLD.filterAllKinds}</option>
                 <option value="record">{WORLD.filterRecords}</option>
@@ -818,7 +912,10 @@ export function BoardCanvas({
                   </Button>
                   {card.recordId ? (
                     <ButtonLink
-                      href={`/projects/${encodeURIComponent(projectId)}/records/${encodeURIComponent(card.recordId)}`}
+                      href={withCanvasReturn(
+                        `/projects/${encodeURIComponent(projectId)}/records/${encodeURIComponent(card.recordId)}`,
+                        canvasReturnPath(projectId, "boards", board.id, card.id),
+                      )}
                       size="sm"
                       variant="secondary"
                     >
@@ -862,6 +959,7 @@ export function BoardCanvas({
               <p className="visual-inspector-empty">{WORLD.noCardSelected}</p>
             ) : selected.kind === "note" ? (
               <div className="stack">
+                {positionForm}
                 <section className="rail-section">
                   <h3>{WORLD.noteCard}</h3>
                   <label onPointerDown={(event) => event.stopPropagation()}>
@@ -916,7 +1014,9 @@ export function BoardCanvas({
                           return;
                         }
                         delete noteDraftsRef.current[selected.id];
+                        setUnsaved(`board-notes-${board.id}`, Object.keys(noteDraftsRef.current).length > 0);
                         setCards((list) => list.map((c) => (c.id === result.card.id ? result.card : c)));
+                        setStatus(WORLD.noteSaved);
                         router.refresh();
                       })
                     }
@@ -940,6 +1040,7 @@ export function BoardCanvas({
                           return;
                         }
                         delete noteDraftsRef.current[selected.id];
+                        setUnsaved(`board-notes-${board.id}`, Object.keys(noteDraftsRef.current).length > 0);
                         setCards((list) => list.filter((c) => c.id !== selected.id));
                         setSelectedId(null);
                         router.refresh();
@@ -952,13 +1053,13 @@ export function BoardCanvas({
               </div>
             ) : (
               <div className="stack">
+                {positionForm}
                 <section className="rail-section">
                   {inspection?.ok ? (
-                    <ReferenceInspector
+                    <CanvasReferenceSummary
                       projectId={projectId}
                       model={inspection.model}
-                      established={inspection.established}
-                      linkMode="remote"
+                      returnPath={canvasReturnPath(projectId, "boards", board.id, selected.id)}
                       sourceNote={selected.kind === "image" ? WORLD.openedFromImage : null}
                     />
                   ) : inspection && !inspection.ok ? (
@@ -967,6 +1068,25 @@ export function BoardCanvas({
                     <p className="small muted">{WORLD.inspectorLoading}</p>
                   )}
                 </section>
+                {selected.recordId ? (
+                  <MarkerScenes
+                    projectId={projectId}
+                    locationRecordId={selected.recordId}
+                    returnPath={canvasReturnPath(projectId, "boards", board.id, selected.id)}
+                    refreshKey={sceneRefresh}
+                  />
+                ) : null}
+                {inspection?.ok && isLinkableReferenceType(inspection.model.recordType) ? (
+                  <LinkSceneForm
+                    projectId={projectId}
+                    locationRecordId={inspection.model.id}
+                    protectedReference={inspection.model.protected}
+                    onLinked={(message) => {
+                      setStatus(message);
+                      setSceneRefresh((value) => value + 1);
+                    }}
+                  />
+                ) : null}
                 <section className="rail-section">
                   <p className="small muted" style={{ margin: 0 }}>
                     {WORLD.removeCardNote}
@@ -983,6 +1103,7 @@ export function BoardCanvas({
                           return;
                         }
                         delete noteDraftsRef.current[selected.id];
+                        setUnsaved(`board-notes-${board.id}`, Object.keys(noteDraftsRef.current).length > 0);
                         setCards((list) => list.filter((c) => c.id !== selected.id));
                         setSelectedId(null);
                         router.refresh();

@@ -9,16 +9,20 @@ import { Button, ButtonLink } from "@/components/ui/Button";
 import { CanvasToolbar } from "@/components/ui/CanvasToolbar";
 import { SegmentedControl, SegmentedOption } from "@/components/ui/SegmentedControl";
 import { IconButton } from "@/components/ui/IconButton";
-import { ReferenceInspector } from "@/components/world/ReferenceInspector";
+import { CanvasReferenceSummary } from "@/components/world/CanvasReferenceSummary";
+import { LinkSceneForm } from "@/components/world/LinkSceneForm";
 import { ContextRail, ContextRailToggle, useContextRail } from "@/components/shell/ContextRail";
+import { setUnsaved } from "@/components/shell/unsaved";
 import { CloseIcon } from "@/components/shell/icons";
 import { errorIssue, type Issue } from "@/domain/issues";
+import { isLinkableReferenceType } from "@/domain/recordTypes";
 import type { LoadedInspector } from "@/server/services/referenceInspectorService";
 import type { WorldMapLayerView } from "@/server/services/worldMapLayerService";
 import { layerStrokeColor, resolvePinLayerId } from "@/server/services/worldMapLayerService";
 import type { WorldMapPinView, WorldMapView } from "@/server/services/worldMapService";
 import type { MapGeographyNode } from "@/world/mapGeography";
 import { WORLD, WRITE } from "@/ui/labels";
+import { canvasReturnPath, withCanvasReturn } from "@/world/canvasReturn";
 import { mapDrawingHandlesKey, mapListHandlesKey } from "@/world/mapKeyboard";
 import {
   editShape,
@@ -55,11 +59,13 @@ import {
   pushMapTrail,
   readHiddenLayers,
   readMapMode,
+  readMapSearch,
   readMapTrail,
   readMapView,
   trailWithoutCurrent,
   writeHiddenLayers,
   writeMapMode,
+  writeMapSearch,
   writeMapTrail,
   writeMapView,
   type MapTrailItem,
@@ -155,6 +161,9 @@ export function MapCanvas({
   const railRef = useRef(rail);
   railRef.current = rail;
   const [issues, setIssues] = useState<Issue[]>([]);
+  const [status, setStatus] = useState("");
+  const [sceneRefresh, setSceneRefresh] = useState(0);
+  const [missingSelection, setMissingSelection] = useState("");
   const [pending, startTransition] = useTransition();
   const [title, setTitle] = useState(initial.title);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -226,6 +235,7 @@ export function MapCanvas({
     setDrawPhase("drawing");
     setKeepPlacing(false);
     setHiddenLayerIds(readHiddenLayers(initial.id));
+    setQuery(readMapSearch(initial.id));
     setTrail(trailWithoutCurrent(readMapTrail(projectId), initial.id));
   }, [initial.id, projectId]);
 
@@ -258,7 +268,22 @@ export function MapCanvas({
     !draft ? [] : drawPhase === "drawing" && hoverPoint ? [...draft.points, hoverPoint] : draft.points;
 
   useEffect(() => {
-    if (!didDeepLink.current && initialPinId && initial.pins.some((pin) => pin.id === initialPinId)) {
+    const key = `map-geometry-${map.id}`;
+    setUnsaved(key, draft !== null);
+    return () => setUnsaved(key, false);
+  }, [map.id, draft]);
+
+  useEffect(() => {
+    if (!initialPinId) {
+      setMissingSelection("");
+      return;
+    }
+    if (!initial.pins.some((pin) => pin.id === initialPinId)) {
+      setMissingSelection(WORLD.markerMissing);
+      return;
+    }
+    setMissingSelection("");
+    if (!didDeepLink.current) {
       didDeepLink.current = true;
       setSelectedId(initialPinId);
       if (!railRef.current.visible) railRef.current.toggle();
@@ -523,6 +548,7 @@ export function MapCanvas({
         return;
       }
       setPins((list) => list.map((p) => (p.id === result.pin.id ? result.pin : p)));
+      setStatus(WORLD.mapSaved);
       router.refresh();
     });
   };
@@ -546,6 +572,7 @@ export function MapCanvas({
         return;
       }
       setIssues([]);
+      setStatus(WORLD.mapSaved);
       setPins((list) => [...list, result.pin]);
       selectPin(result.pin);
       setTool(nextToolAfterPin(keepPlacing));
@@ -574,6 +601,7 @@ export function MapCanvas({
           return;
         }
         setIssues([]);
+        setStatus(WORLD.geometrySaved);
         setDraft(null);
         setDrawPhase("drawing");
         setTool(toolOnEnterEdit());
@@ -598,6 +626,7 @@ export function MapCanvas({
         return;
       }
       setIssues([]);
+      setStatus(WORLD.geometrySaved);
       setDraft(null);
       setDrawPhase("drawing");
       setTool(toolOnEnterEdit());
@@ -768,8 +797,7 @@ export function MapCanvas({
     }
   };
 
-  const recordHref = (recordId: string) =>
-    `/projects/${encodeURIComponent(projectId)}/records/${encodeURIComponent(recordId)}`;
+  const returnPath = canvasReturnPath(projectId, "maps", map.id, selected?.id ?? null);
 
   return (
     <div className="write-layout reference-write-layout board-layout visual-canvas">
@@ -918,7 +946,10 @@ export function MapCanvas({
                 <input
                   id={searchId}
                   value={query}
-                  onChange={(e) => setQuery(e.target.value)}
+                  onChange={(e) => {
+                    setQuery(e.target.value);
+                    writeMapSearch(map.id, e.target.value);
+                  }}
                   onKeyDown={(event) => {
                     if (event.key === "ArrowDown" && listed[0]) {
                       event.preventDefault();
@@ -1120,6 +1151,8 @@ export function MapCanvas({
           <ContextRailToggle rail={rail} controls={railId} />
         </CanvasToolbar>
         <IssueList issues={issues} />
+        {status ? <p className="small" role="status">{status}</p> : null}
+        {missingSelection ? <p className="small" role="status">{missingSelection}</p> : null}
         {measuring ? <p className="small muted map-measure-readout">{WORLD.mapMeasureHint}</p> : null}
         {measurePoints.length === 2 ? (
           <p className="small map-measure-readout">
@@ -1454,9 +1487,12 @@ export function MapCanvas({
               mode={mode}
               pending={pending}
               inspection={inspection}
-              recordHref={recordHref}
+              returnPath={returnPath}
               onOpenMap={openDetailedMap}
               onIssues={setIssues}
+              onStatus={setStatus}
+              sceneRefresh={sceneRefresh}
+              onLinked={() => setSceneRefresh((value) => value + 1)}
               onUpdated={(pin) => {
                 setPins((list) => list.map((item) => (item.id === pin.id ? pin : item)));
                 router.refresh();
@@ -1493,9 +1529,12 @@ function MarkerRail({
   mode,
   pending,
   inspection,
-  recordHref,
+  returnPath,
+  sceneRefresh,
+  onLinked,
   onOpenMap,
   onIssues,
+  onStatus,
   onUpdated,
   onRemoved,
   onEditShape,
@@ -1509,9 +1548,12 @@ function MarkerRail({
   mode: "browse" | "edit";
   pending: boolean;
   inspection: LoadedInspector | null;
-  recordHref: (recordId: string) => string;
+  returnPath: string;
+  sceneRefresh: number;
+  onLinked: () => void;
   onOpenMap: (mapId: string) => void;
   onIssues: (issues: Issue[]) => void;
+  onStatus: (message: string) => void;
   onUpdated: (pin: WorldMapPinView) => void;
   onRemoved: () => void;
   onEditShape: () => void;
@@ -1548,8 +1590,15 @@ function MarkerRail({
         ) : null}
       </div>
       <div className="row" style={{ gap: "0.4rem", flexWrap: "wrap" }}>
-        {pin.recordId && !pin.unavailable ? (
-          <ButtonLink href={recordHref(pin.recordId)} variant="secondary" size="sm">
+        {pin.recordId && !pin.unavailable && !inspection?.ok ? (
+          <ButtonLink
+            href={withCanvasReturn(
+              `/projects/${encodeURIComponent(projectId)}/records/${encodeURIComponent(pin.recordId)}`,
+              returnPath,
+            )}
+            variant="secondary"
+            size="sm"
+          >
             {WORLD.openReference}
           </ButtonLink>
         ) : null}
@@ -1561,14 +1610,32 @@ function MarkerRail({
       </div>
       {pin.recordId && !pin.unavailable ? (
         inspection?.ok ? (
-          <ReferenceInspector projectId={projectId} model={inspection.model} established={inspection.established} linkMode="remote" />
+          <CanvasReferenceSummary projectId={projectId} model={inspection.model} returnPath={returnPath} />
         ) : inspection && !inspection.ok ? (
           <p className="muted">{inspection.message}</p>
         ) : (
           <p className="muted">{WORLD.inspectorLoading}</p>
         )
       ) : null}
-      {pin.recordId ? <MarkerScenes projectId={projectId} locationRecordId={pin.recordId} /> : null}
+      {pin.recordId ? (
+        <MarkerScenes
+          projectId={projectId}
+          locationRecordId={pin.recordId}
+          returnPath={returnPath}
+          refreshKey={sceneRefresh}
+        />
+      ) : null}
+      {inspection?.ok && isLinkableReferenceType(inspection.model.recordType) ? (
+        <LinkSceneForm
+          projectId={projectId}
+          locationRecordId={inspection.model.id}
+          protectedReference={inspection.model.protected}
+          onLinked={(message) => {
+            onStatus(message);
+            onLinked();
+          }}
+        />
+      ) : null}
       {pin.recordId ? <PlaceEvents projectId={projectId} locationRecordId={pin.recordId} /> : null}
       {mode === "edit" ? (
         <form
@@ -1588,6 +1655,7 @@ function MarkerRail({
                 return;
               }
               onIssues([]);
+              onStatus(WORLD.mapSaved);
               onUpdated(result.pin);
             });
           }}
@@ -1657,6 +1725,7 @@ function MarkerRail({
                 return;
               }
               onIssues([]);
+              onStatus(WORLD.mapSaved);
               onUpdated(result.pin);
             });
           }}

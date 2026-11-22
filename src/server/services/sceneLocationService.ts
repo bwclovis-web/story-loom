@@ -256,6 +256,56 @@ export async function listScenesForLocation(
   };
 }
 
+export interface LinkableManuscript {
+  id: string;
+  title: string;
+  type: "manuscript_chapter" | "manuscript_scene";
+  chapterTitle: string | null;
+}
+
+/** Chapters and scenes not already assigned to this reference, in manuscript order. */
+export async function listUnassignedManuscripts(
+  db: DbOrTx,
+  projectId: string,
+  locationRecordId: string,
+): Promise<LinkableManuscript[]> {
+  const [assignments, manuscripts] = await Promise.all([
+    db.sceneLocation.findMany({
+      where: { projectId, locationRecordId },
+      select: { manuscriptRecordId: true },
+    }),
+    db.record.findMany({
+      where: { projectId, trashedAt: null, type: { in: ["manuscript_chapter", "manuscript_scene"] } },
+      select: {
+        id: true,
+        type: true,
+        title: true,
+        parentRecordId: true,
+        position: true,
+        createdAt: true,
+        draftId: true,
+        groupId: true,
+      },
+    }),
+  ]);
+  const assigned = new Set(assignments.map((row) => row.manuscriptRecordId));
+  const live = manuscripts.filter((row) => isManuscriptType(row.type));
+  const byId = new Map(live.map((row) => [row.id, row]));
+  const choices: LinkableManuscript[] = [];
+  for (const row of nestManuscript(live)) {
+    if (assigned.has(row.id)) continue;
+    if (row.type !== "manuscript_chapter" && row.type !== "manuscript_scene") continue;
+    const parent = row.parentRecordId ? byId.get(row.parentRecordId) : undefined;
+    choices.push({
+      id: row.id,
+      title: row.title,
+      type: row.type,
+      chapterTitle: row.type === "manuscript_scene" ? (parent?.title ?? null) : null,
+    });
+  }
+  return choices;
+}
+
 async function assertFingerprint(tx: Tx, projectId: string, manuscriptRecordId: string, expectedFingerprint: string) {
   const rows = await tx.sceneLocation.findMany({
     where: { projectId, manuscriptRecordId },

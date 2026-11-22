@@ -26,11 +26,14 @@ import { parseMarkdown } from "@/writing/markdownParse";
 import type { DbOrTx } from "../db";
 import { NotFoundError } from "./errors";
 import { imageDataByIds, imagesByRecord } from "./imageService";
+import { isStandardManuscriptProfile, shortTitleForHeader } from "@/writing/exportPresets";
 import {
+  backMatterSections,
   buildManuscriptExportContext,
   chapterHeadingAlign,
   defaultTitleSubtitle,
-  matterSections,
+  frontMatterSections,
+  manuscriptExportWordCount,
   recordExportPrefix,
   recordExportSuffix,
   sceneBreakText,
@@ -229,6 +232,7 @@ export async function buildManuscriptPdf(
 
   const trim = TRIM_SIZES[exportCtx.compile.trimSize];
   const spacing = spacingMetrics(exportCtx.compile.spacingPreset);
+  const manuscriptLook = isStandardManuscriptProfile(exportCtx.compile);
   const doc = createPdf(
     { title: project, subject: "Manuscript exported from Story Loom" },
     {
@@ -239,12 +243,16 @@ export async function buildManuscriptPdf(
     },
   );
   const generated = defaultTitleSubtitle(model.generatedAt);
+  const wordCount = manuscriptExportWordCount(exportCtx);
+  const wordLine = `About ${wordCount.toLocaleString("en-US")} words`;
   const ctx: RenderContext = {
     images: EMPTY_IMAGES,
     embedded: 0,
     lineGap: spacing.lineGap,
     paragraphGap: spacing.paragraphGap,
-    novelIndent: exportCtx.compile.firstParagraphNoIndent ? spacing.indent : 0,
+    novelIndent: spacing.indent,
+    firstParagraphFree: exportCtx.compile.firstParagraphNoIndent,
+    bodySize: spacing.bodySize,
   };
 
   const drawText = (body: string) => {
@@ -258,8 +266,20 @@ export async function buildManuscriptPdf(
   if (usesCustomTitlePage(exportCtx.compile)) {
     doc.y = doc.page.margins.top;
     drawText(exportCtx.compile.titlePageBody);
+    doc.y += 16;
+    doc.font("body").fontSize(spacing.bodySize).fillColor(COLORS.muted).text(wordLine, contentLeft(doc), doc.y, {
+      width: contentWidth(doc),
+      align: "center",
+    });
+    doc.fillColor(COLORS.text);
   } else {
     drawTitlePage(doc, project, "Manuscript", generated, []);
+    doc.y += 16;
+    doc.font("body").fontSize(spacing.bodySize).fillColor(COLORS.muted).text(wordLine, contentLeft(doc), doc.y, {
+      width: contentWidth(doc),
+      align: "center",
+    });
+    doc.fillColor(COLORS.text);
   }
 
   const drawMatterPage = (body: string) => {
@@ -267,7 +287,7 @@ export async function buildManuscriptPdf(
     drawText(body);
   };
 
-  for (const section of matterSections(exportCtx.compile).filter((section) => section.key !== "back-matter")) {
+  for (const section of frontMatterSections(exportCtx.compile)) {
     drawMatterPage(section.body);
   }
 
@@ -335,11 +355,17 @@ export async function buildManuscriptPdf(
     drawScenes(model.unplacedScenes, false);
   }
 
-  const backMatter = matterSections(exportCtx.compile).find((section) => section.key === "back-matter");
-  if (backMatter) drawMatterPage(backMatter.body);
+  for (const section of backMatterSections(exportCtx.compile)) {
+    drawMatterPage(section.body);
+  }
 
+  const header =
+    exportCtx.compile.runningHeader.trim() ||
+    (manuscriptLook || exportCtx.compile.spacingPreset === "manuscript"
+      ? shortTitleForHeader(project)
+      : "");
   drawFooters(doc, project, {
-    header: exportCtx.compile.runningHeader,
+    header,
     footer: exportCtx.compile.runningFooter,
   });
   const pageCount = doc.bufferedPageRange().count;

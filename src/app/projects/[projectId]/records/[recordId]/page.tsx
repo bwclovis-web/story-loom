@@ -11,6 +11,8 @@ import { getAssistantConfig } from "@/server/assistantConfig";
 import { getDb } from "@/server/db";
 import { listPendingProposalsForRecord } from "@/server/services/assistantProposalService";
 import { NotFoundError } from "@/server/services/errors";
+import { getBoard } from "@/server/services/boardService";
+import { getWorldMap } from "@/server/services/worldMapService";
 import { listLinkedReferences, listLinkingRecords } from "@/server/services/linkService";
 import { listSceneLocationsForManuscript } from "@/server/services/sceneLocationService";
 import { listRecordImages } from "@/server/services/imageService";
@@ -37,6 +39,7 @@ import {
 } from "@/server/services/recordService";
 import { listProjectCoverHashes } from "@/server/services/coverService";
 import { findProject } from "@/server/services/projectService";
+import { parseCanvasReturn } from "@/world/canvasReturn";
 import { getSeriesSharedRecord } from "@/server/services/seriesBibleService";
 import { listWorldKindTemplates } from "@/server/services/worldKindTemplateService";
 import { listOpenReviewItemsForRecord } from "@/server/services/reviewService";
@@ -56,7 +59,7 @@ import { getSynopsis, listMarginComments } from "@/server/services/manuscriptAnn
 import { listContinuityLedger } from "@/server/services/continuityService";
 import { listWeaveBeatsForManuscript } from "@/server/services/weaveService";
 import { manuscriptEyebrow } from "@/ui/library";
-import { RECORD, SHELL, WRITE, XREF } from "@/ui/labels";
+import { RECORD, SHELL, WORLD, WRITE, XREF } from "@/ui/labels";
 import { buildManuscriptTree, manuscriptIdsInBookOrder } from "@/ui/manuscriptTree";
 import { buildReferenceInfobox } from "@/world/referenceInfobox";
 import { crossRefsFor, type RecordCrossRefs } from "@/writing/crossRefs";
@@ -74,11 +77,12 @@ export default async function RecordPage({
   searchParams,
 }: {
   params: Promise<{ projectId: string; recordId: string }>;
-  searchParams: Promise<{ from?: string; to?: string; edit?: string; find?: string; case?: string; styleStart?: string; styleEnd?: string }>;
+  searchParams: Promise<{ from?: string; to?: string; edit?: string; find?: string; case?: string; styleStart?: string; styleEnd?: string; canvas?: string }>;
 }) {
   const { projectId, recordId } = await params;
   const query = await searchParams;
   const db = getDb();
+  const canvasBack = await resolveCanvasBack(projectId, query.canvas);
 
   const owned = await getRecord(db, projectId, recordId).catch((e) => {
     if (e instanceof NotFoundError) return null;
@@ -204,6 +208,7 @@ export default async function RecordPage({
         authorityStatus={record.authorityStatus}
         isProtected={record.protected}
         parent={parent ? { id: parent.id, title: parent.title } : null}
+        canvasBack={canvasBack}
         initialFind={query.find?.trim() ? { query: query.find.trim(), matchCase: query.case === "1" } : null}
         initialStyleRange={parseStyleRangeQuery(query)}
         otherChaptersWords={bookWords ? sumWordCounts(bookWords, record.id) : null}
@@ -431,6 +436,7 @@ export default async function RecordPage({
       }}
       record={record}
       editing={query.edit === "1"}
+      canvasBack={canvasBack}
       query={query}
       revisions={revisions}
       parent={parent}
@@ -515,4 +521,23 @@ function RecordDetails({
       <TrashSection projectId={projectId} record={record} inside={inside} />
     </section>
   );
+}
+
+async function resolveCanvasBack(
+  projectId: string,
+  raw: string | undefined,
+): Promise<{ href: string; label: string } | { unavailable: true } | null> {
+  const parsed = parseCanvasReturn(projectId, raw);
+  if (!parsed) return null;
+  try {
+    if (parsed.surface === "maps") {
+      const map = await getWorldMap(getDb(), projectId, parsed.surfaceId);
+      return { href: parsed.href, label: WORLD.backToMap(map.title) };
+    }
+    const board = await getBoard(getDb(), projectId, parsed.surfaceId);
+    return { href: parsed.href, label: WORLD.backToBoard(board.title) };
+  } catch (error) {
+    if (error instanceof NotFoundError) return { unavailable: true };
+    throw error;
+  }
 }

@@ -9,10 +9,13 @@ import { getDraftDefaults, listManuscriptDrafts } from "@/server/services/draftS
 import { imagesByRecord } from "@/server/services/imageService";
 import { listRecordNav, listRecords } from "@/server/services/recordService";
 import { getCompileProfile } from "@/server/services/compileProfileService";
+import { validateManuscriptCompile } from "@/server/services/compileValidationService";
 import { COMPILE_PROFILE, DRAFT, PDF } from "@/ui/labels";
 import { buildManuscriptTree } from "@/ui/manuscriptTree";
 import { RECORD_GROUPS } from "@/ui/navigation";
 import { CompileProfileForm } from "./CompileProfileForm";
+import { CompileValidationSummary } from "./CompileValidationSummary";
+import { ExportPresets } from "./ExportPresets";
 import { PdfReferencePicker, type PdfPickerGroup } from "./PdfReferencePicker";
 
 export const dynamic = "force-dynamic";
@@ -36,6 +39,11 @@ export default async function ExportPdfPage({
   ]);
   const hasDrafts = drafts.length > 0;
   const selectedDraftId = resolveExportDraftId(drafts, defaults, query.draft ?? null);
+  const compileValidation = await validateManuscriptCompile(db, projectId, {
+    sceneTitles: false,
+    hasDrafts,
+    draftId: selectedDraftId,
+  });
   const draftOptions: DraftOption[] = drafts.map((d) => ({
     id: d.id,
     kind: d.kind,
@@ -96,6 +104,7 @@ export default async function ExportPdfPage({
 
       <section className="panel stack" aria-labelledby="compile-profile-heading">
         <h2 id="compile-profile-heading">{COMPILE_PROFILE.heading}</h2>
+        <ExportPresets projectId={projectId} profile={compileProfile} />
         <CompileProfileForm
           projectId={projectId}
           profile={compileProfile}
@@ -108,6 +117,10 @@ export default async function ExportPdfPage({
           ]}
         />
       </section>
+
+      {showManuscript && (tree.chapters.length || tree.unplaced.length) ? (
+        <CompileValidationSummary report={compileValidation} />
+      ) : null}
 
       <section className="panel stack" aria-labelledby="pdf-manuscript-heading">
         <h2 id="pdf-manuscript-heading">{PDF.manuscriptHeading}</h2>

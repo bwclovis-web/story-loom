@@ -138,7 +138,7 @@ export const HELP_SECTIONS = [
       { id: "load-from-file", title: "Loading a chapter from a file" },
     ],
   },
-  { id: "pdf-export", title: "Exporting PDFs" },
+  { id: "pdf-export", title: "Exporting PDFs, DOCX, and EPUB" },
   {
     id: "writing-tools",
     title: "Writing tools",

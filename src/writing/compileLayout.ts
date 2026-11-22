@@ -9,7 +9,7 @@ export const TRIM_SIZES = {
 
 export type TrimSize = keyof typeof TRIM_SIZES;
 export type FontPreset = "serif" | "sans" | "mono";
-export type SpacingPreset = "novel" | "tight" | "loose";
+export type SpacingPreset = "novel" | "tight" | "loose" | "manuscript";
 
 export const TRIM_SIZE_KEYS = Object.keys(TRIM_SIZES) as TrimSize[];
 
@@ -23,7 +23,7 @@ export function parseFontPreset(value: string): FontPreset {
 }
 
 export function parseSpacingPreset(value: string): SpacingPreset {
-  if (value === "tight" || value === "loose") return value;
+  if (value === "tight" || value === "loose" || value === "manuscript") return value;
   return "novel";
 }
 
@@ -33,10 +33,17 @@ export function marginPoints(inches: number): number {
   return Math.round(clamped * 72);
 }
 
-export function spacingMetrics(preset: SpacingPreset): { lineGap: number; paragraphGap: number; indent: number } {
-  if (preset === "tight") return { lineGap: 1, paragraphGap: 4, indent: 0 };
-  if (preset === "loose") return { lineGap: 4, paragraphGap: 12, indent: 18 };
-  return { lineGap: 2.5, paragraphGap: 8, indent: 18 };
+export function spacingMetrics(preset: SpacingPreset): {
+  lineGap: number;
+  paragraphGap: number;
+  indent: number;
+  bodySize: number;
+} {
+  if (preset === "tight") return { lineGap: 1, paragraphGap: 4, indent: 0, bodySize: 11 };
+  if (preset === "loose") return { lineGap: 4, paragraphGap: 12, indent: 18, bodySize: 11 };
+  /** Shunn-style: ~12 pt with double-spaced feel via a large line gap. */
+  if (preset === "manuscript") return { lineGap: 14, paragraphGap: 0, indent: 36, bodySize: 12 };
+  return { lineGap: 2.5, paragraphGap: 8, indent: 18, bodySize: 11 };
 }
 
 export function parseExcludedIds(raw: string): string[] {

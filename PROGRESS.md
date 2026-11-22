@@ -1,5 +1,31 @@
 # Progress
 
+## Milestone 5: Export presets & compile validation (Nov 22, 2026)
+
+Compile profile gains **Standard manuscript (Shunn)** and **Formatter-ready** presets (layout only; front/back matter and exclusions kept). Manuscript spacing is double-spaced 12pt; DOCX gets margins, running header with page number, and word count on the title page. EPUB/PDF/DOCX put front matter before chapters and back matter after. Export PDF page shows an Export preview with counts and read-only warnings (empty chapters, unplaced scenes, `[[links]]`, synopses/comments).
+
+| Check | Result |
+| --- | --- |
+| `pnpm exec vitest run tests/acceptance/export-presets.test.ts tests/acceptance/compile-profiles.test.ts tests/unit/help.test.ts` | 3 files, 9 tests passed |
+
+### Rollback
+
+Revert export preset helpers, compile validation, DOCX/EPUB/PDF matter-order and typography changes, export-pdf UI, help, and labels. No schema change.
+
+## Map and board continuity (Nov 22, 2026)
+
+Selecting a marker or card stays on that map or board. The rail shows a short reference summary, Open reference, Edit reference, linked scenes, and Link scene. Maps also keep planned events and the existing marker editor. Link scene uses the existing scene-location assignment. A protected reference must be confirmed, and manuscript text is not changed. Open reference and Edit reference return to the same map or board, marker or card, search or filter, Canvas or List, hidden layers, zoom, and map path. Those view choices stay in this browser tab. A missing marker or card, or a deleted map or board, is stated on the page instead of opening a broken destination. Board position fields save X and Y while the layout is unlocked. An unsaved route, area, label, or note asks before leaving. Open scene beside the canvas is not part of this screen.
+
+| Check | Result |
+| --- | --- |
+| `pnpm exec vitest run tests/unit/canvas-return.test.ts tests/unit/board-interaction.test.ts tests/unit/help.test.ts tests/unit/map-interaction.test.ts tests/unit/map-keyboard.test.ts` | 5 files, 19 tests passed |
+| `pnpm exec tsc --noEmit` | No errors in the files changed for this work. Three existing errors remain in `docxReviewService.ts`, `worldMapService.ts`, and `tests/acceptance/continuity-ledger.test.ts`. |
+| Browser | Temporary project only. The working manuscript and canon are not used for these checks. |
+
+### Rollback
+
+Revert the canvas return helper, the compact rail, the link-scene action, and the return links on the record page. Scene locations already saved stay. No schema change.
+
 ## Board canvas interaction (Nov 22, 2026)
 
 Select chooses a card. Pan scrolls the board. A card moves only from its handle after the pointer passes the drag threshold, and only while Lock layout is off. Lock stops moving and resizing and still allows selection, inspection, opening a reference, and note editing. Escape during a move puts the card back before it is saved. Center selection and Center all cards scroll to the middle; they do not zoom. Canvas and List share the cards, filter, and selection. The count says when a filter is hiding cards. Unsaved note text stays across selection changes, view switches, and refreshes. Ask about this board stays an explicit action. Moving a card does not change the reference, and a board note is not turned into one.

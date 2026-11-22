@@ -18,12 +18,12 @@ export async function buildManuscriptDocx(
   now = new Date(),
 ): Promise<ManuscriptDocxFile> {
   const ctx = await buildManuscriptExportContext(db, projectId, options, now);
-  const { children, chapterCount } = contextToDocxSections(ctx);
+  const { sections, chapterCount } = contextToDocxSections(ctx);
   const model = ctx.model;
   const doc = new Document({
     title: model.projectTitle,
     description: "Manuscript exported from Story Loom",
-    sections: [{ children }],
+    sections,
   });
   const bytes = Buffer.from(await Packer.toBuffer(doc));
   return {

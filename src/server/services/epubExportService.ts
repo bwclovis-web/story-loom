@@ -1,10 +1,12 @@
 import "server-only";
 import JSZip from "jszip";
 import {
+  backMatterSections,
   buildManuscriptExportContext,
   chapterHeadingAlign,
   defaultTitleSubtitle,
-  matterSections,
+  frontMatterSections,
+  manuscriptExportWordCount,
   recordExportPrefix,
   recordExportSuffix,
   sceneBreakText,
@@ -87,12 +89,13 @@ export async function buildManuscriptEpub(
 </container>`,
   );
 
+  const wordLine = `<p>About ${manuscriptExportWordCount(exportCtx).toLocaleString("en-US")} words</p>`;
   const titleBody = usesCustomTitlePage(exportCtx.compile)
-    ? bodyToEpubSectionHtml(exportCtx.compile.titlePageBody)
-    : `<h1>${escapeHtml(model.projectTitle)}</h1><p><em>Manuscript</em></p><p>${escapeHtml(generated)}</p>`;
+    ? `${bodyToEpubSectionHtml(exportCtx.compile.titlePageBody)}${wordLine}`
+    : `<h1>${escapeHtml(model.projectTitle)}</h1><p><em>Manuscript</em></p><p>${escapeHtml(generated)}</p>${wordLine}`;
   zip.file("OEBPS/title.xhtml", xhtmlPage(model.projectTitle, titleBody));
 
-  for (const section of matterSections(exportCtx.compile)) {
+  const addMatter = (section: { key: string; body: string }) => {
     const id = `matter-${section.key}`;
     const href = `${id}.xhtml`;
     const label = MATTER_LABELS[section.key] ?? section.key;
@@ -101,7 +104,9 @@ export async function buildManuscriptEpub(
     manifest.push({ id, href, mime: "application/xhtml+xml" });
     navItems.push({ label, href });
     ncxNavPoints.push({ id: `np-${id}`, label, href });
-  }
+  };
+
+  for (const section of frontMatterSections(exportCtx.compile)) addMatter(section);
 
   let chapterIndex = 0;
   for (const chapter of model.chapters) {
@@ -153,6 +158,8 @@ export async function buildManuscriptEpub(
     navItems.push({ label: "Scenes not in a chapter", href });
     ncxNavPoints.push({ id: "np-unplaced", label: "Scenes not in a chapter", href });
   }
+
+  for (const section of backMatterSections(exportCtx.compile)) addMatter(section);
 
   const navList = navItems.map((item) => `<li><a href="${item.href}">${escapeAttr(item.label)}</a></li>`).join("");
   zip.file(
