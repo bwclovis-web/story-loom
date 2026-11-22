@@ -9,6 +9,7 @@ import { CloseIcon } from "@/components/shell/icons";
 import { IconButton } from "@/components/ui/IconButton";
 import { Banner } from "@/components/ui/Banner";
 import { Button, ButtonLink } from "@/components/ui/Button";
+import { Checkbox } from "@/components/ui/Checkbox";
 import type { Issue } from "@/domain/issues";
 import type { StoryEventDetail, StoryMapChoice, StoryTimeline } from "@/server/services/storyEventService";
 import { WORLD, WRITE } from "@/ui/labels";
@@ -266,10 +267,12 @@ function CreateEvent({
         structDay={structDay}
         onStructDay={setStructDay}
       />
-      <label className="scene-location-check">
-        <input type="checkbox" checked={planned} onChange={(event) => setPlanned(event.target.checked)} />
-        {WORLD.storyEventPlanned}
-      </label>
+      <Checkbox
+        className="scene-location-check"
+        checked={planned}
+        onChange={(event) => setPlanned(event.target.checked)}
+        label={WORLD.storyEventPlanned}
+      />
       <DraftSelect drafts={drafts} value={draftScope} onChange={setDraftScope} />
       <Button type="submit" size="sm" disabled={pending}>
         {WORLD.newEvent}
@@ -307,10 +310,12 @@ function StructuredDateFields({
   return (
     <fieldset className="stack">
       <legend>{WORLD.structuredDate}</legend>
-      <label className="scene-location-check">
-        <input type="checkbox" checked={useStructured} onChange={(event) => onUseStructured(event.target.checked)} />
-        {WORLD.structuredDateUse}
-      </label>
+      <Checkbox
+        className="scene-location-check"
+        checked={useStructured}
+        onChange={(event) => onUseStructured(event.target.checked)}
+        label={WORLD.structuredDateUse}
+      />
       {useStructured ? (
         <>
           <p className="small muted">{WORLD.structuredDateOptional}</p>
@@ -493,10 +498,12 @@ function EventRail({
           structDay={structDay}
           onStructDay={setStructDay}
         />
-        <label className="scene-location-check">
-          <input type="checkbox" checked={planned} onChange={(input) => setPlanned(input.target.checked)} />
-          {WORLD.storyEventPlanned}
-        </label>
+        <Checkbox
+          className="scene-location-check"
+          checked={planned}
+          onChange={(input) => setPlanned(input.target.checked)}
+          label={WORLD.storyEventPlanned}
+        />
         <DraftSelect drafts={timeline.drafts} value={draftScope} onChange={setDraftScope} />
         <Button type="submit" size="sm" disabled={pending}>
           {WORLD.saveEvent}

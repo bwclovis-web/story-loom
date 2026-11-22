@@ -8,6 +8,7 @@ import type { DraftOption } from "@/components/drafts/DraftControls";
 import { ContextRail, ContextRailToggle, useContextRail } from "@/components/shell/ContextRail";
 import { Banner } from "@/components/ui/Banner";
 import { Button } from "@/components/ui/Button";
+import { Checkbox } from "@/components/ui/Checkbox";
 import { ASSISTANT_INSTRUCTIONS } from "@/assistant/prompt";
 import type { RetrievalScope } from "@/assistant/tools";
 import { takeWriteHandoff } from "@/assistant/writeHandoff";
@@ -674,15 +675,12 @@ export function AssistantPanel(props: {
               {m.role === "assistant" && m.basedOnOlderVersions ? <span className="badge stale">{ASSISTANT.olderVersion}</span> : null}
               <span className="muted">{new Date(m.createdAt).toLocaleString()}</span>
               {includable(m) ? (
-                <label className="inline">
-                  <input
-                    type="checkbox"
-                    checked={includeIds.includes(m.id)}
-                    disabled={busy}
-                    onChange={(e) => toggleInclude(m.id, e.target.checked)}
-                  />
-                  {ASSISTANT.includeMessage}
-                </label>
+                <Checkbox
+                  checked={includeIds.includes(m.id)}
+                  disabled={busy}
+                  onChange={(e) => toggleInclude(m.id, e.target.checked)}
+                  label={ASSISTANT.includeMessage}
+                />
               ) : null}
             </div>
             <div className="message-text">
@@ -857,10 +855,11 @@ export function AssistantPanel(props: {
               <ul className="pick-list">
                 {references.map((r) => (
                   <li key={r.id}>
-                    <label className="inline">
-                      <input type="checkbox" checked={selectedRefs.includes(r.id)} onChange={(e) => toggleRef(r.id, e.target.checked)} />
-                      {r.title}
-                    </label>{" "}
+                    <Checkbox
+                      checked={selectedRefs.includes(r.id)}
+                      onChange={(e) => toggleRef(r.id, e.target.checked)}
+                      label={r.title}
+                    />{" "}
                     <span className="small muted">{RECORD_TYPE_LABELS[r.type]}</span> <StatusBadge status={r.authorityStatus} />{" "}
                     <span className="badge">rev {r.currentRevision}</span> <span className="small muted">{fmt(r.chars)} characters</span>
                     {r.sections.length > 1 ? <SectionPicker record={r} picked={sectionPicks[r.id] ?? []} onToggle={toggleSection} /> : null}
@@ -1032,15 +1031,12 @@ function SectionPicker({
           const inherited = underPicked(s.id);
           return (
             <li key={s.id} style={{ paddingLeft: `${(s.level - top) * 1.1}rem` }}>
-              <label className="inline">
-                <input
-                  type="checkbox"
-                  checked={inherited || picked.includes(s.id)}
-                  disabled={inherited}
-                  onChange={(e) => onToggle(record.id, s.id, e.target.checked)}
-                />
-                {s.title}
-              </label>{" "}
+              <Checkbox
+                checked={inherited || picked.includes(s.id)}
+                disabled={inherited}
+                onChange={(e) => onToggle(record.id, s.id, e.target.checked)}
+                label={s.title}
+              />{" "}
               {s.statusTag ? <SectionTagBadge tag={s.statusTag} /> : null}{" "}
               <span className="small muted">{inherited ? ASSISTANT.includedWithParent : `${fmt(s.chars)} characters`}</span>
             </li>

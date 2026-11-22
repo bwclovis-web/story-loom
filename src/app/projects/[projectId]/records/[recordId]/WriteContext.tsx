@@ -20,6 +20,7 @@ import { IssueList } from "@/components/IssueList";
 import { BookOpen, FileText, Shield, Sparkles, StickyNote, Waypoints, X } from "lucide-react";
 import { Banner } from "@/components/ui/Banner";
 import { Button, ButtonLink } from "@/components/ui/Button";
+import { Checkbox } from "@/components/ui/Checkbox";
 import { applyTextareaEdit } from "@/components/writing/textareaEdit";
 import { useLayout } from "@/components/shell/LayoutContext";
 import { CONTEXT_TABS, type ContextTab } from "@/components/shell/preferences";
@@ -188,7 +189,7 @@ export function WriteContext({
   revision: number;
   editable: boolean;
   onUnlock: () => void;
-  textareaRef: RefObject<HTMLTextAreaElement | null>;
+  textareaRef: RefObject<import("@/components/writing/EditorSurface").EditorSurface | HTMLTextAreaElement | null>;
   onTextChange: (value: string) => void;
   /** Shown over the page on narrow screens; closes with Escape. */
   overlay: boolean;
@@ -376,7 +377,7 @@ function PlotBeats({
   beats: PlotBeatItem[];
   editable: boolean;
   assistantConfigured: boolean;
-  textareaRef: RefObject<HTMLTextAreaElement | null>;
+  textareaRef: RefObject<import("@/components/writing/EditorSurface").EditorSurface | HTMLTextAreaElement | null>;
   onUnlock: () => void;
   onTextChange: (value: string) => void;
 }) {
@@ -806,10 +807,13 @@ function SceneLocationAssign({
             ))}
           </select>
         </label>
-        <label className="scene-location-check">
-          <input type="checkbox" checked={primary} onChange={(event) => setPrimary(event.target.checked)} disabled={pending} />
-          {WRITE.primaryLocation}
-        </label>
+        <Checkbox
+          className="scene-location-check"
+          checked={primary}
+          onChange={(event) => setPrimary(event.target.checked)}
+          disabled={pending}
+          label={WRITE.primaryLocation}
+        />
         <Button type="submit" size="sm" disabled={pending || !choice}>
           {WRITE.assignLocation}
         </Button>
@@ -1357,10 +1361,7 @@ function NoteEditor({ projectId, note, onDone }: { projectId: string; note: Note
         <textarea name="body" defaultValue={note.body} rows={6} />
       </label>
       {note.isProtected ? (
-        <label className="inline">
-          <input type="checkbox" name="unlockProtected" />
-          {RECORD.unlockProtected}
-        </label>
+        <Checkbox name="unlockProtected" label={RECORD.unlockProtected} />
       ) : null}
       {!state.ok ? <IssueList issues={state.issues ?? []} /> : null}
       {!state.ok && state.message ? <p className="error-text small">{state.message}</p> : null}

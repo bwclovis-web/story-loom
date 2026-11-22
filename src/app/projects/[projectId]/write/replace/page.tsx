@@ -4,6 +4,7 @@ import { ProjectPageHeader } from "@/components/library/ProjectPageHeader";
 import { VisitDraftSwitcher } from "@/components/drafts/DraftControls";
 import { HelpHint } from "@/components/HelpHint";
 import { Button, ButtonLink } from "@/components/ui/Button";
+import { Checkbox } from "@/components/ui/Checkbox";
 import { DRAFT } from "@/ui/labels";
 import { getDb } from "@/server/db";
 import { readWriteDraftCookie, resolveWriteDraftId } from "@/server/draftSelection";
@@ -100,15 +101,9 @@ export default async function ManuscriptReplacePage({
             <input type="text" name="replace" defaultValue={replace} />
           </label>
           <div className="row">
-            <label className="inline small">
-              <input type="checkbox" name="case" value="1" defaultChecked={matchCase} /> {MANUSCRIPT_SEARCH.matchCase}
-            </label>
-            <label className="inline small">
-              <input type="checkbox" name="word" value="1" defaultChecked={wholeWord} /> {MANUSCRIPT_REPLACE.wholeWord}
-            </label>
-            <label className="inline small">
-              <input type="checkbox" name="regex" value="1" defaultChecked={useRegex} /> {MANUSCRIPT_REPLACE.useRegex}
-            </label>
+            <Checkbox className="small" name="case" value="1" defaultChecked={matchCase} label={MANUSCRIPT_SEARCH.matchCase} />
+            <Checkbox className="small" name="word" value="1" defaultChecked={wholeWord} label={MANUSCRIPT_REPLACE.wholeWord} />
+            <Checkbox className="small" name="regex" value="1" defaultChecked={useRegex} label={MANUSCRIPT_REPLACE.useRegex} />
           </div>
           <p className="small muted">{MANUSCRIPT_REPLACE.regexNote}</p>
           <div className="row">

@@ -5,6 +5,7 @@ import { useState, useTransition } from "react";
 import { IssueList } from "@/components/IssueList";
 import { Banner } from "@/components/ui/Banner";
 import { Button } from "@/components/ui/Button";
+import { Checkbox } from "@/components/ui/Checkbox";
 import { FileInput } from "@/components/ui/FileInput";
 import type { DiffPart } from "@/changePackage/diff";
 import type { DocxReviewOutcome, DocxReviewPreview } from "@/server/services/docxReviewService";
@@ -139,15 +140,12 @@ export function DocxReviewClient({ projectId }: { projectId: string }) {
             {preview.chapters.map((c) => (
               <li key={c.index} className="panel stack">
                 <div className="row">
-                  <label className="inline">
-                    <input
-                      type="checkbox"
-                      checked={Boolean(selected[c.index])}
-                      disabled={!c.recordId || (!c.hasBodyChange && !(importComments && c.comments.length))}
-                      onChange={(e) => setSelected((s) => ({ ...s, [c.index]: e.target.checked }))}
-                    />
-                    <strong>{c.title}</strong>
-                  </label>
+                  <Checkbox
+                    checked={Boolean(selected[c.index])}
+                    disabled={!c.recordId || (!c.hasBodyChange && !(importComments && c.comments.length))}
+                    onChange={(e) => setSelected((s) => ({ ...s, [c.index]: e.target.checked }))}
+                    label={<strong>{c.title}</strong>}
+                  />
                   <span className="small muted">
                     {c.recordId
                       ? DOCX_REVIEW.matched(c.recordTitle ?? c.title, c.matchReason)
@@ -183,15 +181,13 @@ export function DocxReviewClient({ projectId }: { projectId: string }) {
             </Banner>
           ) : null}
           <div className="panel stack">
-            <label className="inline">
-              <input type="checkbox" checked={importComments} onChange={(e) => setImportComments(e.target.checked)} />
-              {DOCX_REVIEW.importComments}
-            </label>
+            <Checkbox checked={importComments} onChange={(e) => setImportComments(e.target.checked)} label={DOCX_REVIEW.importComments} />
             {protectedSelected > 0 ? (
-              <label className="inline">
-                <input type="checkbox" checked={confirmProtected} onChange={(e) => setConfirmProtected(e.target.checked)} />
-                {DOCX_REVIEW.confirmProtected(protectedSelected)}
-              </label>
+              <Checkbox
+                checked={confirmProtected}
+                onChange={(e) => setConfirmProtected(e.target.checked)}
+                label={DOCX_REVIEW.confirmProtected(protectedSelected)}
+              />
             ) : null}
             <IssueList issues={outcome?.status === "rejected" ? outcome.issues : []} />
             <Button onClick={run} disabled={pending || acceptIndexes.length === 0}>

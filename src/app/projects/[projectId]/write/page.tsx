@@ -260,6 +260,7 @@ function ProjectTools({ base, openReviewItems }: { base: string; openReviewItems
         { href: `${base}/dictionary`, label: NAV.dictionary },
         { href: `${base}/search`, label: NAV.projectSearch },
         { href: `${base}/cross-references`, label: NAV.crossRefCheck },
+        { href: `${base}/write/scrivenings`, label: WRITE.scrivenings },
         { href: `${base}/write/replace`, label: MANUSCRIPT_REPLACE.heading },
         { href: `${base}/write/style`, label: STYLE_CHECK.heading },
         { href: `${base}/write/goals`, label: WRITING_GOALS.heading },

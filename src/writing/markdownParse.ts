@@ -8,10 +8,10 @@
  *
  * Supported: ATX headings (#), paragraphs, bulleted and numbered lists with
  * nesting, block quotes, fenced code, horizontal rules, GitHub-style tables,
- * emphasis (* _ ** __ ~~), code spans, inline, reference and automatic links.
- * Single line breaks are kept as line breaks, because bodies are typed in a
- * plain text box where the author sees them. Setext headings and indented
- * code blocks are not recognised; such text is shown as paragraphs.
+ * emphasis (* _ ** __ ~~), code spans, inline, reference and automatic links,
+ * and footnotes (`[^id]` / `[^id]: note`). Single line breaks are kept as line
+ * breaks, because bodies are typed where the author sees them. Setext headings
+ * and indented code blocks are not recognised; such text is shown as paragraphs.
  */
 
 export type Inline =
@@ -22,6 +22,7 @@ export type Inline =
   | { kind: "code"; text: string }
   | { kind: "link"; href: string; children: Inline[] }
   | { kind: "image"; name: string; alt: string }
+  | { kind: "footnoteRef"; id: string }
   | { kind: "break" };
 
 export type Align = "left" | "center" | "right" | null;
@@ -33,6 +34,7 @@ export type Block =
   | { kind: "quote"; children: Block[] }
   | { kind: "code"; text: string }
   | { kind: "table"; align: Align[]; head: Inline[][]; rows: Inline[][][] }
+  | { kind: "footnote"; id: string; children: Inline[] }
   | { kind: "rule" };
 
 export interface MarkdownDocument {
@@ -46,6 +48,8 @@ const RULE = /^ {0,3}([-*_])(?:[ \t]*\1){2,}[ \t]*$/;
 const QUOTE = /^ {0,3}> ?/;
 const LIST_ITEM = /^( {0,3})([-+*]|\d{1,9}[.)])([ \t]+|$)/;
 const LINK_DEFINITION = /^ {0,3}\[([^\]]+)\]:[ \t]*<?([^\s>]+)>?(?:[ \t]+(?:"[^"]*"|'[^']*'|\([^)]*\)))?[ \t]*$/;
+const FOOTNOTE_DEFINITION = /^ {0,3}\[\^([^\]\s]+)\]:[ \t]*(.*)$/;
+const FOOTNOTE_REF = /^\[\^([^\]\s]+)\]/;
 const TABLE_DELIMITER = /^ {0,3}\|?[ \t]*:?-+:?[ \t]*(?:\|[ \t]*:?-+:?[ \t]*)*\|?[ \t]*$/;
 
 const isBlank = (line: string) => line.trim() === "";
@@ -253,6 +257,22 @@ function parseBlocks(lines: string[], ctx: Context): Block[] {
         i++;
       }
       blocks.push({ kind: "table", align, head: head.map((cell) => parseInline(cell, ctx)), rows });
+      continue;
+    }
+
+    const footnote = FOOTNOTE_DEFINITION.exec(line);
+    if (footnote) {
+      const noteLines = [footnote[2] ?? ""];
+      i++;
+      while (i < lines.length && !isBlank(lines[i]) && !startsBlock(lines, i, true) && !FOOTNOTE_DEFINITION.test(lines[i]) && !LINK_DEFINITION.test(lines[i])) {
+        noteLines.push(lines[i].trimStart());
+        i++;
+      }
+      blocks.push({
+        kind: "footnote",
+        id: footnote[1],
+        children: parseInline(noteLines.join("\n").trim(), ctx),
+      });
       continue;
     }
 
@@ -557,6 +577,17 @@ export function parseInline(text: string, ctx: Context = { definitions: new Map(
       }
     }
 
+    if (ch === "[" && text[i + 1] === "^") {
+      const ref = FOOTNOTE_REF.exec(text.slice(i));
+      if (ref) {
+        flush(i);
+        out.push({ kind: "footnoteRef", id: ref[1] });
+        i += ref[0].length;
+        plainStart = i;
+        continue;
+      }
+    }
+
     if (ch === "[") {
       const close = findClosingBracket(text, i);
       if (close !== -1) {
@@ -665,9 +696,13 @@ function findCodeClose(text: string, from: number, run: number): number {
 
 export function inlineText(nodes: readonly Inline[]): string {
   return nodes
-    .map((n) =>
-      n.kind === "text" || n.kind === "code" ? n.text : n.kind === "break" ? " " : n.kind === "image" ? n.alt : inlineText(n.children),
-    )
+    .map((n) => {
+      if (n.kind === "text" || n.kind === "code") return n.text;
+      if (n.kind === "break") return " ";
+      if (n.kind === "image") return n.alt;
+      if (n.kind === "footnoteRef") return n.id;
+      return inlineText(n.children);
+    })
     .join("");
 }
 
@@ -712,6 +747,7 @@ export function parseMarkdown(source: string): MarkdownDocument {
       continue;
     }
     if (inFence) continue;
+    if (FOOTNOTE_DEFINITION.test(line)) continue;
     const def = LINK_DEFINITION.exec(line);
     if (def && !definitions.has(normalizeLabel(def[1]))) definitions.set(normalizeLabel(def[1]), def[2]);
   }

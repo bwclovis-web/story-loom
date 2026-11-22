@@ -21,6 +21,7 @@ import {
 } from "@/components/shell/icons";
 import { ActionChip } from "@/components/ui/ActionChip";
 import { Button } from "@/components/ui/Button";
+import { Checkbox } from "@/components/ui/Checkbox";
 import { IconButton, iconButtonVariants } from "@/components/ui/IconButton";
 import { cn } from "@/ui/cn";
 import { PillLabel, PillSelect } from "@/components/ui/Pill";
@@ -449,10 +450,13 @@ export function WriteAssistantRail({
 
       <div className="assistant-rail-composer">
         {editorDirty ? (
-          <label className="check-row small">
-            <input type="checkbox" checked={includeUnsaved} onChange={(e) => setIncludeUnsaved(e.target.checked)} disabled={!!live} />
-            <span>{ASSISTANT.includeUnsavedProse}</span>
-          </label>
+          <Checkbox
+            className="small"
+            checked={includeUnsaved}
+            onChange={(e) => setIncludeUnsaved(e.target.checked)}
+            disabled={!!live}
+            label={ASSISTANT.includeUnsavedProse}
+          />
         ) : null}
         <textarea
           rows={3}

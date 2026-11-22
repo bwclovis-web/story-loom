@@ -2,6 +2,7 @@ import { ProjectPageHeader } from "@/components/library/ProjectPageHeader";
 import { DraftDefaultsPanel, VisitDraftSwitcher, type DraftOption } from "@/components/drafts/DraftControls";
 import { HelpHint } from "@/components/HelpHint";
 import { Banner } from "@/components/ui/Banner";
+import { Checkbox } from "@/components/ui/Checkbox";
 import { isManuscriptType, isRecordType, RECORD_TYPE_LABELS, RECORD_TYPES, type RecordType } from "@/domain/recordTypes";
 import { getDb } from "@/server/db";
 import { resolveExportDraftId } from "@/server/draftSelection";
@@ -154,10 +155,7 @@ export default async function ExportPdfPage({
             <p className="small muted">
               {PDF.manuscriptNote} {PDF.chapterCount(tree.chapters.length, sceneCount)}.
             </p>
-            <label className="inline">
-              <input type="checkbox" name="sceneTitles" value="1" />
-              {PDF.sceneTitles}
-            </label>
+            <Checkbox name="sceneTitles" value="1" label={PDF.sceneTitles} />
             <fieldset className="stack" style={{ border: "none", padding: 0, margin: 0 }}>
               <legend className="sr-only">{PDF.manuscriptFormats}</legend>
               <div className="row" style={{ flexWrap: "wrap", gap: "0.5rem" }}>

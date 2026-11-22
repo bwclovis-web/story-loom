@@ -4,6 +4,7 @@ import { useActionState } from "react";
 import { submitWithoutReset } from "@/components/submitWithoutReset";
 import { Banner } from "@/components/ui/Banner";
 import { Button } from "@/components/ui/Button";
+import { Checkbox } from "@/components/ui/Checkbox";
 import { CONNECTIONS } from "@/ui/labels";
 import { saveGrantSettingsAction } from "./actions";
 
@@ -29,9 +30,7 @@ export function GrantSettingsForm({
 
   return (
     <form onSubmit={submitWithoutReset(dispatch)} className="stack grant-settings">
-      <label className="inline">
-        <input type="checkbox" name="active" defaultChecked={active} /> <strong>{CONNECTIONS.grantActive}</strong>
-      </label>
+      <Checkbox name="active" defaultChecked={active} label={<strong>{CONNECTIONS.grantActive}</strong>} />
       <p className="small muted">{CONNECTIONS.grantActiveHint}</p>
 
       <fieldset>
@@ -43,17 +42,13 @@ export function GrantSettingsForm({
             <div key={w.id} className="grant-workspace">
               <p className="small muted">{w.name}</p>
               {w.projects.map((p) => (
-                <label key={p.id} className="inline">
-                  <input type="checkbox" name="projectId" value={p.id} defaultChecked={allowed.has(p.id)} /> {p.title}
-                </label>
+                <Checkbox key={p.id} name="projectId" value={p.id} defaultChecked={allowed.has(p.id)} label={p.title} />
               ))}
             </div>
           ))}
       </fieldset>
 
-      <label className="inline">
-        <input type="checkbox" name="manuscriptRead" defaultChecked={manuscriptRead} /> {CONNECTIONS.grantManuscript}
-      </label>
+      <Checkbox name="manuscriptRead" defaultChecked={manuscriptRead} label={CONNECTIONS.grantManuscript} />
       <p className="small muted">{CONNECTIONS.grantManuscriptHint}</p>
 
       <div className="row">

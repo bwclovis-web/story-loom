@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { CanonBadge } from "@/components/Badges";
 import type { AuthorityStatus } from "@/domain/statuses";
+import { Checkbox } from "@/components/ui/Checkbox";
 import { PDF } from "@/ui/labels";
 
 export interface PdfPickerGroup {
@@ -44,23 +45,32 @@ export function PdfReferencePicker({
         return (
           <fieldset key={group.type} className="panel">
             <legend className="sr-only">{group.label}</legend>
-            <label className="inline pdf-group-label">
-              <input type="checkbox" checked={allOn} onChange={(e) => toggle(ids, e.target.checked)} aria-label={PDF.selectAll(group.label)} />
-              {group.label} <span className="small muted">({group.records.length})</span>
-            </label>
+            <Checkbox
+              className="pdf-group-label"
+              checked={allOn}
+              onChange={(e) => toggle(ids, e.target.checked)}
+              aria-label={PDF.selectAll(group.label)}
+              label={
+                <>
+                  {group.label} <span className="small muted">({group.records.length})</span>
+                </>
+              }
+            />
             <div className="stack pdf-group-items">
               {group.records.map((r) => (
-                <label key={r.id} className="inline">
-                  <input
-                    type="checkbox"
-                    name="record"
-                    value={r.id}
-                    checked={selected.has(r.id)}
-                    onChange={(e) => toggle([r.id], e.target.checked)}
-                  />
-                  {r.title} <CanonBadge status={r.authorityStatus} />
-                  {r.imageCount ? <span className="small muted">{PDF.imageCount(r.imageCount)}</span> : null}
-                </label>
+                <Checkbox
+                  key={r.id}
+                  name="record"
+                  value={r.id}
+                  checked={selected.has(r.id)}
+                  onChange={(e) => toggle([r.id], e.target.checked)}
+                  label={
+                    <>
+                      {r.title} <CanonBadge status={r.authorityStatus} />
+                      {r.imageCount ? <span className="small muted">{PDF.imageCount(r.imageCount)}</span> : null}
+                    </>
+                  }
+                />
               ))}
             </div>
           </fieldset>

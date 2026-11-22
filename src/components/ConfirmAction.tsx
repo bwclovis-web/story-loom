@@ -5,6 +5,7 @@ import type { Issue } from "@/domain/issues";
 import { TRASH } from "@/ui/labels";
 import { Banner } from "@/components/ui/Banner";
 import { Button } from "@/components/ui/Button";
+import { Checkbox } from "@/components/ui/Checkbox";
 import { IssueList } from "./IssueList";
 
 export interface ConfirmResult {
@@ -89,9 +90,7 @@ export function ConfirmAction({
         <div className="stack">
           {details}
           {unlockLabel ? (
-            <label className="inline small">
-              <input type="checkbox" name="unlockProtected" required disabled={pending} /> {unlockLabel}
-            </label>
+            <Checkbox className="small" name="unlockProtected" required disabled={pending} label={unlockLabel} />
           ) : null}
           <div className="row">
             <Button type="submit" variant={danger ? "danger" : "primary"} size={size} disabled={pending}>

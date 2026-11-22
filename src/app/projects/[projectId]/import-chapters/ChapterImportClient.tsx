@@ -6,6 +6,7 @@ import { ProtectionBadge } from "@/components/Badges";
 import { IssueList } from "@/components/IssueList";
 import { Banner } from "@/components/ui/Banner";
 import { Button } from "@/components/ui/Button";
+import { Checkbox } from "@/components/ui/Checkbox";
 import { FileInput } from "@/components/ui/FileInput";
 import type {
   ChapterDecision,
@@ -193,10 +194,7 @@ export function ChapterImportClient({ projectId }: { projectId: string }) {
           />
           {pending ? <span className="small muted">Working...</span> : null}
         </div>
-        <label className="inline">
-          <input type="checkbox" checked={tidy} disabled={pending} onChange={(e) => onTidy(e.target.checked)} />
-          {CHAPTER_IMPORT.tidy}
-        </label>
+        <Checkbox checked={tidy} disabled={pending} onChange={(e) => onTidy(e.target.checked)} label={CHAPTER_IMPORT.tidy} />
         <p className="small muted" style={{ margin: 0 }}>
           {CHAPTER_IMPORT.tidyHint}
         </p>
@@ -287,10 +285,11 @@ export function ChapterImportClient({ projectId }: { projectId: string }) {
               </>
             ) : null}
             {protectedReplacements > 0 ? (
-              <label className="inline">
-                <input type="checkbox" checked={confirmProtected} onChange={(e) => setConfirmProtected(e.target.checked)} />
-                {CHAPTER_IMPORT.confirmProtected(protectedReplacements)}
-              </label>
+              <Checkbox
+                checked={confirmProtected}
+                onChange={(e) => setConfirmProtected(e.target.checked)}
+                label={CHAPTER_IMPORT.confirmProtected(protectedReplacements)}
+              />
             ) : null}
             <div className="row">
               <Button onClick={runImport} disabled={pending || incomplete || importing === 0}>

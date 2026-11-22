@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { errorIssue, type Issue } from "@/domain/issues";
 import { WORLD } from "@/ui/labels";
-import { isLinkableReferenceType, RECORD_TYPE_LABELS } from "@/domain/recordTypes";
+import { isLinkableReferenceType, isRecordType, RECORD_TYPE_LABELS, type RecordType } from "@/domain/recordTypes";
 import type { AuthorityStatus } from "@/domain/statuses";
 import { listSections } from "@/writing/sections";
 import { getDb } from "@/server/db";
@@ -145,6 +145,52 @@ export async function linkReferenceAction(projectId: string, fromRecordId: strin
     await linkReference(getDb(), projectId, fromRecordId, toRecordId);
     revalidatePath(`/projects/${projectId}`, "layout");
     return { ok: true };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+/**
+ * Creates a draft reference from selected manuscript text, optionally links and
+ * pins it. Never edits manuscript prose.
+ */
+export async function createReferenceFromSelectionAction(
+  projectId: string,
+  fromRecordId: string,
+  input: {
+    title: string;
+    body: string;
+    type: string;
+    link: boolean;
+    pin: boolean;
+    draftScopeId?: string | null;
+  },
+): Promise<FormResult & { recordId?: string }> {
+  try {
+    if (!isRecordType(input.type) || !isLinkableReferenceType(input.type)) {
+      return { ok: false, issues: [errorIssue("INVALID_CHANGE", "Choose a reference document type.")] };
+    }
+    const type: RecordType = input.type;
+    const title = input.title.trim();
+    if (!title) {
+      return { ok: false, issues: [errorIssue("INVALID_CHANGE", "Give the reference a title.")] };
+    }
+    const db = getDb();
+    const batch = await createRecord(db, projectId, {
+      type,
+      title,
+      body: input.body,
+      fields: {},
+      authorityStatus: "draft",
+    });
+    const recordId = batch.outcomes[0]!.recordId;
+    if (input.link) await linkReference(db, projectId, fromRecordId, recordId);
+    if (input.pin) {
+      const scopeDraftId = await resolvePinScope(db, projectId, input.draftScopeId);
+      await addReadingPin(db, projectId, scopeDraftId, recordId);
+    }
+    revalidatePath(`/projects/${projectId}`, "layout");
+    return { ok: true, recordId, message: `Created draft reference “${title}”.` };
   } catch (error) {
     return failure(error);
   }

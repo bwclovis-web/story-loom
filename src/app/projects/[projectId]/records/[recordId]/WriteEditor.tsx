@@ -14,7 +14,6 @@ import {
   useRef,
   useState,
   type ChangeEvent,
-  type FormEvent,
   type KeyboardEvent,
   type ReactNode,
 } from "react";
@@ -38,7 +37,10 @@ import { StyleCheckPanel } from "@/components/writing/StyleCheckPanel";
 import { Proofreader, type ProofreadConfig } from "@/components/writing/Proofreader";
 import { SelectionAssister } from "@/components/writing/SelectionAssister";
 import { SpellingLanguageSelect } from "@/components/writing/SpellingLanguageSelect";
-import { SpellOverlay } from "@/components/writing/SpellOverlay";
+import type { EditorSurface } from "@/components/writing/EditorSurface";
+import { CreateReferenceFromSelection } from "@/components/writing/CreateReferenceFromSelection";
+import { MarkdownEditor, type EditorChrome } from "@/components/writing/MarkdownEditor";
+import { useReadAloud } from "@/components/writing/useReadAloud";
 import { applyTextareaEdit, scrollTextareaToSelection, selectRange } from "@/components/writing/textareaEdit";
 import { flagAt, SpellingPanel } from "@/components/writing/SpellingPanel";
 import { useSpellcheck } from "@/components/writing/useSpellcheck";
@@ -150,13 +152,16 @@ export function WriteEditor(props: {
     { ok: true },
   );
   const formRef = useRef<HTMLFormElement>(null);
-  const bodyRef = useRef<HTMLTextAreaElement>(null);
+  const bodyRef = useRef<EditorSurface | null>(null);
+  /** Spoken text captured on mousedown before focus would collapse the CM selection. */
+  const spokenPassRef = useRef("");
   // The text box reports line endings as "\n"; keep offsets in the same terms.
   const savedText = normalizeNewlines(props.body);
   const [text, setText] = useState(savedText);
   const [title, setTitle] = useState(props.title);
   const [fields, setFields] = useState(props.fieldsJson);
   const [selection, setSelection] = useState({ start: 0, end: 0 });
+  const [editorChrome, setEditorChrome] = useState<EditorChrome>("live");
   const [unlocked, setUnlocked] = useState(false);
   const [unlockedRevision, setUnlockedRevision] = useState(props.revision);
   const [knownRevision, setKnownRevision] = useState(props.revision);
@@ -189,6 +194,8 @@ export function WriteEditor(props: {
   const flags = useMemo(() => (appUnderlines ? flagsFor(text) : []), [appUnderlines, flagsFor, text]);
   const overlayText = useDeferredValue(text);
   const overlayFlags = useMemo(() => (appUnderlines ? flagsFor(overlayText) : []), [appUnderlines, flagsFor, overlayText]);
+  const readAloud = useReadAloud(selection.start !== selection.end ? text.slice(selection.start, selection.end) : text);
+  const selectionText = selection.start !== selection.end ? text.slice(selection.start, selection.end) : "";
 
   if (unlockedRevision !== props.revision) {
     setUnlockedRevision(props.revision);
@@ -266,7 +273,11 @@ export function WriteEditor(props: {
     const valid = props.manuscriptSplitOptions.some((o) => o.id === splitRecordId && o.id !== props.recordId);
     if (!valid) updateLayout({ writeSplitRecordId: null });
   }, [splitRecordId, props.recordId, props.manuscriptSplitOptions, updateLayout]);
-  useTypewriterScroll(bodyRef, writeMode === "focus" && layout.typewriterScroll);
+  useTypewriterScroll(
+    bodyRef,
+    writeMode === "focus" && layout.typewriterScroll,
+    `${text.length}:${selection.start}:${selection.end}`,
+  );
   useLayoutEffect(() => {
     const range = props.initialStyleRange;
     if (!range) return;
@@ -292,14 +303,6 @@ export function WriteEditor(props: {
     const ta = bodyRef.current;
     if (ta) setSelection({ start: ta.selectionStart, end: ta.selectionEnd });
   }, []);
-
-  useEffect(() => {
-    const onChange = () => {
-      if (document.activeElement === bodyRef.current) readSelection();
-    };
-    document.addEventListener("selectionchange", onChange);
-    return () => document.removeEventListener("selectionchange", onChange);
-  }, [readSelection]);
 
   const [previewOpen, setPreviewOpen] = useState(false);
   const previewDoc = useMemo(() => parseMarkdown(overlayText), [overlayText]);
@@ -333,11 +336,11 @@ export function WriteEditor(props: {
     },
   });
 
-  const onBodyInput = (e: FormEvent<HTMLTextAreaElement>) => {
-    setText(e.currentTarget.value);
+  const onBodyChange = (next: string) => {
+    setText(next);
     readSelection();
     if (loadNote?.tone === "notice") setLoadNote(null);
-    if (e.nativeEvent.isTrusted && directUndo.length > 0) setDirectUndo([]);
+    if (directUndo.length > 0) setDirectUndo([]);
   };
 
   /** Runs a formatting command as one edit the browser's undo can reverse, then restores the selection. */
@@ -507,7 +510,8 @@ export function WriteEditor(props: {
     const mod = e.ctrlKey || e.metaKey;
     if (!mod || e.altKey) return;
     const key = e.key.toLowerCase();
-    const inText = e.target === bodyRef.current;
+    const surface = bodyRef.current;
+    const inText = !!surface && !!surface.containsElement?.(e.target);
     if (key === "s" && !e.shiftKey) {
       e.preventDefault();
       formRef.current?.requestSubmit();
@@ -517,12 +521,12 @@ export function WriteEditor(props: {
     } else if (key === "f") {
       e.preventDefault();
       openFind();
-    } else if (inText && !e.shiftKey && (key === "b" || key === "i")) {
+    } else if (inText && surface && !e.shiftKey && (key === "b" || key === "i")) {
       e.preventDefault();
       format((t, s) => toggleInline(t, s, key === "b" ? "bold" : "italic"));
-    } else if (inText && !e.shiftKey && key === "k") {
+    } else if (inText && surface && !e.shiftKey && key === "k") {
       e.preventDefault();
-      const seed = linkSeedFrom(e.target as HTMLTextAreaElement);
+      const seed = linkSeedFrom(surface);
       setLinkRequest((prev) => ({ ...seed, id: (prev?.id ?? 0) + 1 }));
     }
   };
@@ -704,7 +708,24 @@ export function WriteEditor(props: {
                 {splitPeers.length > 0 ? (
                   <LabeledSwitch label={WRITE.splitView} checked={splitOpen} onCheckedChange={setSplitOpen} />
                 ) : null}
-                <LabeledSwitch label={WRITE.preview} checked={previewOpen} onCheckedChange={setPreviewOpen} />
+                <LabeledSwitch
+                  label={WRITE.liveMarkdown}
+                  checked={editorChrome === "live"}
+                  onCheckedChange={(on) => {
+                    setEditorChrome(on ? "live" : "raw");
+                    // Live already paints formatted prose; a side Preview would duplicate it.
+                    if (on) setPreviewOpen(false);
+                  }}
+                />
+                <LabeledSwitch
+                  label={WRITE.preview}
+                  checked={previewOpen}
+                  onCheckedChange={(on) => {
+                    setPreviewOpen(on);
+                    // Side-by-side Preview pairs with raw Markdown in the editor.
+                    if (on) setEditorChrome("raw");
+                  }}
+                />
                 <WriteModeSwitch mode={writeMode} onChange={selectMode} />
               </div>
             </div>
@@ -806,25 +827,64 @@ export function WriteEditor(props: {
               </p>
             ) : null}
             <span className="spell-field">
-              <textarea
+              <input type="hidden" name="body" value={text} readOnly />
+              <MarkdownEditor
                 ref={bodyRef}
                 id={editorId}
-                name="body"
-                className="document manuscript-text"
+                className="document"
                 aria-label={WRITE.editorLabel}
                 aria-describedby={writeMode === "focus" ? `${idPrefix}-focus-hint` : undefined}
-                defaultValue={props.body}
-                spellCheck={!appUnderlines}
-                lang={language}
-                onInput={onBodyInput}
-                onSelect={readSelection}
-                onKeyUp={readSelection}
-                onMouseUp={readSelection}
+                initialDoc={savedText}
+                editable={editable}
+                language={language}
+                chrome={editorChrome}
+                spellFlags={appUnderlines ? overlayFlags : []}
+                currentSpellFlag={appUnderlines ? flagAt(overlayFlags, selection) : null}
+                codexEntries={props.codexEntries}
+                onChange={onBodyChange}
+                onSelectionChange={setSelection}
               />
-              {appUnderlines ? (
-                <SpellOverlay textareaRef={bodyRef} text={overlayText} flags={overlayFlags} current={flagAt(overlayFlags, selection)} />
-              ) : null}
             </span>
+            <div className="row wrap" style={{ marginTop: "0.5rem", gap: "0.5rem", alignItems: "center" }}>
+              <CreateReferenceFromSelection
+                projectId={props.projectId}
+                fromRecordId={props.recordId}
+                draftScopeId={props.draftScopeId}
+                selectionText={selectionText}
+              />
+              {readAloud.supported ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  aria-pressed={readAloud.speaking}
+                  // Same as the format toolbar: keep the editor selection on click.
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    const surface = bodyRef.current;
+                    const doc = surface?.value ?? text;
+                    const from = surface?.selectionStart ?? selection.start;
+                    const to = surface?.selectionEnd ?? selection.end;
+                    spokenPassRef.current = from !== to ? doc.slice(from, to) : doc;
+                  }}
+                  onClick={() => {
+                    if (readAloud.speaking) {
+                      readAloud.stop();
+                      return;
+                    }
+                    const spoken = spokenPassRef.current.trim() || text;
+                    readAloud.start({ text: spoken });
+                  }}
+                >
+                  {readAloud.speaking ? WRITE.readAloudStop : WRITE.readAloud}
+                </Button>
+              ) : null}
+              {readAloud.speaking ? (
+                <span className="small muted" role="status">
+                  {WRITE.readAloudReading}
+                </span>
+              ) : null}
+            </div>
             <CodexSuggestBox
               entries={props.codexEntries.filter((entry) => entry.id !== props.recordId)}
               text={text}

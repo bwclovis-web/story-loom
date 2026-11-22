@@ -13,6 +13,7 @@ export function CanvasReferenceSummary({
   sourceNote,
   imageId = null,
   imageAlt = null,
+  openRecordLabel = WORLD.openReference,
 }: {
   projectId: string;
   model: ReferenceInspectorModel;
@@ -20,6 +21,7 @@ export function CanvasReferenceSummary({
   sourceNote?: string | null;
   imageId?: string | null;
   imageAlt?: string | null;
+  openRecordLabel?: string;
 }) {
   const recordPath = `/projects/${encodeURIComponent(projectId)}/records/${encodeURIComponent(model.id)}`;
   return (
@@ -50,7 +52,7 @@ export function CanvasReferenceSummary({
       {model.lead ? <p className="small inspector-lead">{model.lead}</p> : <p className="small muted">{WORLD.emptyDocument}</p>}
       <div className="canvas-reference-actions">
         <ButtonLink href={withCanvasReturn(recordPath, returnPath)} size="sm">
-          {WORLD.openReference}
+          {openRecordLabel}
         </ButtonLink>
         <ButtonLink href={withCanvasReturn(recordPath, returnPath, true)} variant="secondary" size="sm">
           {REFERENCE_FORM.editReference}

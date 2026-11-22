@@ -22,7 +22,7 @@ export function StyleCheckPanel({
   characterNames,
   projectId,
 }: {
-  textareaRef: RefObject<HTMLTextAreaElement | null>;
+  textareaRef: RefObject<import("@/components/writing/EditorSurface").EditorSurface | HTMLTextAreaElement | null>;
   text: string;
   characterNames: readonly string[];
   projectId: string;

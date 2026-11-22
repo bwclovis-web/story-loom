@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useMemo, useState } from "react";
 import { ButtonLink } from "@/components/ui/Button";
+import { Checkbox } from "@/components/ui/Checkbox";
 import { fetchManuscriptSnapshotAction, type ManuscriptSnapshot } from "@/app/projects/[projectId]/records/[recordId]/split-actions";
 import { hasTextChange, textDiff } from "@/changePackage/diff";
 import { confirmLeave } from "@/components/shell/unsaved";
@@ -130,10 +131,7 @@ export function WriteSplitPane({
             ))}
           </select>
         </label>
-        <label className="check-inline">
-          <input type="checkbox" checked={showDiff} onChange={(event) => setShowDiff(event.target.checked)} />
-          {WRITE.splitDiff}
-        </label>
+        <Checkbox checked={showDiff} onChange={(event) => setShowDiff(event.target.checked)} label={WRITE.splitDiff} />
         <ButtonLink
           href={href}
           variant="outline"

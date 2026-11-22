@@ -3,6 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import { IssueList } from "@/components/IssueList";
 import type { Issue } from "@/domain/issues";
+import { Checkbox } from "@/components/ui/Checkbox";
 import { RECORD, WORLD } from "@/ui/labels";
 import { applyOutlineAction } from "../../world/inspectorActions";
 import {
@@ -116,10 +117,7 @@ export function OutlineReview({
                 )}
               </p>
               {isProtected ? (
-                <label className="inline">
-                  <input type="checkbox" checked={unlock} onChange={(event) => setUnlock(event.target.checked)} />
-                  {RECORD.unlockProtected}
-                </label>
+                <Checkbox checked={unlock} onChange={(event) => setUnlock(event.target.checked)} label={RECORD.unlockProtected} />
               ) : null}
               <div>
                 <button

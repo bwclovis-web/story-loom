@@ -11,6 +11,9 @@ import { SegmentedControl, SegmentedOption } from "@/components/ui/SegmentedCont
 import { IconButton } from "@/components/ui/IconButton";
 import { CanvasInspectorSection } from "@/components/world/CanvasInspectorSection";
 import { CanvasReferenceSummary } from "@/components/world/CanvasReferenceSummary";
+import { MapToolbarPopover } from "@/components/world/MapToolbarPopover";
+import { Checkbox } from "@/components/ui/Checkbox";
+import { LabeledSwitch } from "@/components/ui/LabeledSwitch";
 import { LinkSceneForm } from "@/components/world/LinkSceneForm";
 import { ContextRail, ContextRailToggle, useContextRail } from "@/components/shell/ContextRail";
 import { setUnsaved } from "@/components/shell/unsaved";
@@ -827,7 +830,7 @@ export function MapCanvas({
           </nav>
         ) : null}
 
-        <CanvasToolbar label={WORLD.mapCanvas} className="map-toolbar">
+        <CanvasToolbar label={WORLD.mapCanvas} className="map-toolbar visual-canvas-toolbar">
           <SegmentedControl size="sm" label={`${WORLD.mapModeBrowse} / ${WORLD.mapModeEdit}`}>
             <SegmentedOption selected={mode === "browse"} onClick={() => changeMode("browse")}>
               {WORLD.mapModeBrowse}
@@ -845,7 +848,7 @@ export function MapCanvas({
               ))}
             </SegmentedControl>
           ) : null}
-          <BoardOverflowMenu summary={WORLD.mapLayers} className="canvas-menu-trigger">
+          <MapToolbarPopover label={WORLD.mapLayers} className="map-layers-popover" align="start">
             <fieldset className="map-legend">
               <legend className="sr-only">{WORLD.mapLayerLegend}</legend>
               <div className="map-layer-presets">
@@ -872,8 +875,7 @@ export function MapCanvas({
               {map.layers.map((layer, index) => {
                 const count = pins.filter((pin) => effectiveLayerId(pin, map.layers) === layer.id).length;
                 return (
-                <label key={layer.id} className={hiddenLayerIds.includes(layer.id) ? "is-hidden" : undefined}>
-                  <input type="checkbox" checked={!hiddenLayerIds.includes(layer.id)} onChange={() => toggleLayer(layer.id)} />
+                <div key={layer.id} className={`map-layer-row${hiddenLayerIds.includes(layer.id) ? " is-hidden" : ""}`}>
                   <span
                     className="map-legend-swatch"
                     style={{ background: layerStrokeColor(index), borderColor: "var(--color-surface)" }}
@@ -881,8 +883,13 @@ export function MapCanvas({
                   />
                   <span className="map-layer-name">{layer.title}</span>
                   <span className="map-layer-count">{count}</span>
-                  {hiddenLayerIds.includes(layer.id) ? <span className="map-layer-state">{WORLD.mapLayerHidden}</span> : null}
-                </label>
+                  <LabeledSwitch
+                    className="map-layer-visibility-switch"
+                    label={layer.title}
+                    checked={!hiddenLayerIds.includes(layer.id)}
+                    onCheckedChange={() => toggleLayer(layer.id)}
+                  />
+                </div>
                 );
               })}
             </fieldset>
@@ -946,10 +953,11 @@ export function MapCanvas({
                 </Button>
               </form>
             ) : null}
-          </BoardOverflowMenu>
-          <BoardOverflowMenu
-            className="canvas-menu-trigger"
-            summary={shown.length === pins.length ? `${WORLD.pinList} (${pins.length})` : `${WORLD.pinList} (${shown.length}/${pins.length})`}
+          </MapToolbarPopover>
+          <MapToolbarPopover
+            className="map-markers-popover"
+            align="end"
+            label={shown.length === pins.length ? `${WORLD.pinList} (${pins.length})` : `${WORLD.pinList} (${shown.length}/${pins.length})`}
           >
             <div className="visual-menu-scroll">
               <h2 id={pinListId} className="sr-only">{WORLD.pinList}</h2>
@@ -1014,7 +1022,7 @@ export function MapCanvas({
               )}
               <MapGeographyPanel projectId={projectId} mapId={map.id} geography={geography} onJumpToPin={jumpToPin} />
             </div>
-          </BoardOverflowMenu>
+          </MapToolbarPopover>
           <BoardOverflowMenu>
               <div className="row" style={{ gap: "0.35rem", flexWrap: "wrap" }}>
                 <Button
@@ -1480,10 +1488,12 @@ export function MapCanvas({
                     ))}
                   </select>
                 </label>
-                <label className="map-keep-placing">
-                  <input type="checkbox" checked={keepPlacing} onChange={(event) => setKeepPlacing(event.target.checked)} />
-                  {WORLD.mapKeepPlacing}
-                </label>
+                <Checkbox
+                  className="map-keep-placing"
+                  checked={keepPlacing}
+                  onChange={(event) => setKeepPlacing(event.target.checked)}
+                  label={WORLD.mapKeepPlacing}
+                />
                 <Button type="submit" size="sm" disabled={pending || (!pendingPlaceId && !pendingMapId)}>
                   {WORLD.addPin}
                 </Button>

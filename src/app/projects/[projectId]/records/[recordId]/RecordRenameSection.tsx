@@ -7,6 +7,7 @@ import { IssueList } from "@/components/IssueList";
 import { HelpHint } from "@/components/HelpHint";
 import { Banner } from "@/components/ui/Banner";
 import { Button } from "@/components/ui/Button";
+import { Checkbox } from "@/components/ui/Checkbox";
 import { RECORD_TYPE_LABELS } from "@/domain/recordTypes";
 import type { RecordRenameMatch, RecordRenamePreview } from "@/server/services/recordRenameService";
 import { aliasesOf, nameFromTitle } from "@/writing/crossRefs";
@@ -100,19 +101,18 @@ function Review({
               <ul className="hit-excerpts small">
                 {matches.map((m) => (
                   <li key={m.id}>
-                    <label className="inline">
-                      <input
-                        type="checkbox"
-                        name="matchId"
-                        value={m.id}
-                        checked={selected.has(m.id)}
-                        onChange={(e) => toggle(m.id, e.target.checked)}
-                      />{" "}
-                      <span className="muted">
-                        {RECORD_RENAME.formLine(m.form, m.replacement)}
-                        {m.ambiguous ? ` (${RECORD_RENAME.ambiguous})` : ""}
-                      </span>
-                    </label>
+                    <Checkbox
+                      name="matchId"
+                      value={m.id}
+                      checked={selected.has(m.id)}
+                      onChange={(e) => toggle(m.id, e.target.checked)}
+                      label={
+                        <span className="muted">
+                          {RECORD_RENAME.formLine(m.form, m.replacement)}
+                          {m.ambiguous ? ` (${RECORD_RENAME.ambiguous})` : ""}
+                        </span>
+                      }
+                    />
                     <div className="small">
                       <del>{m.excerptBefore}</del>
                       <ins>{m.excerptAfter}</ins>
@@ -125,9 +125,7 @@ function Review({
         </ul>
 
         {needsUnlock ? (
-          <label className="inline small">
-            <input type="checkbox" name="unlockProtected" required disabled={pending} /> {RECORD.unlockProtected}
-          </label>
+          <Checkbox className="small" name="unlockProtected" required disabled={pending} label={RECORD.unlockProtected} />
         ) : null}
 
         <Button type="submit" disabled={pending || (!preview.titleChanges && !preview.fieldsChange && selectedCount === 0)}>

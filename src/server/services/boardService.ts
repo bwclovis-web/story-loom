@@ -1,6 +1,7 @@
 import { newId } from "@/domain/ids";
 import { errorIssue } from "@/domain/issues";
 import { isLinkableReferenceType, isRecordType, RECORD_TYPE_LABELS } from "@/domain/recordTypes";
+import { worldKindDisplayFromFields } from "@/world/worldKinds";
 import { isAuthorityStatus, type AuthorityStatus } from "@/domain/statuses";
 import type { Db, DbOrTx, Tx } from "../db";
 import { writeAudit } from "./auditService";
@@ -54,6 +55,7 @@ export interface BoardCardView {
   label: string;
   recordTitle: string | null;
   recordTypeLabel: string | null;
+  recordWorldKindLabel: string | null;
   authorityStatus: AuthorityStatus | null;
   imageName: string | null;
   imageAlt: string | null;
@@ -155,7 +157,7 @@ export async function getBoard(db: DbOrTx, projectId: string, boardId: string): 
       cards: {
         orderBy: [{ zIndex: "asc" }, { createdAt: "asc" }, { id: "asc" }],
         include: {
-          record: { select: { id: true, title: true, type: true, authorityStatus: true, trashedAt: true } },
+          record: { select: { id: true, title: true, type: true, authorityStatus: true, trashedAt: true, fields: true } },
           image: { select: { id: true, name: true, altText: true, recordId: true } },
         },
       },
@@ -168,6 +170,8 @@ export async function getBoard(db: DbOrTx, projectId: string, boardId: string): 
     const liveRecord = c.record && c.record.trashedAt === null ? c.record : null;
     const typeLabel =
       liveRecord && isRecordType(liveRecord.type) ? RECORD_TYPE_LABELS[liveRecord.type] : null;
+    const worldKindLabel =
+      liveRecord?.type === "worldbuilding" ? worldKindDisplayFromFields(liveRecord.fields) : null;
     const status =
       liveRecord && isAuthorityStatus(liveRecord.authorityStatus) ? liveRecord.authorityStatus : null;
     return [
@@ -191,6 +195,7 @@ export async function getBoard(db: DbOrTx, projectId: string, boardId: string): 
         }),
         recordTitle: liveRecord?.title ?? null,
         recordTypeLabel: typeLabel,
+        recordWorldKindLabel: worldKindLabel,
         authorityStatus: status,
         imageName: c.image?.name ?? null,
         imageAlt: c.image?.altText ?? null,

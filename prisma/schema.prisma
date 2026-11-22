@@ -1110,6 +1110,8 @@ model Revision {
   contentHash          String
   sourceId             String
   source               Source   @relation(fields: [sourceId], references: [id])
+  /// Optional author-facing snapshot name. Not revisioned content; labeling does not rewrite title/body/fields.
+  label                String?
   createdAt            DateTime @default(now())
 
   @@unique([recordId, revisionNumber])

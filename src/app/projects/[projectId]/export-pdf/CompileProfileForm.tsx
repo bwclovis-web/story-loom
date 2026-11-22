@@ -4,6 +4,7 @@ import { useActionState } from "react";
 import { IssueList } from "@/components/IssueList";
 import { Banner } from "@/components/ui/Banner";
 import { Button } from "@/components/ui/Button";
+import { Checkbox } from "@/components/ui/Checkbox";
 import { submitWithoutReset } from "@/components/submitWithoutReset";
 import type { CompileProfileView } from "@/server/services/compileProfileService";
 import { CHAPTER_HEADING_STYLE } from "@/server/services/compileProfileService";
@@ -111,42 +112,26 @@ export function CompileProfileForm({
         </label>
       </div>
       <div className="stack">
-        <label className="inline">
-          <input type="checkbox" name="includeSynopses" value="1" defaultChecked={profile.includeSynopses} />
-          {COMPILE_PROFILE.includeSynopses}
-        </label>
-        <label className="inline">
-          <input type="checkbox" name="includeMarginComments" value="1" defaultChecked={profile.includeMarginComments} />
-          {COMPILE_PROFILE.includeMarginComments}
-        </label>
-        <label className="inline">
-          <input type="checkbox" name="firstParagraphNoIndent" value="1" defaultChecked={profile.firstParagraphNoIndent} />
-          {COMPILE_PROFILE.firstParagraphNoIndent}
-        </label>
-        <label className="inline">
-          <input type="checkbox" name="dropCap" value="1" defaultChecked={profile.dropCap} />
-          {COMPILE_PROFILE.dropCap}
-        </label>
-        <label className="inline">
-          <input type="checkbox" name="includeToc" value="1" defaultChecked={profile.includeToc} />
-          {COMPILE_PROFILE.includeToc}
-        </label>
+        <Checkbox name="includeSynopses" value="1" defaultChecked={profile.includeSynopses} label={COMPILE_PROFILE.includeSynopses} />
+        <Checkbox name="includeMarginComments" value="1" defaultChecked={profile.includeMarginComments} label={COMPILE_PROFILE.includeMarginComments} />
+        <Checkbox name="firstParagraphNoIndent" value="1" defaultChecked={profile.firstParagraphNoIndent} label={COMPILE_PROFILE.firstParagraphNoIndent} />
+        <Checkbox name="dropCap" value="1" defaultChecked={profile.dropCap} label={COMPILE_PROFILE.dropCap} />
+        <Checkbox name="includeToc" value="1" defaultChecked={profile.includeToc} label={COMPILE_PROFILE.includeToc} />
       </div>
       {manuscript.length ? (
         <fieldset className="stack">
           <legend>{COMPILE_PROFILE.includeInCompile}</legend>
           <p className="small muted">{COMPILE_PROFILE.includeInCompileNote}</p>
           {manuscript.map((item) => (
-            <label key={item.id} className="inline">
+            <div key={item.id}>
               <input type="hidden" name="manuscriptId" value={item.id} />
-              <input
-                type="checkbox"
+              <Checkbox
                 name="includeRecord"
                 value={item.id}
                 defaultChecked={!profile.excludedRecordIds.includes(item.id)}
+                label={item.title}
               />
-              {item.title}
-            </label>
+            </div>
           ))}
         </fieldset>
       ) : null}

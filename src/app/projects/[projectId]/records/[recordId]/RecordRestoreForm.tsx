@@ -2,6 +2,7 @@
 
 import { ConfirmAction } from "@/components/ConfirmAction";
 import { HelpHint } from "@/components/HelpHint";
+import { Checkbox } from "@/components/ui/Checkbox";
 import { RECORD } from "@/ui/labels";
 import { restoreRecordAction } from "../../actions";
 
@@ -36,9 +37,7 @@ export function RecordRestoreForm({
           <HelpHint anchor="saved-versions" topic="restoring a version">
             Nothing is deleted. The new version is listed in revision history as restored from this one.
           </HelpHint>
-          <label className="inline">
-            <input type="checkbox" name="includeFields" /> {RECORD.restoreIncludeFields}
-          </label>
+          <Checkbox name="includeFields" label={RECORD.restoreIncludeFields} />
         </div>
       }
     />

@@ -1,12 +1,27 @@
 import { applyEdit, type TextEdit } from "@/writing/findReplace";
+import type { EditorSurface } from "./EditorSurface";
 
 /**
- * Applies an edit to a textarea as if the author typed it, so the browser's
- * own undo (Ctrl+Z) and redo restore it. `execCommand("insertText")` is the
- * only way to join the native undo history. Where a browser refuses it, the
- * text is changed directly and the caller must offer its own undo.
+ * Applies an edit as an author keystroke so undo restores it.
+ * CodeMirror surfaces use history transactions; textarea falls back to
+ * execCommand, then setRangeText when the browser refuses native undo.
  */
-export function applyTextareaEdit(textarea: HTMLTextAreaElement, edit: TextEdit): "native" | "direct" {
+export function applyTextareaEdit(surface: EditorSurface | HTMLTextAreaElement, edit: TextEdit): "native" | "direct" {
+  if (isTextArea(surface)) return applyToTextarea(surface, edit);
+  if (surface.applyEdit) return surface.applyEdit(edit);
+  const before = surface.value;
+  const expected = applyEdit(before, edit);
+  surface.focus();
+  surface.value = expected;
+  surface.setSelectionRange(edit.start + edit.text.length, edit.start + edit.text.length);
+  return surface.value === expected ? "native" : "direct";
+}
+
+function isTextArea(value: EditorSurface | HTMLTextAreaElement): value is HTMLTextAreaElement {
+  return typeof HTMLTextAreaElement !== "undefined" && value instanceof HTMLTextAreaElement;
+}
+
+function applyToTextarea(textarea: HTMLTextAreaElement, edit: TextEdit): "native" | "direct" {
   const before = textarea.value;
   const expected = applyEdit(before, edit);
   textarea.focus();
@@ -24,18 +39,30 @@ export function applyTextareaEdit(textarea: HTMLTextAreaElement, edit: TextEdit)
   return "direct";
 }
 
-export function selectRange(textarea: HTMLTextAreaElement, start: number, end: number) {
-  textarea.focus();
-  textarea.setSelectionRange(start, end);
+export function selectRange(surface: EditorSurface | HTMLTextAreaElement, start: number, end: number) {
+  surface.focus();
+  surface.setSelectionRange(start, end);
 }
 
-/** Scroll the textarea so the current selection is near the middle of the viewport. */
-export function scrollTextareaToSelection(textarea: HTMLTextAreaElement, centerRatio = 0.35): void {
-  const start = textarea.selectionStart;
-  const style = getComputedStyle(textarea);
-  const lineHeight = parseFloat(style.lineHeight);
-  if (!Number.isFinite(lineHeight) || lineHeight <= 0) return;
-  const lineIndex = textarea.value.slice(0, start).split("\n").length - 1;
+/** Scroll so the current selection is near the middle of the viewport. */
+export function scrollTextareaToSelection(
+  surface: EditorSurface | HTMLTextAreaElement,
+  centerRatio = 0.35,
+): void {
+  const start = surface.selectionStart;
+  const value = surface.value;
+  let lineHeight = 28;
+  if (isTextArea(surface)) {
+    const parsed = parseFloat(getComputedStyle(surface).lineHeight);
+    if (Number.isFinite(parsed) && parsed > 0) lineHeight = parsed;
+  } else {
+    const active = typeof document !== "undefined" ? document.activeElement : null;
+    if (active instanceof HTMLElement && surface.containsElement?.(active)) {
+      const parsed = parseFloat(getComputedStyle(active).lineHeight);
+      if (Number.isFinite(parsed) && parsed > 0) lineHeight = parsed;
+    }
+  }
+  const lineIndex = value.slice(0, start).split("\n").length - 1;
   const caretY = lineIndex * lineHeight;
-  textarea.scrollTop = Math.max(0, caretY - textarea.clientHeight * centerRatio);
+  surface.scrollTop = Math.max(0, caretY - surface.clientHeight * centerRatio);
 }

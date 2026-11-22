@@ -118,6 +118,8 @@ export const workspaceBackupV1Schema = z
           supersededByRecordId: id.nullable(),
           contentHash: z.string().regex(/^[0-9a-f]{64}$/),
           sourceId: id,
+          /** Optional snapshot name; absent on older backups. */
+          label: z.string().nullable().optional(),
           createdAt: timestamp,
         })
         .strict(),

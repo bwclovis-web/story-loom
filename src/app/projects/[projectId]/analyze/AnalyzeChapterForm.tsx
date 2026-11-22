@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ANALYSIS_KINDS, type AnalysisKind } from "@/analyze/chapterAnalysisOutput";
 import { CATEGORY_BOUNDARY } from "@/analyze/chapterAnalysisReview";
 import { Button } from "@/components/ui/Button";
+import { Checkbox } from "@/components/ui/Checkbox";
 import { ANALYZE } from "@/ui/labels";
 import { previewChapterAnalysisAction } from "./actions";
 
@@ -177,9 +178,7 @@ export function AnalyzeChapterForm({
         <legend>{ANALYZE.categories}</legend>
         {ANALYSIS_KINDS.map((kind) => (
           <p key={kind}>
-            <label>
-              <input type="checkbox" checked={categories.includes(kind)} onChange={() => toggle(kind)} /> {ANALYZE.kind[kind]}
-            </label>
+            <Checkbox checked={categories.includes(kind)} onChange={() => toggle(kind)} label={ANALYZE.kind[kind]} />
             <br />
             <span>{CATEGORY_BOUNDARY[kind]}</span>
           </p>

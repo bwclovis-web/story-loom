@@ -6,6 +6,7 @@ import { HelpHint } from "@/components/HelpHint";
 import { IssueList } from "@/components/IssueList";
 import { Banner } from "@/components/ui/Banner";
 import { Button } from "@/components/ui/Button";
+import { Checkbox } from "@/components/ui/Checkbox";
 import { FileInput } from "@/components/ui/FileInput";
 import {
   formatBytes,
@@ -47,10 +48,7 @@ function Result({ state }: { state: FormResult }) {
 function Unlock({ isProtected }: { isProtected: boolean }) {
   if (!isProtected) return null;
   return (
-    <label className="inline">
-      <input type="checkbox" name="unlockProtected" />
-      {RECORD.unlockProtected}
-    </label>
+    <Checkbox name="unlockProtected" label={RECORD.unlockProtected} />
   );
 }
 

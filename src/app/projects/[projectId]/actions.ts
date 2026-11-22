@@ -34,6 +34,7 @@ import {
   setProtection,
   updateRecord,
 } from "@/server/services/recordService";
+import { labelRevision } from "@/server/services/revisionLabelService";
 import { resolveReviewItem } from "@/server/services/reviewService";
 import { trashProject } from "@/server/services/trashService";
 import { groupOfType } from "@/ui/navigation";
@@ -195,6 +196,18 @@ export async function setStatusAction(
   } catch (error) {
     return failure(error);
   }
+}
+
+/** Names an existing revision as a snapshot. Does not rewrite title, body, or fields. */
+export async function labelRevisionAction(projectId: string, recordId: string, formData: FormData) {
+  const revisionNumber = Number(str(formData, "revisionNumber"));
+  const label = str(formData, "label").trim();
+  await labelRevision(getDb(), projectId, {
+    recordId,
+    revisionNumber,
+    label: label || null,
+  });
+  revalidatePath(`/projects/${projectId}`, "layout");
 }
 
 /** Turns protection on or off. Removing protection is confirmed in the UI first. */

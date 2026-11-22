@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useMemo, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/Button";
+import { Checkbox } from "@/components/ui/Checkbox";
 import type { JsonObject, JsonValue } from "@/domain/json";
 import {
   forgetWorldKindTemplateAction,
@@ -208,15 +209,12 @@ export function WorldKindFields({
                   {KIND_TEMPLATE.label}
                   <input value={newLabel} disabled={disabled || templatePending} onChange={(event) => setNewLabel(event.target.value)} />
                 </label>
-                <label className="inline">
-                  <input
-                    type="checkbox"
-                    checked={newMultiline}
-                    disabled={disabled || templatePending}
-                    onChange={(event) => setNewMultiline(event.target.checked)}
-                  />
-                  {KIND_TEMPLATE.multiline}
-                </label>
+                <Checkbox
+                  checked={newMultiline}
+                  disabled={disabled || templatePending}
+                  onChange={(event) => setNewMultiline(event.target.checked)}
+                  label={KIND_TEMPLATE.multiline}
+                />
                 <Button
                   type="button"
                   variant="secondary"

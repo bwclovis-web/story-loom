@@ -17,6 +17,7 @@ import { MANUSCRIPT_REPLACE, WRITING } from "@/ui/labels";
 import { ProtectionTick } from "./ProtectionTick";
 import { applyTextareaEdit, selectRange } from "./textareaEdit";
 import { Button } from "@/components/ui/Button";
+import { Checkbox } from "@/components/ui/Checkbox";
 
 interface DirectUndo {
   inverse: TextEdit;
@@ -34,7 +35,7 @@ export function FindReplace({
   onDirectUndoChange,
   initial = null,
 }: {
-  textareaRef: RefObject<HTMLTextAreaElement | null>;
+  textareaRef: RefObject<import("@/components/writing/EditorSurface").EditorSurface | HTMLTextAreaElement | null>;
   text: string;
   selection: { start: number; end: number };
   canReplace: boolean;
@@ -125,9 +126,7 @@ export function FindReplace({
       onDirectUndoChange([]);
       return;
     }
-    ta.focus();
-    ta.setRangeText(inverse.text, inverse.start, inverse.end, "select");
-    ta.dispatchEvent(new Event("input", { bubbles: true }));
+    applyTextareaEdit(ta, inverse);
     onDirectUndoChange(directUndo.slice(0, -1));
     setMessage("Replacement undone.");
   };
@@ -155,20 +154,22 @@ export function FindReplace({
               setMessage("");
             }} onKeyDown={onFindKey} spellCheck={false} />
         </label>
-        <label className="inline">
-          <input type="checkbox" checked={matchCase} onChange={(e) => {
-              setMatchCase(e.target.checked);
-              setMessage("");
-            }} />
-          {WRITING.matchCase}
-        </label>
-        <label className="inline">
-          <input type="checkbox" checked={useRegex} onChange={(e) => {
-              setUseRegex(e.target.checked);
-              setMessage("");
-            }} />
-          {MANUSCRIPT_REPLACE.useRegex}
-        </label>
+        <Checkbox
+          checked={matchCase}
+          onChange={(e) => {
+            setMatchCase(e.target.checked);
+            setMessage("");
+          }}
+          label={WRITING.matchCase}
+        />
+        <Checkbox
+          checked={useRegex}
+          onChange={(e) => {
+            setUseRegex(e.target.checked);
+            setMessage("");
+          }}
+          label={MANUSCRIPT_REPLACE.useRegex}
+        />
         <Button type="button" variant="secondary" onClick={() => go("previous")} disabled={matches.length === 0}>
           {WRITING.previous}
         </Button>

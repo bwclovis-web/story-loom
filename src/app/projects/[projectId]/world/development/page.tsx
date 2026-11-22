@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { WorldToolHeader } from "@/components/world/WorldToolHeader";
 import { Button } from "@/components/ui/Button";
+import { Checkbox } from "@/components/ui/Checkbox";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { forgottenArcs } from "@/domain/characterDevelopment";
 import { getDb } from "@/server/db";
@@ -61,9 +62,7 @@ export default async function CharacterDevelopmentPage({
             <option value="minor">minor</option>
           </select>
         </label>
-        <label className="small">
-          <input type="checkbox" name="unresolved" value="1" defaultChecked={unresolvedOnly} /> {CHARACTER_DEVELOPMENT.unresolved}
-        </label>
+        <Checkbox className="small" name="unresolved" value="1" defaultChecked={unresolvedOnly} label={CHARACTER_DEVELOPMENT.unresolved} />
         <Button type="submit">{CHARACTER_DEVELOPMENT.showMatches}</Button>
       </form>
       {rows.length === 0 ? (

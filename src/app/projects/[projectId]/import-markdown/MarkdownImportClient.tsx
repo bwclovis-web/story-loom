@@ -7,6 +7,7 @@ import { HelpHint } from "@/components/HelpHint";
 import { IssueList } from "@/components/IssueList";
 import { Banner } from "@/components/ui/Banner";
 import { Button } from "@/components/ui/Button";
+import { Checkbox } from "@/components/ui/Checkbox";
 import { FileInput } from "@/components/ui/FileInput";
 import { RECORD_TYPE_LABELS, type RecordType } from "@/domain/recordTypes";
 import { AUTHORITY_STATUSES } from "@/domain/statuses";
@@ -269,11 +270,11 @@ export function MarkdownImportClient({ projectId }: { projectId: string }) {
               </>
             ) : null}
             {protectedReplacements.length > 0 ? (
-              <label className="inline">
-                <input type="checkbox" checked={confirmProtected} onChange={(e) => setConfirmProtected(e.target.checked)} />
-                I confirm replacing {protectedReplacements.length} protected record
-                {protectedReplacements.length === 1 ? "" : "s"}. Previous revisions are kept.
-              </label>
+              <Checkbox
+                checked={confirmProtected}
+                onChange={(e) => setConfirmProtected(e.target.checked)}
+                label={`I confirm replacing ${protectedReplacements.length} protected record${protectedReplacements.length === 1 ? "" : "s"}. Previous revisions are kept.`}
+              />
             ) : null}
             <div className="row">
               <Button onClick={runImport} disabled={pending || incomplete}>

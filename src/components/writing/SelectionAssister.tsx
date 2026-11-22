@@ -42,7 +42,7 @@ export function SelectionAssister({
   scopeDraftId: string;
   text: string;
   selection: { start: number; end: number };
-  textareaRef: RefObject<HTMLTextAreaElement | null>;
+  textareaRef: RefObject<import("@/components/writing/EditorSurface").EditorSurface | HTMLTextAreaElement | null>;
   editable: boolean;
   onUnlock: () => void;
   onTextChange: (value: string) => void;

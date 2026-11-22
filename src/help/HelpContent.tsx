@@ -1340,8 +1340,13 @@ export function HelpContent() {
               version, and <L>{WRITE.notSaved}</L> when a save was refused (the reason is shown below).
             </li>
             <li>
-              <L>{WRITE.save}</L>. Nothing is stored as a revision until you choose it or press <kbd>Ctrl</kbd>+
-              <kbd>S</kbd>. This browser keeps a local copy while the record is unsaved.
+              <L>{WRITE.save}</L>. Unlocked chapters and scenes also autosave while you pause; protected records still
+              need Save (or <kbd>Ctrl</kbd>+<kbd>S</kbd>) with the protection tick. This browser keeps a local copy
+              while the record is unsaved.
+            </li>
+            <li>
+              <L>{WRITE.liveMarkdown}</L> hides Markdown markers outside the line you are editing. The saved text stays
+              Markdown. See <See anchor="live-markdown" />.
             </li>
             <li>
               <L>{WRITE.versionHistory}</L>, which jumps to <L>{RECORD.historyHeading}</L> lower on the page.
@@ -1601,6 +1606,29 @@ export function HelpContent() {
             <L>{WRITE.recoverHeading}</L> offers <L>{WRITE.recoverRestore}</L> or <L>{WRITE.recoverDiscard}</L> when that
             copy differs from the saved record. {WRITE.recoverNote} The copy is not in a workspace backup. Closing the
             tab warns when the editor has unsaved changes. The browser&apos;s Back button does not.
+          </p>
+        </Sub>
+
+        <Sub id="live-markdown">
+          <p>
+            The writing editor stores exact Markdown. <L>{WRITE.liveMarkdown}</L> paints formatted prose while you type
+            and hides markers except on the caret line (a selected passage stays live-formatted).{" "}
+            <L>{WRITE.preview}</L> is a side rendered view and turns Live Markdown off so you are not looking at two
+            copies of the same scene; turn Live Markdown off to edit raw Markdown. Footnotes use{" "}
+            <code>[^id]</code> in the text and <code>[^id]: note</code> on their own lines. Hover a known character or
+            place name for a short peek. <L>{WRITE.createReferenceFromSelection}</L> turns selected text into a draft
+            reference and can link or pin it without changing the manuscript.{" "}
+            <L>{WRITE.scrivenings}</L> on Write opens a chapter and its scenes in one continuous scroll; each block keeps
+            its own protection, revision, and autosave.
+          </p>
+        </Sub>
+
+        <Sub id="named-snapshots">
+          <p>
+            In <L>{RECORD.historyHeading}</L>, <L>{WRITE.nameSnapshot}</L> labels an existing revision without rewriting
+            its title or text. <L>{RECORD.compareHeading}</L> still shows a word-level diff and lists snapshot names in
+            the revision pickers. <L>{WRITE.readAloud}</L> uses this browser&apos;s speech voice on the selection (or the
+            whole document); it does not call a server and does not save.
           </p>
         </Sub>
       </Section>
@@ -2351,7 +2379,8 @@ export function HelpContent() {
               Choose one to jump to it. See <See anchor="section-status" />.
             </li>
             <li>
-              <L>{WORLD.inspectorImages}</L>: images attached to this record. See <See anchor="images" />.
+              <L>{WORLD.inspectorImages}</L>: images attached to this record. Choose one to open it larger; arrow keys move
+              between images, and Escape closes the view. See <See anchor="images" />.
             </li>
             <li>
               <L>{WORLD.inspectorRelationships}</L>: place and record relationships when the reference supports them,{" "}

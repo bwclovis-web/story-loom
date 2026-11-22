@@ -8,8 +8,8 @@ import { Button } from "@/components/ui/Button";
 import type { RecordView } from "@/domain/records";
 import { RECORD_TYPE_LABELS, type RecordType } from "@/domain/recordTypes";
 import type { RevisionWithSource } from "@/server/services/recordService";
-import { RECORD, TRASH } from "@/ui/labels";
-import { setProtectionAction, trashRecordAction } from "../../actions";
+import { RECORD, TRASH, WRITE } from "@/ui/labels";
+import { labelRevisionAction, setProtectionAction, trashRecordAction } from "../../actions";
 import { RecordRestoreForm } from "./RecordRestoreForm";
 import { StatusForm } from "./RecordForms";
 
@@ -138,6 +138,7 @@ export function HistorySection({ projectId, record, revisions }: { projectId: st
           <thead>
             <tr>
               <th>Rev</th>
+              <th>{WRITE.snapshotLabel}</th>
               <th>Status</th>
               <th>Source</th>
               <th>When</th>
@@ -149,6 +150,22 @@ export function HistorySection({ projectId, record, revisions }: { projectId: st
               <tr key={r.id}>
                 <td>
                   <Link href={`${base}?from=${Math.max(1, r.revisionNumber - 1)}&to=${r.revisionNumber}#compare`}>{r.revisionNumber}</Link>
+                </td>
+                <td className="small">
+                  <form action={labelRevisionAction.bind(null, projectId, record.id)} className="row" style={{ gap: "0.35rem", flexWrap: "wrap" }}>
+                    <input type="hidden" name="revisionNumber" value={r.revisionNumber} />
+                    <input
+                      name="label"
+                      defaultValue={r.label ?? ""}
+                      placeholder={WRITE.nameSnapshot}
+                      aria-label={WRITE.snapshotLabel}
+                      maxLength={120}
+                      style={{ minWidth: "8rem" }}
+                    />
+                    <Button type="submit" size="sm" variant="secondary">
+                      {WRITE.nameSnapshot}
+                    </Button>
+                  </form>
                 </td>
                 <td>
                   <StatusBadge status={r.authorityStatus} />
@@ -228,7 +245,7 @@ export function CompareSection({
           <select name="from" defaultValue={String(fromNum)}>
             {revisions.map((r) => (
               <option key={r.id} value={r.revisionNumber}>
-                {r.revisionNumber}
+                {r.label ? `${r.revisionNumber} · ${r.label}` : r.revisionNumber}
               </option>
             ))}
           </select>
@@ -238,7 +255,7 @@ export function CompareSection({
           <select name="to" defaultValue={String(toNum)}>
             {revisions.map((r) => (
               <option key={r.id} value={r.revisionNumber}>
-                {r.revisionNumber}
+                {r.label ? `${r.revisionNumber} · ${r.label}` : r.revisionNumber}
               </option>
             ))}
           </select>

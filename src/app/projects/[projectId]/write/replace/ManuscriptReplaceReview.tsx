@@ -6,6 +6,7 @@ import Link from "next/link";
 import { IssueList } from "@/components/IssueList";
 import { Banner } from "@/components/ui/Banner";
 import { Button, ButtonLink } from "@/components/ui/Button";
+import { Checkbox } from "@/components/ui/Checkbox";
 import { RECORD_TYPE_LABELS } from "@/domain/recordTypes";
 import type { ManuscriptReplaceMatch, ManuscriptReplacePreview } from "@/server/services/manuscriptReplaceService";
 import { MANUSCRIPT_REPLACE, RECORD } from "@/ui/labels";
@@ -93,16 +94,13 @@ export function ManuscriptReplaceReview({
               <ul className="hit-excerpts small">
                 {matches.map((m) => (
                   <li key={m.id} className="stack">
-                    <label className="inline">
-                      <input
-                        type="checkbox"
-                        name="matchId"
-                        value={m.id}
-                        checked={selected.has(m.id)}
-                        onChange={(e) => toggle(m.id, e.target.checked)}
-                      />{" "}
-                      <span className="muted">{m.field === "title" ? MANUSCRIPT_REPLACE.inTitle : MANUSCRIPT_REPLACE.inBody}</span>
-                    </label>
+                    <Checkbox
+                      name="matchId"
+                      value={m.id}
+                      checked={selected.has(m.id)}
+                      onChange={(e) => toggle(m.id, e.target.checked)}
+                      label={<span className="muted">{m.field === "title" ? MANUSCRIPT_REPLACE.inTitle : MANUSCRIPT_REPLACE.inBody}</span>}
+                    />
                     <div className="small">
                       <del>{m.excerptBefore}</del>
                       <ins>{m.excerptAfter}</ins>
@@ -115,9 +113,7 @@ export function ManuscriptReplaceReview({
         </ul>
 
         {needsUnlock ? (
-          <label className="inline small">
-            <input type="checkbox" name="unlockProtected" required disabled={pending} /> {RECORD.unlockProtected}
-          </label>
+          <Checkbox className="small" name="unlockProtected" required disabled={pending} label={RECORD.unlockProtected} />
         ) : null}
 
         <div className="row">

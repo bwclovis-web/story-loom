@@ -31,10 +31,10 @@ export interface LinkSeed {
   label: string;
 }
 
-/** What the link form starts with: the link the selection is in, or the selected words. Read from the text box itself. */
-export function linkSeedFrom(textarea: HTMLTextAreaElement): LinkSeed {
-  const text = textarea.value;
-  const sel = { start: textarea.selectionStart, end: textarea.selectionEnd };
+/** What the link form starts with: the link the selection is in, or the selected words. Read from the editor itself. */
+export function linkSeedFrom(editor: { value: string; selectionStart: number; selectionEnd: number }): LinkSeed {
+  const text = editor.value;
+  const sel = { start: editor.selectionStart, end: editor.selectionEnd };
   const existing = linkAt(text, sel);
   return existing ? { url: existing.url, label: existing.label } : { url: "", label: text.slice(sel.start, sel.end) };
 }
@@ -116,7 +116,7 @@ export function EditorToolbar({
   linkRequest,
 }: {
   editorId: string;
-  textareaRef: RefObject<HTMLTextAreaElement | null>;
+  textareaRef: RefObject<import("./EditorSurface").EditorSurface | HTMLTextAreaElement | null>;
   text: string;
   selection: Selection;
   editable: boolean;
@@ -160,10 +160,20 @@ export function EditorToolbar({
   };
 
   const undoRedo = (command: "undo" | "redo") => {
-    const ta = textareaRef.current;
-    if (!ta) return;
-    ta.focus();
-    document.execCommand(command);
+    const editor = textareaRef.current;
+    if (!editor) return;
+    editor.focus();
+    if (command === "undo" && "undo" in editor && typeof editor.undo === "function" && editor.undo()) {
+      onHistory();
+      return;
+    }
+    if (command === "redo" && "redo" in editor && typeof editor.redo === "function" && editor.redo()) {
+      onHistory();
+      return;
+    }
+    if (typeof HTMLTextAreaElement !== "undefined" && editor instanceof HTMLTextAreaElement) {
+      document.execCommand(command);
+    }
     onHistory();
   };
 

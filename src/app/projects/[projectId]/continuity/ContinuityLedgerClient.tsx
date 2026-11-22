@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
 import { Banner } from "@/components/ui/Banner";
 import { Button } from "@/components/ui/Button";
+import { Checkbox } from "@/components/ui/Checkbox";
 import { EmptyState } from "@/components/ui/EmptyState";
 import type { ContinuityCategory, ContinuityItem, ContinuityKind, ContinuitySeverity } from "@/server/services/continuityService";
 import { CONTINUITY } from "@/ui/labels";
@@ -110,10 +111,12 @@ export function ContinuityLedgerClient({
               ))}
             </select>
           </label>
-          <label className="inline">
-            <input type="checkbox" checked={showSuppressed} onChange={(e) => setShowSuppressed(e.target.checked)} disabled={pending} />
-            {CONTINUITY.showSuppressed}
-          </label>
+          <Checkbox
+            checked={showSuppressed}
+            onChange={(e) => setShowSuppressed(e.target.checked)}
+            disabled={pending}
+            label={CONTINUITY.showSuppressed}
+          />
         </div>
         <p className="small muted" style={{ margin: 0 }}>
           {CONTINUITY.ledgerNote}

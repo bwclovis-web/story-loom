@@ -69,7 +69,7 @@ export function Proofreader({
   savedText: string;
   text: string;
   selection: { start: number; end: number };
-  textareaRef: RefObject<HTMLTextAreaElement | null>;
+  textareaRef: RefObject<import("@/components/writing/EditorSurface").EditorSurface | HTMLTextAreaElement | null>;
   editable: boolean;
   onUnlock: () => void;
   config: ProofreadConfig;
@@ -232,8 +232,8 @@ export function Proofreader({
     } else abortRef.current?.abort();
   };
 
-  /** Re-locates against the text box itself, so an edit is never placed using an outdated position. */
-  const freshLocate = (s: ProofreadSuggestion, ta: HTMLTextAreaElement) =>
+  /** Re-locates against the editor itself, so an edit is never placed using an outdated position. */
+  const freshLocate = (s: ProofreadSuggestion, ta: { value: string }) =>
     locateSuggestion(run!.source, ta.value, mapText(run!.source, ta.value), s, decisions[s.id]);
 
   const accept = (i: number) => {

@@ -10,6 +10,7 @@ import {
   type WorldScope,
 } from "@/domain/assignments";
 import type { AssignmentPlan, AssignmentPreview, ManuscriptGroupInput } from "@/server/services/assignmentService";
+import { Checkbox } from "@/components/ui/Checkbox";
 import { UPGRADE } from "@/ui/labels";
 import { applyAssignmentsAction, previewAssignmentsAction } from "./actions";
 
@@ -233,15 +234,13 @@ export function UpgradeClient({ projectId, initial }: { projectId: string; initi
                 const taken = !checked && assigned.has(c.id);
                 return (
                   <li key={c.id}>
-                    <label className={taken ? "muted" : undefined}>
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        disabled={taken}
-                        onChange={(e) => toggleChapter(g.key, c.id, e.target.checked)}
-                      />{" "}
-                      {c.title}
-                    </label>
+                    <Checkbox
+                      className={taken ? "muted" : undefined}
+                      checked={checked}
+                      disabled={taken}
+                      onChange={(e) => toggleChapter(g.key, c.id, e.target.checked)}
+                      label={c.title}
+                    />
                   </li>
                 );
               })}

@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { ProtectionBadge, StatusBadge } from "@/components/Badges";
 import { Button, ButtonLink } from "@/components/ui/Button";
+import { Checkbox } from "@/components/ui/Checkbox";
 import { RecordFlexRow } from "@/components/ui/RecordRow";
 import type { AuthorityStatus } from "@/domain/statuses";
 import { BOOK_ORDER, MANUSCRIPT_STRUCTURE, WRITING } from "@/ui/labels";
@@ -67,10 +68,7 @@ export function BookOrder({
         {WRITING.bookCount}: <strong>{formatWordCount(bookWords)}</strong> <span className="muted">{WRITING.bookSavedNote}</span>
       </p>
       <p className="small muted">{BOOK_ORDER.note}</p>
-      <label className="check-inline">
-        <input type="checkbox" checked={unlock} onChange={(event) => setUnlock(event.target.checked)} />
-        {MANUSCRIPT_STRUCTURE.unlock}
-      </label>
+      <Checkbox checked={unlock} onChange={(event) => setUnlock(event.target.checked)} label={MANUSCRIPT_STRUCTURE.unlock} />
       <p className={message?.error ? "small error-text" : "small"} role="status" aria-live="polite">
         {pending ? MANUSCRIPT_STRUCTURE.working : (message?.text ?? "")}
       </p>

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
 import { IssueList } from "@/components/IssueList";
 import { Button } from "@/components/ui/Button";
+import { Checkbox } from "@/components/ui/Checkbox";
 import type { Issue } from "@/domain/issues";
 import { errorIssue } from "@/domain/issues";
 import type { WeaveBuildDecisions, WeaveBuildRunView } from "@/server/services/weaveBuildFromDraftService";
@@ -227,10 +228,7 @@ export function BuildGridFromDraftForm({
           )}
         </div>
         {rewritePins.length ? (
-          <label className="row" style={{ gap: "0.5rem", alignItems: "center" }}>
-            <input type="checkbox" checked={usePins} onChange={(e) => setUsePins(e.target.checked)} />
-            {WEAVE.buildUsePinnedSources}
-          </label>
+          <Checkbox checked={usePins} onChange={(e) => setUsePins(e.target.checked)} label={WEAVE.buildUsePinnedSources} />
         ) : null}
         <div className="row" style={{ gap: "0.5rem" }}>
           <Button type="submit" disabled={busy || !assistantConfigured}>

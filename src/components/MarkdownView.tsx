@@ -128,6 +128,14 @@ function renderInline(nodes: readonly Inline[], ctx: RenderContext): ReactNode {
           </a>
         );
       }
+      case "footnoteRef":
+        return (
+          <sup key={i} className="md-footnote-ref">
+            <a href={`#fn-${encodeURIComponent(node.id)}`} id={`fnref-${encodeURIComponent(node.id)}`}>
+              {node.id}
+            </a>
+          </sup>
+        );
     }
   });
 }
@@ -170,6 +178,15 @@ function renderBlocks(blocks: readonly Block[], ctx: RenderContext, tight = fals
         );
       case "rule":
         return <hr key={i} />;
+      case "footnote":
+        return (
+          <aside key={i} className="md-footnote" id={`fn-${encodeURIComponent(block.id)}`}>
+            <span className="md-footnote-label">{block.id}.</span> {renderInline(block.children, ctx)}{" "}
+            <a className="md-footnote-back" href={`#fnref-${encodeURIComponent(block.id)}`} aria-label="Back to reference">
+              ↩
+            </a>
+          </aside>
+        );
       case "table":
         return (
           <div key={i} className="md-table-wrap" tabIndex={0} role="region" aria-label="Table, scrolls sideways">

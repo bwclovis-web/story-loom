@@ -24,6 +24,8 @@ function show(nodes: readonly Inline[]): string {
           return `<a ${n.href}>${show(n.children)}</a>`;
         case "image":
           return `<img ${n.name} "${n.alt}">`;
+        case "footnoteRef":
+          return `<fn>${n.id}</fn>`;
         default:
           return `<${n.kind}>${show(n.children)}</${n.kind}>`;
       }
@@ -151,5 +153,18 @@ describe("inline formatting", () => {
   it("turns a trailing backslash or two spaces into a line break", () => {
     expect(show(parseInline("a\\\nb"))).toBe("a<br>b");
     expect(show(parseInline("a  \nb"))).toBe("a<br>b");
+  });
+
+  it("reads footnote references", () => {
+    expect(show(parseInline("See the quay[^1] at dusk."))).toBe("See the quay<fn>1</fn> at dusk.");
+  });
+});
+
+describe("footnotes", () => {
+  it("parses footnote definitions as blocks", () => {
+    const doc = parseMarkdown("A note.[^harbor]\n\n[^harbor]: The old quay.\n");
+    expect(kinds("A note.[^harbor]\n\n[^harbor]: The old quay.\n")).toEqual(["paragraph", "footnote"]);
+    const note = doc.blocks.find((b) => b.kind === "footnote");
+    expect(note).toMatchObject({ kind: "footnote", id: "harbor" });
   });
 });

@@ -1,5 +1,6 @@
 "use client";
 import { Button } from "@/components/ui/Button";
+import { Checkbox } from "@/components/ui/Checkbox";
 
 import { useState, useTransition } from "react";
 import { ProtectionBadge, StatusBadge } from "@/components/Badges";
@@ -72,18 +73,26 @@ export function ExportClient({
         const allOn = ids.every((id) => selected.has(id));
         return (
           <div key={type} className="panel">
-            <label className="inline" style={{ fontWeight: 600 }}>
-              <input type="checkbox" checked={allOn} onChange={(e) => toggle(ids, e.target.checked)} />
-              {RECORD_TYPE_LABELS[type]}
-            </label>
+            <Checkbox
+              style={{ fontWeight: 600 }}
+              checked={allOn}
+              onChange={(e) => toggle(ids, e.target.checked)}
+              label={RECORD_TYPE_LABELS[type]}
+            />
             <div className="stack" style={{ marginTop: "0.4rem", marginLeft: "1.4rem" }}>
               {ofType.map((r) => (
-                <label key={r.id} className="inline">
-                  <input type="checkbox" checked={selected.has(r.id)} onChange={(e) => toggle([r.id], e.target.checked)} />
-                  {r.title} <code className="small muted">{r.id}</code> <span className="badge">rev {r.revision}</span>
-                  <StatusBadge status={r.authorityStatus} />
-                  <ProtectionBadge isProtected={r.protected} />
-                </label>
+                <Checkbox
+                  key={r.id}
+                  checked={selected.has(r.id)}
+                  onChange={(e) => toggle([r.id], e.target.checked)}
+                  label={
+                    <>
+                      {r.title} <code className="small muted">{r.id}</code> <span className="badge">rev {r.revision}</span>
+                      <StatusBadge status={r.authorityStatus} />
+                      <ProtectionBadge isProtected={r.protected} />
+                    </>
+                  }
+                />
               ))}
             </div>
           </div>
@@ -91,10 +100,7 @@ export function ExportClient({
       })}
 
       <div className="panel stack">
-        <label className="inline">
-          <input type="checkbox" checked={includeSchema} onChange={(e) => setIncludeSchema(e.target.checked)} />
-          {EXPORT.includeSchema}
-        </label>
+        <Checkbox checked={includeSchema} onChange={(e) => setIncludeSchema(e.target.checked)} label={EXPORT.includeSchema} />
         <div className="row">
           <Button onClick={generate} disabled={pending || selected.size === 0}>
             {EXPORT.generate(selected.size)}

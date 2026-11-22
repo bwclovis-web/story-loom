@@ -19,6 +19,7 @@ import { ContextRail, ContextRailToggle, useContextRail } from "@/components/she
 import { CloseIcon } from "@/components/shell/icons";
 import { BoardOverflowMenu } from "@/components/ui/BoardOverflowMenu";
 import { Button, ButtonLink } from "@/components/ui/Button";
+import { Checkbox } from "@/components/ui/Checkbox";
 import { CanvasToolbar, CanvasToolbarGroup } from "@/components/ui/CanvasToolbar";
 import { IconButton } from "@/components/ui/IconButton";
 import { SegmentedControl, SegmentedOption } from "@/components/ui/SegmentedControl";
@@ -608,23 +609,24 @@ export function WeaveCanvas({
                         const checked = !hiddenThreadIds.includes(t.id);
                         return (
                           <li key={t.id}>
-                            <label className="row" style={{ gap: "0.4rem" }}>
-                              <input
-                                type="checkbox"
-                                checked={checked}
-                                onChange={() => {
-                                  setHiddenThreadIds((ids) => {
-                                    if (checked) {
-                                      if (ids.length + 1 >= threads.length) return ids;
-                                      return [...ids, t.id];
-                                    }
-                                    return ids.filter((id) => id !== t.id);
-                                  });
-                                }}
-                              />
-                              <span className={`plot-grid-thread-dot thread-tone-${i % 6}`} aria-hidden="true" />
-                              <span>{t.title}</span>
-                            </label>
+                            <Checkbox
+                              checked={checked}
+                              onChange={() => {
+                                setHiddenThreadIds((ids) => {
+                                  if (checked) {
+                                    if (ids.length + 1 >= threads.length) return ids;
+                                    return [...ids, t.id];
+                                  }
+                                  return ids.filter((id) => id !== t.id);
+                                });
+                              }}
+                              label={
+                                <>
+                                  <span className={`plot-grid-thread-dot thread-tone-${i % 6}`} aria-hidden="true" />
+                                  <span>{t.title}</span>
+                                </>
+                              }
+                            />
                           </li>
                         );
                       })}

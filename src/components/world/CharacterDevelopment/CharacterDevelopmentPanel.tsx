@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { Banner } from "@/components/ui/Banner";
 import { Button } from "@/components/ui/Button";
+import { Checkbox } from "@/components/ui/Checkbox";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { HelpPopover } from "@/components/ui/HelpPopover";
 import { IssueList } from "@/components/IssueList";
@@ -333,19 +334,22 @@ export function CharacterDevelopmentPanel({
         <fieldset className="stack">
           <legend>{LABELS.extract}</legend>
           {suggestions.map((suggestion) => (
-            <label key={suggestion.id} className="small">
-              <input
-                type="checkbox"
-                checked={pickedSuggestions.includes(suggestion.id)}
-                onChange={(event) =>
-                  setPickedSuggestions((current) =>
-                    event.target.checked ? [...current, suggestion.id] : current.filter((id) => id !== suggestion.id),
-                  )
-                }
-              />{" "}
-              {suggestion.kind}: {suggestion.value}
-              {suggestion.evidence ? <span className="muted"> — {suggestion.evidence}</span> : null}
-            </label>
+            <Checkbox
+              key={suggestion.id}
+              className="small"
+              checked={pickedSuggestions.includes(suggestion.id)}
+              onChange={(event) =>
+                setPickedSuggestions((current) =>
+                  event.target.checked ? [...current, suggestion.id] : current.filter((id) => id !== suggestion.id),
+                )
+              }
+              label={
+                <>
+                  {suggestion.kind}: {suggestion.value}
+                  {suggestion.evidence ? <span className="muted"> — {suggestion.evidence}</span> : null}
+                </>
+              }
+            />
           ))}
           <Button
             type="button"
@@ -378,20 +382,23 @@ export function CharacterDevelopmentPanel({
         <fieldset className="stack">
           <legend>{LABELS.review}</legend>
           {observations.map((observation, index) => (
-            <label key={`${observation.check}-${index}`} className="small">
-              <input
-                type="checkbox"
-                checked={pickedNotes.includes(index)}
-                onChange={(event) =>
-                  setPickedNotes((current) =>
-                    event.target.checked ? [...current, index] : current.filter((item) => item !== index),
-                  )
-                }
-              />{" "}
-              {observation.check}: {observation.summary}
-              {observation.uncertainty ? <span className="muted"> ({observation.uncertainty})</span> : null}
-              {observation.evidence ? <span className="muted"> — {observation.evidence}</span> : null}
-            </label>
+            <Checkbox
+              key={`${observation.check}-${index}`}
+              className="small"
+              checked={pickedNotes.includes(index)}
+              onChange={(event) =>
+                setPickedNotes((current) =>
+                  event.target.checked ? [...current, index] : current.filter((item) => item !== index),
+                )
+              }
+              label={
+                <>
+                  {observation.check}: {observation.summary}
+                  {observation.uncertainty ? <span className="muted"> ({observation.uncertainty})</span> : null}
+                  {observation.evidence ? <span className="muted"> — {observation.evidence}</span> : null}
+                </>
+              }
+            />
           ))}
           <Button
             type="button"
@@ -452,14 +459,9 @@ export function CharacterDevelopmentPanel({
       <p className="small muted">{LABELS.extractHint}</p>
       <p className="small muted">{LABELS.reviewHint}</p>
       {isProtected ? (
-        <label className="small">
-          <input type="checkbox" checked={unlock} onChange={(event) => setUnlock(event.target.checked)} /> {LABELS.unlock}
-        </label>
+        <Checkbox className="small" checked={unlock} onChange={(event) => setUnlock(event.target.checked)} label={LABELS.unlock} />
       ) : null}
-      <label className="small">
-        <input type="checkbox" checked={allowRewrite} onChange={(event) => setAllowRewrite(event.target.checked)} />{" "}
-        {LABELS.confirmRewrite}
-      </label>
+      <Checkbox className="small" checked={allowRewrite} onChange={(event) => setAllowRewrite(event.target.checked)} label={LABELS.confirmRewrite} />
     </div>
   );
 }
@@ -822,19 +824,18 @@ function ArcFields({
             <fieldset>
               <legend>{LABELS.participants}</legend>
               {catalog.characters.map((character) => (
-                <label key={character.id} className="small">
-                  <input
-                    type="checkbox"
-                    checked={arc.participantRecordIds.includes(character.id)}
-                    onChange={(event) => {
-                      const participantRecordIds = event.target.checked
-                        ? [...arc.participantRecordIds, character.id]
-                        : arc.participantRecordIds.filter((id) => id !== character.id);
-                      replace({ ...arc, participantRecordIds });
-                    }}
-                  />{" "}
-                  {character.label}
-                </label>
+                <Checkbox
+                  key={character.id}
+                  className="small"
+                  checked={arc.participantRecordIds.includes(character.id)}
+                  onChange={(event) => {
+                    const participantRecordIds = event.target.checked
+                      ? [...arc.participantRecordIds, character.id]
+                      : arc.participantRecordIds.filter((id) => id !== character.id);
+                    replace({ ...arc, participantRecordIds });
+                  }}
+                  label={character.label}
+                />
               ))}
             </fieldset>
             <fieldset className="stack">
@@ -1192,23 +1193,22 @@ function HistoryFields({
         </label>
         {profile.variant
           ? INHERITABLE_KEYS.map((key) => (
-              <label key={key} className="small">
-                <input
-                  type="checkbox"
-                  checked={profile.variant?.inheritedKeys.includes(key) ?? false}
-                  onChange={(event) => {
-                    const current = profile.variant?.inheritedKeys ?? [];
-                    const inheritedKeys = event.target.checked
-                      ? [...current, key as InheritableKey]
-                      : current.filter((item) => item !== key);
-                    onChange({
-                      ...profile,
-                      variant: profile.variant ? { ...profile.variant, inheritedKeys } : null,
-                    });
-                  }}
-                />{" "}
-                {key}
-              </label>
+              <Checkbox
+                key={key}
+                className="small"
+                checked={profile.variant?.inheritedKeys.includes(key) ?? false}
+                onChange={(event) => {
+                  const current = profile.variant?.inheritedKeys ?? [];
+                  const inheritedKeys = event.target.checked
+                    ? [...current, key as InheritableKey]
+                    : current.filter((item) => item !== key);
+                  onChange({
+                    ...profile,
+                    variant: profile.variant ? { ...profile.variant, inheritedKeys } : null,
+                  });
+                }}
+                label={key}
+              />
             ))
           : null}
       </fieldset>
@@ -1249,23 +1249,19 @@ function StateRow({
           ))}
         </select>
       </label>
-      <label className="small">
-        <input
-          type="checkbox"
-          checked={change.presence === "unknown"}
-          onChange={(event) => onChange({ ...change, presence: event.target.checked ? "unknown" : "set", text: event.target.checked ? "" : change.text })}
-        />{" "}
-        {LABELS.explicitUnknown}
-      </label>
+      <Checkbox
+        className="small"
+        checked={change.presence === "unknown"}
+        onChange={(event) => onChange({ ...change, presence: event.target.checked ? "unknown" : "set", text: event.target.checked ? "" : change.text })}
+        label={LABELS.explicitUnknown}
+      />
       {change.presence === "set" ? (
         <label>
           {LABELS.stateValue}
           <input value={change.text} onChange={(event) => onChange({ ...change, text: event.target.value })} />
         </label>
       ) : null}
-      <label className="small">
-        <input type="checkbox" checked={change.planned} onChange={(event) => onChange({ ...change, planned: event.target.checked })} /> {LABELS.planned}
-      </label>
+      <Checkbox className="small" checked={change.planned} onChange={(event) => onChange({ ...change, planned: event.target.checked })} label={LABELS.planned} />
       <label>
         {LABELS.approval}
         <select value={change.approval} onChange={(event) => onChange({ ...change, approval: event.target.value as StateChange["approval"] })}>

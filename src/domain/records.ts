@@ -31,6 +31,8 @@ export interface RevisionView extends RecordSnapshot {
   revisionNumber: number;
   contentHash: string;
   sourceId: string;
+  /** Optional author snapshot name; null when unnamed. */
+  label: string | null;
   createdAt: Date;
 }
 
@@ -80,6 +82,7 @@ export function toRevisionView(row: RevisionRow): RevisionView {
     supersededByRecordId: row.supersededByRecordId,
     contentHash: row.contentHash,
     sourceId: row.sourceId,
+    label: row.label ?? null,
     createdAt: row.createdAt,
   };
 }

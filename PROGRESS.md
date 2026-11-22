@@ -1,13 +1,35 @@
 # Progress
 
+## Reference context tabs and image view (Nov 22, 2026)
+
+Reference context tabs are a short text row instead of the tall Write icon tabs. Choosing an image in that tab opens it in a lightbox (previous, next, Escape to close) instead of jumping to the images section.
+
+### Rollback
+
+Revert the inspector tab CSS, `ImageLightbox`, the Images tab buttons, Help, and this note. No schema change.
+
+## Milestone 7: Editor & revision leap (Nov 22, 2026)
+
+CodeMirror 6 live-formatted Markdown editor (exact UTF-16 offsets; Live Markdown toggle; spell decorations; codex hover peek). Footnotes (`[^id]` / `[^id]:`). Scrivenings continuous chapter+scenes editing with per-block protection and autosave. Create reference from selection (draft + optional link/pin). Named revision snapshots (`Revision.label`, optional in backups) with History naming and labeled compare pickers. Browser read-aloud on selection or whole document.
+
+| Check | Result |
+| --- | --- |
+| `pnpm db:deploy` | Applied `20261122160000_revision_labels`; backup `backups/2026-11-22T15-26-04-619Z-pre-migrate` |
+| `pnpm exec tsc --noEmit` | pass |
+| `pnpm exec vitest run tests/unit/help.test.ts tests/unit/markdownParse.test.ts` | 2 files, 23 tests passed |
+
+### Rollback
+
+Revert CM6 editor wiring, Scrivenings route, create-from-selection action, revision label service/migration/backup optional field, Help, and labels. Working DB: leave `Revision.label` null or restore the pre-migrate backup. No manuscript rewrite.
+
 ## Pre-flight hygiene before Milestone 7 (Nov 22, 2026)
 
 Cleared the five standing `tsc --noEmit` errors (proofread schema import, optional `provider.complete`, DOCX review issue code, map authority status narrowing, Continuity Ledger fixture type). Help no longer claims Save-only writing; unlocked autosave and protected manual Save are documented, including under Limitations. Removing protection now uses the shared two-step confirm control.
 
 | Check | Result |
 | --- | --- |
-| `pnpm exec tsc --noEmit` | pending |
-| `pnpm exec vitest run tests/acceptance/continuity-ledger.test.ts tests/unit/help.test.ts` | pending |
+| `pnpm exec tsc --noEmit` | pass (0 errors) |
+| `pnpm exec vitest run tests/acceptance/continuity-ledger.test.ts tests/unit/help.test.ts` | 2 files, 7 tests passed |
 
 ### Rollback
 

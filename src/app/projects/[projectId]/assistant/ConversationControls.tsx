@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { Banner } from "@/components/ui/Banner";
 import { Button } from "@/components/ui/Button";
+import { Checkbox } from "@/components/ui/Checkbox";
 import { ASSISTANT } from "@/ui/labels";
 import {
   deleteConversationAction,
@@ -41,10 +42,7 @@ export function DeleteConversation({ projectId, conversationId }: { projectId: s
     <details className="small">
       <summary>{ASSISTANT.deleteConversation}</summary>
       <p>Deletes the questions and answers stored in this app. Records are not affected. It cannot be undone.</p>
-      <label className="inline">
-        <input type="checkbox" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} />
-        {ASSISTANT.confirmDelete}
-      </label>{" "}
+      <Checkbox checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} label={ASSISTANT.confirmDelete} />{" "}
       <Button type="button" variant="secondary" disabled={!confirmed || pending} onClick={remove}>
         {ASSISTANT.deleteConversation}
       </Button>
@@ -125,15 +123,13 @@ export function AssistantSettingsPanel({
     <details className="stack">
       <summary>{ASSISTANT.assistantSettings}</summary>
       <p className="small muted">{ASSISTANT.assistantSettingsHint}</p>
-      <label className="inline small">
-        <input
-          type="checkbox"
-          checked={autoIncludeRecent}
-          disabled={pending}
-          onChange={(e) => setAutoIncludeRecent(e.target.checked)}
-        />
-        {ASSISTANT.autoIncludeRecent}
-      </label>
+      <Checkbox
+        className="small"
+        checked={autoIncludeRecent}
+        disabled={pending}
+        onChange={(e) => setAutoIncludeRecent(e.target.checked)}
+        label={ASSISTANT.autoIncludeRecent}
+      />
       <p className="small muted" style={{ margin: 0 }}>
         {ASSISTANT.autoIncludeRecentHint}
       </p>

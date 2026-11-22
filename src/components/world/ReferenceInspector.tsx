@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { ButtonLink } from "@/components/ui/Button";
+import { ImageLightbox } from "@/components/ui/ImageLightbox";
 import { useId, useState, type KeyboardEvent, type ReactNode } from "react";
 import { CanonBadge, ProtectionStateBadge, SavedVersionBadge } from "@/components/Badges";
 import {
@@ -11,7 +12,7 @@ import {
   type SceneChoice,
 } from "@/app/projects/[projectId]/records/[recordId]/EstablishedInRail";
 import type { EstablishedFactView } from "@/server/services/establishedFactService";
-import { CHARACTER_DEVELOPMENT, REFERENCE_FORM, WORLD, WORLD_KIND } from "@/ui/labels";
+import { CHARACTER_DEVELOPMENT, IMAGES, REFERENCE_FORM, WORLD, WORLD_KIND } from "@/ui/labels";
 import { placementHref, type ReferenceInspectorModel } from "@/world/inspectorModel";
 
 export interface InspectorEstablished {
@@ -57,6 +58,7 @@ export function ReferenceInspector({
   const showEstablished = model.supportsEstablished && established !== null;
   const tabs = TAB_ORDER.filter((tab) => tab !== "established" || showEstablished);
   const [tab, setTab] = useState<InspectorTab>("overview");
+  const [openImageId, setOpenImageId] = useState<string | null>(null);
   const active = tabs.includes(tab) ? tab : "overview";
   const base = `/projects/${encodeURIComponent(projectId)}`;
   const recordHref = `${base}/records/${encodeURIComponent(model.id)}`;
@@ -234,14 +236,19 @@ export function ReferenceInspector({
           <ul className="inspector-images">
             {model.images.map((image) => (
               <li key={image.id}>
-                <a href={sectionHref("images")}>
+                <button
+                  type="button"
+                  className="inspector-image-open"
+                  aria-label={IMAGES.open(image.name)}
+                  onClick={() => setOpenImageId(image.id)}
+                >
                   {/* eslint-disable-next-line @next/next/no-img-element -- project image route */}
                   <img
                     src={`${base}/images/${encodeURIComponent(image.id)}`}
-                    alt={image.altText || image.caption || image.name}
+                    alt=""
                     className="inspector-thumb"
                   />
-                </a>
+                </button>
                 <p className="small">
                   {image.caption || image.name}
                   {image.altText && image.altText !== image.caption ? <span className="muted"> — {image.altText}</span> : null}
@@ -319,6 +326,17 @@ export function ReferenceInspector({
           />
         </div>
       ) : null}
+      <ImageLightbox
+        images={model.images.map((image) => ({
+          id: image.id,
+          src: `${base}/images/${encodeURIComponent(image.id)}`,
+          alt: image.altText || image.caption || image.name,
+          caption: image.caption || image.name,
+        }))}
+        openId={openImageId}
+        onOpenId={setOpenImageId}
+        onClose={() => setOpenImageId(null)}
+      />
     </div>
   );
 }

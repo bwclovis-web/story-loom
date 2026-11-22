@@ -83,7 +83,7 @@ export function MarginCommentsPanel({
   recordId: string;
   revision: number;
   dirty: boolean;
-  textareaRef: RefObject<HTMLTextAreaElement | null>;
+  textareaRef: RefObject<import("@/components/writing/EditorSurface").EditorSurface | HTMLTextAreaElement | null>;
   initialComments: MarginCommentView[];
 }) {
   const router = useRouter();

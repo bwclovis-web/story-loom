@@ -5,6 +5,7 @@ import { useState, useTransition } from "react";
 import { IssueList } from "@/components/IssueList";
 import { Banner } from "@/components/ui/Banner";
 import { Button } from "@/components/ui/Button";
+import { Checkbox } from "@/components/ui/Checkbox";
 import { FileInput } from "@/components/ui/FileInput";
 import type { ChapterDecision, ChapterImportItem } from "@/server/services/chapterImportService";
 import type { ImportDecision, MarkdownImportItem } from "@/server/services/markdownImportService";
@@ -145,10 +146,7 @@ export function ScrivenerImportClient({ projectId }: { projectId: string }) {
           aria-label={SCRIVENER_IMPORT.filesLabel}
           disabled={pending}
         />
-        <label className="inline">
-          <input type="checkbox" checked={tidy} disabled={pending} onChange={(e) => setTidy(e.target.checked)} />
-          {CHAPTER_IMPORT.tidy}
-        </label>
+        <Checkbox checked={tidy} disabled={pending} onChange={(e) => setTidy(e.target.checked)} label={CHAPTER_IMPORT.tidy} />
         <p className="small muted" style={{ margin: 0 }}>
           {SCRIVENER_IMPORT.hint}
         </p>
@@ -237,10 +235,11 @@ export function ScrivenerImportClient({ projectId }: { projectId: string }) {
 
           <div className="panel stack">
             {protectedChapterReplacements > 0 ? (
-              <label className="inline">
-                <input type="checkbox" checked={confirmChapters} onChange={(e) => setConfirmChapters(e.target.checked)} />
-                {CHAPTER_IMPORT.confirmProtected(protectedChapterReplacements)}
-              </label>
+              <Checkbox
+                checked={confirmChapters}
+                onChange={(e) => setConfirmChapters(e.target.checked)}
+                label={CHAPTER_IMPORT.confirmProtected(protectedChapterReplacements)}
+              />
             ) : null}
             <div className="row">
               <Button onClick={run} disabled={pending || incomplete}>

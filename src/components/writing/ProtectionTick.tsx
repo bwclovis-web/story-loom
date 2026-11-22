@@ -1,5 +1,6 @@
 "use client";
 
+import { Checkbox } from "@/components/ui/Checkbox";
 import { WRITE } from "@/ui/labels";
 
 /**
@@ -10,10 +11,7 @@ export function ProtectionTick({ note, onUnlock, warning }: { note: string; onUn
   return (
     <div className="protection-tick small">
       <p className={warning ? "warning" : "muted"}>{note}</p>
-      <label className="inline">
-        <input type="checkbox" onChange={(e) => e.target.checked && onUnlock()} />
-        {WRITE.enableEditing}
-      </label>
+      <Checkbox onChange={(e) => e.target.checked && onUnlock()} label={WRITE.enableEditing} />
     </div>
   );
 }

@@ -6,6 +6,7 @@ import { IssueList } from "@/components/IssueList";
 import { submitWithoutReset } from "@/components/submitWithoutReset";
 import { Banner } from "@/components/ui/Banner";
 import { Button, ButtonLink } from "@/components/ui/Button";
+import { Checkbox } from "@/components/ui/Checkbox";
 import { FindReplace, type DirectUndo } from "@/components/writing/FindReplace";
 import { Proofreader, type ProofreadConfig } from "@/components/writing/Proofreader";
 import { SelectionAssister } from "@/components/writing/SelectionAssister";
@@ -102,10 +103,7 @@ function UnlockCheckbox({
 }) {
   if (!isProtected) return null;
   return (
-    <label className="inline">
-      <input type="checkbox" name="unlockProtected" checked={checked} onChange={(e) => onChange?.(e.target.checked)} />
-      {RECORD.unlockProtected}
-    </label>
+    <Checkbox name="unlockProtected" checked={checked} onChange={(e) => onChange?.(e.target.checked)} label={RECORD.unlockProtected} />
   );
 }
 

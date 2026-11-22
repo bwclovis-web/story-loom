@@ -5,6 +5,7 @@ import type { FindContextCandidate, FindRelevantContextResult } from "@/server/s
 import { ASSISTANT } from "@/ui/labels";
 import { findRelevantContextAction } from "./actions";
 import { Button } from "@/components/ui/Button";
+import { Checkbox } from "@/components/ui/Checkbox";
 
 export interface FindSelectionApply {
   selectedRefs: string[];
@@ -114,10 +115,13 @@ export function FindRelevantContext({
         <Button type="button" variant="secondary" size="sm" disabled={disabled || pending} onClick={run}>
           {pending ? ASSISTANT.findRelevantRunning : ASSISTANT.findRelevantContext}
         </Button>
-        <label className="inline small">
-          <input type="checkbox" checked={includeZero} onChange={(e) => setIncludeZero(e.target.checked)} disabled={disabled || pending} />
-          {ASSISTANT.includePinnedZeroDraft}
-        </label>
+        <Checkbox
+          className="small"
+          checked={includeZero}
+          onChange={(e) => setIncludeZero(e.target.checked)}
+          disabled={disabled || pending}
+          label={ASSISTANT.includePinnedZeroDraft}
+        />
       </div>
       <p className="small muted" style={{ margin: 0 }}>
         {ASSISTANT.findRelevantHint}

@@ -1253,6 +1253,7 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
       supersededByRecordId: r.supersededByRecordId,
       contentHash: r.contentHash,
       sourceId: r.sourceId,
+      ...(r.label ? { label: r.label } : {}),
       createdAt: iso(r.createdAt),
     })),
     sources: sources.map((s) => ({
@@ -3382,6 +3383,7 @@ export async function restoreWorkspaceBackup(db: Db, input: string | unknown, op
               supersededByRecordId,
               contentHash: snapshotHash(snapshot),
               sourceId: m(r.sourceId),
+              label: r.label?.trim() ? r.label.trim() : null,
               createdAt: new Date(r.createdAt),
             };
           }),

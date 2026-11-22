@@ -12,6 +12,7 @@ import { ProtectionTick } from "./ProtectionTick";
 import { applyTextareaEdit, selectRange } from "./textareaEdit";
 import type { Spellcheck } from "./useSpellcheck";
 import { Button } from "@/components/ui/Button";
+import { Checkbox } from "@/components/ui/Checkbox";
 
 /** The flagged word the selection is in, if any. */
 export function flagAt(flags: readonly SpellFlag[], selection: { start: number; end: number }): SpellFlag | null {
@@ -122,10 +123,7 @@ function AddWord({
       <Button type="button" variant="secondary" disabled={busy} onClick={() => add("workspace")}>
         {SPELLING.addToWorkspace}
       </Button>
-      <label className="inline">
-        <input type="checkbox" checked={matchCase} onChange={(e) => setMatchCase(e.target.checked)} />
-        {SPELLING.matchCase}
-      </label>
+      <Checkbox checked={matchCase} onChange={(e) => setMatchCase(e.target.checked)} label={SPELLING.matchCase} />
     </div>
   );
 }
@@ -153,7 +151,7 @@ export function SpellingPanel({
   flags: readonly SpellFlag[];
   text: string;
   selection: { start: number; end: number };
-  textareaRef: RefObject<HTMLTextAreaElement | null>;
+  textareaRef: RefObject<import("@/components/writing/EditorSurface").EditorSurface | HTMLTextAreaElement | null>;
   editable: boolean;
   onUnlock: () => void;
   words: readonly DictionaryWord[];

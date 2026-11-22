@@ -8,6 +8,7 @@ import { IssueList } from "@/components/IssueList";
 import { ResultSummary } from "@/components/PackagePreview";
 import { Banner } from "@/components/ui/Banner";
 import { Button, ButtonLink } from "@/components/ui/Button";
+import { Checkbox } from "@/components/ui/Checkbox";
 import { RECORD_TYPE_LABELS } from "@/domain/recordTypes";
 import type { PackagePreview } from "@/server/services/changePackageService";
 import { REVIEW } from "@/ui/labels";
@@ -495,15 +496,13 @@ export function PackageReviewView(props: PackageReviewViewProps) {
               {vstate === "ready" ? (
                 <>
                   {summary.requiresProtectedConfirmation ? (
-                    <label className="inline review-confirm">
-                      <input
-                        type="checkbox"
-                        checked={state.confirmProtected}
-                        onChange={(e) => dispatch({ type: "confirmProtected", value: e.target.checked })}
-                        disabled={applying}
-                      />
-                      {REVIEW.confirmProtected}
-                    </label>
+                    <Checkbox
+                      className="review-confirm"
+                      checked={state.confirmProtected}
+                      onChange={(e) => dispatch({ type: "confirmProtected", value: e.target.checked })}
+                      disabled={applying}
+                      label={REVIEW.confirmProtected}
+                    />
                   ) : null}
                   {canonRequired ? (
                     <div className="stack">
@@ -514,15 +513,13 @@ export function PackageReviewView(props: PackageReviewViewProps) {
                           </li>
                         ))}
                       </ul>
-                      <label className="inline review-confirm">
-                        <input
-                          type="checkbox"
-                          checked={state.confirmCanon}
-                          onChange={(e) => dispatch({ type: "confirmCanon", value: e.target.checked })}
-                          disabled={applying}
-                        />
-                        {REVIEW.confirmCanon}
-                      </label>
+                      <Checkbox
+                        className="review-confirm"
+                        checked={state.confirmCanon}
+                        onChange={(e) => dispatch({ type: "confirmCanon", value: e.target.checked })}
+                        disabled={applying}
+                        label={REVIEW.confirmCanon}
+                      />
                     </div>
                   ) : null}
                   <button type="button" className="review-apply" onClick={props.onApply} disabled={!submitAllowed} aria-describedby={`${uid}-apply-note`}>

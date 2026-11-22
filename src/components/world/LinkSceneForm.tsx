@@ -3,6 +3,7 @@
 import { useEffect, useId, useState, useTransition } from "react";
 import { IssueList } from "@/components/IssueList";
 import { Button } from "@/components/ui/Button";
+import { Checkbox } from "@/components/ui/Checkbox";
 import type { Issue } from "@/domain/issues";
 import type { LinkableManuscript } from "@/server/services/sceneLocationService";
 import { WORLD } from "@/ui/labels";
@@ -91,20 +92,21 @@ export function LinkSceneForm({
         </select>
       </label>
       {manuscripts && manuscripts.length === 0 ? <p className="small muted">{WORLD.linkSceneNone}</p> : null}
-      <label className="scene-location-check">
-        <input type="checkbox" checked={primary} onChange={(event) => setPrimary(event.target.checked)} disabled={pending} />
-        {WORLD.linkScenePrimary}
-      </label>
+      <Checkbox
+        className="scene-location-check"
+        checked={primary}
+        onChange={(event) => setPrimary(event.target.checked)}
+        disabled={pending}
+        label={WORLD.linkScenePrimary}
+      />
       {protectedReference ? (
-        <label className="scene-location-check">
-          <input
-            type="checkbox"
-            checked={confirmProtected}
-            onChange={(event) => setConfirmProtected(event.target.checked)}
-            disabled={pending}
-          />
-          {WORLD.linkSceneProtected}
-        </label>
+        <Checkbox
+          className="scene-location-check"
+          checked={confirmProtected}
+          onChange={(event) => setConfirmProtected(event.target.checked)}
+          disabled={pending}
+          label={WORLD.linkSceneProtected}
+        />
       ) : null}
       <IssueList issues={issues} />
       <Button type="submit" size="sm" disabled={pending || !choice || (protectedReference && !confirmProtected)}>

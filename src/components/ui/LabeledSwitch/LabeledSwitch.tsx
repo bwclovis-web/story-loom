@@ -2,16 +2,18 @@
 
 import { useId, type ReactNode } from "react";
 import { cn } from "@/ui/cn";
+import { labeledSwitchVariants, type LabeledSwitchVariantProps } from "./labeledSwitchVariants";
 
 export function LabeledSwitch({
   label,
+  labelPosition = "left",
   checked,
   onCheckedChange,
   disabled,
   hint,
   className,
   id,
-}: {
+}: LabeledSwitchVariantProps & {
   label: ReactNode;
   checked: boolean;
   onCheckedChange: (checked: boolean) => void;
@@ -22,24 +24,19 @@ export function LabeledSwitch({
 }) {
   const autoId = useId();
   const controlId = id ?? autoId;
-  const labelId = `${controlId}-label`;
 
   return (
-    <span className={cn("labeled-switch", className)} title={hint}>
-      <span id={labelId} className="labeled-switch-label">
-        {label}
-      </span>
-      <button
-        type="button"
+    <label className={cn(labeledSwitchVariants({ labelPosition }), className)} title={hint}>
+      <span className="labeled-switch-label">{label}</span>
+      <input
+        type="checkbox"
         role="switch"
         id={controlId}
-        className={cn("labeled-switch-control", checked && "is-on")}
-        aria-labelledby={labelId}
-        aria-checked={checked}
+        className="labeled-switch-input"
+        checked={checked}
         disabled={disabled}
-        onMouseDown={(e) => e.preventDefault()}
-        onClick={() => onCheckedChange(!checked)}
+        onChange={(event) => onCheckedChange(event.target.checked)}
       />
-    </span>
+    </label>
   );
 }

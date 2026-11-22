@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Banner } from "@/components/ui/Banner";
 import { Button } from "@/components/ui/Button";
+import { Checkbox } from "@/components/ui/Checkbox";
 import type { ContextInspectReport } from "@/server/services/assistantContextInspect";
 import { ASSISTANT } from "@/ui/labels";
 
@@ -48,22 +49,27 @@ export function ContextInspector({
           const off = item.toggleable && disabledIds.has(item.id);
           return (
             <li key={item.id} className="stack" style={{ gap: "0.15rem" }}>
-              <label className="inline" style={{ gap: "0.4rem" }}>
-                {item.toggleable ? (
-                  <input
-                    type="checkbox"
-                    checked={!off}
-                    disabled={busy}
-                    onChange={() => onToggle(item.id)}
-                  />
-                ) : (
+              {item.toggleable ? (
+                <Checkbox
+                  checked={!off}
+                  disabled={busy}
+                  onChange={() => onToggle(item.id)}
+                  label={
+                    <span>
+                      <strong>{item.label}</strong>{" "}
+                      <span className="muted small">({fmt(item.chars)} chars)</span>
+                    </span>
+                  }
+                />
+              ) : (
+                <span className="inline" style={{ gap: "0.4rem" }}>
                   <span aria-hidden="true" style={{ width: "1rem", display: "inline-block" }} />
-                )}
-                <span>
-                  <strong>{item.label}</strong>{" "}
-                  <span className="muted small">({fmt(item.chars)} chars)</span>
+                  <span>
+                    <strong>{item.label}</strong>{" "}
+                    <span className="muted small">({fmt(item.chars)} chars)</span>
+                  </span>
                 </span>
-              </label>
+              )}
               {item.preview ? (
                 <p className="small muted" style={{ margin: "0 0 0 1.5rem" }}>
                   {off ? ASSISTANT.inspectOmitted : item.preview}

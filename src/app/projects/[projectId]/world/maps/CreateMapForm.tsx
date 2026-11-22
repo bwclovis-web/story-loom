@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
 import { Button } from "@/components/ui/Button";
+import { Checkbox } from "@/components/ui/Checkbox";
 import { FileInput } from "@/components/ui/FileInput";
 import { RadioGroup } from "@/components/ui/RadioGroup";
 import { IssueList } from "@/components/IssueList";
@@ -210,14 +211,11 @@ export function CreateMapForm({
                 </select>
               </label>
               {host?.isProtected ? (
-                <label className="row">
-                  <input
-                    type="checkbox"
-                    checked={confirmProtected}
-                    onChange={(e) => setConfirmProtected(e.target.checked)}
-                  />
-                  {WORLD.mapProtectedConfirm(host.title)}
-                </label>
+                <Checkbox
+                  checked={confirmProtected}
+                  onChange={(e) => setConfirmProtected(e.target.checked)}
+                  label={WORLD.mapProtectedConfirm(host.title)}
+                />
               ) : null}
             </>
           ) : (

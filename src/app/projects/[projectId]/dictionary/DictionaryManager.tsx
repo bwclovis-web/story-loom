@@ -1,5 +1,6 @@
 "use client";
 import { Button } from "@/components/ui/Button";
+import { Checkbox } from "@/components/ui/Checkbox";
 import { FileInput } from "@/components/ui/FileInput";
 
 import Link from "next/link";
@@ -96,10 +97,7 @@ function AddForm({ projectId }: { projectId: string }) {
       </div>
       <div className="row">
         <ScopeSelect value={scope} onChange={setScope} />
-        <label className="inline">
-          <input type="checkbox" checked={caseSensitive} onChange={(e) => setMatchCase(e.target.checked)} />
-          {DICTIONARY.matchCase}
-        </label>
+        <Checkbox checked={caseSensitive} onChange={(e) => setMatchCase(e.target.checked)} label={DICTIONARY.matchCase} />
         <Button type="submit" disabled={busy}>
           {DICTIONARY.add}
         </Button>
@@ -142,8 +140,7 @@ function EntryRow({ projectId, entry, similar }: { projectId: string; entry: Dic
           <MessageLine message={message} />
         </td>
         <td>
-          <input
-            type="checkbox"
+          <Checkbox
             aria-label={DICTIONARY.matchCase}
             checked={draft.caseSensitive}
             onChange={(e) => setDraft({ ...draft, caseSensitive: e.target.checked })}
@@ -390,8 +387,7 @@ function ImportSection({ projectId, existing }: { projectId: string; existing: D
               {rows.map((r) => (
                 <tr key={r.position}>
                   <td>
-                    <input
-                      type="checkbox"
+                    <Checkbox
                       aria-label={`Add ${r.word}`}
                       disabled={r.status !== "new"}
                       checked={r.status === "new" && selected.has(r.position)}
@@ -400,8 +396,7 @@ function ImportSection({ projectId, existing }: { projectId: string; existing: D
                   </td>
                   <td>{r.word}</td>
                   <td>
-                    <input
-                      type="checkbox"
+                    <Checkbox
                       aria-label={`${DICTIONARY.matchCase}: ${r.word}`}
                       disabled={r.status === "invalid"}
                       checked={r.caseSensitive}
@@ -495,8 +490,7 @@ function ReferenceSection({ projectId, language, matcher }: { projectId: string;
               {visible.map((s) => (
                 <tr key={s.word}>
                   <td>
-                    <input
-                      type="checkbox"
+                    <Checkbox
                       aria-label={`Add ${s.word}`}
                       checked={selected.has(s.word)}
                       onChange={(e) => {
@@ -509,8 +503,7 @@ function ReferenceSection({ projectId, language, matcher }: { projectId: string;
                   </td>
                   <td>{s.word}</td>
                   <td>
-                    <input
-                      type="checkbox"
+                    <Checkbox
                       aria-label={`${DICTIONARY.matchCase}: ${s.word}`}
                       checked={caseOf(s)}
                       onChange={(e) => setCaseOverride(new Map(caseOverride).set(s.word, e.target.checked))}

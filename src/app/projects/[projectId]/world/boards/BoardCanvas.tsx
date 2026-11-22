@@ -1,5 +1,6 @@
 "use client";
 
+import { Focus, Maximize2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import {
   useCallback,
@@ -15,6 +16,8 @@ import {
 import { IssueList } from "@/components/IssueList";
 import { BoardOverflowMenu } from "@/components/ui/BoardOverflowMenu";
 import { Button, ButtonLink } from "@/components/ui/Button";
+import { LabeledSwitch } from "@/components/ui/LabeledSwitch";
+import { TextField } from "@/components/ui/TextField";
 import { CanvasToolbar, CanvasToolbarGroup } from "@/components/ui/CanvasToolbar";
 import { IconButton } from "@/components/ui/IconButton";
 import { SegmentedControl, SegmentedOption } from "@/components/ui/SegmentedControl";
@@ -25,12 +28,12 @@ import { CanvasReferenceSummary } from "@/components/world/CanvasReferenceSummar
 import { LinkSceneForm } from "@/components/world/LinkSceneForm";
 import { ContextRail, ContextRailToggle, useContextRail } from "@/components/shell/ContextRail";
 import { setUnsaved } from "@/components/shell/unsaved";
-import { CloseIcon } from "@/components/shell/icons";
+import { CloseIcon, ExpandCornersIcon, ListRowsIcon } from "@/components/shell/icons";
 import type { Issue } from "@/domain/issues";
 import { isLinkableReferenceType } from "@/domain/recordTypes";
 import type { BoardCardView, BoardView } from "@/server/services/boardService";
 import type { LoadedInspector } from "@/server/services/referenceInspectorService";
-import { WORLD, WRITE } from "@/ui/labels";
+import { SHELL, WORLD, WRITE } from "@/ui/labels";
 import { readBoardFilter, readBoardView, writeBoardFilter, writeBoardView } from "@/world/boardViewState";
 import { canvasReturnPath, withCanvasReturn } from "@/world/canvasReturn";
 import {
@@ -476,26 +479,26 @@ export function BoardCanvas({
         });
       }}
     >
-      <label>
-        {WORLD.boardPositionX}
-        <input
-          type="number"
-          step={1}
-          value={posX}
-          disabled={layoutLocked || pending}
-          onChange={(event) => setPosX(event.target.value)}
-        />
-      </label>
-      <label>
-        {WORLD.boardPositionY}
-        <input
-          type="number"
-          step={1}
-          value={posY}
-          disabled={layoutLocked || pending}
-          onChange={(event) => setPosY(event.target.value)}
-        />
-      </label>
+      <TextField
+        className="board-position-field"
+        label={WORLD.boardPositionX}
+        labelPosition="left"
+        type="number"
+        step={1}
+        value={posX}
+        disabled={layoutLocked || pending}
+        onChange={(event) => setPosX(event.target.value)}
+      />
+      <TextField
+        className="board-position-field"
+        label={WORLD.boardPositionY}
+        labelPosition="left"
+        type="number"
+        step={1}
+        value={posY}
+        disabled={layoutLocked || pending}
+        onChange={(event) => setPosY(event.target.value)}
+      />
       <Button type="submit" size="sm" variant="secondary" disabled={layoutLocked || pending}>
         {WORLD.savePosition}
       </Button>
@@ -516,8 +519,8 @@ export function BoardCanvas({
         {status ? <p className="small" role="status">{status}</p> : null}
         {missingSelection ? <p className="small" role="status">{missingSelection}</p> : null}
 
-        <CanvasToolbar label={WORLD.boardCanvas}>
-          <BoardOverflowMenu summary={`+ ${WORLD.addCardMenu}`} className="canvas-add-card">
+        <CanvasToolbar label={WORLD.boardCanvas} className="visual-canvas-toolbar">
+          <BoardOverflowMenu summary={`+ ${WORLD.addCardMenu}`} className="canvas-add-card" showChevron>
             <label>
               <span className="sr-only">{WORLD.addRecordCard}</span>
               <select
@@ -550,19 +553,14 @@ export function BoardCanvas({
               {WORLD.boardToolPan}
             </SegmentedOption>
           </SegmentedControl>
-          <label className="board-lock-switch">
-            <span className="board-lock-switch-label">{WORLD.boardLockLayout}</span>
-            <input
-              type="checkbox"
-              className="board-lock-switch-input"
-              role="switch"
-              checked={layoutLocked}
-              onChange={(event) => {
-                cancelActiveMove();
-                setLayoutLocked(event.target.checked);
-              }}
-            />
-          </label>
+          <LabeledSwitch
+            label={WORLD.boardLockLayout}
+            checked={layoutLocked}
+            onCheckedChange={(locked) => {
+              cancelActiveMove();
+              setLayoutLocked(locked);
+            }}
+          />
 
           <CanvasToolbarGroup>
             <span className="board-toolbar-filter-label">{WORLD.filterLabel}</span>
@@ -593,6 +591,7 @@ export function BoardCanvas({
               onClick={() => selected && fitRect([selected])}
               variant="secondary"
               size="sm"
+              icon={<Focus strokeWidth={1.75} aria-hidden="true" />}
             >
               {WORLD.boardCenterSelection}
             </Button>
@@ -602,12 +601,15 @@ export function BoardCanvas({
               onClick={() => fitRect(visibleCards)}
               variant="secondary"
               size="sm"
+              icon={<Maximize2 strokeWidth={1.75} aria-hidden="true" />}
             >
               {WORLD.boardCenterAll}
             </Button>
           </CanvasToolbarGroup>
 
-          <BoardOverflowMenu>
+          <span className="canvas-toolbar-spacer" aria-hidden="true" />
+
+          <BoardOverflowMenu summary={SHELL.moreActions}>
               <form
                 className="row"
                 style={{ gap: "0.35rem", flexWrap: "wrap" }}
@@ -842,14 +844,6 @@ export function BoardCanvas({
                     {card.kind === "note" ? WORLD.noteCard : card.kind === "image" ? WORLD.imageCard : WORLD.recordCard}
                   </span>
                 </div>
-                <strong className="board-card-title">{card.label}</strong>
-                {card.kind === "record" && card.recordTypeLabel ? (
-                  <span className="board-card-meta">{card.recordTypeLabel}</span>
-                ) : null}
-                {card.kind === "record" && selectedId === card.id && inspection?.ok && inspection.model.lead ? (
-                  <p className="board-card-body">{inspection.model.lead}</p>
-                ) : null}
-                {card.kind === "note" && card.noteBody ? <p className="board-card-body">{card.noteBody}</p> : null}
                 {card.kind === "image" && card.imageId ? (
                   <BoardProjectImage
                     projectId={projectId}
@@ -857,7 +851,19 @@ export function BoardCanvas({
                     alt={card.imageAlt || card.imageName || card.label}
                     className="board-card-thumb"
                   />
-                ) : card.kind === "image" ? (
+                ) : null}
+                <strong className="board-card-title">{card.label}</strong>
+                {card.kind === "record" &&
+                [card.recordWorldKindLabel, card.recordTypeLabel].filter(Boolean).length > 0 ? (
+                  <span className="board-card-meta">
+                    {[card.recordWorldKindLabel, card.recordTypeLabel].filter(Boolean).join(" · ")}
+                  </span>
+                ) : null}
+                {card.kind === "record" && selectedId === card.id && inspection?.ok && inspection.model.lead ? (
+                  <p className="board-card-body">{inspection.model.lead}</p>
+                ) : null}
+                {card.kind === "note" && card.noteBody ? <p className="board-card-body">{card.noteBody}</p> : null}
+                {card.kind === "image" && !card.imageId ? (
                   <p className="small muted board-card-missing-image">{WORLD.boardImageUnavailable}</p>
                 ) : null}
               </div>
@@ -944,11 +950,27 @@ export function BoardCanvas({
             {view === "list" ? ` · ${WORLD.boardCardCount(visibleCards.length, cards.length)}` : null}
           </p>
           <SegmentedControl size="sm" label={WORLD.boardViews} className="canvas-view-switch">
-            <SegmentedOption selected={view === "canvas"} onClick={() => { setView("canvas"); writeBoardView(board.id, "canvas"); }}>
-              {WORLD.boardViewCanvas}
+            <SegmentedOption
+              className="canvas-view-option"
+              selected={view === "canvas"}
+              onClick={() => {
+                setView("canvas");
+                writeBoardView(board.id, "canvas");
+              }}
+            >
+              <ExpandCornersIcon />
+              <span>{WORLD.boardViewCanvas}</span>
             </SegmentedOption>
-            <SegmentedOption selected={view === "list"} onClick={() => { setView("list"); writeBoardView(board.id, "list"); }}>
-              {WORLD.boardViewList}
+            <SegmentedOption
+              className="canvas-view-option"
+              selected={view === "list"}
+              onClick={() => {
+                setView("list");
+                writeBoardView(board.id, "list");
+              }}
+            >
+              <ListRowsIcon />
+              <span>{WORLD.boardViewList}</span>
             </SegmentedOption>
           </SegmentedControl>
         </footer>
@@ -982,26 +1004,25 @@ export function BoardCanvas({
                 {positionForm}
                 <section className="rail-section">
                   <h3>{WORLD.noteCard}</h3>
-                  <label onPointerDown={(event) => event.stopPropagation()}>
-                    {WRITE.noteTitle}
-                    <input
-                      ref={noteTitleRef}
-                      type="text"
-                      value={noteEdit?.title ?? selected.noteTitle}
-                      onChange={(e) => {
-                        const draft = { title: e.target.value, body: noteEdit?.body ?? selected.noteBody };
-                        rememberNote(selected.id, draft);
-                        setNoteEdit(draft);
-                        setCards((list) =>
-                          list.map((c) =>
-                            c.id === selected.id && c.kind === "note"
-                              ? { ...c, noteTitle: draft.title, label: draft.title.trim() || "Note" }
-                              : c,
-                          ),
-                        );
-                      }}
-                    />
-                  </label>
+                  <TextField
+                    ref={noteTitleRef}
+                    label={WRITE.noteTitle}
+                    type="text"
+                    value={noteEdit?.title ?? selected.noteTitle}
+                    onPointerDown={(event) => event.stopPropagation()}
+                    onChange={(e) => {
+                      const draft = { title: e.target.value, body: noteEdit?.body ?? selected.noteBody };
+                      rememberNote(selected.id, draft);
+                      setNoteEdit(draft);
+                      setCards((list) =>
+                        list.map((c) =>
+                          c.id === selected.id && c.kind === "note"
+                            ? { ...c, noteTitle: draft.title, label: draft.title.trim() || "Note" }
+                            : c,
+                        ),
+                      );
+                    }}
+                  />
                   <label onPointerDown={(event) => event.stopPropagation()}>
                     {WRITE.noteText}
                     <textarea
@@ -1094,6 +1115,7 @@ export function BoardCanvas({
                       sourceNote={selected.kind === "image" ? WORLD.openedFromImage : null}
                       imageId={selected.kind === "image" ? selected.imageId : null}
                       imageAlt={selected.imageAlt || selected.imageName}
+                      openRecordLabel={WORLD.openFullRecord}
                     />
                   </CanvasInspectorSection>
                 ) : inspection && !inspection.ok ? (
