@@ -15,10 +15,16 @@ const KIND_ORDER: ContinuityKind[] = [
   "draft_in_canon",
   "dangling_weave",
   "timeline_order",
+  "character_state_conflict",
   "missing_ref",
   "fact",
   "story_evidence",
   "unresolved",
+  "continuity_note",
+  "character_knowledge",
+  "character_limitation",
+  "forgotten_arc",
+  "character_identity",
   "open_question",
   "comment",
   "review",
@@ -121,6 +127,11 @@ export function ContinuityLedgerClient({
         <p className="small muted" style={{ margin: 0 }}>
           {CONTINUITY.ledgerNote}
         </p>
+        {items.some((item) => item.kind.startsWith("character_") || item.kind === "forgotten_arc") ? (
+          <p className="small muted" style={{ margin: 0 }}>
+            {CONTINUITY.characterLead}
+          </p>
+        ) : null}
       </div>
 
       {error ? <Banner tone="error">{error}</Banner> : null}

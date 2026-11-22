@@ -20,6 +20,16 @@ function Icon({ children }: { children: ReactNode }) {
   );
 }
 
+/** Page mark for a manuscript scene in the left rail. */
+export function SceneDocIcon() {
+  return (
+    <svg className="tree-scene-icon" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" focusable="false">
+      <path d="M4 1.6h5.1L13 5.3v9.1H4V1.6Z" fill="none" stroke="currentColor" strokeWidth="1.2" />
+      <path d="M9 1.8V5.3h3.3" fill="none" stroke="currentColor" strokeWidth="1.2" />
+    </svg>
+  );
+}
+
 export const WriteIcon = () => (
   <Icon>
     <path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16v4Z" />

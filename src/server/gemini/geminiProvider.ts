@@ -1,10 +1,10 @@
 import "server-only";
+import type { ProviderMessage } from "@/assistant/prompt";
 import {
   ProviderError,
   type AssistantProvider,
   type OutputSchema,
   type ProviderEvent,
-  type ProviderMessage,
   type ProviderRequest,
   type ProviderRound,
   type StructuredResult,

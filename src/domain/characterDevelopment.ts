@@ -47,6 +47,7 @@ export const CHARACTER_DEVELOPMENT_KNOWN_KEYS = [
   "knowledge",
   "migrationHold",
   "fieldMeta",
+  "seriesPlan",
 ] as const;
 
 /** Panel sections for progressive disclosure. Changing importance never deletes filled data. */
@@ -68,8 +69,30 @@ export type EnneagramNumber = (typeof ENNEAGRAM_TYPES)[number];
 export const ENNEAGRAM_CHOICES = [...ENNEAGRAM_TYPES, "unknown", "undecided", "not_applicable"] as const;
 export type EnneagramChoice = (typeof ENNEAGRAM_CHOICES)[number];
 
-export const IMPORTANCE_LEVELS = ["major", "supporting", "recurring", "minor"] as const;
+/**
+ * Narrative importance for progressive disclosure. Same character model for
+ * every level; importance only recommends which sections to open first.
+ */
+export const IMPORTANCE_LEVELS = [
+  "protagonist",
+  "major",
+  "supporting",
+  "minor",
+  "background",
+] as const;
 export type ImportanceLevel = (typeof IMPORTANCE_LEVELS)[number];
+
+/** Stored before Author Experience; remapped on read so old packages stay readable. */
+export const LEGACY_IMPORTANCE_ALIASES: Record<string, ImportanceLevel> = {
+  recurring: "supporting",
+};
+
+export function normalizeImportance(value: unknown): ImportanceLevel | null {
+  if (typeof value !== "string" || !value.trim()) return null;
+  const raw = value.trim();
+  if ((IMPORTANCE_LEVELS as readonly string[]).includes(raw)) return raw as ImportanceLevel;
+  return LEGACY_IMPORTANCE_ALIASES[raw] ?? null;
+}
 
 export const NARRATIVE_ROLES = [
   "protagonist",
@@ -108,6 +131,15 @@ export type ArcMovement = (typeof ARC_MOVEMENTS)[number];
 export const MILESTONE_STATUSES = ["planned", "approved", "manuscript_confirmed", "ai_suggested"] as const;
 export type MilestoneStatus = (typeof MILESTONE_STATUSES)[number];
 
+export const MILESTONE_KINDS = [
+  "milestone",
+  "turning_point",
+  "setback",
+  "relationship_change",
+  "transformative_event",
+] as const;
+export type MilestoneKind = (typeof MILESTONE_KINDS)[number];
+
 export const STATE_FACETS = [
   "belief",
   "motivation",
@@ -119,8 +151,47 @@ export const STATE_FACETS = [
   "possession",
   "responsibility",
   "location",
+  "physical_condition",
+  "psychological_response",
+  "allegiance",
+  "secret",
 ] as const;
 export type StateFacet = (typeof STATE_FACETS)[number];
+
+export const VARIANT_RELATIONSHIP_KINDS = [
+  "alternate_timeline",
+  "parallel_world",
+  "clone",
+  "reincarnation",
+  "other",
+] as const;
+export type VariantRelationshipKind = (typeof VARIANT_RELATIONSHIP_KINDS)[number];
+
+export const SERIES_PLAN_TEXT_KEYS = [
+  "overallArc",
+  "initialEmotionalState",
+  "longTermGoals",
+  "persistentInternalConflict",
+  "majorTransformations",
+  "intendedFinalState",
+  "unresolvedThreads",
+] as const;
+export type SeriesPlanTextKey = (typeof SERIES_PLAN_TEXT_KEYS)[number];
+
+export const BOOK_PLAN_TEXT_KEYS = [
+  "externalGoal",
+  "internalNeed",
+  "activeMisbelief",
+  "turningPoints",
+  "relationshipChanges",
+  "emotionalSetbacks",
+  "transformativeEvents",
+  "carryForwardConsequences",
+] as const;
+export type BookPlanTextKey = (typeof BOOK_PLAN_TEXT_KEYS)[number];
+
+export const NARRATIVE_BOUNDARIES = ["baseline", "book_start", "at_point", "book_end"] as const;
+export type NarrativeBoundary = (typeof NARRATIVE_BOUNDARIES)[number];
 
 export const ARCHETYPE_LIBRARY = [
   "Hero",
@@ -255,10 +326,11 @@ export type CapabilitiesTextKey = (typeof CAPABILITIES_TEXT_KEYS)[number];
  * behind "Show more"; filled fields are never discarded when importance changes.
  */
 export const IMPORTANCE_SECTION_TEMPLATES: Record<ImportanceLevel, readonly ProfileSection[]> = {
+  protagonist: [...PROFILE_SECTIONS],
   major: [...PROFILE_SECTIONS],
   supporting: ["identity", "psychology", "voice", "behavior", "relationships", "development", "continuity"],
-  recurring: ["identity", "voice", "behavior", "relationships", "continuity"],
-  minor: ["identity", "continuity"],
+  minor: ["identity", "voice", "continuity"],
+  background: ["identity"],
 };
 
 export const AI_VISIBILITY = ["include", "spoiler", "omit"] as const;
@@ -362,6 +434,8 @@ export interface MilestoneLink {
   title: string;
   summary: string;
   status: MilestoneStatus;
+  /** Defaults to milestone for legacy rows. */
+  kind: MilestoneKind;
   bookProjectId: string | null;
   chapterRecordId: string | null;
   sceneRecordId: string | null;
@@ -415,10 +489,15 @@ export interface StateChange {
   planned: boolean;
   bookProjectId: string | null;
   storyEventId: string | null;
+  chapterRecordId: string | null;
   sceneRecordId: string | null;
   /** Author order inside unresolved event ties. Not manuscript position. */
   sequence: number | null;
   note: string;
+  /** When set, this change corrects an earlier state change without deleting it. */
+  supersedesId: string | null;
+  correctionNote: string;
+  correctedAt: string | null;
 }
 
 export interface FacetValue {
@@ -437,11 +516,36 @@ export interface BookState {
   closing: FacetValue[];
   openingApproval: AuthorityStatus;
   closingApproval: AuthorityStatus;
+  /** Optional book-level development plan fields. */
+  externalGoal: string;
+  internalNeed: string;
+  activeMisbelief: string;
+  arcTemplate: ArcTemplate | null;
+  turningPoints: string;
+  relationshipChanges: string;
+  emotionalSetbacks: string;
+  transformativeEvents: string;
+  carryForwardConsequences: string;
+}
+
+export interface SeriesDevelopmentPlan {
+  overallArc: string;
+  initialEmotionalState: string;
+  longTermGoals: string;
+  persistentInternalConflict: string;
+  majorTransformations: string;
+  intendedFinalState: string;
+  unresolvedThreads: string;
+  approval: AuthorityStatus;
+  provenance: ClaimProvenance;
 }
 
 export interface VariantLink {
   foundationRecordId: string;
   inheritedKeys: InheritableKey[];
+  /** How this identity relates to the foundation. Defaults to other for legacy rows. */
+  relationshipKind: VariantRelationshipKind;
+  relationshipLabel: string;
 }
 
 export interface ReviewNote {
@@ -622,6 +726,8 @@ export interface CharacterDevelopment {
   arcs: DevelopmentArc[];
   stateChanges: StateChange[];
   bookStates: BookState[];
+  /** Series-level development plan. Complements series-scoped arcs. */
+  seriesPlan: SeriesDevelopmentPlan;
   variant: VariantLink | null;
   reviewNotes: ReviewNote[];
   /** Dossier revision and body hash when the author last checked this profile against the prose. */
@@ -825,6 +931,42 @@ export function emptyCapabilities(): CapabilitiesProfile {
   };
 }
 
+export function emptySeriesPlan(): SeriesDevelopmentPlan {
+  return {
+    overallArc: "",
+    initialEmotionalState: "",
+    longTermGoals: "",
+    persistentInternalConflict: "",
+    majorTransformations: "",
+    intendedFinalState: "",
+    unresolvedThreads: "",
+    approval: "draft",
+    provenance: { origin: "author", note: "" },
+  };
+}
+
+export function emptyBookState(projectId: string): BookState {
+  return {
+    projectId,
+    narrativeIndex: null,
+    openingNote: "",
+    closingNote: "",
+    opening: [],
+    closing: [],
+    openingApproval: "draft",
+    closingApproval: "draft",
+    externalGoal: "",
+    internalNeed: "",
+    activeMisbelief: "",
+    arcTemplate: null,
+    turningPoints: "",
+    relationshipChanges: "",
+    emotionalSetbacks: "",
+    transformativeEvents: "",
+    carryForwardConsequences: "",
+  };
+}
+
 export function emptyCharacterDevelopment(): CharacterDevelopment {
   return {
     version: 1,
@@ -836,6 +978,7 @@ export function emptyCharacterDevelopment(): CharacterDevelopment {
     arcs: [],
     stateChanges: [],
     bookStates: [],
+    seriesPlan: emptySeriesPlan(),
     variant: null,
     reviewNotes: [],
     sourceRevision: null,
@@ -854,8 +997,9 @@ export function emptyCharacterDevelopment(): CharacterDevelopment {
 
 /** Sections suggested for this importance, plus any section that already has content. */
 export function visibleProfileSections(profile: CharacterDevelopment): ProfileSection[] {
+  const importance = profile.importance ? normalizeImportance(profile.importance) : null;
   const suggested = new Set<ProfileSection>(
-    profile.importance ? IMPORTANCE_SECTION_TEMPLATES[profile.importance] : PROFILE_SECTIONS,
+    importance ? IMPORTANCE_SECTION_TEMPLATES[importance] : PROFILE_SECTIONS,
   );
   if (!sectionIsEmpty("identity", profile)) suggested.add("identity");
   if (!sectionIsEmpty("psychology", profile)) suggested.add("psychology");
@@ -869,10 +1013,44 @@ export function visibleProfileSections(profile: CharacterDevelopment): ProfileSe
   return PROFILE_SECTIONS.filter((section) => suggested.has(section));
 }
 
+/**
+ * Section-level completeness for recommended areas only. Optional fields inside
+ * a section do not need to be filled; a section counts once it has any note.
+ */
+export type ProfileCompleteness = {
+  importance: ImportanceLevel | null;
+  suggestedSections: ProfileSection[];
+  suggestedWithNotes: ProfileSection[];
+  suggestedEmpty: ProfileSection[];
+  filledSections: ProfileSection[];
+  suggestedFilledCount: number;
+  suggestedTotal: number;
+};
+
+export function profileCompleteness(profile: CharacterDevelopment): ProfileCompleteness {
+  const importance = profile.importance ? normalizeImportance(profile.importance) : null;
+  const suggestedSections = importance
+    ? [...IMPORTANCE_SECTION_TEMPLATES[importance]]
+    : (["identity"] as ProfileSection[]);
+  const filledSections = PROFILE_SECTIONS.filter((section) => !sectionIsEmpty(section, profile));
+  const suggestedWithNotes = suggestedSections.filter((section) => !sectionIsEmpty(section, profile));
+  const suggestedEmpty = suggestedSections.filter((section) => sectionIsEmpty(section, profile));
+  return {
+    importance,
+    suggestedSections,
+    suggestedWithNotes,
+    suggestedEmpty,
+    filledSections,
+    suggestedFilledCount: suggestedWithNotes.length,
+    suggestedTotal: suggestedSections.length,
+  };
+}
+
 export function sectionIsEmpty(section: ProfileSection, profile: CharacterDevelopment): boolean {
   switch (section) {
     case "identity":
-      return !summarizeTextGroup(profile.foundation).trim() && profile.importance === null && profile.narrativeRole === null;
+      // Importance only recommends layout; it is not identity content for completeness.
+      return !summarizeTextGroup(profile.foundation).trim() && profile.narrativeRole === null;
     case "psychology":
       return (
         !profile.psychology.enneagram &&
@@ -1013,6 +1191,7 @@ function readMilestones(raw: unknown): MilestoneLink[] {
         title,
         summary: text(row.summary),
         status,
+        kind: oneOf(row.kind, MILESTONE_KINDS) ?? "milestone",
         bookProjectId: text(row.bookProjectId) || null,
         chapterRecordId: text(row.chapterRecordId) || null,
         sceneRecordId: text(row.sceneRecordId) || null,
@@ -1111,9 +1290,13 @@ function readStateChanges(raw: unknown): StateChange[] {
         planned: row.planned === true,
         bookProjectId: text(row.bookProjectId) || null,
         storyEventId: text(row.storyEventId) || null,
+        chapterRecordId: text(row.chapterRecordId) || null,
         sceneRecordId: text(row.sceneRecordId) || null,
         sequence: typeof row.sequence === "number" && Number.isFinite(row.sequence) ? row.sequence : null,
         note: text(row.note),
+        supersedesId: text(row.supersedesId) || null,
+        correctionNote: text(row.correctionNote),
+        correctedAt: text(row.correctedAt) || null,
       },
     ];
   });
@@ -1136,9 +1319,35 @@ function readBookStates(raw: unknown): BookState[] {
         closing: readFacetList(row.closing),
         openingApproval: approvalOf(row.openingApproval),
         closingApproval: approvalOf(row.closingApproval),
+        externalGoal: text(row.externalGoal),
+        internalNeed: text(row.internalNeed),
+        activeMisbelief: text(row.activeMisbelief),
+        arcTemplate: oneOf(row.arcTemplate, ARC_TEMPLATES),
+        turningPoints: text(row.turningPoints),
+        relationshipChanges: text(row.relationshipChanges),
+        emotionalSetbacks: text(row.emotionalSetbacks),
+        transformativeEvents: text(row.transformativeEvents),
+        carryForwardConsequences: text(row.carryForwardConsequences),
       },
     ];
   });
+}
+
+function readSeriesPlan(raw: unknown): SeriesDevelopmentPlan {
+  const base = emptySeriesPlan();
+  const row = asRecord(raw);
+  if (!row) return base;
+  return {
+    overallArc: text(row.overallArc),
+    initialEmotionalState: text(row.initialEmotionalState),
+    longTermGoals: text(row.longTermGoals),
+    persistentInternalConflict: text(row.persistentInternalConflict),
+    majorTransformations: text(row.majorTransformations),
+    intendedFinalState: text(row.intendedFinalState),
+    unresolvedThreads: text(row.unresolvedThreads),
+    approval: approvalOf(row.approval),
+    provenance: readProvenance(row.provenance),
+  };
 }
 
 function readBookImportance(raw: unknown): BookImportance[] {
@@ -1151,7 +1360,7 @@ function readBookImportance(raw: unknown): BookImportance[] {
     return [
       {
         projectId,
-        importance: oneOf(row.importance, IMPORTANCE_LEVELS),
+        importance: normalizeImportance(row.importance),
         narrativeRole: oneOf(row.narrativeRole, NARRATIVE_ROLES),
         presence: oneOf(row.presence, PRESENCE_STATES) ?? "present",
       },
@@ -1173,7 +1382,12 @@ function readVariant(raw: unknown, problems: ProfileProblem[]): VariantLink | nu
       message: "Only foundational traits can be inherited. Arcs, knowledge, and state history stay with each variant.",
     });
   }
-  return { foundationRecordId, inheritedKeys };
+  return {
+    foundationRecordId,
+    inheritedKeys,
+    relationshipKind: oneOf(row.relationshipKind, VARIANT_RELATIONSHIP_KINDS) ?? "other",
+    relationshipLabel: text(row.relationshipLabel),
+  };
 }
 
 function readTextGroup<T extends string>(raw: unknown, keys: readonly T[], empty: Record<T, string>): Record<T, string> {
@@ -1339,7 +1553,7 @@ export function readCharacterDevelopment(fields: Readonly<Record<string, unknown
   }
   const profile: CharacterDevelopment = {
     version: 1,
-    importance: oneOf(row.importance, IMPORTANCE_LEVELS),
+    importance: normalizeImportance(row.importance),
     narrativeRole: oneOf(row.narrativeRole, NARRATIVE_ROLES),
     psychology: readPsychology(row.psychology, problems),
     archetypes: readArchetypes(row.archetypes),
@@ -1347,6 +1561,7 @@ export function readCharacterDevelopment(fields: Readonly<Record<string, unknown
     arcs: readArcs(row.arcs),
     stateChanges: readStateChanges(row.stateChanges),
     bookStates: readBookStates(row.bookStates),
+    seriesPlan: readSeriesPlan(row.seriesPlan),
     variant: readVariant(row.variant, problems),
     reviewNotes: Array.isArray(row.reviewNotes)
       ? row.reviewNotes.flatMap((item, index) => {
@@ -1444,6 +1659,22 @@ export function validateCharacterDevelopment(profile: CharacterDevelopment): Pro
   }
   if (profile.variant && profile.variant.inheritedKeys.some((key) => !(INHERITABLE_KEYS as readonly string[]).includes(key))) {
     problems.push({ path: "variant.inheritedKeys", message: "A variant cannot inherit arcs or state history." });
+  }
+  const stateIds = new Set(profile.stateChanges.map((change) => change.id));
+  for (const change of profile.stateChanges) {
+    if (change.supersedesId) {
+      if (!stateIds.has(change.supersedesId)) {
+        problems.push({
+          path: `stateChanges.${change.id}.supersedesId`,
+          message: "A correction must point to another state change on this character.",
+        });
+      } else if (change.supersedesId === change.id) {
+        problems.push({
+          path: `stateChanges.${change.id}.supersedesId`,
+          message: "A state change cannot correct itself.",
+        });
+      }
+    }
   }
   const bookIds = new Set<string>();
   for (const book of profile.bookStates) {
@@ -1594,7 +1825,7 @@ export function replaceBookState(
   }
   const bookStates = [
     ...profile.bookStates.filter((book) => book.projectId !== next.projectId),
-    next,
+    { ...emptyBookState(next.projectId), ...next },
   ];
   return { ok: true, profile: { ...profile, bookStates } };
 }
@@ -1604,6 +1835,10 @@ export interface NarrativePoint {
   storyEventId: string | null;
   /** Used only as an explicit anchor id, never as manuscript order. */
   sequence: number | null;
+  /** When omitted, behaves as at_point for legacy callers. */
+  boundary?: NarrativeBoundary;
+  chapterRecordId?: string | null;
+  sceneRecordId?: string | null;
 }
 
 export type ResolvedFacet =
@@ -1611,10 +1846,48 @@ export type ResolvedFacet =
   | { presence: "unknown"; changeId: string }
   | { presence: "set"; text: string; changeId: string };
 
+export interface StateConflict {
+  facet: StateFacet;
+  changeIds: string[];
+  reason: string;
+}
+
 export interface ResolvedState {
   facets: Record<StateFacet, ResolvedFacet>;
   /** Approved changes that could not be placed before or after the point. */
   unplacedChangeIds: string[];
+  /** Ambiguous ties or overlapping corrections the author should review. */
+  conflicts: StateConflict[];
+  /** Prior state changes replaced by later corrections; kept for history. */
+  supersededChangeIds: string[];
+}
+
+export interface StateComparisonDiff {
+  facet: StateFacet;
+  from: ResolvedFacet;
+  to: ResolvedFacet;
+  kind: "unchanged" | "added" | "cleared" | "changed" | "became_unknown" | "conflict";
+}
+
+export interface StateComparison {
+  from: ResolvedState;
+  to: ResolvedState;
+  diffs: StateComparisonDiff[];
+}
+
+export interface TimelineEntry {
+  id: string;
+  kind: "series_baseline" | "book_start" | "milestone" | "state_change" | "book_end";
+  title: string;
+  detail: string;
+  bookProjectId: string | null;
+  storyEventId: string | null;
+  chapterRecordId: string | null;
+  sceneRecordId: string | null;
+  planned: boolean;
+  status: string;
+  narrativeIndex: number | null;
+  sequence: number | null;
 }
 
 function bookIndex(profile: CharacterDevelopment, projectId: string | null): number | null {
@@ -1644,6 +1917,12 @@ function compareChanges(profile: CharacterDevelopment, left: StateChange, right:
 }
 
 function placeAgainstPoint(profile: CharacterDevelopment, change: StateChange, point: NarrativePoint, edges: readonly OrderEdge[]): Placement {
+  if (change.sceneRecordId && point.sceneRecordId) {
+    if (change.sceneRecordId === point.sceneRecordId) return "at_or_before";
+  }
+  if (change.chapterRecordId && point.chapterRecordId) {
+    if (change.chapterRecordId === point.chapterRecordId && !change.sceneRecordId) return "at_or_before";
+  }
   if (change.storyEventId && point.storyEventId) {
     if (change.storyEventId === point.storyEventId) return "at_or_before";
     const relation = orderRelation(edges, change.storyEventId, point.storyEventId);
@@ -1677,10 +1956,66 @@ function placeAgainstPoint(profile: CharacterDevelopment, change: StateChange, p
   return "unresolved";
 }
 
+function applyFacetValues(
+  facets: Record<StateFacet, ResolvedFacet>,
+  values: readonly FacetValue[],
+  sourceId: string,
+) {
+  for (const value of values) {
+    facets[value.facet] =
+      value.presence === "unknown"
+        ? { presence: "unknown", changeId: sourceId }
+        : { presence: "set", text: value.text, changeId: sourceId };
+  }
+}
+
+function changeIsSuperseded(profile: CharacterDevelopment, changeId: string): boolean {
+  return profile.stateChanges.some(
+    (change) => change.supersedesId === changeId && change.approval === "approved" && !change.planned,
+  );
+}
+
+/**
+ * Record an explicit correction. The prior change is marked superseded and kept;
+ * the replacement links via supersedesId. Nothing is deleted.
+ */
+export function supersedeStateChange(
+  profile: CharacterDevelopment,
+  previousId: string,
+  replacement: Omit<StateChange, "id" | "supersedesId"> & { id?: string },
+  idFor: (prefix: string) => string,
+): { ok: true; profile: CharacterDevelopment } | { ok: false; message: string } {
+  const previous = profile.stateChanges.find((change) => change.id === previousId);
+  if (!previous) return { ok: false, message: "The state change to correct was not found." };
+  const nextId = replacement.id ?? idFor("state");
+  const corrected: StateChange = {
+    ...previous,
+    approval: "superseded",
+    correctedAt: new Date().toISOString(),
+    correctionNote: replacement.correctionNote || previous.correctionNote || "Corrected by a later state change.",
+  };
+  const nextChange: StateChange = {
+    ...replacement,
+    id: nextId,
+    supersedesId: previousId,
+    correctionNote: replacement.correctionNote || `Corrects ${previousId}`,
+    correctedAt: null,
+    chapterRecordId: replacement.chapterRecordId ?? previous.chapterRecordId,
+  };
+  return {
+    ok: true,
+    profile: {
+      ...profile,
+      stateChanges: [...profile.stateChanges.map((change) => (change.id === previousId ? corrected : change)), nextChange],
+    },
+  };
+}
+
 /**
  * Canonical state at a narrative point. Only approved, unplanned changes that
  * are at or before the point apply. Unknown stays distinct from unset.
  * Later books do not rewrite earlier approved changes; they only add later ones.
+ * Superseded corrections stay in history but do not win the facet.
  */
 export function resolveCharacterState(
   profile: CharacterDevelopment,
@@ -1688,33 +2023,249 @@ export function resolveCharacterState(
   edges: readonly OrderEdge[] = [],
 ): ResolvedState {
   const facets = Object.fromEntries(STATE_FACETS.map((facet) => [facet, { presence: "unset" }])) as Record<StateFacet, ResolvedFacet>;
-  const candidates = profile.stateChanges.filter((change) => change.approval === "approved" && !change.planned);
+  const conflicts: StateConflict[] = [];
+  const supersededChangeIds = profile.stateChanges
+    .filter((change) => change.approval === "superseded" || changeIsSuperseded(profile, change.id))
+    .map((change) => change.id);
+  const boundary = point.boundary ?? "at_point";
+
+  if (boundary === "baseline") {
+    return { facets, unplacedChangeIds: [], conflicts, supersededChangeIds };
+  }
+
+  if (boundary === "book_start" && point.bookProjectId) {
+    const book = profile.bookStates.find((item) => item.projectId === point.bookProjectId);
+    if (book && book.openingApproval === "approved") {
+      applyFacetValues(facets, book.opening, `book_open_${book.projectId}`);
+    }
+  }
+
+  const candidates = profile.stateChanges.filter(
+    (change) => change.approval === "approved" && !change.planned && !changeIsSuperseded(profile, change.id),
+  );
   const unplacedChangeIds: string[] = [];
   const included: StateChange[] = [];
   for (const change of candidates) {
+    if (boundary === "book_start") {
+      // Opening facets already applied; in-book changes start after the opening.
+      if (change.bookProjectId === point.bookProjectId) continue;
+      const changeBook = bookIndex(profile, change.bookProjectId);
+      const pointBook = bookIndex(profile, point.bookProjectId);
+      if (changeBook !== null && pointBook !== null && changeBook < pointBook) {
+        included.push(change);
+      } else if (change.bookProjectId && point.bookProjectId && change.bookProjectId !== point.bookProjectId) {
+        if (changeBook === null || pointBook === null) unplacedChangeIds.push(change.id);
+      }
+      continue;
+    }
+    if (boundary === "book_end" && point.bookProjectId) {
+      const changeBook = bookIndex(profile, change.bookProjectId);
+      const pointBook = bookIndex(profile, point.bookProjectId);
+      if (change.bookProjectId === point.bookProjectId) {
+        included.push(change);
+        continue;
+      }
+      if (changeBook !== null && pointBook !== null) {
+        if (changeBook <= pointBook) included.push(change);
+        continue;
+      }
+      if (change.bookProjectId && change.bookProjectId !== point.bookProjectId) {
+        unplacedChangeIds.push(change.id);
+      }
+      continue;
+    }
     const placement = placeAgainstPoint(profile, change, point, edges);
     if (placement === "unresolved") unplacedChangeIds.push(change.id);
     else if (placement === "at_or_before") included.push(change);
   }
+
   for (const facet of STATE_FACETS) {
     const group = included.filter((change) => change.facet === facet);
     if (!group.length) continue;
     let latest = group[0]!;
+    const tied: string[] = [];
     for (const change of group.slice(1)) {
       const placement = compareChanges(profile, latest, change, edges);
       if (placement === "at_or_before") latest = change;
-      else if (placement === "unresolved" && group.indexOf(change) > group.indexOf(latest)) latest = change;
+      else if (placement === "unresolved") {
+        tied.push(change.id);
+        if (group.indexOf(change) > group.indexOf(latest)) latest = change;
+      }
+    }
+    if (tied.length) {
+      conflicts.push({
+        facet,
+        changeIds: [latest.id, ...tied],
+        reason: "Two or more approved changes could not be ordered relative to each other.",
+      });
     }
     facets[facet] =
       latest.presence === "unknown"
         ? { presence: "unknown", changeId: latest.id }
         : { presence: "set", text: latest.text, changeId: latest.id };
   }
-  return { facets, unplacedChangeIds };
+
+  if (boundary === "book_end" && point.bookProjectId) {
+    const book = profile.bookStates.find((item) => item.projectId === point.bookProjectId);
+    if (book && book.closingApproval === "approved") {
+      applyFacetValues(facets, book.closing, `book_close_${book.projectId}`);
+    }
+  }
+
+  return { facets, unplacedChangeIds, conflicts, supersededChangeIds };
+}
+
+export function compareCharacterStates(
+  profile: CharacterDevelopment,
+  fromPoint: NarrativePoint,
+  toPoint: NarrativePoint,
+  edges: readonly OrderEdge[] = [],
+): StateComparison {
+  const from = resolveCharacterState(profile, fromPoint, edges);
+  const to = resolveCharacterState(profile, toPoint, edges);
+  const diffs: StateComparisonDiff[] = STATE_FACETS.map((facet) => {
+    const left = from.facets[facet];
+    const right = to.facets[facet];
+    const conflicted = to.conflicts.some((item) => item.facet === facet) || from.conflicts.some((item) => item.facet === facet);
+    if (conflicted) return { facet, from: left, to: right, kind: "conflict" as const };
+    if (left.presence === right.presence) {
+      if (left.presence === "unset") return { facet, from: left, to: right, kind: "unchanged" as const };
+      if (left.presence === "unknown" && right.presence === "unknown") {
+        return { facet, from: left, to: right, kind: "unchanged" as const };
+      }
+      if (left.presence === "set" && right.presence === "set" && left.text === right.text) {
+        return { facet, from: left, to: right, kind: "unchanged" as const };
+      }
+    }
+    if (left.presence === "unset" && right.presence === "set") return { facet, from: left, to: right, kind: "added" as const };
+    if (left.presence === "set" && right.presence === "unset") return { facet, from: left, to: right, kind: "cleared" as const };
+    if (right.presence === "unknown") return { facet, from: left, to: right, kind: "became_unknown" as const };
+    return { facet, from: left, to: right, kind: "changed" as const };
+  });
+  return { from, to, diffs };
+}
+
+export function buildCharacterTimeline(
+  profile: CharacterDevelopment,
+  books: readonly { id: string; label: string }[],
+): TimelineEntry[] {
+  const entries: TimelineEntry[] = [
+    {
+      id: "series_baseline",
+      kind: "series_baseline",
+      title: "Series baseline",
+      detail: profile.seriesPlan.initialEmotionalState || profile.seriesPlan.overallArc || "No series plan notes yet.",
+      bookProjectId: null,
+      storyEventId: null,
+      chapterRecordId: null,
+      sceneRecordId: null,
+      planned: false,
+      status: profile.seriesPlan.approval,
+      narrativeIndex: null,
+      sequence: null,
+    },
+  ];
+  const bookOrder = [...profile.bookStates].sort((a, b) => {
+    const left = a.narrativeIndex ?? Number.POSITIVE_INFINITY;
+    const right = b.narrativeIndex ?? Number.POSITIVE_INFINITY;
+    if (left !== right) return left - right;
+    return a.projectId.localeCompare(b.projectId);
+  });
+  const labeled = (projectId: string | null) =>
+    projectId ? books.find((book) => book.id === projectId)?.label ?? projectId : "Series";
+
+  for (const book of bookOrder) {
+    entries.push({
+      id: `book_start_${book.projectId}`,
+      kind: "book_start",
+      title: `${labeled(book.projectId)} — beginning`,
+      detail: book.openingNote || book.externalGoal || "Opening state",
+      bookProjectId: book.projectId,
+      storyEventId: null,
+      chapterRecordId: null,
+      sceneRecordId: null,
+      planned: book.openingApproval !== "approved",
+      status: book.openingApproval,
+      narrativeIndex: book.narrativeIndex,
+      sequence: null,
+    });
+  }
+
+  for (const arc of profile.arcs) {
+    for (const milestone of arc.milestones) {
+      entries.push({
+        id: milestone.id,
+        kind: "milestone",
+        title: milestone.title || arc.title,
+        detail: `${arc.title} · ${milestone.kind.replaceAll("_", " ")} · ${milestone.status.replaceAll("_", " ")}`,
+        bookProjectId: milestone.bookProjectId ?? arc.bookProjectId,
+        storyEventId: milestone.storyEventId,
+        chapterRecordId: milestone.chapterRecordId,
+        sceneRecordId: milestone.sceneRecordId,
+        planned: milestone.status === "planned" || milestone.status === "ai_suggested",
+        status: milestone.status,
+        narrativeIndex: bookIndex(profile, milestone.bookProjectId ?? arc.bookProjectId),
+        sequence: null,
+      });
+    }
+  }
+
+  for (const change of profile.stateChanges) {
+    entries.push({
+      id: change.id,
+      kind: "state_change",
+      title: `${change.facet}${change.presence === "unknown" ? " (unknown)" : ""}`,
+      detail: change.planned
+        ? `Planned · ${change.note || change.text || "State change"}`
+        : change.approval === "superseded"
+          ? `Superseded · ${change.correctionNote || change.text || change.note}`
+          : change.text || change.note || change.approval,
+      bookProjectId: change.bookProjectId,
+      storyEventId: change.storyEventId,
+      chapterRecordId: change.chapterRecordId,
+      sceneRecordId: change.sceneRecordId,
+      planned: change.planned,
+      status: change.approval,
+      narrativeIndex: bookIndex(profile, change.bookProjectId),
+      sequence: change.sequence,
+    });
+  }
+
+  for (const book of bookOrder) {
+    entries.push({
+      id: `book_end_${book.projectId}`,
+      kind: "book_end",
+      title: `${labeled(book.projectId)} — end`,
+      detail: book.closingNote || book.carryForwardConsequences || "Closing state",
+      bookProjectId: book.projectId,
+      storyEventId: null,
+      chapterRecordId: null,
+      sceneRecordId: null,
+      planned: book.closingApproval !== "approved",
+      status: book.closingApproval,
+      narrativeIndex: book.narrativeIndex,
+      sequence: null,
+    });
+  }
+
+  return entries.sort((a, b) => {
+    const leftBook = a.narrativeIndex ?? Number.POSITIVE_INFINITY;
+    const rightBook = b.narrativeIndex ?? Number.POSITIVE_INFINITY;
+    if (leftBook !== rightBook) return leftBook - rightBook;
+    const kindRank = (kind: TimelineEntry["kind"]) =>
+      kind === "series_baseline" ? 0 : kind === "book_start" ? 1 : kind === "milestone" ? 2 : kind === "state_change" ? 3 : 4;
+    if (kindRank(a.kind) !== kindRank(b.kind)) return kindRank(a.kind) - kindRank(b.kind);
+    const leftSeq = a.sequence ?? Number.POSITIVE_INFINITY;
+    const rightSeq = b.sequence ?? Number.POSITIVE_INFINITY;
+    if (leftSeq !== rightSeq) return leftSeq - rightSeq;
+    return a.id.localeCompare(b.id);
+  });
 }
 
 function knowledgeWindowOpen(item: KnowledgeItem, point: NarrativePoint, edges: readonly OrderEdge[]): boolean {
   if (item.bookProjectId && point.bookProjectId && item.bookProjectId !== point.bookProjectId) return false;
+  // Secrets are not automatic bible knowledge: they need a story-event or scene anchor.
+  if (item.kind === "secret" && !item.fromStoryEventId && !item.sceneRecordId) return false;
   if (item.fromStoryEventId && point.storyEventId) {
     if (item.fromStoryEventId !== point.storyEventId) {
       const relation = orderRelation(edges, item.fromStoryEventId, point.storyEventId);
@@ -1727,6 +2278,16 @@ function knowledgeWindowOpen(item: KnowledgeItem, point: NarrativePoint, edges: 
     if (item.untilStoryEventId === point.storyEventId) return false;
     const relation = orderRelation(edges, item.untilStoryEventId, point.storyEventId);
     if (relation === "before" || relation === "cycle") return false;
+  }
+  // Scene-anchored knowledge: do not treat a later/other scene as already known
+  // when no story-event order is available.
+  if (item.sceneRecordId) {
+    if (point.sceneRecordId && item.sceneRecordId !== point.sceneRecordId && !item.fromStoryEventId) {
+      return false;
+    }
+    if (!point.sceneRecordId && !item.fromStoryEventId && point.chapterRecordId) {
+      return false;
+    }
   }
   return true;
 }
@@ -2048,7 +2609,14 @@ export interface SeriesMatrixRow {
   projectId: string;
   title: string;
   importance: ImportanceLevel | null;
-  books: Array<{ projectId: string; importance: ImportanceLevel | null; presence: PresenceState | null; arcTitles: string[] }>;
+  seriesPlanSummary: string;
+  books: Array<{
+    projectId: string;
+    importance: ImportanceLevel | null;
+    presence: PresenceState | null;
+    arcTitles: string[];
+    arcTemplate: ArcTemplate | null;
+  }>;
   unresolved: string[];
 }
 
@@ -2057,11 +2625,18 @@ export function seriesMatrix(characters: readonly CharacterProfileSource[], book
     const unresolved = character.profile.arcs
       .filter((arc) => arc.approval === "unresolved" || arc.movement === "paused" || arc.movement === "abandoned")
       .map((arc) => arc.title);
+    const plan = character.profile.seriesPlan;
+    const seriesPlanSummary =
+      plan.overallArc.trim() ||
+      plan.longTermGoals.trim() ||
+      plan.unresolvedThreads.trim() ||
+      "";
     return {
       characterId: character.id,
       projectId: character.projectId,
       title: character.title,
       importance: character.profile.importance,
+      seriesPlanSummary,
       books: bookIds.map((projectId) => ({
         projectId,
         importance: character.profile.bookImportance.find((book) => book.projectId === projectId)?.importance ?? null,
@@ -2069,6 +2644,7 @@ export function seriesMatrix(characters: readonly CharacterProfileSource[], book
         arcTitles: character.profile.arcs
           .filter((arc) => arc.scope === "series" || arc.bookProjectId === projectId)
           .map((arc) => arc.title),
+        arcTemplate: character.profile.bookStates.find((book) => book.projectId === projectId)?.arcTemplate ?? null,
       })),
       unresolved,
     };
@@ -2121,6 +2697,21 @@ export function characterProfileMarkdown(
   const lines = [`# ${title}`, "", "Writing aid. Not a diagnosis, and not a rule the character must obey.", ""];
   if (profile.importance) lines.push(`Importance: ${profile.importance}`);
   if (profile.narrativeRole) lines.push(`Narrative role: ${profile.narrativeRole.replaceAll("_", " ")}`);
+  const seriesBits = SERIES_PLAN_TEXT_KEYS.flatMap((key) =>
+    profile.seriesPlan[key].trim() ? [`${key}: ${profile.seriesPlan[key]}`] : [],
+  );
+  if (seriesBits.length) {
+    const heading =
+      profile.seriesPlan.approval === "approved" ? "Series development plan (established)" : "Series development plan (draft / planned)";
+    lines.push("", `## ${heading}`, ...seriesBits.map((bit) => `- ${bit}`));
+  }
+  for (const book of profile.bookStates) {
+    const bookBits = BOOK_PLAN_TEXT_KEYS.flatMap((key) => (book[key].trim() ? [`${key}: ${book[key]}`] : []));
+    if (book.arcTemplate) bookBits.unshift(`arcTemplate: ${book.arcTemplate}`);
+    if (bookBits.length) {
+      lines.push("", `## Book plan (${book.projectId})`, ...bookBits.map((bit) => `- ${bit}`));
+    }
+  }
   pushTextGroup(lines, "Identity (established)", profile.foundation, { pathRoot: "foundation", profile, canonOnly: true });
   pushTextGroup(lines, "Identity (draft / proposed)", profile.foundation, { pathRoot: "foundation", profile, draftOnly: true });
   pushTextGroup(lines, "Voice (established)", profile.voice, { pathRoot: "voice", profile, canonOnly: true });
@@ -2222,14 +2813,22 @@ function formatFacetSummary(state: ResolvedState): string {
   }).join("; ");
 }
 
-function knowledgeLinesForSlice(items: readonly KnowledgeItem[], slice: ContextSlice): string[] {
+function knowledgeLinesForSlice(
+  items: readonly KnowledgeItem[],
+  slice: ContextSlice,
+  holders?: readonly KnowledgeHolder[] | null,
+): string[] {
   return items
     .filter((item) => {
       if (item.aiVisibility === "omit") return false;
       if (item.aiVisibility === "spoiler") return slice === "spoiler";
+      if (holders && holders.length && !holders.includes(item.holder)) return false;
       return true;
     })
-    .map((item) => `- ${item.kind} (${item.holder}): ${item.statement}`);
+    .map((item) => {
+      const plan = item.planned ? " [planned — not established]" : "";
+      return `- ${item.kind} (${item.holder})${plan}: ${item.statement}`;
+    });
 }
 
 function pathIsRepresented(profile: CharacterDevelopment, fieldPath: string): boolean {
@@ -2307,14 +2906,32 @@ export function renderCharacterContextSlice(input: {
   point?: NarrativePoint | null;
   edges?: readonly OrderEdge[];
   passages?: readonly { label: string; excerpt: string }[];
+  /** When set, only these knowledge holders appear (character drafting excludes reader-only). */
+  knowledgeHolders?: readonly KnowledgeHolder[] | null;
+  /** Include approved planned knowledge labeled as plans. Default false. */
+  includePlannedKnowledge?: boolean;
 }): string {
   const profile = input.profile;
   const voice = effectiveVoice(profile, input.bookProjectId ?? null);
   const point = input.point ?? { bookProjectId: input.bookProjectId ?? null, storyEventId: null, sequence: null };
   const edges = input.edges ?? [];
   const state = resolveCharacterState(profile, point, edges);
-  const knowledge = resolveKnowledgeAtPoint(profile, point, edges);
+  const established = resolveKnowledgeAtPoint(profile, point, edges);
+  const planned =
+    input.includePlannedKnowledge === true
+      ? profile.knowledge.filter((item) => item.approval === "approved" && item.planned)
+      : [];
+  const knowledge = [...established, ...planned.filter((item) => !established.some((open) => open.id === item.id))];
   const lines: string[] = [`# ${input.title}`];
+
+  if (profile.seriesPlan.approval === "approved") {
+    const seriesBits = SERIES_PLAN_TEXT_KEYS.flatMap((key) =>
+      profile.seriesPlan[key].trim() ? [`${key}: ${profile.seriesPlan[key]}`] : [],
+    );
+    if (seriesBits.length) {
+      lines.push("", "## Established profile — Series plan", ...seriesBits.map((bit) => `- ${bit}`));
+    }
+  }
 
   pushTextGroup(lines, "Established profile — Identity", profile.foundation, {
     pathRoot: "foundation",
@@ -2415,8 +3032,20 @@ export function renderCharacterContextSlice(input: {
   const knowLines = knowledgeLinesForSlice(
     knowledge.filter((item) => item.approval === "approved" || input.slice === "spoiler"),
     input.slice,
+    input.knowledgeHolders,
   );
   if (knowLines.length) lines.push("", "## Knowledge", ...knowLines);
+
+  if (input.slice === "continuity" || input.slice === "spoiler") {
+    const activeMilestones = profile.arcs
+      .filter((arc) => arc.approval === "approved")
+      .flatMap((arc) =>
+        arc.milestones
+          .filter((milestone) => milestone.status === "manuscript_confirmed" || milestone.status === "planned")
+          .map((milestone) => `- ${arc.title}: ${milestone.title}${milestone.summary ? ` — ${milestone.summary}` : ""}`),
+      );
+    if (activeMilestones.length) lines.push("", "## Development milestones", ...activeMilestones.slice(0, 24));
+  }
 
   if (input.body?.trim() && input.slice !== "dialogue") {
     const supplement = supplementBodyWithoutStructuredOverlap(input.body, profile);

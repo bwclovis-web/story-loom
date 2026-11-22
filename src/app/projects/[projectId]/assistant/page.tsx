@@ -23,7 +23,9 @@ import {
 import { previewBoardAskContext, type BoardAskPreview } from "@/server/services/establishedFactService";
 import { listManuscriptDrafts } from "@/server/services/draftService";
 import { resolvePinScope } from "@/server/services/readingPinService";
+import { listPromptPresets } from "@/server/services/promptPresetService";
 import { ASSISTANT } from "@/ui/labels";
+import { PromptPresetsPanel } from "./PromptPresetsPanel";
 import { manuscriptEyebrow } from "@/ui/library";
 import { AssistantWorkspace } from "./AssistantWorkspace";
 
@@ -40,7 +42,7 @@ export default async function AssistantPage({
   const { c, seed, board, handoff } = await searchParams;
   const db = getDb();
   const { status } = getAssistantConfig();
-  const [project, conversations, records, usage, drafts, settings, coverHashes] = await Promise.all([
+  const [project, conversations, records, usage, drafts, settings, coverHashes, promptPresets] = await Promise.all([
     findProject(db, projectId),
     listConversations(db, projectId),
     listSelectableRecords(db, projectId),
@@ -48,7 +50,9 @@ export default async function AssistantPage({
     listManuscriptDrafts(db, projectId),
     getAssistantSettings(db, projectId),
     listProjectCoverHashes(db, [projectId]),
+    listPromptPresets(db, projectId),
   ]);
+  const chatPresets = promptPresets.filter((p) => p.surface === "chat");
   if (!project) notFound();
   const coverHash = coverHashes.get(projectId) ?? null;
   const base = `/projects/${encodeURIComponent(projectId)}`;
@@ -113,9 +117,12 @@ export default async function AssistantPage({
         </section>
       ) : null}
 
+      {status.configured ? <PromptPresetsPanel projectId={projectId} presets={promptPresets} /> : null}
+
       <AssistantWorkspace
         projectId={projectId}
         configured={status.configured}
+        chatPresets={chatPresets}
         maxInputChars={status.limits.maxInputChars}
         proposalExtraChars={fixedChars("proposal", PROPOSAL_SCHEMA_CHARS) - ASSISTANT_INSTRUCTIONS.length}
         conversation={conversation}

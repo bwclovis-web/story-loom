@@ -47,7 +47,7 @@ import { useSpellcheck } from "@/components/writing/useSpellcheck";
 import { WordCounts } from "@/components/writing/WordCounts";
 import type { AuthorityStatus } from "@/domain/statuses";
 import { normalizeNewlines } from "@/proofread/anchors";
-import { nestedSceneTail } from "@/writing/nestedSceneTail";
+import { composeChapterWithScenes } from "@/writing/nestedSceneTail";
 import type { DictionaryWord } from "@/spelling/dictionary";
 import { WriteModeSwitch } from "@/components/writing/WriteModeSwitch";
 import { WriteProtectionRow } from "@/components/writing/WriteProtectionRow";
@@ -120,6 +120,8 @@ export function WriteEditor(props: {
   spellChecker: SpellChecker;
   dictionaryWords: DictionaryWord[];
   proofread: ProofreadConfig;
+  selectionPresets?: import("@/server/services/promptPresetService").PromptPresetView[];
+  beatPresets?: import("@/server/services/promptPresetService").PromptPresetView[];
   notes: NoteItem[];
   linked: LinkedItem[];
   sceneLocations: import("@/server/services/sceneLocationService").SceneLocationSet;
@@ -167,7 +169,10 @@ export function WriteEditor(props: {
   const spokenPassRef = useRef("");
   // The text box reports line endings as "\n"; keep offsets in the same terms.
   const savedText = normalizeNewlines(props.body);
-  const sceneTail = nestedSceneTail(props.kind === "chapter" ? (props.scenes ?? []) : []);
+  const composedChapter = useMemo(
+    () => composeChapterWithScenes(savedText, props.kind === "chapter" ? (props.scenes ?? []) : []),
+    [savedText, props.kind, props.scenes],
+  );
   const [text, setText] = useState(savedText);
   const [title, setTitle] = useState(props.title);
   const [fields, setFields] = useState(props.fieldsJson);
@@ -867,8 +872,8 @@ export function WriteEditor(props: {
                 className="document"
                 aria-label={WRITE.editorLabel}
                 aria-describedby={writeMode === "focus" ? `${idPrefix}-focus-hint` : undefined}
-                initialDoc={savedText}
-                lockedTail={sceneTail}
+                initialDoc={composedChapter.doc}
+                lockedRanges={composedChapter.locked}
                 editable={editable}
                 language={language}
                 chrome={editorChrome}
@@ -1074,6 +1079,7 @@ export function WriteEditor(props: {
           draftScopeId={props.draftScopeId}
           initialPins={props.initialPins}
           plotBeats={props.plotBeats}
+          beatPresets={props.beatPresets ?? []}
           continuityFindings={props.continuityFindings}
           characterCues={props.characterCues}
           editorText={text}
@@ -1104,6 +1110,7 @@ export function WriteEditor(props: {
                 onUnlock={() => setUnlocked(true)}
                 onTextChange={setText}
                 config={props.proofread}
+                selectionPresets={props.selectionPresets ?? []}
               />
               <Proofreader
                 projectId={props.projectId}

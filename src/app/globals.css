@@ -1043,6 +1043,9 @@ button.tree-toggle[aria-expanded="true"] .icon { transform: rotate(90deg); }
 }
 .tree-link:hover { background: var(--color-accent-tint); text-decoration: none; }
 .tree-link.chapter { font-weight: 600; }
+.tree-link.scene { display: flex; align-items: center; gap: 0.35rem; }
+.tree-link.scene .tree-scene-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tree-scene-icon { flex: none; }
 .tree-link[aria-current] { background: var(--color-brass); color: var(--color-on-brass); font-weight: 600; box-shadow: none; }
 .tree-link[aria-current]:hover { background: var(--color-brass); color: var(--color-on-brass); }
 .tree-row .nav-count { padding-right: 0.4rem; }

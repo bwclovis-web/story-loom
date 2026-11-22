@@ -10,6 +10,7 @@ import { writeAudit } from "./auditService";
 import { loadCrossRefIndex } from "./crossRefService";
 import { MutationRejectedError, NotFoundError } from "./errors";
 import { chapterEventSequence } from "./storyTimelineQuery";
+import { characterContinuityFindingsForProject } from "./characterWritingContextService";
 import { LIVE_PROJECT } from "./trashFilters";
 
 export type ContinuityKind =
@@ -23,7 +24,13 @@ export type ContinuityKind =
   | "missing_ref"
   | "timeline_order"
   | "timeline_cycle"
-  | "dangling_weave";
+  | "dangling_weave"
+  | "continuity_note"
+  | "character_state_conflict"
+  | "character_knowledge"
+  | "character_limitation"
+  | "forgotten_arc"
+  | "character_identity";
 
 export type ContinuityCategory = "bible" | "manuscript" | "timeline" | "weave" | "stale";
 export type ContinuitySeverity = "info" | "warn" | "error";
@@ -61,6 +68,14 @@ function categoryOf(kind: ContinuityKind): ContinuityCategory {
     case "comment":
     case "review":
       return "manuscript";
+    case "character_state_conflict":
+    case "character_knowledge":
+    case "character_limitation":
+    case "forgotten_arc":
+    case "character_identity":
+      return "bible";
+    case "continuity_note":
+      return "bible";
     default:
       return "bible";
   }
@@ -74,6 +89,7 @@ function severityOf(kind: ContinuityKind): ContinuitySeverity {
     case "dangling_weave":
     case "fact":
     case "story_evidence":
+    case "character_state_conflict":
       return "warn";
     default:
       return "info";
@@ -115,6 +131,8 @@ export async function listContinuityLedger(
     comments,
     reviews,
     chapters,
+    continuityNotes,
+    eventCount,
     setups,
     suppressions,
     xrefIndex,
@@ -130,9 +148,20 @@ export async function listContinuityLedger(
       select: { id: true, title: true, body: true },
     }),
     db.establishedFact.findMany({
-      where: { projectId, evidence: { some: { needsRecheck: true } }, subject: { trashedAt: null } },
+      where: {
+        projectId,
+        subject: { trashedAt: null },
+        OR: [{ status: "pending" }, { evidence: { some: { needsRecheck: true } } }],
+      },
       orderBy: [{ statement: "asc" }, { id: "asc" }],
-      select: { id: true, statement: true, subjectRecordId: true, subject: { select: { title: true } } },
+      select: {
+        id: true,
+        statement: true,
+        status: true,
+        subjectRecordId: true,
+        subject: { select: { title: true } },
+        evidence: { where: { needsRecheck: true }, select: { id: true }, take: 1 },
+      },
     }),
     db.storyEventEvidence.findMany({
       where: { projectId, needsRecheck: true },
@@ -159,6 +188,17 @@ export async function listContinuityLedger(
       orderBy: [{ position: "asc" }, { createdAt: "asc" }, { id: "asc" }],
       select: { id: true, title: true, draftId: true },
     }),
+    db.record.findMany({
+      where: {
+        projectId,
+        trashedAt: null,
+        type: "continuity_note",
+        authorityStatus: { in: ["draft", "proposed", "unresolved"] },
+      },
+      orderBy: [{ title: "asc" }, { id: "asc" }],
+      select: { id: true, title: true, authorityStatus: true },
+    }),
+    db.storyEvent.count({ where: { projectId } }),
     db.weaveSetupPayoff.findMany({
       where: { fromBeat: { projectId } },
       select: {
@@ -219,12 +259,16 @@ export async function listContinuityLedger(
     );
   }
   for (const fact of facts) {
+    const pending = fact.status === "pending";
+    const stale = fact.evidence.length > 0;
+    const prefix = [pending ? "Pending." : "", stale ? "Evidence needs a recheck." : ""].filter(Boolean).join(" ");
+    const detail = prefix ? `${prefix} ${fact.statement}` : fact.statement;
     items.push(
       item({
         key: `fact:${fact.id}`,
         kind: "fact",
         title: fact.subject.title,
-        detail: fact.statement,
+        detail,
         href: recordHref(projectId, fact.subjectRecordId),
         recordId: fact.subjectRecordId,
       }),
@@ -325,10 +369,29 @@ export async function listContinuityLedger(
     );
   }
 
-  // Timeline vs book order (per chapter; dedupe cycle once).
+  const NOTE_STATUS: Record<string, string> = {
+    draft: "Still a draft.",
+    proposed: "Still proposed.",
+    unresolved: "Still unresolved.",
+  };
+  for (const note of continuityNotes) {
+    if (!isAuthorityStatus(note.authorityStatus)) continue;
+    items.push(
+      item({
+        key: `continuity_note:${note.id}`,
+        kind: "continuity_note",
+        title: note.title,
+        detail: NOTE_STATUS[note.authorityStatus] ?? "Still unsettled.",
+        href: recordHref(projectId, note.id),
+        recordId: note.id,
+      }),
+    );
+  }
+
+  // Timeline vs book order. With no story events there is nothing to compare, so skip the per-chapter walk.
   let reportedCycle = false;
   const seenOrder = new Set<string>();
-  for (const chapter of chapters) {
+  for (const chapter of eventCount > 0 ? chapters : []) {
     const seq = await chapterEventSequence(db, projectId, chapter.id, "all");
     if ("error" in seq) continue;
     const payload = seq.payload as {
@@ -381,6 +444,25 @@ export async function listContinuityLedger(
         detail: `Setup “${edge.fromBeat.title}” → payoff “${edge.toBeat.title}” on ${edge.fromBeat.grid.title} has no linked manuscript scene.${edge.note ? ` ${edge.note}` : ""}`,
         href: `/projects/${encodeURIComponent(projectId)}/plan/weave/${encodeURIComponent(edge.fromBeat.gridId)}`,
         recordId: edge.fromBeat.manuscriptRecordId,
+      }),
+    );
+  }
+
+  // Living Character profile continuity (state conflicts, unanchored secrets, forgotten arcs).
+  // Does not enforce archetypes as rules. Authors mark intentional/ignored via suppressions.
+  const characterFindings = await characterContinuityFindingsForProject(db, projectId, {
+    recordId: options.recordId ?? null,
+    focusRecordId: options.recordId ?? null,
+  });
+  for (const finding of characterFindings) {
+    items.push(
+      item({
+        key: finding.key,
+        kind: finding.kind,
+        title: finding.title,
+        detail: `${finding.detail} ${finding.explanation}${finding.suggestion ? ` Suggestion: ${finding.suggestion}` : ""}`,
+        href: recordHref(projectId, finding.characterRecordId),
+        recordId: options.recordId && options.recordId !== finding.characterRecordId ? options.recordId : finding.characterRecordId,
       }),
     );
   }

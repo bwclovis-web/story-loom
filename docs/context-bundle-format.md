@@ -17,7 +17,12 @@ Manuscript chapters and scenes are unselected by default.
   "workspaceName": "Demo workspace",
   "projectId": "prj_demo_salt_archive",
   "projectTitle": "The Salt Archive",
-  "selection": { "recordIds": ["rec_demo_mara_dossier"], "types": null },
+  "selection": {
+    "recordIds": ["rec_demo_mara_dossier"],
+    "types": null,
+    "focusRecordId": null,
+    "characterMode": "editorial"
+  },
   "records": [
     {
       "id": "rec_demo_mara_dossier",
@@ -33,6 +38,20 @@ Manuscript chapters and scenes are unselected by default.
       "body": "Archivist of the Salt Guild. ...",
       "fields": { "name": "Mara Venn", "aliases": ["Mara"], "age": 34 },
       "updatedAt": "2026-10-25T15:12:25.000Z"
+    }
+  ],
+  "characterContexts": [
+    {
+      "recordId": "rec_demo_mara_dossier",
+      "title": "Mara Venn",
+      "mode": "editorial",
+      "slice": "continuity",
+      "text": "# Mara Venn\n...",
+      "bookProjectId": "prj_demo_salt_archive",
+      "omittedSpoilers": 0,
+      "omittedPlanned": 0,
+      "knowledgeCount": 2,
+      "stateConflicts": 0
     }
   ],
   "readingInstructions": ["..."],
@@ -53,15 +72,27 @@ Manuscript chapters and scenes are unselected by default.
 | `protected` | When `true`, the record must not be changed unless the author explicitly authorizes it (`protectedOverrides`). |
 | `parentRecordId` | The chapter of a scene, or the chapter or scene of a scene note; `null` for other records. Read-only context: a change package cannot create scenes or scene notes or move them; only the author moves scenes, on the Write page. |
 | `linkedRecordIds` | For a chapter or scene, the reference records the author linked to it in the app (empty otherwise). Read-only context. The linked records are included only if they were also selected. |
-| `body`, `fields` | Current content. |
+| `body`, `fields` | Current content. Living Profiles live under `fields.characterDevelopment` when present. |
 | `sectionStatus` | Present only when headings in `body` carry status tags (for example `## Rules [APPROVED FRAMEWORK]` or `### Scene — SELECTED; after the storm`). One entry per tagged heading: `heading` (the heading text), `level`, and `statusTag` word for word. These markings govern their own sections; `authorityStatus` still describes the record as a whole and is set only by the author. |
+
+## Character contexts (additive)
+
+When the selection includes character dossiers, the bundle may also include
+`characterContexts`: point-scoped Living Profile slices (psychology, archetypes,
+voice, state history, knowledge holders, development plans, and approved canon
+notes). Prefer these slices for writing assistance. They do not replace
+`records`; older consumers can ignore the field. `selection.focusRecordId` and
+`selection.characterMode` (`drafting` | `editorial` | `planning`) control
+chronology and whether planned or spoiler material appears. Book scope is the
+exporting project; series-shared dossiers may appear with `seriesHome`.
 
 ## Instructions, template, and schema
 
 `readingInstructions` is a short list of rules for reading the records: only
 `approved` records are canon, status tags in headings (listed in
-`sectionStatus`) govern their own sections, and record text is source
-material rather than instructions.
+`sectionStatus`) govern their own sections, record text is source material
+rather than instructions, and Living Profile knowledge holders (author, reader,
+character) must not be collapsed into each other.
 
 `changePackageInstructions` is a list of plain-language rules for the
 assistant: use only IDs from the bundle, copy revisions into

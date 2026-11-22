@@ -5,6 +5,9 @@ import {
   applyProfileSuggestions,
   characterProfileMarkdown,
   cuesForManuscript,
+  buildCharacterTimeline,
+  compareCharacterStates,
+  emptyBookState,
   emptyCharacterDevelopment,
   fieldIsEstablishedCanon,
   fieldMetaOf,
@@ -18,9 +21,12 @@ import {
   resolveKnowledgeAtPoint,
   seriesMatrix,
   setFieldMeta,
+  supersedeStateChange,
   unsupportedCharacterDevelopmentVersion,
   validateCharacterDevelopment,
   variantWouldCycle,
+  normalizeImportance,
+  profileCompleteness,
   visibleProfileSections,
   wingIsValid,
   withCharacterDevelopment,
@@ -61,9 +67,13 @@ function change(partial: Partial<StateChange> & Pick<StateChange, "id" | "facet"
     planned: false,
     bookProjectId: "book-1",
     storyEventId: null,
+    chapterRecordId: null,
     sceneRecordId: null,
     sequence: null,
     note: "",
+    supersedesId: null,
+    correctionNote: "",
+    correctedAt: null,
     ...partial,
   };
 }
@@ -134,26 +144,8 @@ describe("character development", () => {
   it("resolves approved history without planned changes, and does not infer manuscript order", () => {
     const profile = emptyCharacterDevelopment();
     profile.bookStates = [
-      {
-        projectId: "book-1",
-        narrativeIndex: 1,
-        openingNote: "",
-        closingNote: "",
-        opening: [],
-        closing: [],
-        openingApproval: "approved",
-        closingApproval: "approved",
-      },
-      {
-        projectId: "book-3",
-        narrativeIndex: 3,
-        openingNote: "",
-        closingNote: "",
-        opening: [],
-        closing: [],
-        openingApproval: "draft",
-        closingApproval: "draft",
-      },
+      { ...emptyBookState("book-1"), narrativeIndex: 1, openingApproval: "approved", closingApproval: "approved" },
+      { ...emptyBookState("book-3"), narrativeIndex: 3 },
     ];
     profile.stateChanges = [
       change({ id: "state_early_1", facet: "belief", text: "The ledger is dry", bookProjectId: "book-1", sequence: 1 }),
@@ -185,7 +177,12 @@ describe("character development", () => {
     foundation.psychology.coreFear = "being forgotten";
     foundation.stateChanges = [change({ id: "state_found_1", facet: "knowledge", text: "The first fire" })];
     const variant = emptyCharacterDevelopment();
-    variant.variant = { foundationRecordId: "char-foundation", inheritedKeys: ["coreFear"] };
+    variant.variant = {
+      foundationRecordId: "char-foundation",
+      inheritedKeys: ["coreFear"],
+      relationshipKind: "alternate_timeline",
+      relationshipLabel: "Book two fork",
+    };
     variant.stateChanges = [change({ id: "state_var_001", facet: "knowledge", text: "A different fire" })];
     expect(inheritedTraits(variant, foundation)).toEqual([{ key: "coreFear", source: "inherited", value: "being forgotten" }]);
     variant.psychology.coreFear = "being replaced";
@@ -214,6 +211,7 @@ describe("character development", () => {
             title: "The quay",
             summary: "",
             status: "manuscript_confirmed",
+            kind: "milestone",
             bookProjectId: "book-1",
             chapterRecordId: "chapter-1",
             sceneRecordId: null,
@@ -370,7 +368,12 @@ describe("character development", () => {
       },
     ];
     const variant = emptyCharacterDevelopment();
-    variant.variant = { foundationRecordId: "char-foundation", inheritedKeys: ["foundation", "voice"] };
+    variant.variant = {
+      foundationRecordId: "char-foundation",
+      inheritedKeys: ["foundation", "voice"],
+      relationshipKind: "clone",
+      relationshipLabel: "",
+    };
     expect(inheritedTraits(variant, foundation)).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ key: "foundation", source: "inherited" }),
@@ -467,13 +470,50 @@ describe("character development", () => {
   it("suggests thinner sections for minor importance without discarding filled notes", () => {
     const profile = emptyCharacterDevelopment();
     profile.importance = "minor";
-    expect(visibleProfileSections(profile)).toEqual(["identity", "continuity"]);
+    expect(visibleProfileSections(profile)).toEqual(["identity", "voice", "continuity"]);
     profile.behavior.habits = "Checks the lock twice";
     profile.importance = "minor";
     expect(visibleProfileSections(profile)).toContain("behavior");
     profile.importance = "major";
     expect(visibleProfileSections(profile)).toContain("psychology");
     expect(profile.behavior.habits).toBe("Checks the lock twice");
+  });
+
+  it("maps legacy recurring importance and recommends background as identity-only", () => {
+    expect(normalizeImportance("recurring")).toBe("supporting");
+    expect(normalizeImportance("protagonist")).toBe("protagonist");
+    const legacy = readCharacterDevelopment({
+      characterDevelopment: { version: 1, importance: "recurring" },
+    });
+    expect(legacy.problems).toEqual([]);
+    expect(legacy.profile.importance).toBe("supporting");
+
+    const background = emptyCharacterDevelopment();
+    background.importance = "background";
+    expect(visibleProfileSections(background)).toEqual(["identity"]);
+    expect(profileCompleteness(background).suggestedTotal).toBe(1);
+    expect(profileCompleteness(background).suggestedFilledCount).toBe(0);
+
+    background.foundation.appearance = "Grey coat";
+    const completeness = profileCompleteness(background);
+    expect(completeness.suggestedFilledCount).toBe(1);
+    expect(completeness.suggestedEmpty).toEqual([]);
+    background.psychology.coreFear = "being overlooked";
+    expect(visibleProfileSections(background)).toContain("psychology");
+  });
+
+  it("counts recommended sections for completeness without requiring every optional field", () => {
+    const profile = emptyCharacterDevelopment();
+    profile.importance = "protagonist";
+    const empty = profileCompleteness(profile);
+    expect(empty.suggestedTotal).toBeGreaterThan(5);
+    expect(empty.suggestedFilledCount).toBe(0);
+    profile.foundation.pronouns = "she/her";
+    profile.voice.diction = "clipped";
+    const partial = profileCompleteness(profile);
+    expect(partial.suggestedWithNotes).toEqual(expect.arrayContaining(["identity", "voice"]));
+    expect(partial.suggestedFilledCount).toBe(2);
+    expect(partial.suggestedEmpty).not.toContain("identity");
   });
 
   it("loads legacy psychology without new keys and keeps optional psychology fields", () => {
@@ -667,6 +707,181 @@ describe("character development", () => {
     const markdown = characterProfileMarkdown("Mara", profile, "full");
     expect(markdown).toContain("## Archetypes (established)");
     expect(markdown).toContain("## Archetypes (draft / proposed)");
+  });
+
+  it("supports five books with distinct arcs and keeps future states out of earlier points", () => {
+    const profile = emptyCharacterDevelopment();
+    profile.seriesPlan.overallArc = "From certainty to trust";
+    profile.seriesPlan.approval = "approved";
+    const bookTemplates = ["positive_change", "fall", "corruption", "disillusionment", "flat"] as const;
+    profile.bookStates = bookTemplates.map((template, index) => ({
+      ...emptyBookState(`book-${index + 1}`),
+      narrativeIndex: index + 1,
+      externalGoal: `Goal ${index + 1}`,
+      arcTemplate: template,
+      openingApproval: "approved",
+      closingApproval: "approved",
+      opening: [{ facet: "emotion", presence: "set", text: `Open ${index + 1}` }],
+      closing: [{ facet: "emotion", presence: "set", text: `Close ${index + 1}` }],
+    }));
+    profile.arcs = bookTemplates.map((template, index) =>
+      arc({
+        id: `arc_book_${index + 1}`,
+        title: `Book ${index + 1} arc`,
+        scope: "book",
+        bookProjectId: `book-${index + 1}`,
+        template,
+      }),
+    );
+    profile.stateChanges = [
+      change({ id: "state_b1", facet: "belief", text: "Salt is safe", bookProjectId: "book-1", sequence: 1 }),
+      change({ id: "state_b5", facet: "belief", text: "Salt is a weapon", bookProjectId: "book-5", sequence: 1 }),
+    ];
+    expect(readCharacterDevelopment(withCharacterDevelopment({}, profile)).problems).toEqual([]);
+    const early = resolveCharacterState(profile, {
+      bookProjectId: "book-1",
+      storyEventId: null,
+      sequence: null,
+      boundary: "book_end",
+    });
+    expect(early.facets.belief).toMatchObject({ text: "Salt is safe" });
+    expect(early.facets.emotion).toMatchObject({ text: "Close 1" });
+    const later = resolveCharacterState(profile, {
+      bookProjectId: "book-5",
+      storyEventId: null,
+      sequence: null,
+      boundary: "book_end",
+    });
+    expect(later.facets.belief).toMatchObject({ text: "Salt is a weapon" });
+    const matrix = seriesMatrix([{ id: "char-1", title: "Mara", projectId: "book-1", profile }], [
+      "book-1",
+      "book-2",
+      "book-3",
+      "book-4",
+      "book-5",
+    ]);
+    expect(matrix[0]?.books).toHaveLength(5);
+    expect(matrix[0]?.books.map((book) => book.arcTitles[0])).toEqual([
+      "Book 1 arc",
+      "Book 2 arc",
+      "Book 3 arc",
+      "Book 4 arc",
+      "Book 5 arc",
+    ]);
+    const baseline = resolveCharacterState(profile, {
+      bookProjectId: null,
+      storyEventId: null,
+      sequence: null,
+      boundary: "baseline",
+    });
+    expect(baseline.facets.belief.presence).toBe("unset");
+    const comparison = compareCharacterStates(
+      profile,
+      { bookProjectId: "book-1", storyEventId: null, sequence: null, boundary: "book_end" },
+      { bookProjectId: "book-5", storyEventId: null, sequence: null, boundary: "book_end" },
+    );
+    expect(comparison.diffs.find((diff) => diff.facet === "belief")?.kind).toBe("changed");
+    const timeline = buildCharacterTimeline(profile, [
+      { id: "book-1", label: "One" },
+      { id: "book-5", label: "Five" },
+    ]);
+    expect(timeline.some((entry) => entry.kind === "series_baseline")).toBe(true);
+    expect(timeline.filter((entry) => entry.kind === "book_start")).toHaveLength(5);
+  });
+
+  it("preserves superseded state history and keeps variant development independent", () => {
+    const profile = emptyCharacterDevelopment();
+    profile.stateChanges = [change({ id: "state_old_001", facet: "motivation", text: "Keep the quay" })];
+    const corrected = supersedeStateChange(
+      profile,
+      "state_old_001",
+      {
+        facet: "motivation",
+        presence: "set",
+        text: "Leave the quay",
+        approval: "approved",
+        planned: false,
+        bookProjectId: "book-1",
+        storyEventId: null,
+        chapterRecordId: null,
+        sceneRecordId: null,
+        sequence: null,
+        note: "",
+        correctionNote: "Retcon after outline change",
+        correctedAt: null,
+      },
+      (prefix) => `${prefix}_new_001`,
+    );
+    expect(corrected.ok).toBe(true);
+    if (!corrected.ok) return;
+    const old = corrected.profile.stateChanges.find((item) => item.id === "state_old_001");
+    expect(old?.approval).toBe("superseded");
+    const resolved = resolveCharacterState(corrected.profile, {
+      bookProjectId: "book-1",
+      storyEventId: null,
+      sequence: null,
+    });
+    expect(resolved.facets.motivation).toMatchObject({ text: "Leave the quay" });
+    expect(resolved.supersededChangeIds).toContain("state_old_001");
+
+    const foundation = emptyCharacterDevelopment();
+    foundation.psychology.coreDesire = "home";
+    foundation.stateChanges = [change({ id: "state_found_x", facet: "allegiance", text: "Greyhaven" })];
+    const variant = emptyCharacterDevelopment();
+    variant.variant = {
+      foundationRecordId: "char-foundation",
+      inheritedKeys: ["coreDesire"],
+      relationshipKind: "parallel_world",
+      relationshipLabel: "Mirror Mara",
+    };
+    variant.stateChanges = [change({ id: "state_var_x", facet: "allegiance", text: "Saltport" })];
+    expect(inheritedTraits(variant, foundation)[0]?.value).toBe("home");
+    expect(resolveCharacterState(variant, { bookProjectId: "book-1", storyEventId: null, sequence: null }).facets.allegiance).toMatchObject({
+      text: "Saltport",
+    });
+    expect(resolveCharacterState(foundation, { bookProjectId: "book-1", storyEventId: null, sequence: null }).facets.allegiance).toMatchObject({
+      text: "Greyhaven",
+    });
+  });
+
+  it("reads legacy book states and variants without the new series fields", () => {
+    const stored = {
+      characterDevelopment: {
+        version: 1,
+        bookStates: [
+          {
+            projectId: "book-1",
+            narrativeIndex: 1,
+            openingNote: "Start",
+            closingNote: "End",
+            opening: [],
+            closing: [],
+            openingApproval: "draft",
+            closingApproval: "draft",
+          },
+        ],
+        variant: { foundationRecordId: "char_other_01", inheritedKeys: ["voice"] },
+        stateChanges: [
+          {
+            id: "state_legacy1",
+            facet: "belief",
+            presence: "set",
+            text: "Old belief",
+            approval: "approved",
+            planned: false,
+            bookProjectId: "book-1",
+          },
+        ],
+      },
+    };
+    const read = readCharacterDevelopment(stored);
+    expect(read.problems).toEqual([]);
+    expect(read.profile.bookStates[0]?.externalGoal).toBe("");
+    expect(read.profile.bookStates[0]?.arcTemplate).toBeNull();
+    expect(read.profile.variant?.relationshipKind).toBe("other");
+    expect(read.profile.stateChanges[0]?.chapterRecordId).toBeNull();
+    expect(read.profile.stateChanges[0]?.supersedesId).toBeNull();
+    expect(read.profile.seriesPlan.overallArc).toBe("");
   });
 });
 

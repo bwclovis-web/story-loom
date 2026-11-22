@@ -38,6 +38,7 @@ import { isAuthorityStatus, type AuthorityStatus } from "@/domain/statuses";
 import { hasSectionStatus, listSections, outermostSections, sectionPath, type DocSection } from "@/writing/sections";
 import type { Db, DbOrTx } from "../db";
 import { writeAudit } from "./auditService";
+import { loadFocusManuscript, narrativePointForManuscript } from "./characterWritingContextService";
 import { LIVE_PROJECT } from "./trashFilters";
 import { applyAuthorInstructionLens, getPromptPreset, normalizeAuthorInstructionText } from "./promptPresetService";
 
@@ -243,17 +244,40 @@ function sha256(text: string): string {
   return createHash("sha256").update(text, "utf8").digest("hex");
 }
 
+export interface CharacterReferenceOptions {
+  title?: string;
+  type?: string;
+  /** Drafting keeps reader-only and spoiler knowledge out; editorial is the default. */
+  mode?: "drafting" | "editorial" | "planning";
+  allowFuturePlans?: boolean;
+  bookProjectId?: string | null;
+  point?: import("@/domain/characterDevelopment").NarrativePoint | null;
+  edges?: import("@/world/storyOrder").OrderEdge[];
+}
+
 /** What a selected reference contributes: its body and a task-specific character slice or raw fields. */
-export function referenceText(body: string, fieldsJson: string, opts?: { title?: string; type?: string }): string {
+export function referenceText(body: string, fieldsJson: string, opts?: CharacterReferenceOptions): string {
   const fields = parseJsonObject(fieldsJson);
   if (opts?.type === "character_dossier") {
     const read = readCharacterDevelopment(fields);
     if (!developmentIsEmpty(read.profile)) {
+      const mode = opts.mode ?? "editorial";
+      const allowFuture = opts.allowFuturePlans === true || mode === "planning";
+      const slice = mode === "drafting" ? "dialogue" : allowFuture ? "spoiler" : "continuity";
+      const holders =
+        mode === "drafting"
+          ? (["character", "both"] as const)
+          : (["character", "reader", "both"] as const);
       return renderCharacterContextSlice({
         title: opts.title ?? "",
         body,
         profile: read.profile,
-        slice: "continuity",
+        slice,
+        bookProjectId: opts.bookProjectId ?? opts.point?.bookProjectId ?? null,
+        point: opts.point,
+        edges: opts.edges,
+        knowledgeHolders: holders,
+        includePlannedKnowledge: allowFuture,
       });
     }
   }
@@ -529,6 +553,7 @@ export async function loadAuthorReferenceDocuments(
   db: Db,
   projectId: string,
   refs: { recordId: string; revision: number }[],
+  options: { mode?: CharacterReferenceOptions["mode"]; focusRecordId?: string | null; allowFuturePlans?: boolean } = {},
 ): Promise<ContextDocument[]> {
   if (!refs.length) return [];
   return loadDocuments(
@@ -536,10 +561,17 @@ export async function loadAuthorReferenceDocuments(
     projectId,
     refs.map((r) => ({ recordId: r.recordId, revision: r.revision, kind: "reference" as const })),
     true,
+    options,
   );
 }
 
-async function loadDocuments(db: Db, projectId: string, refs: ItemRef[], requireCurrent: boolean): Promise<ContextDocument[]> {
+async function loadDocuments(
+  db: Db,
+  projectId: string,
+  refs: ItemRef[],
+  requireCurrent: boolean,
+  options: { mode?: CharacterReferenceOptions["mode"]; focusRecordId?: string | null; allowFuturePlans?: boolean } = {},
+): Promise<ContextDocument[]> {
   const whole = refs.filter((r) => r.kind !== "section").map((r) => r.recordId);
   const sectioned = new Set(refs.filter((r) => r.kind === "section").map((r) => r.recordId));
   if (new Set(whole).size !== whole.length || whole.some((id) => sectioned.has(id))) {
@@ -548,6 +580,8 @@ async function loadDocuments(db: Db, projectId: string, refs: ItemRef[], require
   const ids = [...new Set(refs.map((r) => r.recordId))];
   const records = await db.record.findMany({ where: { id: { in: ids }, projectId, trashedAt: null } });
   const byId = new Map(records.map((r) => [r.id, r]));
+  const focus = await loadFocusManuscript(db, projectId, options.focusRecordId);
+  const { point, edges } = await narrativePointForManuscript(db, projectId, focus);
 
   const docs: ContextDocument[] = [];
   for (const ref of refs) {
@@ -592,7 +626,15 @@ async function loadDocuments(db: Db, projectId: string, refs: ItemRef[], require
     }
     let text =
       ref.kind === "reference"
-        ? referenceText(revision.body, revision.fields, { title: revision.title, type: record.type })
+        ? referenceText(revision.body, revision.fields, {
+            title: revision.title,
+            type: record.type,
+            mode: options.mode ?? "editorial",
+            allowFuturePlans: options.allowFuturePlans,
+            bookProjectId: point.bookProjectId ?? projectId,
+            point,
+            edges,
+          })
         : revision.body;
     if (ref.kind === "passage") {
       const p = ref.passage;
@@ -640,7 +682,20 @@ async function loadPriorMessages(db: Db, conversationId: string, ids: string[], 
 export async function usageSummary(db: Db, limits: AssistantLimits, now = new Date()): Promise<UsageSummary> {
   const monthStart = monthStartUtc(now);
   const hourAgo = new Date(now.getTime() - 3_600_000);
-  const [all, estimated, requests, proofAll, proofEstimated, proofRequests, analysisAll, analysisEstimated, analysisRequests] = await Promise.all([
+  const [
+    all,
+    estimated,
+    requests,
+    proofAll,
+    proofEstimated,
+    proofRequests,
+    analysisAll,
+    analysisEstimated,
+    analysisRequests,
+    characterAll,
+    characterEstimated,
+    characterRequests,
+  ] = await Promise.all([
     db.assistantMessage.aggregate({ _sum: { totalTokens: true }, where: { role: "assistant", createdAt: { gte: monthStart } } }),
     db.assistantMessage.aggregate({
       _sum: { totalTokens: true },
@@ -656,14 +711,27 @@ export async function usageSummary(db: Db, limits: AssistantLimits, now = new Da
       where: { usageEstimated: true, createdAt: { gte: monthStart } },
     }),
     db.chapterAnalysisRun.count({ where: { createdAt: { gte: hourAgo } } }),
+    db.characterAnalysisRun.aggregate({ _sum: { totalTokens: true }, where: { createdAt: { gte: monthStart } } }),
+    db.characterAnalysisRun.aggregate({
+      _sum: { totalTokens: true },
+      where: { usageEstimated: true, createdAt: { gte: monthStart } },
+    }),
+    db.characterAnalysisRun.count({ where: { createdAt: { gte: hourAgo } } }),
   ]);
   return {
     monthStart: monthStart.toISOString(),
-    monthTokens: (all._sum.totalTokens ?? 0) + (proofAll._sum.totalTokens ?? 0) + (analysisAll._sum.totalTokens ?? 0),
+    monthTokens:
+      (all._sum.totalTokens ?? 0) +
+      (proofAll._sum.totalTokens ?? 0) +
+      (analysisAll._sum.totalTokens ?? 0) +
+      (characterAll._sum.totalTokens ?? 0),
     monthEstimatedTokens:
-      (estimated._sum.totalTokens ?? 0) + (proofEstimated._sum.totalTokens ?? 0) + (analysisEstimated._sum.totalTokens ?? 0),
+      (estimated._sum.totalTokens ?? 0) +
+      (proofEstimated._sum.totalTokens ?? 0) +
+      (analysisEstimated._sum.totalTokens ?? 0) +
+      (characterEstimated._sum.totalTokens ?? 0),
     monthlyTokenCap: limits.monthlyTokenCap,
-    requestsLastHour: requests + proofRequests + analysisRequests,
+    requestsLastHour: requests + proofRequests + analysisRequests + characterRequests,
     maxRequestsPerHour: limits.maxRequestsPerHour,
   };
 }
@@ -770,7 +838,13 @@ export async function prepareTurn(db: Db, runtime: AssistantRuntime, input: Turn
     includeIds = JSON.parse(failed.includedMessageIds) as string[];
   }
 
-  const documents = await loadDocuments(db, input.projectId, refs, input.kind === "ask");
+  const characterMode =
+    writeHandoff != null ? "drafting" : mode === "proposal" ? "editorial" : retrievalScope === "chapter" ? "drafting" : "editorial";
+  const documents = await loadDocuments(db, input.projectId, refs, input.kind === "ask", {
+    mode: characterMode,
+    focusRecordId: writeHandoff?.recordId ?? (input.kind === "ask" ? input.selection.manuscript?.recordId : null),
+    allowFuturePlans: false,
+  });
   const sourceNotes: RetrievalMeta["sources"] = documents.map((d) => ({
     recordId: d.recordId,
     title: d.title,

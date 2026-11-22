@@ -4,8 +4,8 @@ import { defaultKeymap, history, historyKeymap, redo, undo } from "@codemirror/c
 import { markdown } from "@codemirror/lang-markdown";
 import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import { searchKeymap } from "@codemirror/search";
-import { Annotation, Compartment, EditorState, StateEffect, StateField } from "@codemirror/state";
-import { drawSelection, EditorView, keymap, placeholder as cmPlaceholder } from "@codemirror/view";
+import { Annotation, Compartment, EditorState, RangeSetBuilder, StateEffect, StateField } from "@codemirror/state";
+import { Decoration, drawSelection, EditorView, keymap, placeholder as cmPlaceholder } from "@codemirror/view";
 import { tags } from "@lezer/highlight";
 import { forwardRef, useEffect, useImperativeHandle, useLayoutEffect, useRef } from "react";
 import type { SpellFlag } from "@/spelling/dictionary";
@@ -20,6 +20,7 @@ import {
   chapterWithoutScenes,
   composeChapterWithScenes,
   docOffsetToChapter,
+  sceneBodiesFromDoc,
   type LockedRange,
 } from "@/writing/nestedSceneTail";
 
@@ -72,6 +73,38 @@ function hitsLocked(from: number, to: number, ranges: readonly LockedRange[]): b
   return ranges.some((range) => from < range.end && to > range.start);
 }
 
+const sceneMark = Decoration.mark({
+  class: "cm-nested-scene",
+  attributes: { title: "Scene. Edit it on its own page. It is not saved with the chapter." },
+});
+
+function sceneDecorations(ranges: readonly LockedRange[]) {
+  const builder = new RangeSetBuilder<Decoration>();
+  for (const range of ranges) {
+    if (range.end > range.start) builder.add(range.start, range.end, sceneMark);
+  }
+  return builder.finish();
+}
+
+const nestedSceneMarks = StateField.define({
+  create(state) {
+    return sceneDecorations(state.field(lockedRangesField, false) ?? []);
+  },
+  update(_value, tr) {
+    return sceneDecorations(tr.state.field(lockedRangesField, false) ?? []);
+  },
+  provide: (field) => EditorView.decorations.from(field),
+});
+
+function flagsInDoc(flags: readonly SpellFlag[], current: SpellFlag | null, ranges: readonly LockedRange[]) {
+  const map = (flag: SpellFlag): SpellFlag => ({
+    ...flag,
+    start: chapterOffsetToDoc(flag.start, ranges),
+    end: chapterOffsetToDoc(flag.end, ranges),
+  });
+  return { flags: flags.map(map), current: current ? map(current) : null };
+}
+
 const mdHighlight = HighlightStyle.define([
   { tag: tags.heading, fontWeight: "600" },
   { tag: tags.strong, fontWeight: "700" },
@@ -91,10 +124,10 @@ function createSurface(view: EditorView, host: HTMLElement): EditorSurface {
     set value(next: string) {
       const current = view.state.doc.toString();
       const ranges = rangesOf(view.state);
-      const bodies = ranges
-        .map((range) => current.slice(range.start, range.end).replace(/^\n+/, "").replace(/\s+$/, ""))
-        .filter((body) => body.length > 0);
-      const composed = composeChapterWithScenes(next, bodies.map((body) => ({ body })));
+      const composed = composeChapterWithScenes(
+        next,
+        sceneBodiesFromDoc(current, ranges).map((body) => ({ body })),
+      );
       if (composed.doc === current) return;
       view.dispatch({
         changes: { from: 0, to: current.length, insert: composed.doc },
@@ -136,15 +169,22 @@ function createSurface(view: EditorView, host: HTMLElement): EditorSurface {
       return view.scrollDOM.clientWidth;
     },
     applyEdit(edit) {
+      const current = view.state.doc.toString();
       const ranges = rangesOf(view.state);
-      const len = view.state.doc.length;
-      const from = Math.max(0, Math.min(chapterOffsetToDoc(edit.start, ranges), len));
-      const to = Math.max(from, Math.min(chapterOffsetToDoc(edit.end, ranges), len));
-      const insert = edit.text;
+      const chapter = chapterWithoutScenes(current, ranges);
+      const start = Math.max(0, Math.min(edit.start, chapter.length));
+      const end = Math.max(start, Math.min(edit.end, chapter.length));
+      const next = chapter.slice(0, start) + edit.text + chapter.slice(end);
+      const composed = composeChapterWithScenes(
+        next,
+        sceneBodiesFromDoc(current, ranges).map((body) => ({ body })),
+      );
       view.focus();
       view.dispatch({
-        changes: { from, to, insert },
-        selection: { anchor: from + insert.length },
+        changes: { from: 0, to: current.length, insert: composed.doc },
+        effects: setLockedRanges.of(composed.locked),
+        annotations: replaceWholeDoc.of(true),
+        selection: { anchor: chapterOffsetToDoc(start + edit.text.length, composed.locked) },
         userEvent: "input.type",
       });
       return "native";
@@ -257,6 +297,13 @@ export const MarkdownEditor = forwardRef<EditorSurface, MarkdownEditorProps>(fun
       doc: initialDoc,
       extensions: [
         lockedRangesField.init(() => lockedRanges),
+        nestedSceneMarks,
+        EditorView.baseTheme({
+          ".cm-nested-scene": {
+            backgroundColor: "color-mix(in srgb, var(--color-accent) 16%, transparent)",
+            borderRadius: "2px",
+          },
+        }),
         history(),
         markdown(),
         drawSelection(),
@@ -314,7 +361,7 @@ export const MarkdownEditor = forwardRef<EditorSurface, MarkdownEditorProps>(fun
     viewRef.current = view;
     surfaceRef.current = createSurface(view, host);
     view.dispatch({
-      effects: setSpellFlagsEffect.of({ flags: spellFlags, current: currentSpellFlag }),
+      effects: setSpellFlagsEffect.of(flagsInDoc(spellFlags, currentSpellFlag, lockedRanges)),
     });
 
     return () => {
@@ -363,7 +410,7 @@ export const MarkdownEditor = forwardRef<EditorSurface, MarkdownEditorProps>(fun
     const view = viewRef.current;
     if (!view) return;
     view.dispatch({
-      effects: setSpellFlagsEffect.of({ flags: spellFlags, current: currentSpellFlag }),
+      effects: setSpellFlagsEffect.of(flagsInDoc(spellFlags, currentSpellFlag, rangesOf(view.state))),
     });
   }, [spellFlags, currentSpellFlag]);
 

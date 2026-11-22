@@ -14,6 +14,7 @@ import {
   type ReactNode,
   type RefObject,
 } from "react";
+import { PromptPresetSelect } from "@/components/assistant/PromptPresetSelect";
 import { WriteAssistantRail } from "@/components/assistant/WriteAssistantRail";
 import { StatusBadge } from "@/components/Badges";
 import { IssueList } from "@/components/IssueList";
@@ -144,6 +145,7 @@ export function WriteContext({
   draftScopeId,
   initialPins,
   plotBeats,
+  beatPresets = [],
   continuityFindings = [],
   characterCues = [],
   editorText,
@@ -176,6 +178,7 @@ export function WriteContext({
   draftScopeId: string | null;
   initialPins: ReadingPinView[];
   plotBeats: PlotBeatItem[];
+  beatPresets?: import("@/server/services/promptPresetService").PromptPresetView[];
   /** Open Continuity Ledger findings that touch this chapter or scene. */
   continuityFindings?: Array<{ key: string; title: string; detail: string; href: string; severity: string }>;
   characterCues?: DevelopmentCue[];
@@ -308,6 +311,7 @@ export function WriteContext({
           revision={revision}
           scopeDraftId={draftScopeId ?? ""}
           beats={plotBeats}
+          beatPresets={beatPresets}
           editable={editable}
           assistantConfigured={assistantConfigured}
           textareaRef={textareaRef}
@@ -365,6 +369,7 @@ function PlotBeats({
   revision,
   scopeDraftId,
   beats,
+  beatPresets,
   editable,
   assistantConfigured,
   textareaRef,
@@ -376,12 +381,16 @@ function PlotBeats({
   revision: number;
   scopeDraftId: string;
   beats: PlotBeatItem[];
+  beatPresets: import("@/server/services/promptPresetService").PromptPresetView[];
   editable: boolean;
   assistantConfigured: boolean;
   textareaRef: RefObject<import("@/components/writing/EditorSurface").EditorSurface | HTMLTextAreaElement | null>;
   onUnlock: () => void;
   onTextChange: (value: string) => void;
 }) {
+  const presetFieldId = useId().replace(/:/g, "");
+  const [beatPresetId, setBeatPresetId] = useState("");
+  const [beatInstructionLens, setBeatInstructionLens] = useState("");
   const [busyBeatId, setBusyBeatId] = useState<string | null>(null);
   const [suggestion, setSuggestion] = useState<{ beatId: string; text: string; note: string | null } | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -416,7 +425,14 @@ function PlotBeats({
       const response = await fetch(`/api/projects/${projectId}/beat-draft`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ recordId, revision, beatId, scopeDraftId }),
+        body: JSON.stringify({
+          recordId,
+          revision,
+          beatId,
+          scopeDraftId,
+          authorInstructionText: beatInstructionLens.trim() || undefined,
+          promptPresetId: beatPresetId || undefined,
+        }),
         signal: controller.signal,
       });
       if (!response.ok || !response.body) {
@@ -472,6 +488,17 @@ function PlotBeats({
       <p className="small muted" style={{ margin: 0 }}>
         {WEAVE.draftBeatHint}
       </p>
+      {assistantConfigured ? (
+        <PromptPresetSelect
+          id={presetFieldId}
+          presets={beatPresets}
+          presetId={beatPresetId}
+          onPresetIdChange={setBeatPresetId}
+          instructionLens={beatInstructionLens}
+          onInstructionLensChange={setBeatInstructionLens}
+          disabled={busyBeatId !== null}
+        />
+      ) : null}
       {!editable ? (
         <p className="small muted">
           {WEAVE.draftBeatProtected}{" "}

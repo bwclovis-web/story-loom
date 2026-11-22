@@ -2,17 +2,55 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { IssueList } from "@/components/IssueList";
-import { ReviewDiff } from "@/components/review/ReviewDiff";
+import type { DiffPart } from "@/changePackage/diff";
+import { foldUnchanged, unifiedSegments, type Segment } from "@/ui/packageReview";
 import { Banner } from "@/components/ui/Banner";
 import { Button } from "@/components/ui/Button";
 import { FileInput } from "@/components/ui/FileInput";
 import { RadioGroup } from "@/components/ui/RadioGroup";
 import type { Issue } from "@/domain/issues";
 import type { SyncCompareResult, SyncMergeChoice } from "@/server/syncBundleService";
-import { BACKUP } from "@/ui/labels";
+import { BACKUP, REVIEW } from "@/ui/labels";
 import { applySyncBundleMergeAction, inspectSyncBundleAction } from "./syncActions";
 
 type WorkspaceOption = { id: string; name: string; projects: Array<{ id: string; title: string }> };
+
+function DiffSegments({ segments }: { segments: Segment[] }) {
+  return (
+    <>
+      {segments.map((s, i) => {
+        if (s.kind === "added")
+          return (
+            <ins key={i}>
+              {s.text}
+            </ins>
+          );
+        if (s.kind === "removed")
+          return (
+            <del key={i}>
+              {s.text}
+            </del>
+          );
+        if (s.kind === "folded")
+          return (
+            <details key={i} className="diff-fold">
+              <summary>{REVIEW.unchangedLines(s.lines)}</summary>
+              <span>{s.text}</span>
+            </details>
+          );
+        return <span key={i}>{s.text}</span>;
+      })}
+    </>
+  );
+}
+
+function SyncBodyDiff({ parts }: { parts: DiffPart[] }) {
+  return (
+    <div className="diff-body">
+      <DiffSegments segments={foldUnchanged(unifiedSegments(parts))} />
+    </div>
+  );
+}
 
 const CHOICE_OPTIONS: Array<{ value: SyncMergeChoice; label: string }> = [
   { value: "skip", label: BACKUP.syncChoiceSkip },
@@ -167,7 +205,7 @@ function SyncDiffReview({
                 {BACKUP.syncKind(row.kind)} · local rev {row.localRevision ?? "—"} · remote rev {row.remoteRevision ?? "—"}
               </span>
             </p>
-            {row.kind === "conflict" && row.bodyDiff.length > 0 ? <ReviewDiff parts={row.bodyDiff} /> : null}
+            {row.kind === "conflict" && row.bodyDiff.length > 0 ? <SyncBodyDiff parts={row.bodyDiff} /> : null}
             <RadioGroup
               legend={BACKUP.syncChoiceLegend}
               name={`sync-${row.recordId}`}

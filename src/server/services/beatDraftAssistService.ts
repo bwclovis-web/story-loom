@@ -110,6 +110,7 @@ export async function prepareBeatDraft(
     db,
     input.projectId,
     pins.map((p) => ({ recordId: p.recordId, revision: p.currentRevision })),
+    { mode: "drafting", focusRecordId: record.id },
   );
   const beatText = `Beat title: ${beat.title}\n\nBeat notes:\n${beat.body.trim() || "(empty)"}`;
   const boundary = chooseBoundary([beatText, ...contextDocs.map((d) => d.text)], () => randomBytes(6).toString("hex"));

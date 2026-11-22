@@ -126,6 +126,7 @@ export async function prepareSelectionAssist(
     db,
     input.projectId,
     pins.map((p) => ({ recordId: p.recordId, revision: p.currentRevision })),
+    { mode: "drafting", focusRecordId: record.id },
   );
 
   let authorInstructionText = normalizeAuthorInstructionText(input.authorInstructionText);

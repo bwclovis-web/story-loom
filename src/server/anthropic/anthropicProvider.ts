@@ -1,10 +1,10 @@
 import "server-only";
+import type { ProviderMessage } from "@/assistant/prompt";
 import {
   ProviderError,
   type AssistantProvider,
   type OutputSchema,
   type ProviderEvent,
-  type ProviderMessage,
   type ProviderRequest,
   type ProviderRound,
   type ProviderToolItem,
@@ -23,12 +23,15 @@ function mapRole(role: ProviderMessage["role"]): "user" | "assistant" {
 
 function toolBlocks(items: ProviderToolItem[] | undefined): unknown[] {
   if (!items?.length) return [];
-  return items.flatMap((item) => {
+  const blocks: unknown[] = [];
+  for (const item of items) {
     if (item.type === "function_call") {
-      return [{ type: "tool_use", id: item.call_id, name: item.name, input: tryParseJson(item.arguments) }];
+      blocks.push({ type: "tool_use", id: item.call_id, name: item.name, input: tryParseJson(item.arguments) });
+    } else {
+      blocks.push({ type: "tool_result", tool_use_id: item.call_id, content: item.output });
     }
-    return [{ type: "tool_result", tool_use_id: item.call_id, content: item.output }];
-  });
+  }
+  return blocks;
 }
 
 function tryParseJson(text: string): unknown {

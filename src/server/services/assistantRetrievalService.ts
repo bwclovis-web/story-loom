@@ -2,6 +2,7 @@ import {
   developmentIsEmpty,
   readCharacterDevelopment,
   renderCharacterContextSlice,
+  type NarrativePoint,
 } from "@/domain/characterDevelopment";
 import { parseJsonObject, type JsonObject } from "@/domain/json";
 import { contentClassOf, isManuscriptType, isRecordType, RECORD_TYPE_LABELS, type RecordType } from "@/domain/recordTypes";
@@ -9,10 +10,12 @@ import { isAuthorityStatus } from "@/domain/statuses";
 import type { ContextDocument, ContextKind } from "@/assistant/prompt";
 import type { RetrievalContextState, RetrievalMeta, RetrievalOmission } from "@/assistant/retrievalMeta";
 import { isAssistantToolName, type RetrievalScope } from "@/assistant/tools";
+import type { OrderEdge } from "@/world/storyOrder";
 import { aliasesOf } from "@/writing/crossRefs";
 import { hasSectionStatus, listSections, sectionPath } from "@/writing/sections";
 import { buildManuscriptTree } from "@/ui/manuscriptTree";
 import type { Db, DbOrTx } from "../db";
+import { loadFocusManuscript, narrativePointForManuscript } from "./characterWritingContextService";
 import { listEstablishedFactsForSubject } from "./establishedFactService";
 import { listSeriesBookProjects } from "./projectService";
 import { searchContextReferences, searchManuscript, searchProjectRecords } from "./searchService";
@@ -44,17 +47,34 @@ function omit(meta: RetrievalMeta, omission: RetrievalOmission) {
   meta.omissions.push(omission);
 }
 
-function referenceText(title: string, body: string, fieldsJson: string, recordType?: string): string {
+function referenceText(
+  title: string,
+  body: string,
+  fieldsJson: string,
+  recordType?: string,
+  opts?: {
+    scope?: RetrievalScope;
+    projectId?: string;
+    point?: NarrativePoint | null;
+    edges?: readonly OrderEdge[];
+  },
+): string {
   try {
     const fields = parseJsonObject(fieldsJson) as JsonObject;
     if (recordType === "character_dossier") {
       const read = readCharacterDevelopment(fields);
       if (!developmentIsEmpty(read.profile)) {
+        const drafting = opts?.scope === "chapter";
         return renderCharacterContextSlice({
           title,
           body,
           profile: read.profile,
-          slice: "continuity",
+          slice: drafting ? "dialogue" : "continuity",
+          bookProjectId: opts?.point?.bookProjectId ?? opts?.projectId ?? null,
+          point: opts?.point,
+          edges: opts?.edges,
+          knowledgeHolders: drafting ? ["character", "both"] : ["character", "reader", "both"],
+          includePlannedKnowledge: false,
         });
       }
     }
@@ -310,9 +330,16 @@ async function readPassageTool(db: DbOrTx, ctx: RetrievalContext, args: Record<s
     };
   }
 
+  const focus = await loadFocusManuscript(db, record.projectId, ctx.focusRecordId);
+  const { point, edges } = await narrativePointForManuscript(db, record.projectId, focus);
   let text =
     contentClassOf(record.type) === "reference"
-      ? referenceText(record.title, record.body, record.fields, record.type)
+      ? referenceText(record.title, record.body, record.fields, record.type, {
+          scope: ctx.scope,
+          projectId: record.projectId,
+          point,
+          edges,
+        })
       : record.body;
   let kind: ContextKind = contentClassOf(record.type) === "reference" ? "reference" : "manuscript";
   let passage: { start: number; end: number } | undefined;

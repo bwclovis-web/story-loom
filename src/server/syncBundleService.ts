@@ -9,8 +9,8 @@ import {
   type SyncBundleV1,
 } from "@/backup/syncBundle.v1";
 import { newId } from "@/domain/ids";
-import { sha256, stableStringify } from "@/domain/json";
-import { parseJsonObject, snapshotHash, toRecordView } from "@/domain/records";
+import { parseJsonObject, sha256, stableStringify } from "@/domain/json";
+import { snapshotHash, toRecordView } from "@/domain/records";
 
 function recordSnapshotOf(row: {
   title: string;

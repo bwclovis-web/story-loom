@@ -1,12 +1,14 @@
 import Link from "next/link";
+import { CharacterAnalysisWorkspace } from "@/components/world/CharacterDevelopment";
 import { WorldToolHeader } from "@/components/world/WorldToolHeader";
 import { Button } from "@/components/ui/Button";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { forgottenArcs } from "@/domain/characterDevelopment";
+import { getAssistantConfig } from "@/server/assistantConfig";
 import { getDb } from "@/server/db";
-import { loadSeriesDevelopment } from "@/server/services/characterDevelopmentService";
-import { CHARACTER_DEVELOPMENT, CHARACTER_DOSSIER_UPGRADE } from "@/ui/labels";
+import { loadDevelopmentEvidenceCatalog, loadSeriesDevelopment } from "@/server/services/characterDevelopmentService";
+import { CHARACTER_ANALYSIS, CHARACTER_DEVELOPMENT, CHARACTER_DOSSIER_UPGRADE } from "@/ui/labels";
 import { worldSurfaceCrumbs } from "@/ui/worldDestinations";
 
 export const dynamic = "force-dynamic";
@@ -20,7 +22,9 @@ export default async function CharacterDevelopmentPage({
 }) {
   const { projectId } = await params;
   const query = await searchParams;
-  const overview = await loadSeriesDevelopment(getDb(), projectId);
+  const db = getDb();
+  const [overview, evidence] = await Promise.all([loadSeriesDevelopment(db, projectId), loadDevelopmentEvidenceCatalog(db, projectId)]);
+  const assistantConfigured = getAssistantConfig().status.configured;
   const importance = query.importance ?? "";
   const character = query.character ?? "";
   const unresolvedOnly = query.unresolved === "1";
@@ -61,10 +65,11 @@ export default async function CharacterDevelopmentPage({
           {CHARACTER_DEVELOPMENT.filterImportance}
           <select name="importance" defaultValue={importance}>
             <option value="">{CHARACTER_DEVELOPMENT.all}</option>
-            <option value="major">major</option>
-            <option value="supporting">supporting</option>
-            <option value="recurring">recurring</option>
-            <option value="minor">minor</option>
+            <option value="protagonist">{CHARACTER_DEVELOPMENT.importanceLevels.protagonist}</option>
+            <option value="major">{CHARACTER_DEVELOPMENT.importanceLevels.major}</option>
+            <option value="supporting">{CHARACTER_DEVELOPMENT.importanceLevels.supporting}</option>
+            <option value="minor">{CHARACTER_DEVELOPMENT.importanceLevels.minor}</option>
+            <option value="background">{CHARACTER_DEVELOPMENT.importanceLevels.background}</option>
           </select>
         </label>
         <Checkbox className="small" name="unresolved" value="1" defaultChecked={unresolvedOnly} label={CHARACTER_DEVELOPMENT.unresolved} />
@@ -90,11 +95,13 @@ export default async function CharacterDevelopmentPage({
                   <td>
                     <Link href={`${base}/records/${encodeURIComponent(row.characterId)}#character-development`}>{row.title}</Link>
                     <div className="small muted">{row.importance ?? "unset"}</div>
+                    {row.seriesPlanSummary ? <div className="small muted">{row.seriesPlanSummary}</div> : null}
                   </td>
                   {row.books.map((book) => (
                     <td key={book.projectId}>
                       <div className="small">{book.presence ?? "—"}</div>
                       <div className="small muted">{book.importance ?? ""}</div>
+                      {book.arcTemplate ? <div className="small muted">{book.arcTemplate.replaceAll("_", " ")}</div> : null}
                       {book.arcTitles.map((title) => (
                         <div key={title} className="small">
                           {title}
@@ -118,6 +125,16 @@ export default async function CharacterDevelopmentPage({
               )),
             )}
           </ul>
+          <h2>{CHARACTER_ANALYSIS.heading}</h2>
+          <CharacterAnalysisWorkspace
+            projectId={projectId}
+            characterIds={overview.characters.slice(0, 3).map((item) => item.id)}
+            characters={overview.characters.map((item) => ({ id: item.id, label: item.title }))}
+            chapters={evidence.chapters.map((row) => ({ id: row.id, label: row.label }))}
+            scenes={evidence.scenes.map((row) => ({ id: row.id, label: row.label }))}
+            books={overview.books}
+            assistantConfigured={assistantConfigured}
+          />
         </div>
       )}
     </>

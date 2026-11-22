@@ -168,6 +168,7 @@ export const HELP_SECTIONS = [
       { id: "assistant-answers", title: "Reading answers" },
       { id: "assistant-proposals", title: "Change proposals" },
       { id: "assistant-privacy", title: "Privacy, usage and limits" },
+      { id: "assistant-prompt-presets", title: "Instruction presets" },
     ],
   },
   {
@@ -241,6 +242,7 @@ export const HELP_ROUTES = [
   "/trash",
   "/backup",
   "/backup/[workspaceId]",
+  "/backup/sync-bundle/[workspaceId]",
   "/projects/[projectId]",
   "/projects/[projectId]/write",
   "/projects/[projectId]/write/scrivenings",

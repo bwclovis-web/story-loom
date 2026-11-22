@@ -24,6 +24,7 @@ import {
   recordShowsRecordRelations,
 } from "@/server/services/recordRelationService";
 import { listRecordPlacements } from "@/server/services/referencePlacementService";
+import { listPromptPresets } from "@/server/services/promptPresetService";
 import { listReadingPins, resolvePinScope } from "@/server/services/readingPinService";
 import { listImportedFilesForRecord } from "@/server/services/markdownImportService";
 import { PROOFREAD_SCHEMA_CHARS } from "@/server/services/proofreadService";
@@ -190,7 +191,7 @@ export default async function RecordPage({
               ),
             )
           ).flat();
-    const [notes, chapterScenes, linked, sceneLocations, choices, sources, attachableSources, pins, plotBeats, synopsis, marginComments, codexEntries, continuityFindings, characterCues] =
+    const [notes, chapterScenes, linked, sceneLocations, choices, sources, attachableSources, pins, plotBeats, selectionPresets, beatPresets, synopsis, marginComments, codexEntries, continuityFindings, characterCues] =
       await Promise.all([
       listNotes(db, projectId, record.id),
       record.type === "manuscript_chapter" ? listScenesInChapter(db, projectId, record.id) : Promise.resolve([]),
@@ -201,6 +202,8 @@ export default async function RecordPage({
       listAttachableRewriteSources(db, projectId, record.id),
       listReadingPins(db, projectId, pinScopeId),
       listWeaveBeatsForManuscript(db, projectId, record.id),
+      listPromptPresets(db, projectId, "selection"),
+      listPromptPresets(db, projectId, "beat"),
       getSynopsis(db, projectId, record.id),
       listMarginComments(db, projectId, record.id),
       listCodexEntries(db, projectId),
@@ -251,6 +254,8 @@ export default async function RecordPage({
         spellChecker={spellChecker}
         dictionaryWords={dictionaryWords}
         proofread={proofread}
+        selectionPresets={selectionPresets}
+        beatPresets={beatPresets}
         notes={notes.map((n) => ({
           id: n.id,
           title: n.title,

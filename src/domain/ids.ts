@@ -59,6 +59,7 @@ export type IdPrefix =
   | "eve" // story event evidence
   | "pas" // project assistant settings
   | "car" // chapter analysis run
+  | "carc" // character analysis run (evidence-based living profile review)
   | "csp"; // continuity suppression (ledger ignore / intentional)
 
 export function newId(prefix: IdPrefix): string {

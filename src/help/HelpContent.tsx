@@ -34,9 +34,11 @@ import {
   PACKAGE_IMPORT,
   PDF,
   PROJECT_SEARCH,
+  PROMPT_PRESETS,
   PROOFREAD,
   READ_BOOK,
   RECORD,
+  CHARACTER_ANALYSIS,
   CHARACTER_DEVELOPMENT,
   CHARACTER_DOSSIER_UPGRADE,
   CHARACTER_MIGRATION_HOLD,
@@ -920,8 +922,9 @@ export function HelpContent() {
         <p>
           Chapters and scenes open on their own writing page, with a <L>{WRITE.save}</L> button instead of{" "}
           <L>{RECORD.saveAsRevision("N")}</L>. Saving works the same way. See <See anchor="write" />. A chapter’s
-          main editor includes the text of the scenes nested under it, after the chapter text. That scene text is not
-          saved into the chapter. Edit a scene on its own page.
+          main editor includes the text of the scenes nested under it, each one after the next scene break
+          (<L>---</L>, <L>***</L>, or <L>* * *</L>), in book order. That scene text is not saved into the chapter.
+          Edit a scene on its own page.
         </p>
       </Section>
 
@@ -941,8 +944,9 @@ export function HelpContent() {
           </p>
           <ul>
             <li>
-              Choose the arrow beside a chapter to show or hide its scenes. Selecting a chapter also opens that list,
-              and the side panel names the scenes. The number beside a chapter is how many scenes it has. Scenes belong
+              Choose the arrow beside a chapter to show or hide its scenes. Each scene row has a page icon. Selecting
+              a chapter also opens that list, and the side panel names the scenes. The number beside a chapter is how
+              many scenes it has. Scenes belong
               to the draft you are viewing: a scene on the Zero draft does not appear under the Author manuscript copy
               of the same chapter.
             </li>
@@ -2282,34 +2286,63 @@ export function HelpContent() {
             On a character dossier, <L>{CHARACTER_DEVELOPMENT.heading}</L> adds optional structured notes beside the
             Markdown body you already have. Name, aliases, images, and relationship edges stay on their existing panels;
             the profile does not replace them. Leaving the profile blank changes nothing.{" "}
-            <L>{CHARACTER_DEVELOPMENT.importance}</L> suggests which sections to open first for protagonist, major
-            supporting, recurring, or minor characters. Changing importance never deletes filled notes.
+            <L>{CHARACTER_DEVELOPMENT.importance}</L> suggests which sections to open first (
+            <L>{CHARACTER_DEVELOPMENT.importanceLevels.protagonist}</L>,{" "}
+            <L>{CHARACTER_DEVELOPMENT.importanceLevels.major}</L>,{" "}
+            <L>{CHARACTER_DEVELOPMENT.importanceLevels.supporting}</L>,{" "}
+            <L>{CHARACTER_DEVELOPMENT.importanceLevels.minor}</L>, or{" "}
+            <L>{CHARACTER_DEVELOPMENT.importanceLevels.background}</L>). Changing importance never deletes filled notes or
+            locks features; <L>{CHARACTER_DEVELOPMENT.showMoreSections}</L> overrides the recommendation. A completeness
+            count tracks recommended sections that already have any note — not every optional field.
           </p>
           <p>
-            Sections cover Identity, Psychology, Voice, Behavior, Lived experience, Relationships, Capabilities,
-            Development, and Continuity. Enneagram types, wings, motivations, fears, blind spots, triggers, and
-            archetypes (primary, secondary, or shadow, with optional evolution) are writing aids, not diagnoses or
-            behavioral rules. Narrative role stays under Identity and is not an archetype.{" "}
+            Sections follow progressive disclosure: Overview &amp; identity (with Appearance and Background), Personality
+            &amp; psychology, Voice, Mannerisms, Lived experience, Relationships, Abilities &amp; limits, Character
+            development, Story evidence, and Original dossier (Markdown archive and migration holds). Enneagram types,
+            wings, core fear, want versus need, internal misbelief, blind spots, triggers, and archetypes (primary,
+            secondary, or shadow, with optional evolution) are writing aids with short author examples — not diagnoses or
+            behavioral rules. Positive, negative, and flat arcs are optional templates. Narrative role stays under
+            Overview and is not an archetype. Unset means undecided; Unknown means the story treats the answer as
+            unknown.{" "}
             <L>{CHARACTER_DEVELOPMENT.livedTab}</L> holds author-written formative experience, neurodivergence, trauma,
             mental-health portrayal notes, coping, and guidance. Those notes default to omit from AI context, and
-            Extract or Review will not invent them. Habits and learned behavior stay under Behavior. Capabilities can
-            link existing worldbuilding records instead of copying their prose. You can mark individual psychology
-            fields and archetypes draft, proposed, or approved; Extract and Upgrade never auto-approve them.
+            Extract or Review will not invent them. Habits and learned behavior stay under Mannerisms. Capabilities can
+            link existing worldbuilding records instead of copying their prose. Canon markers distinguish approved,
+            planned, manuscript observation, AI suggestion, and needs-review notes. You can mark individual psychology
+            fields and archetypes draft, proposed, or approved; Extract and Upgrade never auto-approve them. Unsaved
+            profile edits warn before leaving the page.
           </p>
           <p>
             Development arcs use the same approval words as other records: draft, proposed, approved, superseded, and
-            unresolved. A series arc can contain book arcs. Continuity holds knowledge items and state changes, including
-            opening and closing facets. Approved opening and closing notes for one book stay put when you edit another
-            book, unless you tick <L>{CHARACTER_DEVELOPMENT.confirmRewrite}</L>.
+            unresolved. A series arc can contain book arcs. The series development plan covers overall arc, long-term
+            goals, and unresolved threads across books; each book can also hold its own plan (external goal, internal
+            need, active misbelief, arc type, turning points, and carry-forward consequences) without copying the whole
+            profile.             Continuity holds knowledge items and state changes, including opening and closing facets and a
+            historical state viewer that can resolve Series baseline, book start/end, timeline events, chapters, and
+            scenes. Story chronology uses narrative book order and timeline edges — not chapter publication order —
+            so flashbacks stay ordered correctly. Writing and editorial AI assemble Living Profile context for linked or
+            named characters only at the current book, chapter, scene, and story point: drafting keeps character-held
+            knowledge and omits reader-only, spoiler, and planned future material; editorial continuity can see
+            established reader knowledge; planning may include author-controlled future plans. Author, reader, and
+            character knowledge stay distinct — a bible fact is not automatic character knowledge. Corrections and
+            retcons supersede earlier state changes without deleting them. Identity variants (alternate timeline,
+            parallel world, clone, reincarnation, or other) keep independent histories and only share traits you
+            explicitly inherit. Approved opening and closing notes for one book stay put when you edit another book,
+            unless you tick <L>{CHARACTER_DEVELOPMENT.confirmRewrite}</L>.
           </p>
           <p>
             <L>{CHARACTER_DEVELOPMENT.extract}</L> and <L>{CHARACTER_DEVELOPMENT.review}</L> need the assistant key on
-            Settings. <L>{CHARACTER_DEVELOPMENT.fillFromHeadings}</L> proposes identity, voice, and psychology text from
-            matching dossier headings; you accept each fill. Variants can inherit identity, voice, behavior, and
-            psychology traits you tick. They do not share knowledge, lived experience, capabilities, secrets, or arcs.
-            The profile stays inside dossier fields (version 1, additive keys), so it travels with revisions and change
-            packages without a database reset. <L>{CHARACTER_DEVELOPMENT.exportRedacted}</L> omits lived experience and
-            secrets; <L>{CHARACTER_DEVELOPMENT.exportFull}</L> keeps the complete structured profile for local backup.
+            Settings. <L>{CHARACTER_ANALYSIS.heading}</L> runs segmented manuscript analysis (scene, chapter, range, book,
+            multiple books, or series) with verified quotations and planned-versus-observed comparisons. Findings stay on
+            the analysis run until you accept, edit and accept, dismiss, defer, mark intentional, or request further
+            analysis; accepted notes apply through a change package as draft fields and never auto-approve canon. Broad
+            reviews report omitted material, show token usage, and can cancel or resume mid-run.{" "}
+            <L>{CHARACTER_DEVELOPMENT.fillFromHeadings}</L> proposes identity, voice, and psychology text from matching
+            dossier headings; you accept each fill. Variants can inherit identity, voice, behavior, and psychology traits
+            you tick. They do not share knowledge, lived experience, capabilities, secrets, or arcs. The profile stays
+            inside dossier fields (version 1, additive keys), so it travels with revisions and change packages without a
+            database reset. <L>{CHARACTER_DEVELOPMENT.exportRedacted}</L> omits lived experience and secrets;{" "}
+            <L>{CHARACTER_DEVELOPMENT.exportFull}</L> keeps the complete structured profile for local backup.
             <L>{CHARACTER_DOSSIER_UPGRADE.openUpgrade}</L> is the author-reviewed migration path described next.
           </p>
         </Sub>
@@ -2413,17 +2446,22 @@ export function HelpContent() {
         <Sub id="world-continuity">
           <p>
             World → <L>{CONTINUITY.nav}</L> (<code>/projects/&lt;project&gt;/continuity</code>) is the Continuity Ledger:
-            a read-only audit. It includes <L>{CONTINUITY.unresolved}</L>, sections titled{" "}
+            a read-only audit. It includes <L>{CONTINUITY.kinds.continuity_note}</L> (draft, proposed, or unresolved),
+            pending facts as well as facts whose evidence needs a recheck, <L>{CONTINUITY.unresolved}</L>, sections titled{" "}
             <L>{INFOBOX.openQuestions}</L>, draft or unsettled citations in the manuscript, citations with no matching
             record, timeline vs book order, conflicting timeline constraints, Weave setups without a manuscript payoff,{" "}
-            <L>{CONTINUITY.facts}</L>, <L>{CONTINUITY.storyEvidence}</L>, <L>{CONTINUITY.comments}</L>, and{" "}
-            <L>{CONTINUITY.reviews}</L>. Opening the page changes nothing.
+            <L>{CONTINUITY.storyEvidence}</L>, <L>{CONTINUITY.comments}</L>, <L>{CONTINUITY.reviews}</L>, and Living Profile
+            findings such as <L>{CONTINUITY.kinds.character_state_conflict}</L>,{" "}
+            <L>{CONTINUITY.kinds.character_knowledge}</L>, <L>{CONTINUITY.kinds.character_limitation}</L>,{" "}
+            <L>{CONTINUITY.kinds.forgotten_arc}</L>, and <L>{CONTINUITY.kinds.character_identity}</L>. The timeline
+            check runs when the project has story events. Opening the page changes nothing.
           </p>
           <p>
             Filter by category or severity. Each row deep-links to the chapter, scene, reference, timeline, or Weave
             grid. <L>{CONTINUITY.markIntentional}</L> or <L>{CONTINUITY.markIgnored}</L> hides a finding (audited);{" "}
-            <L>{CONTINUITY.restore}</L> puts it back. The Write inspector shows a Continuity count for the open chapter
-            or scene; it never edits prose.
+            <L>{CONTINUITY.restore}</L> puts it back. Character findings resolve against the open chapter or scene when
+            present; they do not treat archetypes as rigid rules, and they never rewrite prose. The Write inspector shows
+            a Continuity count for the open chapter or scene.
           </p>
           <p>
             Characters, canon decisions, and continuity notes can also store <L>{REFERENCE_META.name}</L>,{" "}
@@ -3722,6 +3760,19 @@ export function HelpContent() {
             alerts in your OpenAI account are notifications, not hard caps either. Check usage in your OpenAI account.
           </p>
         </Sub>
+
+        <Sub id="assistant-prompt-presets">
+          <p>
+            On the <L>{ASSISTANT.heading}</L> page, <L>{PROMPT_PRESETS.manageHeading}</L> saves reusable instruction
+            lenses for this project only (not workspace-wide). Each preset has a surface: selection assist on the Write
+            page, assistant chat, or Weave beat drafting.
+          </p>
+          <p>
+            Before you send a request, choose a preset or type a one-off lens. Picking a preset fills the instruction box;
+            you can edit it before sending. The lens is appended to that request&apos;s model instructions only; it does
+            not change saved records or conversations. Presets are included in workspace backups when present.
+          </p>
+        </Sub>
       </Section>
 
       <Section id="chatgpt">
@@ -3735,13 +3786,17 @@ export function HelpContent() {
           </li>
           <li>
             Tick the records relevant to your discussion. Ticking a type name ticks all records of that type.
-            Manuscript chapters and scenes start unticked.
+            Manuscript chapters and scenes start unticked. Series-shared dossiers appear with{" "}
+            <code>seriesHome</code> when this book can read them.
           </li>
           <li>
             Leave <L>{EXPORT.includeSchema}</L> ticked. It tells ChatGPT the exact format to use.
           </li>
           <li>
-            Choose <L>{EXPORT.generate("N")}</L>.
+            Choose <L>{EXPORT.generate("N")}</L>. Bundles that include character dossiers also add optional{" "}
+            <code>characterContexts</code>: point-scoped psychology, voice, state, knowledge, and arcs. Prefer those
+            slices over dumping every dossier field; planned and spoiler items stay out unless the export mode allows
+            them. Older readers can ignore the new field.
           </li>
           <li>
             Choose <L>{EXPORT.download}</L> to save the file, or <L>{EXPORT.copy}</L>.

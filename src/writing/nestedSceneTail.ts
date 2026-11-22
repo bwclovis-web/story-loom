@@ -61,6 +61,13 @@ export function composeChapterWithScenes(chapter: string, scenes: readonly { bod
   return { doc, locked };
 }
 
+/** Scene prose stored in locked ranges, without the blank lines the composer adds. */
+export function sceneBodiesFromDoc(doc: string, locked: readonly LockedRange[]): string[] {
+  return locked
+    .map((range) => doc.slice(range.start, range.end).replace(/^\n+/, "").replace(/\s+$/, ""))
+    .filter((body) => body.length > 0);
+}
+
 /** Chapter text with scene ranges removed. */
 export function chapterWithoutScenes(doc: string, locked: readonly LockedRange[]): string {
   const ranges = [...locked].sort((a, b) => a.start - b.start);

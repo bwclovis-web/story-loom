@@ -1,12 +1,14 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Banner } from "@/components/ui/Banner";
 import { Button, ButtonLink } from "@/components/ui/Button";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { HelpPopover } from "@/components/ui/HelpPopover";
+import { Select } from "@/components/ui/Select";
 import { IssueList } from "@/components/IssueList";
+import { setUnsaved } from "@/components/shell/unsaved";
 import {
   AI_VISIBILITY,
   ARCHETYPE_LIBRARY,
@@ -18,7 +20,6 @@ import {
   ENNEAGRAM_GUIDE,
   ENNEAGRAM_TYPES,
   fieldMetaOf,
-  FOUNDATION_TEXT_KEYS,
   IMPORTANCE_LEVELS,
   INHERITABLE_KEYS,
   KNOWLEDGE_HOLDERS,
@@ -27,21 +28,36 @@ import {
   MILESTONE_STATUSES,
   NARRATIVE_ROLES,
   PRESENCE_STATES,
+  BOOK_PLAN_TEXT_KEYS,
+  MILESTONE_KINDS,
+  NARRATIVE_BOUNDARIES,
   PROFILE_SECTIONS,
   proposeProfileFillFromBody,
   applyProfileFillSuggestions,
   PSYCHOLOGY_TEXT_KEYS,
+  SERIES_PLAN_TEXT_KEYS,
   setFieldMeta,
   STATE_FACETS,
+  VARIANT_RELATIONSHIP_KINDS,
   VOICE_TEXT_KEYS,
   adjacentWings,
+  buildCharacterTimeline,
   characterProfileMarkdown,
+  compareCharacterStates,
   developmentIsEmpty,
+  emptyBookState,
   emptyCharacterDevelopment,
+  emptySeriesPlan,
   emptyVoice,
   forgottenArcs,
   milestoneFreshness,
+  normalizeImportance,
+  profileCompleteness,
   profileFreshness,
+  resolveCharacterState,
+  resolveKnowledgeAtPoint,
+  sectionIsEmpty,
+  supersedeStateChange,
   visibleProfileSections,
   type ArchetypeAssignment,
   type ArchetypeRank,
@@ -58,7 +74,10 @@ import {
   type InheritedTrait,
   type KnowledgeItem,
   type LivedExperienceTextKey,
+  type MilestoneKind,
   type MilestoneLink,
+  type NarrativeBoundary,
+  type NarrativePoint,
   type NarrativeRole,
   type ProfileFillSuggestion,
   type ProfileSection,
@@ -66,8 +85,10 @@ import {
   type ReviewObservation,
   type StateChange,
   type StateFacet,
+  type VariantRelationshipKind,
   type VoiceTextKey,
 } from "@/domain/characterDevelopment";
+import type { OrderEdge } from "@/world/storyOrder";
 import { AUTHORITY_STATUSES, type AuthorityStatus } from "@/domain/statuses";
 import type { Issue } from "@/domain/issues";
 import type { DossierMarkdownArchive } from "@/domain/characterDossierUpgrade";
@@ -79,6 +100,7 @@ import {
   markCharacterProfileCheckedAction,
   saveCharacterDevelopmentAction,
 } from "@/app/projects/[projectId]/records/[recordId]/characterDevelopmentActions";
+import { CharacterAnalysisWorkspace } from "./CharacterAnalysisWorkspace";
 import { MigrationHoldArchivePanel } from "./MigrationHoldArchivePanel";
 
 export interface DevelopmentChoice {
@@ -97,6 +119,8 @@ export interface DevelopmentCatalog {
   facts: DevelopmentChoice[];
   worldRefs: DevelopmentChoice[];
   assistantConfigured: boolean;
+  eventOrders?: OrderEdge[];
+  sceneEventLinks?: Array<{ eventId: string; manuscriptRecordId: string; projectId: string }>;
 }
 
 const SECTION_TO_TAB: Record<ProfileSection, ProfileSection> = {
@@ -150,6 +174,7 @@ function blankMilestone(): MilestoneLink {
     title: "",
     summary: "",
     status: "planned",
+    kind: "milestone",
     bookProjectId: null,
     chapterRecordId: null,
     sceneRecordId: null,
@@ -160,6 +185,26 @@ function blankMilestone(): MilestoneLink {
     weaveBeatId: null,
     referenceRecordId: null,
     notes: "",
+  };
+}
+
+function blankStateChange(projectId: string): StateChange {
+  return {
+    id: newId("state"),
+    facet: "belief",
+    presence: "set",
+    text: "",
+    approval: "draft",
+    planned: true,
+    bookProjectId: projectId,
+    storyEventId: null,
+    chapterRecordId: null,
+    sceneRecordId: null,
+    sequence: null,
+    note: "",
+    supersedesId: null,
+    correctionNote: "",
+    correctedAt: null,
   };
 }
 
@@ -193,6 +238,7 @@ export function CharacterDevelopmentPanel({
   archiveProblems?: string[];
 }) {
   const [profile, setProfile] = useState(initialProfile);
+  const [savedSnapshot, setSavedSnapshot] = useState(() => JSON.stringify(initialProfile));
   const [tab, setTab] = useState<TabId>("identity");
   const [showAllSections, setShowAllSections] = useState(false);
   const [expectedRevision, setExpectedRevision] = useState(revision);
@@ -209,6 +255,21 @@ export function CharacterDevelopmentPanel({
   const [pickedFills, setPickedFills] = useState<string[]>([]);
   const freshness = profileFreshness(profile, expectedRevision);
   const forgotten = forgottenArcs(profile);
+  const completeness = useMemo(() => profileCompleteness(profile), [profile]);
+  const dirty = JSON.stringify(profile) !== savedSnapshot;
+  const unsavedKey = `character-development-${recordId}`;
+  useEffect(() => {
+    setUnsaved(unsavedKey, dirty);
+    return () => setUnsaved(unsavedKey, false);
+  }, [unsavedKey, dirty]);
+  useEffect(() => {
+    if (!dirty) return;
+    const warn = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [dirty]);
   const relationshipArcs = profile.arcs.filter(
     (arc) => arc.template === "relationship" || arc.relationId || arc.perceptions.length > 0,
   );
@@ -223,12 +284,13 @@ export function CharacterDevelopmentPanel({
     setMessage(result.message ?? null);
     setIssues(result.issues ?? []);
     if (result.ok && result.revision) setExpectedRevision(result.revision);
+    return result;
   };
 
   const save = async () => {
     setPending(true);
     try {
-      applyResult(
+      const result = applyResult(
         await saveCharacterDevelopmentAction(
           projectId,
           recordId,
@@ -238,6 +300,7 @@ export function CharacterDevelopmentPanel({
           allowRewrite,
         ),
       );
+      if (result.ok) setSavedSnapshot(JSON.stringify(profile));
     } finally {
       setPending(false);
     }
@@ -321,13 +384,18 @@ export function CharacterDevelopmentPanel({
   };
   const currentTab = activeTabs.includes(tab) ? tab : activeTabs[0]!;
 
+  const importanceValue = normalizeImportance(profile.importance) ?? profile.importance;
+
   return (
     <div className="stack">
       <p className="small muted">{LABELS.lead}</p>
       <p className="small muted">{LABELS.aid}</p>
       <p className="small muted">{LABELS.separate}</p>
       <p className="small muted">{LABELS.metaNotDuplicated}</p>
-      {profile.importance === "minor" ? <p className="small">{LABELS.minorHint}</p> : null}
+      {importanceValue === "minor" || importanceValue === "background" ? (
+        <p className="small">{importanceValue === "background" ? LABELS.backgroundHint : LABELS.minorHint}</p>
+      ) : null}
+      {dirty ? <Banner>{LABELS.unsavedHint}</Banner> : null}
       {freshness === "stale" ? <Banner tone="error">{LABELS.staleProfile}</Banner> : null}
       {freshness === "unchecked" ? <Banner>{LABELS.unchecked}</Banner> : null}
       {forgotten.length ? (
@@ -343,7 +411,7 @@ export function CharacterDevelopmentPanel({
           {LABELS.importance}
           <HelpPopover label={LABELS.importance}>{LABELS.importanceHint}</HelpPopover>
           <select
-            value={profile.importance ?? ""}
+            value={importanceValue ?? ""}
             onChange={(event) =>
               setProfile({ ...profile, importance: (event.target.value || null) as ImportanceLevel | null })
             }
@@ -351,7 +419,7 @@ export function CharacterDevelopmentPanel({
             <option value="">{LABELS.unset}</option>
             {IMPORTANCE_LEVELS.map((level) => (
               <option key={level} value={level}>
-                {level}
+                {LABELS.importanceLevels[level]}
               </option>
             ))}
           </select>
@@ -394,6 +462,33 @@ export function CharacterDevelopmentPanel({
         </label>
       </div>
 
+      <div className="stack" aria-live="polite">
+        <p className="small">
+          {LABELS.completeness}
+          <HelpPopover label={LABELS.completeness}>{LABELS.completenessHint}</HelpPopover>
+          {": "}
+          {completeness.importance ? (
+            <span>
+              {completeness.suggestedFilledCount}/{completeness.suggestedTotal}
+              {completeness.suggestedEmpty.length
+                ? ` — open ${completeness.suggestedEmpty.map((section) => tabLabels[section]).join(", ")} when ready`
+                : ""}
+            </span>
+          ) : (
+            <span className="muted">{LABELS.completenessUnset}</span>
+          )}
+        </p>
+        <p className="small muted" aria-label={LABELS.canonLegend}>
+          <span className="badge approved">{LABELS.canonApproved}</span>{" "}
+          <span className="badge proposed">{LABELS.canonProposed}</span>{" "}
+          <span className="badge">{LABELS.canonDraft}</span>{" "}
+          <span className="badge manuscript">{LABELS.canonManuscript}</span>{" "}
+          <span className="badge">{LABELS.canonAi}</span>{" "}
+          <span className="badge unresolved">{LABELS.canonContradiction}</span>{" "}
+          <span className="badge">{LABELS.canonPlanned}</span>
+        </p>
+      </div>
+
       <div className="context-tabs" role="tablist" aria-label={LABELS.heading}>
         {activeTabs.map((id) => (
           <button
@@ -402,15 +497,32 @@ export function CharacterDevelopmentPanel({
             className="context-tab"
             role="tab"
             aria-selected={currentTab === id}
+            aria-controls={`character-profile-panel-${id}`}
+            id={`character-profile-tab-${id}`}
             tabIndex={currentTab === id ? 0 : -1}
             onClick={() => setTab(id)}
             onKeyDown={(event) => {
               const index = activeTabs.indexOf(currentTab);
-              if (event.key === "ArrowRight") setTab(activeTabs[(index + 1) % activeTabs.length]!);
-              if (event.key === "ArrowLeft") setTab(activeTabs[(index - 1 + activeTabs.length) % activeTabs.length]!);
+              if (event.key === "ArrowRight") {
+                event.preventDefault();
+                setTab(activeTabs[(index + 1) % activeTabs.length]!);
+              }
+              if (event.key === "ArrowLeft") {
+                event.preventDefault();
+                setTab(activeTabs[(index - 1 + activeTabs.length) % activeTabs.length]!);
+              }
+              if (event.key === "Home") {
+                event.preventDefault();
+                setTab(activeTabs[0]!);
+              }
+              if (event.key === "End") {
+                event.preventDefault();
+                setTab(activeTabs[activeTabs.length - 1]!);
+              }
             }}
           >
             {tabLabels[id]}
+            {!sectionIsEmpty(id, profile) ? <span className="badge" aria-hidden="true">·</span> : null}
           </button>
         ))}
       </div>
@@ -420,57 +532,119 @@ export function CharacterDevelopmentPanel({
         </Button>
       ) : null}
 
-      {currentTab === "identity" ? (
-        <FoundationFields profile={profile} fieldAge={fieldAge} onChange={setProfile} />
-      ) : null}
-      {currentTab === "psychology" ? (
-        <div className="stack">
-          <PsychologyFields profile={profile} onChange={setProfile} traits={traits} />
-          <details className="stack">
-            <summary>{LABELS.archetypes}</summary>
-            <ArchetypeFields profile={profile} catalog={catalog} onChange={setProfile} />
-          </details>
-        </div>
-      ) : null}
-      {currentTab === "voice" ? <VoiceFields profile={profile} catalog={catalog} projectId={projectId} onChange={setProfile} /> : null}
-      {currentTab === "behavior" ? <BehaviorFields profile={profile} onChange={setProfile} /> : null}
-      {currentTab === "lived" ? <LivedExperienceFields profile={profile} onChange={setProfile} /> : null}
-      {currentTab === "relationships" ? (
-        <div className="stack">
-          <p className="small muted">{LABELS.metaNotDuplicated}</p>
-          {relationshipArcs.length ? (
-            <ArcFields profile={profile} catalog={catalog} onChange={setProfile} arcs={relationshipArcs} staleMilestoneIds={staleMilestoneIds} />
+      <div
+        role="tabpanel"
+        id={`character-profile-panel-${currentTab}`}
+        aria-labelledby={`character-profile-tab-${currentTab}`}
+        className="stack"
+      >
+        {currentTab === "identity" ? (
+          <FoundationFields profile={profile} fieldAge={fieldAge} onChange={setProfile} />
+        ) : null}
+        {currentTab === "psychology" ? (
+          <div className="stack">
+            <PsychologyFields profile={profile} onChange={setProfile} traits={traits} />
+            <details className="stack">
+              <summary>
+                {LABELS.archetypes}
+                <HelpPopover label={LABELS.archetypes}>{LABELS.conceptHelp.primaryShadowArchetype}</HelpPopover>
+              </summary>
+              <ArchetypeFields profile={profile} catalog={catalog} onChange={setProfile} />
+            </details>
+          </div>
+        ) : null}
+        {currentTab === "voice" ? (
+          sectionIsEmpty("voice", profile) ? (
+            <div className="stack">
+              <EmptyState>{LABELS.emptyVoice}</EmptyState>
+              <VoiceFields profile={profile} catalog={catalog} projectId={projectId} onChange={setProfile} />
+            </div>
           ) : (
-            <EmptyState>{LABELS.noArcs}</EmptyState>
-          )}
-        </div>
-      ) : null}
-      {currentTab === "capabilities" ? <CapabilitiesFields profile={profile} catalog={catalog} onChange={setProfile} /> : null}
-      {currentTab === "development" ? (
-        <ArcFields profile={profile} catalog={catalog} onChange={setProfile} arcs={profile.arcs} staleMilestoneIds={staleMilestoneIds} />
-      ) : null}
-      {currentTab === "continuity" ? (
-        <div className="stack">
-          <KnowledgeFields profile={profile} catalog={catalog} projectId={projectId} onChange={setProfile} />
-          <HistoryFields profile={profile} catalog={catalog} projectId={projectId} onChange={setProfile} />
-        </div>
-      ) : null}
+            <VoiceFields profile={profile} catalog={catalog} projectId={projectId} onChange={setProfile} />
+          )
+        ) : null}
+        {currentTab === "behavior" ? (
+          sectionIsEmpty("behavior", profile) ? (
+            <div className="stack">
+              <EmptyState>{LABELS.emptyBehavior}</EmptyState>
+              <BehaviorFields profile={profile} onChange={setProfile} />
+            </div>
+          ) : (
+            <BehaviorFields profile={profile} onChange={setProfile} />
+          )
+        ) : null}
+        {currentTab === "lived" ? <LivedExperienceFields profile={profile} onChange={setProfile} /> : null}
+        {currentTab === "relationships" ? (
+          <div className="stack">
+            <p className="small muted">{LABELS.metaNotDuplicated}</p>
+            {relationshipArcs.length ? (
+              <ArcFields profile={profile} catalog={catalog} onChange={setProfile} arcs={relationshipArcs} staleMilestoneIds={staleMilestoneIds} />
+            ) : (
+              <EmptyState>{LABELS.noArcs}</EmptyState>
+            )}
+          </div>
+        ) : null}
+        {currentTab === "capabilities" ? (
+          sectionIsEmpty("capabilities", profile) ? (
+            <div className="stack">
+              <EmptyState>{LABELS.emptyCapabilities}</EmptyState>
+              <CapabilitiesFields profile={profile} catalog={catalog} onChange={setProfile} />
+            </div>
+          ) : (
+            <CapabilitiesFields profile={profile} catalog={catalog} onChange={setProfile} />
+          )
+        ) : null}
+        {currentTab === "development" ? (
+          <div className="stack">
+            <p className="small muted">
+              {LABELS.developmentLead}
+              <HelpPopover label={LABELS.developmentTab}>{LABELS.conceptHelp.characterArcs}</HelpPopover>
+            </p>
+            <SeriesPlanFields profile={profile} onChange={setProfile} />
+            <BookPlanFields profile={profile} catalog={catalog} projectId={projectId} onChange={setProfile} />
+            <MilestoneSummary profile={profile} />
+            {profile.arcs.length === 0 ? <EmptyState>{LABELS.noArcs}</EmptyState> : null}
+            <ArcFields profile={profile} catalog={catalog} onChange={setProfile} arcs={profile.arcs} staleMilestoneIds={staleMilestoneIds} />
+          </div>
+        ) : null}
+        {currentTab === "continuity" ? (
+          <div className="stack">
+            <p className="small muted">{LABELS.continuityLead}</p>
+            {sectionIsEmpty("continuity", profile) ? <EmptyState>{LABELS.emptyContinuity}</EmptyState> : null}
+            <DevelopmentTimeline profile={profile} catalog={catalog} />
+            <HistoricalStateViewer profile={profile} catalog={catalog} projectId={projectId} onChange={setProfile} />
+            <KnowledgeFields profile={profile} catalog={catalog} projectId={projectId} onChange={setProfile} />
+            <HistoryFields profile={profile} catalog={catalog} projectId={projectId} onChange={setProfile} />
+          </div>
+        ) : null}
+      </div>
 
-      {(profile.migrationHold.length > 0 || archive.entries.length > 0 || archiveProblems.length > 0) &&
-      (currentTab === "continuity" || currentTab === "identity") ? (
-        <MigrationHoldArchivePanel
-          projectId={projectId}
-          recordId={recordId}
-          profile={profile}
-          archive={archive}
-          archiveProblems={archiveProblems}
-          onChange={setProfile}
-        />
-      ) : null}
+      <details className="stack">
+        <summary>{LABELS.originalDossier}</summary>
+        <p className="small muted">{LABELS.originalDossierLead}</p>
+        <ButtonLink
+          href={`/projects/${encodeURIComponent(projectId)}/records/${encodeURIComponent(recordId)}/upgrade`}
+          variant="secondary"
+        >
+          {CHARACTER_DOSSIER_UPGRADE.openUpgrade}
+        </ButtonLink>
+        {profile.migrationHold.length > 0 || archive.entries.length > 0 || archiveProblems.length > 0 ? (
+          <MigrationHoldArchivePanel
+            projectId={projectId}
+            recordId={recordId}
+            profile={profile}
+            archive={archive}
+            archiveProblems={archiveProblems}
+            onChange={setProfile}
+          />
+        ) : (
+          <EmptyState>{LABELS.emptyOriginalDossier}</EmptyState>
+        )}
+      </details>
       {profile.migrationHold.length ? (
         <p className="small muted">
           {CHARACTER_MIGRATION_HOLD.heading}: {profile.migrationHold.length} held item
-          {profile.migrationHold.length === 1 ? "" : "s"} (open Identity or Continuity to review).
+          {profile.migrationHold.length === 1 ? "" : "s"} (open Original dossier to review).
         </p>
       ) : null}
 
@@ -564,6 +738,8 @@ export function CharacterDevelopmentPanel({
               }
               label={
                 <>
+                  <span className="badge unresolved">{LABELS.canonContradiction}</span>{" "}
+                  <span className="badge proposed">{LABELS.canonAi}</span>{" "}
                   {observation.check}: {observation.summary}
                   {observation.uncertainty ? <span className="muted"> ({observation.uncertainty})</span> : null}
                   {observation.evidence ? <span className="muted"> — {observation.evidence}</span> : null}
@@ -642,7 +818,17 @@ export function CharacterDevelopmentPanel({
       <p className="small muted">{LABELS.extractHint}</p>
       <p className="small muted">{LABELS.reviewHint}</p>
       <p className="small muted">{LABELS.fillFromHeadingsHint}</p>
+      <p className="small muted">{LABELS.evidenceAnalysisHint}</p>
       <p className="small muted">{CHARACTER_DOSSIER_UPGRADE.openUpgradeHint}</p>
+      <CharacterAnalysisWorkspace
+        projectId={projectId}
+        characterIds={[recordId]}
+        characters={[{ id: recordId, label: title }]}
+        chapters={catalog.chapters}
+        scenes={catalog.scenes}
+        books={catalog.books}
+        assistantConfigured={catalog.assistantConfigured}
+      />
       {isProtected ? (
         <Checkbox className="small" checked={unlock} onChange={(event) => setUnlock(event.target.checked)} label={LABELS.unlock} />
       ) : null}
@@ -657,6 +843,14 @@ function FieldHelp({ field }: { field: keyof typeof LABELS.fieldHelp }) {
   return <HelpPopover label={`Explain ${String(field)}`}>{text}</HelpPopover>;
 }
 
+function authorityBadgeClass(status: AuthorityStatus): string {
+  if (status === "approved") return "badge approved";
+  if (status === "proposed") return "badge proposed";
+  if (status === "unresolved") return "badge unresolved";
+  if (status === "superseded") return "badge superseded";
+  return "badge";
+}
+
 function FieldAuthorityControl({
   profile,
   fieldPath,
@@ -667,36 +861,88 @@ function FieldAuthorityControl({
   onChange: (next: CharacterDevelopment) => void;
 }) {
   const meta = fieldMetaOf(profile, fieldPath);
+  const originLabel =
+    meta.provenance.origin === "extracted"
+      ? LABELS.canonAi
+      : meta.provenance.origin === "imported"
+        ? LABELS.canonManuscript
+        : LABELS.fieldProvenance;
   return (
     <div className="row" style={{ flexWrap: "wrap", gap: "0.5rem", alignItems: "center", marginTop: "0.25rem" }}>
-      <label className="small">
-        {LABELS.fieldAuthority}
-        <select
-          value={meta.approval}
-          onChange={(event) =>
-            onChange(
-              setFieldMeta(profile, fieldPath, {
-                approval: event.target.value as AuthorityStatus,
-                provenance: {
-                  ...meta.provenance,
-                  origin: meta.provenance.origin === "extracted" || meta.provenance.origin === "imported" ? meta.provenance.origin : "author",
-                  updatedAt: new Date().toISOString(),
-                },
-              }),
-            )
-          }
-        >
-          {AUTHORITY_STATUSES.map((status) => (
-            <option key={status} value={status}>
-              {status}
-            </option>
-          ))}
-        </select>
-      </label>
+      <span className={authorityBadgeClass(meta.approval)} aria-label={`${LABELS.fieldAuthority}: ${meta.approval}`}>
+        {meta.approval === "approved"
+          ? LABELS.canonApproved
+          : meta.approval === "proposed"
+            ? LABELS.canonProposed
+            : meta.approval === "unresolved"
+              ? LABELS.canonContradiction
+              : LABELS.canonDraft}
+      </span>
+      <Button
+        type="button"
+        variant="secondary"
+        onClick={() =>
+          onChange(
+            setFieldMeta(profile, fieldPath, {
+              approval: "approved",
+              provenance: {
+                ...meta.provenance,
+                origin: meta.provenance.origin === "extracted" || meta.provenance.origin === "imported" ? meta.provenance.origin : "author",
+                updatedAt: new Date().toISOString(),
+              },
+            }),
+          )
+        }
+      >
+        {LABELS.markFieldApproved}
+      </Button>
+      <Button
+        type="button"
+        variant="secondary"
+        onClick={() =>
+          onChange(
+            setFieldMeta(profile, fieldPath, {
+              approval: "draft",
+              provenance: {
+                ...meta.provenance,
+                origin: meta.provenance.origin === "extracted" || meta.provenance.origin === "imported" ? meta.provenance.origin : "author",
+                updatedAt: new Date().toISOString(),
+              },
+            }),
+          )
+        }
+      >
+        {LABELS.markFieldDraft}
+      </Button>
       <span className="small muted">
-        {LABELS.fieldProvenance}: {meta.provenance.origin}
+        {originLabel}
+        {meta.provenance.origin ? `: ${meta.provenance.origin}` : ""}
         {meta.provenance.sourceHeading ? ` · ${meta.provenance.sourceHeading}` : ""}
       </span>
+      <Select
+        label={LABELS.fieldAuthority}
+        labelPosition="bottom"
+        size="sm"
+        value={meta.approval}
+        onChange={(event) =>
+          onChange(
+            setFieldMeta(profile, fieldPath, {
+              approval: event.target.value as AuthorityStatus,
+              provenance: {
+                ...meta.provenance,
+                origin: meta.provenance.origin === "extracted" || meta.provenance.origin === "imported" ? meta.provenance.origin : "author",
+                updatedAt: new Date().toISOString(),
+              },
+            }),
+          )
+        }
+      >
+        {AUTHORITY_STATUSES.map((status) => (
+          <option key={status} value={status}>
+            {status}
+          </option>
+        ))}
+      </Select>
     </div>
   );
 }
@@ -710,11 +956,14 @@ function FoundationFields({
   fieldAge: string;
   onChange: (next: CharacterDevelopment) => void;
 }) {
-  const primary: FoundationTextKey[] = ["pronouns", "appearance", "lifeStage", "occupation", "externalGoal"];
-  const advanced = FOUNDATION_TEXT_KEYS.filter((key) => !primary.includes(key));
+  const overview: FoundationTextKey[] = ["pronouns", "lifeStage", "occupation", "externalGoal"];
+  const appearance: FoundationTextKey[] = ["appearance", "physicalCharacteristics"];
+  const background: FoundationTextKey[] = ["ancestry", "culturalIdentity", "formativeBackground", "publicRole", "privateSelf"];
+  const empty = sectionIsEmpty("identity", profile);
   return (
     <div className="stack">
       <p className="small muted">{LABELS.foundationLead}</p>
+      {empty ? <EmptyState>{LABELS.emptyIdentity}</EmptyState> : null}
       {fieldAge ? (
         <p className="small">
           {LABELS.ageBeside}: {fieldAge}{" "}
@@ -732,25 +981,39 @@ function FoundationFields({
           </Button>
         </p>
       ) : null}
-      {primary.map((key) => (
+      {overview.map((key) => (
         <label key={key}>
           {LABELS.foundationFields[key]}
           {key in LABELS.fieldHelp ? <FieldHelp field={key as keyof typeof LABELS.fieldHelp} /> : null}
           <textarea
-            rows={key === "appearance" ? 3 : 2}
+            rows={2}
             value={profile.foundation[key]}
             onChange={(event) => onChange({ ...profile, foundation: { ...profile.foundation, [key]: event.target.value } })}
           />
         </label>
       ))}
-      <details className="stack">
-        <summary>More identity detail</summary>
-        {advanced.map((key) => (
+      <details className="stack" open={!appearance.every((key) => !profile.foundation[key].trim())}>
+        <summary>{LABELS.appearanceGroup}</summary>
+        {appearance.map((key) => (
           <label key={key}>
             {LABELS.foundationFields[key]}
             {key in LABELS.fieldHelp ? <FieldHelp field={key as keyof typeof LABELS.fieldHelp} /> : null}
             <textarea
-              rows={key === "formativeBackground" || key === "physicalCharacteristics" ? 3 : 2}
+              rows={key === "appearance" ? 3 : 2}
+              value={profile.foundation[key]}
+              onChange={(event) => onChange({ ...profile, foundation: { ...profile.foundation, [key]: event.target.value } })}
+            />
+          </label>
+        ))}
+      </details>
+      <details className="stack" open={!background.every((key) => !profile.foundation[key].trim())}>
+        <summary>{LABELS.backgroundGroup}</summary>
+        {background.map((key) => (
+          <label key={key}>
+            {LABELS.foundationFields[key]}
+            {key in LABELS.fieldHelp ? <FieldHelp field={key as keyof typeof LABELS.fieldHelp} /> : null}
+            <textarea
+              rows={key === "formativeBackground" ? 3 : 2}
               value={profile.foundation[key]}
               onChange={(event) => onChange({ ...profile, foundation: { ...profile.foundation, [key]: event.target.value } })}
             />
@@ -1257,6 +1520,7 @@ function PsychologyFields({
     <div className="stack">
       {empty && !psychology.enneagram ? <EmptyState>{LABELS.empty}</EmptyState> : null}
       <p className="small muted">{LABELS.psychologyLead}</p>
+      <p className="small muted">{LABELS.unknownVsUnset}</p>
       {traits.length ? (
         <ul className="small">
           {traits.map((trait) => (
@@ -1269,6 +1533,7 @@ function PsychologyFields({
       <div className="grid2">
         <label>
           {LABELS.enneagram}
+          <HelpPopover label={LABELS.enneagram}>{LABELS.conceptHelp.enneagram}</HelpPopover>
           <select
             value={type === null ? "" : String(type)}
             onChange={(event) => {
@@ -1321,9 +1586,17 @@ function PsychologyFields({
           {guide.name}: desire {guide.desire}; fear {guide.fear}. {guide.wings}
         </p>
       ) : null}
+      <p className="small muted">
+        {LABELS.conceptHelp.wantVersusNeed}
+        <HelpPopover label="Want versus need">{LABELS.conceptHelp.wantVersusNeed}</HelpPopover>
+      </p>
       {primaryKeys.map((key) => (
         <label key={key}>
           {LABELS.fields[key]}
+          {key === "coreFear" ? <HelpPopover label={LABELS.fields.coreFear}>{LABELS.conceptHelp.coreFear}</HelpPopover> : null}
+          {key === "internalMisbelief" ? (
+            <HelpPopover label={LABELS.fields.internalMisbelief}>{LABELS.conceptHelp.internalMisbelief}</HelpPopover>
+          ) : null}
           {key in LABELS.fieldHelp ? <FieldHelp field={key as keyof typeof LABELS.fieldHelp} /> : null}
           <textarea
             rows={2}
@@ -1877,6 +2150,26 @@ function MilestoneFields({
               />
             </label>
             <label>
+              {LABELS.milestoneKind}
+              <select
+                value={milestone.kind}
+                onChange={(event) =>
+                  onChange({
+                    ...arc,
+                    milestones: arc.milestones.map((item) =>
+                      item.id === milestone.id ? { ...item, kind: event.target.value as MilestoneKind } : item,
+                    ),
+                  })
+                }
+              >
+                {MILESTONE_KINDS.map((kind) => (
+                  <option key={kind} value={kind}>
+                    {kind.replaceAll("_", " ")}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
               {LABELS.milestoneStatus}
               <select
                 value={milestone.status}
@@ -1891,11 +2184,44 @@ function MilestoneFields({
               >
                 {MILESTONE_STATUSES.map((status) => (
                   <option key={status} value={status}>
-                    {status.replaceAll("_", " ")}
+                    {status === "planned"
+                      ? LABELS.canonPlanned
+                      : status === "approved"
+                        ? LABELS.canonApproved
+                        : status === "manuscript_confirmed"
+                          ? LABELS.canonManuscript
+                          : LABELS.canonAi}
                   </option>
                 ))}
               </select>
+              <span
+                className={
+                  milestone.status === "approved"
+                    ? "badge approved"
+                    : milestone.status === "manuscript_confirmed"
+                      ? "badge manuscript"
+                      : milestone.status === "ai_suggested"
+                        ? "badge proposed"
+                        : "badge"
+                }
+              >
+                {milestone.status === "planned"
+                  ? LABELS.canonPlanned
+                  : milestone.status === "approved"
+                    ? LABELS.canonApproved
+                    : milestone.status === "manuscript_confirmed"
+                      ? LABELS.canonManuscript
+                      : LABELS.canonAi}
+              </span>
             </label>
+            <Choice
+              label={LABELS.selectBook}
+              value={milestone.bookProjectId}
+              choices={catalog.books}
+              onChange={(bookProjectId) =>
+                onChange({ ...arc, milestones: arc.milestones.map((item) => (item.id === milestone.id ? { ...item, bookProjectId } : item)) })
+              }
+            />
             <Choice
               label="Chapter"
               value={milestone.chapterRecordId}
@@ -1926,6 +2252,17 @@ function MilestoneFields({
               choices={catalog.beats}
               onChange={(weaveBeatId) =>
                 onChange({ ...arc, milestones: arc.milestones.map((item) => (item.id === milestone.id ? { ...item, weaveBeatId } : item)) })
+              }
+            />
+            <Choice
+              label="Reference"
+              value={milestone.referenceRecordId}
+              choices={catalog.worldRefs}
+              onChange={(referenceRecordId) =>
+                onChange({
+                  ...arc,
+                  milestones: arc.milestones.map((item) => (item.id === milestone.id ? { ...item, referenceRecordId } : item)),
+                })
               }
             />
             <label>
@@ -1971,6 +2308,388 @@ function MilestoneFields({
   );
 }
 
+function SeriesPlanFields({
+  profile,
+  onChange,
+}: {
+  profile: CharacterDevelopment;
+  onChange: (next: CharacterDevelopment) => void;
+}) {
+  const plan = profile.seriesPlan ?? emptySeriesPlan();
+  return (
+    <details className="stack" open={SERIES_PLAN_TEXT_KEYS.some((key) => plan[key].trim())}>
+      <summary>{LABELS.seriesPlan}</summary>
+      <p className="small muted">{LABELS.seriesPlanLead}</p>
+      {SERIES_PLAN_TEXT_KEYS.map((key) => (
+        <label key={key}>
+          {LABELS.seriesPlanFields[key]}
+          <textarea
+            rows={2}
+            value={plan[key]}
+            onChange={(event) =>
+              onChange({
+                ...profile,
+                seriesPlan: { ...plan, [key]: event.target.value },
+              })
+            }
+          />
+        </label>
+      ))}
+      <label className="small">
+        {LABELS.approval}
+        <select
+          value={plan.approval}
+          onChange={(event) =>
+            onChange({
+              ...profile,
+              seriesPlan: { ...plan, approval: event.target.value as AuthorityStatus },
+            })
+          }
+        >
+          {AUTHORITY_STATUSES.map((status) => (
+            <option key={status} value={status}>
+              {status}
+            </option>
+          ))}
+        </select>
+      </label>
+    </details>
+  );
+}
+
+function BookPlanFields({
+  profile,
+  catalog,
+  projectId,
+  onChange,
+}: {
+  profile: CharacterDevelopment;
+  catalog: DevelopmentCatalog;
+  projectId: string;
+  onChange: (next: CharacterDevelopment) => void;
+}) {
+  const [bookId, setBookId] = useState(projectId);
+  const bookState = profile.bookStates.find((item) => item.projectId === bookId) ?? emptyBookState(bookId);
+  const patch = (next: Partial<typeof bookState>) => {
+    const merged = { ...emptyBookState(bookId), ...bookState, ...next, projectId: bookId };
+    onChange({
+      ...profile,
+      bookStates: [...profile.bookStates.filter((item) => item.projectId !== bookId), merged],
+    });
+  };
+  return (
+    <details className="stack" open>
+      <summary>{LABELS.bookPlan}</summary>
+      <p className="small muted">{LABELS.bookPlanLead}</p>
+      <Select
+        label={LABELS.selectBook}
+        labelPosition="top"
+        size="sm"
+        value={bookId}
+        onChange={(event) => setBookId(event.target.value)}
+      >
+        {catalog.books.map((book) => (
+          <option key={book.id} value={book.id}>
+            {book.label}
+          </option>
+        ))}
+      </Select>
+      <label>
+        {LABELS.bookArcTemplate}
+        <select
+          value={bookState.arcTemplate ?? ""}
+          onChange={(event) => patch({ arcTemplate: (event.target.value || null) as typeof bookState.arcTemplate })}
+        >
+          <option value="">{LABELS.unset}</option>
+          {ARC_TEMPLATES.map((template) => (
+            <option key={template} value={template}>
+              {template.replaceAll("_", " ")}
+            </option>
+          ))}
+        </select>
+      </label>
+      {BOOK_PLAN_TEXT_KEYS.map((key) => (
+        <label key={key}>
+          {LABELS.bookPlanFields[key]}
+          <textarea rows={2} value={bookState[key]} onChange={(event) => patch({ [key]: event.target.value })} />
+        </label>
+      ))}
+    </details>
+  );
+}
+
+function MilestoneSummary({ profile }: { profile: CharacterDevelopment }) {
+  const milestones = profile.arcs.flatMap((arc) => arc.milestones.map((milestone) => ({ arc, milestone })));
+  const planned = milestones.filter(
+    (item) => item.milestone.status === "planned" || item.milestone.status === "ai_suggested",
+  );
+  const completed = milestones.filter(
+    (item) => item.milestone.status === "approved" || item.milestone.status === "manuscript_confirmed",
+  );
+  return (
+    <p className="small">
+      {LABELS.plannedMilestones}: {planned.length} · {LABELS.completedMilestones}: {completed.length}
+    </p>
+  );
+}
+
+function DevelopmentTimeline({
+  profile,
+  catalog,
+}: {
+  profile: CharacterDevelopment;
+  catalog: DevelopmentCatalog;
+}) {
+  const entries = useMemo(() => buildCharacterTimeline(profile, catalog.books), [profile, catalog.books]);
+  return (
+    <details className="stack">
+      <summary>{LABELS.timeline}</summary>
+      <p className="small muted">{LABELS.timelineLead}</p>
+      {entries.length === 0 ? (
+        <EmptyState>{LABELS.emptySection}</EmptyState>
+      ) : (
+        <ul className="stack">
+          {entries.map((entry) => (
+            <li key={entry.id} className="small">
+              <span className={entry.planned ? "badge proposed" : entry.status === "superseded" ? "badge superseded" : "badge approved"}>
+                {entry.kind.replaceAll("_", " ")}
+              </span>{" "}
+              <strong>{entry.title}</strong>
+              <div className="muted">{entry.detail}</div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </details>
+  );
+}
+
+function pointFromControls(input: {
+  boundary: NarrativeBoundary;
+  bookProjectId: string;
+  storyEventId: string;
+  chapterRecordId: string;
+  sceneRecordId: string;
+}): NarrativePoint {
+  return {
+    bookProjectId: input.bookProjectId || null,
+    storyEventId: input.storyEventId || null,
+    chapterRecordId: input.chapterRecordId || null,
+    sceneRecordId: input.sceneRecordId || null,
+    sequence: null,
+    boundary: input.boundary,
+  };
+}
+
+function HistoricalStateViewer({
+  profile,
+  catalog,
+  projectId,
+  onChange,
+}: {
+  profile: CharacterDevelopment;
+  catalog: DevelopmentCatalog;
+  projectId: string;
+  onChange: (next: CharacterDevelopment) => void;
+}) {
+  const [boundary, setBoundary] = useState<NarrativeBoundary>("at_point");
+  const [bookId, setBookId] = useState(projectId);
+  const [storyEventId, setStoryEventId] = useState("");
+  const [chapterRecordId, setChapterRecordId] = useState("");
+  const [sceneRecordId, setSceneRecordId] = useState("");
+  const [compareBoundary, setCompareBoundary] = useState<NarrativeBoundary>("baseline");
+  const [compareBookId, setCompareBookId] = useState(projectId);
+  const [showCompare, setShowCompare] = useState(false);
+  const [correctingId, setCorrectingId] = useState<string | null>(null);
+  const [correctionText, setCorrectionText] = useState("");
+  const [correctionNote, setCorrectionNote] = useState("");
+  const edges = catalog.eventOrders ?? [];
+  const point = pointFromControls({ boundary, bookProjectId: bookId, storyEventId, chapterRecordId, sceneRecordId });
+  const comparePoint = pointFromControls({
+    boundary: compareBoundary,
+    bookProjectId: compareBookId,
+    storyEventId: "",
+    chapterRecordId: "",
+    sceneRecordId: "",
+  });
+  const resolved = resolveCharacterState(profile, point, edges);
+  const knowledge = resolveKnowledgeAtPoint(profile, point, edges);
+  const comparison = showCompare ? compareCharacterStates(profile, comparePoint, point, edges) : null;
+
+  return (
+    <details className="stack" open>
+      <summary>{LABELS.historicalState}</summary>
+      <p className="small muted">{LABELS.historicalStateLead}</p>
+      <div className="grid2">
+        <Select label={LABELS.stateBoundary} size="sm" value={boundary} onChange={(event) => setBoundary(event.target.value as NarrativeBoundary)}>
+          {NARRATIVE_BOUNDARIES.map((item) => (
+            <option key={item} value={item}>
+              {LABELS.stateBoundaries[item]}
+            </option>
+          ))}
+        </Select>
+        <Select label={LABELS.selectBook} size="sm" value={bookId} onChange={(event) => setBookId(event.target.value)}>
+          {catalog.books.map((book) => (
+            <option key={book.id} value={book.id}>
+              {book.label}
+            </option>
+          ))}
+        </Select>
+        {boundary === "at_point" ? (
+          <>
+            <Choice label="Timeline event" value={storyEventId || null} choices={catalog.events} onChange={(value) => setStoryEventId(value ?? "")} />
+            <Choice label="Chapter" value={chapterRecordId || null} choices={catalog.chapters} onChange={(value) => setChapterRecordId(value ?? "")} />
+            <Choice label={LABELS.scene} value={sceneRecordId || null} choices={catalog.scenes} onChange={(value) => setSceneRecordId(value ?? "")} />
+          </>
+        ) : null}
+      </div>
+      <ul className="stack">
+        {STATE_FACETS.map((facet) => {
+          const value = resolved.facets[facet];
+          return (
+            <li key={facet} className="small">
+              <strong>{facet.replaceAll("_", " ")}</strong>:{" "}
+              {value.presence === "unset"
+                ? LABELS.unset
+                : value.presence === "unknown"
+                  ? LABELS.unknown
+                  : value.text}
+            </li>
+          );
+        })}
+      </ul>
+      {resolved.conflicts.length ? (
+        <Banner tone="error">
+          {LABELS.conflictsAtPoint}: {resolved.conflicts.map((item) => item.facet).join(", ")}
+        </Banner>
+      ) : null}
+      {resolved.unplacedChangeIds.length ? (
+        <p className="small muted">
+          {LABELS.unplacedAtPoint}: {resolved.unplacedChangeIds.join(", ")}
+        </p>
+      ) : null}
+      {resolved.supersededChangeIds.length ? (
+        <p className="small muted">
+          {LABELS.superseded}: {resolved.supersededChangeIds.length}
+        </p>
+      ) : null}
+      <div className="stack">
+        <p className="small">{LABELS.activeKnowledge}</p>
+        {knowledge.length === 0 ? (
+          <EmptyState>{LABELS.emptySection}</EmptyState>
+        ) : (
+          <ul className="small">
+            {knowledge.map((item) => (
+              <li key={item.id}>
+                {item.kind}: {item.statement}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+      <fieldset className="stack">
+        <legend>{LABELS.compareStates}</legend>
+        <Select
+          label={LABELS.compareFrom}
+          size="sm"
+          value={compareBoundary}
+          onChange={(event) => setCompareBoundary(event.target.value as NarrativeBoundary)}
+        >
+          {NARRATIVE_BOUNDARIES.map((item) => (
+            <option key={item} value={item}>
+              {LABELS.stateBoundaries[item]}
+            </option>
+          ))}
+        </Select>
+        <Select label={LABELS.selectBook} size="sm" value={compareBookId} onChange={(event) => setCompareBookId(event.target.value)}>
+          {catalog.books.map((book) => (
+            <option key={book.id} value={book.id}>
+              {book.label}
+            </option>
+          ))}
+        </Select>
+        <Button type="button" variant="secondary" onClick={() => setShowCompare(true)}>
+          {LABELS.runComparison}
+        </Button>
+        {comparison ? (
+          comparison.diffs.every((diff) => diff.kind === "unchanged") ? (
+            <EmptyState>{LABELS.noStateDiffs}</EmptyState>
+          ) : (
+            <ul className="small">
+              {comparison.diffs
+                .filter((diff) => diff.kind !== "unchanged")
+                .map((diff) => (
+                  <li key={diff.facet}>
+                    {diff.facet}: {diff.kind}
+                    {diff.to.presence === "set" ? ` → ${diff.to.text}` : diff.to.presence === "unknown" ? ` → ${LABELS.unknown}` : ""}
+                  </li>
+                ))}
+            </ul>
+          )
+        ) : null}
+      </fieldset>
+      <fieldset className="stack">
+        <legend>{LABELS.recordCorrection}</legend>
+        <Select
+          label="Prior state change"
+          size="sm"
+          value={correctingId ?? ""}
+          onChange={(event) => setCorrectingId(event.target.value || null)}
+        >
+          <option value="">{LABELS.none}</option>
+          {profile.stateChanges
+            .filter((change) => change.approval !== "superseded")
+            .map((change) => (
+              <option key={change.id} value={change.id}>
+                {change.facet}: {change.text || change.note || change.id}
+              </option>
+            ))}
+        </Select>
+        <label>
+          {LABELS.stateValue}
+          <input value={correctionText} onChange={(event) => setCorrectionText(event.target.value)} />
+        </label>
+        <label>
+          {LABELS.correctionNote}
+          <input value={correctionNote} onChange={(event) => setCorrectionNote(event.target.value)} />
+        </label>
+        <Button
+          type="button"
+          variant="secondary"
+          disabled={!correctingId}
+          onClick={() => {
+            if (!correctingId) return;
+            const previous = profile.stateChanges.find((change) => change.id === correctingId);
+            if (!previous) return;
+            const result = supersedeStateChange(
+              profile,
+              correctingId,
+              {
+                ...previous,
+                text: correctionText,
+                presence: correctionText.trim() ? "set" : "unknown",
+                approval: "approved",
+                planned: false,
+                correctionNote: correctionNote || "Author correction",
+                correctedAt: null,
+              },
+              (prefix) => newId(prefix),
+            );
+            if (result.ok) {
+              onChange(result.profile);
+              setCorrectingId(null);
+              setCorrectionText("");
+              setCorrectionNote("");
+            }
+          }}
+        >
+          {LABELS.recordCorrection}
+        </Button>
+      </fieldset>
+    </details>
+  );
+}
+
 function HistoryFields({
   profile,
   catalog,
@@ -1982,32 +2701,46 @@ function HistoryFields({
   projectId: string;
   onChange: (next: CharacterDevelopment) => void;
 }) {
-  const book = profile.bookImportance.find((item) => item.projectId === projectId);
-  const bookState = profile.bookStates.find((item) => item.projectId === projectId);
+  const [selectedBookId, setSelectedBookId] = useState(projectId);
+  const book = profile.bookImportance.find((item) => item.projectId === selectedBookId);
+  const bookState = profile.bookStates.find((item) => item.projectId === selectedBookId);
   const patchImportance = (patch: Partial<NonNullable<typeof book>>) => {
-    const next = { projectId, importance: book?.importance ?? null, narrativeRole: book?.narrativeRole ?? null, presence: book?.presence ?? "present", ...patch };
+    const next = {
+      projectId: selectedBookId,
+      importance: book?.importance ?? null,
+      narrativeRole: book?.narrativeRole ?? null,
+      presence: book?.presence ?? "present",
+      ...patch,
+    };
     onChange({
       ...profile,
-      bookImportance: [...profile.bookImportance.filter((item) => item.projectId !== projectId), next],
+      bookImportance: [...profile.bookImportance.filter((item) => item.projectId !== selectedBookId), next],
     });
   };
   const patchState = (patch: Partial<NonNullable<typeof bookState>>) => {
     const next = {
-      projectId,
-      narrativeIndex: bookState?.narrativeIndex ?? null,
-      openingNote: bookState?.openingNote ?? "",
-      closingNote: bookState?.closingNote ?? "",
-      opening: bookState?.opening ?? [],
-      closing: bookState?.closing ?? [],
-      openingApproval: bookState?.openingApproval ?? "draft",
-      closingApproval: bookState?.closingApproval ?? "draft",
+      ...emptyBookState(selectedBookId),
+      ...bookState,
+      projectId: selectedBookId,
       ...patch,
     };
-    onChange({ ...profile, bookStates: [...profile.bookStates.filter((item) => item.projectId !== projectId), next] });
+    onChange({ ...profile, bookStates: [...profile.bookStates.filter((item) => item.projectId !== selectedBookId), next] });
   };
   return (
     <div className="stack">
       <p className="small muted">{LABELS.narrativeOrderHint}</p>
+      <Select
+        label={LABELS.selectBook}
+        size="sm"
+        value={selectedBookId}
+        onChange={(event) => setSelectedBookId(event.target.value)}
+      >
+        {catalog.books.map((item) => (
+          <option key={item.id} value={item.id}>
+            {item.label}
+          </option>
+        ))}
+      </Select>
       <div className="grid2">
         <label>
           {LABELS.presence}
@@ -2022,13 +2755,13 @@ function HistoryFields({
         <label>
           {LABELS.importance} in this book
           <select
-            value={book?.importance ?? ""}
+            value={normalizeImportance(book?.importance ?? null) ?? book?.importance ?? ""}
             onChange={(event) => patchImportance({ importance: (event.target.value || null) as ImportanceLevel | null })}
           >
             <option value="">{LABELS.unset}</option>
             {IMPORTANCE_LEVELS.map((level) => (
               <option key={level} value={level}>
-                {level}
+                {LABELS.importanceLevels[level]}
               </option>
             ))}
           </select>
@@ -2104,22 +2837,7 @@ function HistoryFields({
           onClick={() =>
             onChange({
               ...profile,
-              stateChanges: [
-                ...profile.stateChanges,
-                {
-                  id: newId("state"),
-                  facet: "belief",
-                  presence: "set",
-                  text: "",
-                  approval: "draft",
-                  planned: true,
-                  bookProjectId: projectId,
-                  storyEventId: null,
-                  sceneRecordId: null,
-                  sequence: null,
-                  note: "",
-                },
-              ],
+              stateChanges: [...profile.stateChanges, blankStateChange(selectedBookId)],
             })
           }
         >
@@ -2137,7 +2855,12 @@ function HistoryFields({
               onChange({
                 ...profile,
                 variant: event.target.value
-                  ? { foundationRecordId: event.target.value, inheritedKeys: profile.variant?.inheritedKeys ?? [] }
+                  ? {
+                      foundationRecordId: event.target.value,
+                      inheritedKeys: profile.variant?.inheritedKeys ?? [],
+                      relationshipKind: profile.variant?.relationshipKind ?? "other",
+                      relationshipLabel: profile.variant?.relationshipLabel ?? "",
+                    }
                   : null,
               })
             }
@@ -2150,8 +2873,40 @@ function HistoryFields({
             ))}
           </select>
         </label>
-        {profile.variant
-          ? INHERITABLE_KEYS.map((key) => (
+        {profile.variant ? (
+          <>
+            <Select
+              label={LABELS.variantKind}
+              size="sm"
+              value={profile.variant.relationshipKind}
+              onChange={(event) =>
+                onChange({
+                  ...profile,
+                  variant: profile.variant
+                    ? { ...profile.variant, relationshipKind: event.target.value as VariantRelationshipKind }
+                    : null,
+                })
+              }
+            >
+              {VARIANT_RELATIONSHIP_KINDS.map((kind) => (
+                <option key={kind} value={kind}>
+                  {LABELS.variantKinds[kind]}
+                </option>
+              ))}
+            </Select>
+            <label>
+              {LABELS.variantLabel}
+              <input
+                value={profile.variant.relationshipLabel}
+                onChange={(event) =>
+                  onChange({
+                    ...profile,
+                    variant: profile.variant ? { ...profile.variant, relationshipLabel: event.target.value } : null,
+                  })
+                }
+              />
+            </label>
+            {INHERITABLE_KEYS.map((key) => (
               <Checkbox
                 key={key}
                 className="small"
@@ -2168,8 +2923,9 @@ function HistoryFields({
                 }}
                 label={key}
               />
-            ))
-          : null}
+            ))}
+          </>
+        ) : null}
       </fieldset>
       {profile.reviewNotes.length ? (
         <ul className="small">
@@ -2307,6 +3063,12 @@ function StateRow({
       />
       <Choice label="Timeline event" value={change.storyEventId} choices={catalog.events} onChange={(storyEventId) => onChange({ ...change, storyEventId })} />
       <Choice
+        label="Chapter"
+        value={change.chapterRecordId}
+        choices={catalog.chapters}
+        onChange={(chapterRecordId) => onChange({ ...change, chapterRecordId })}
+      />
+      <Choice
         label={LABELS.scene}
         value={change.sceneRecordId}
         choices={catalog.scenes}
@@ -2320,6 +3082,8 @@ function StateRow({
           onChange={(event) => onChange({ ...change, sequence: event.target.value === "" ? null : Number(event.target.value) })}
         />
       </label>
+      {change.approval === "superseded" ? <span className="badge superseded">{LABELS.superseded}</span> : null}
+      {change.supersedesId ? <p className="small muted">Corrects {change.supersedesId}</p> : null}
       <Button type="button" variant="secondary" onClick={onRemove}>
         Remove
       </Button>

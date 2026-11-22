@@ -234,6 +234,101 @@ export async function loadSeriesDevelopment(db: DbOrTx, projectId: string): Prom
   };
 }
 
+export interface DevelopmentEvidenceCatalog {
+  books: Array<{ id: string; label: string }>;
+  events: Array<{ id: string; label: string; projectId: string }>;
+  chapters: Array<{ id: string; label: string; projectId: string; revision: number; bodyHash: string }>;
+  scenes: Array<{ id: string; label: string; projectId: string; revision: number; bodyHash: string }>;
+  beats: Array<{ id: string; label: string; projectId: string }>;
+  eventOrders: Array<{ earlierEventId: string; laterEventId: string }>;
+  sceneEventLinks: Array<{ eventId: string; manuscriptRecordId: string; projectId: string }>;
+}
+
+/**
+ * Manuscript, timeline, and plot evidence across this book and its series siblings.
+ * Labels are prefixed with the book name when more than one book is in scope.
+ */
+export async function loadDevelopmentEvidenceCatalog(db: DbOrTx, projectId: string): Promise<DevelopmentEvidenceCatalog> {
+  const overview = await loadSeriesDevelopment(db, projectId);
+  const bookIds = overview.books.map((book) => book.id);
+  const bookLabel = new Map(overview.books.map((book) => [book.id, book.label]));
+  const multi = bookIds.length > 1;
+  const prefix = (homeProjectId: string, title: string) =>
+    multi ? `${bookLabel.get(homeProjectId) ?? homeProjectId}: ${title}` : title;
+
+  const [events, manuscript, beats, orders, sceneLinks] = await Promise.all([
+    db.storyEvent.findMany({
+      where: { projectId: { in: bookIds } },
+      select: { id: true, title: true, projectId: true },
+      orderBy: [{ projectId: "asc" }, { title: "asc" }],
+    }),
+    db.record.findMany({
+      where: {
+        projectId: { in: bookIds },
+        trashedAt: null,
+        type: { in: ["manuscript_chapter", "manuscript_scene"] },
+      },
+      select: { id: true, title: true, type: true, projectId: true, currentRevision: true, body: true },
+      orderBy: [{ projectId: "asc" }, { title: "asc" }],
+    }),
+    db.weaveBeat.findMany({
+      where: { projectId: { in: bookIds } },
+      select: { id: true, title: true, projectId: true },
+      orderBy: [{ projectId: "asc" }, { title: "asc" }],
+      take: 500,
+    }),
+    db.storyEventOrder.findMany({
+      where: { projectId: { in: bookIds } },
+      select: { earlierEventId: true, laterEventId: true },
+    }),
+    db.storyEventScene.findMany({
+      where: { projectId: { in: bookIds } },
+      select: { eventId: true, manuscriptRecordId: true, projectId: true },
+    }),
+  ]);
+
+  return {
+    books: overview.books,
+    events: events.map((event) => ({
+      id: event.id,
+      label: prefix(event.projectId, event.title),
+      projectId: event.projectId,
+    })),
+    chapters: manuscript
+      .filter((row) => row.type === "manuscript_chapter")
+      .map((row) => ({
+        id: row.id,
+        label: prefix(row.projectId, row.title),
+        projectId: row.projectId,
+        revision: row.currentRevision,
+        bodyHash: sha256(row.body),
+      })),
+    scenes: manuscript
+      .filter((row) => row.type === "manuscript_scene")
+      .map((row) => ({
+        id: row.id,
+        label: prefix(row.projectId, row.title),
+        projectId: row.projectId,
+        revision: row.currentRevision,
+        bodyHash: sha256(row.body),
+      })),
+    beats: beats.map((beat) => ({
+      id: beat.id,
+      label: prefix(beat.projectId, beat.title),
+      projectId: beat.projectId,
+    })),
+    eventOrders: orders.map((order) => ({
+      earlierEventId: order.earlierEventId,
+      laterEventId: order.laterEventId,
+    })),
+    sceneEventLinks: sceneLinks.map((link) => ({
+      eventId: link.eventId,
+      manuscriptRecordId: link.manuscriptRecordId,
+      projectId: link.projectId,
+    })),
+  };
+}
+
 export async function developmentCuesForBeats(db: DbOrTx, projectId: string, beatIds: readonly string[]): Promise<DevelopmentCue[]> {
   const characters = await listCharacterProfiles(db, projectId);
   return cuesForBeats(characters, new Set(beatIds), projectId);

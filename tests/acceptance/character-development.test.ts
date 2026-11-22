@@ -7,7 +7,7 @@ import {
 import { MutationRejectedError, NotFoundError } from "@/server/services/errors";
 import { createProject } from "@/server/services/projectService";
 import { createRecord, getRecord, setProtection, updateRecord } from "@/server/services/recordService";
-import { emptyCharacterDevelopment, withCharacterDevelopment } from "@/domain/characterDevelopment";
+import { emptyBookState, emptyCharacterDevelopment, withCharacterDevelopment } from "@/domain/characterDevelopment";
 import { CHAPTER_PROSE, createTestDb, IDS, makePackage, seedProject, type TestDb } from "../helpers";
 
 describe("character development on the dossier", () => {
@@ -90,7 +90,7 @@ describe("character development on the dossier", () => {
     const profile = emptyCharacterDevelopment();
     profile.bookStates = [
       {
-        projectId: "book-one",
+        ...emptyBookState("book-one"),
         narrativeIndex: 1,
         openingNote: "Certain",
         closingNote: "Still certain",
@@ -114,7 +114,7 @@ describe("character development on the dossier", () => {
 
   it("keeps the profile when an older change package sets a different field", async () => {
     const profile = emptyCharacterDevelopment();
-    profile.importance = "recurring";
+    profile.importance = "supporting";
     const current = await getRecord(t.db, IDS.project, IDS.dossier);
     await updateRecord(t.db, IDS.project, {
       recordId: IDS.dossier,
@@ -137,7 +137,7 @@ describe("character development on the dossier", () => {
     const dossier = await getRecord(t.db, IDS.project, IDS.dossier);
     expect(dossier.fields.age).toBe(34);
     expect(dossier.fields.name).toBe("Mara Venn");
-    expect((dossier.fields.characterDevelopment as { importance: string }).importance).toBe("recurring");
+    expect((dossier.fields.characterDevelopment as { importance: string }).importance).toBe("supporting");
     expect((await getRecord(t.db, IDS.project, IDS.chapter)).protected).toBe(true);
     expect((await getRecord(t.db, IDS.project, IDS.chapter)).body).toBe(CHAPTER_PROSE);
   });

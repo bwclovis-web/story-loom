@@ -1,5 +1,56 @@
 # Progress
 
+## Living Character Profiles — Context-Aware Writing (Nov 22, 2026)
+
+Writing and editorial AI resolve Living Profiles at the selected book, chapter, scene, and story chronology. Drafting uses dialogue slices with character-held knowledge only; editorial continuity can include established reader knowledge; planning may include author-controlled future plans. Continuity Ledger adds character state, knowledge-anchor, limitation, forgotten-arc, and identity findings (mark intentional/ignored; never auto-edits prose). Context bundles keep v1 compatibility and add optional `characterContexts` plus knowledge-holder reading instructions. No schema change.
+
+| Check | Result |
+| --- | --- |
+| `pnpm typecheck` | pass |
+| Targeted vitest (character-writing-context, character-development, export-roundtrip, help, continuity-ledger, series-bible, scenes, character-analysis) | 8 files, 65 tests passed |
+
+### Rollback
+
+Revert `characterWritingContext`, `characterWritingContextService`, assistant/retrieval/continuity/export wiring, Continuity labels/UI, Help, context-bundle docs, and this note. Working DB unchanged.
+
+## Living Character Profiles — Evidence-Based AI Analysis (Nov 22, 2026)
+
+Character dossiers and World → Character development reuse the shared assistant providers, limits, cancellation, and change-package apply path for evidence-based analysis. Runs store findings on `CharacterAnalysisRun` (additive migration). Scope covers scene, chapter, chapter range, book, multiple books, and series. Quotes and source ids are verified before accept. Accepted findings apply as draft notes only.
+
+| Check | Result |
+| --- | --- |
+| `pnpm db:deploy` | Applied `20261122210000_character_analysis`; backup `backups/2026-11-22T19-01-24-243Z-pre-migrate` |
+| `pnpm typecheck` | pass |
+| Targeted vitest (character-analysis unit/acceptance, help, character-development) | 4 files, 43 tests passed |
+
+### Rollback
+
+Revert the character-analysis domain/service/UI/API, Help, labels, usageSummary aggregation, and backup fields. Working DB: restore `backups/2026-11-22T19-01-24-243Z-pre-migrate` or leave unused `CharacterAnalysisRun` rows. Older backups omit character analyses.
+
+## Continuity Ledger lists unsettled notes and pending facts (Nov 22, 2026)
+
+World → Continuity Ledger was empty on a book that stores continuity as notes and pending facts, and it walked every chapter for a timeline that had no story events. Unsettled continuity notes (draft, proposed, or unresolved) and pending facts now appear. Approved continuity notes stay off the list. The timeline comparison runs only when the project has story events. Loading the page still writes nothing.
+
+### Rollback
+
+Revert `continuityService`, the ledger kind label, Help, and this note. No schema change.
+
+## Milestone 10: Multi-provider AI & desktop resilience (Nov 22, 2026)
+
+- **10A Providers + SSE:** Settings provider selector (`openai` | `anthropic` | `gemini` | `openai_compatible`) with per-provider keys; `AnthropicProvider` / `GeminiProvider` (native `fetch`); `createAssistantProviderFromConfig` on all AI routes; selection-assist and beat-draft SSE streaming (clients also accept legacy NDJSON).
+- **10B Prompt presets:** Project-scoped `AssistantPromptPreset` (`selection` | `chat` | `beat`); manage on Assistant page; optional lens on selection assist, chat, and beat draft; optional in backups.
+- **10C Desktop resilience:** safeStorage key bridge (desktop → secrets → `.env`); rolling mirror backups with retention; sync bundle export / inspect / merge via change packages (never overwrites SQLite).
+
+| Check | Result |
+| --- | --- |
+| `pnpm db:deploy` | Applied `20261122200000_assistant_prompt_presets`; backup `backups/2026-11-22T18-15-20-545Z-pre-migrate` |
+| `pnpm exec tsc --noEmit` | pass |
+| Targeted vitest (assistant config/secrets/factory, presets, mirror prune, sync bundle, help) | 7 files, 31 tests passed |
+
+### Rollback
+
+Revert provider/preset/desktop/sync UI and services. Working DB: restore `backups/2026-11-22T18-15-20-545Z-pre-migrate` or leave unused `AssistantPromptPreset` rows. Older backups omit presets. Clear schedule keys from `local/backup-mirror.json` if desired.
+
 ## World calendar add month and era (Nov 22, 2026)
 
 World Calendar can append a blank month or era (24 months, 32 eras) and drop a row before save. A nameless row is omitted. At least one month remains. No schema change. The working calendar was not saved.
@@ -36,7 +87,7 @@ Revert M9 UI/services/Help/labels. Working DB: restore `backups/2026-11-22T17-21
 
 ## Chapter editor shows nested scene text (Nov 22, 2026)
 
-Opening a chapter shows each nested scene’s text in the main editor, after the chapter text. Saving the chapter does not copy that text into the chapter record. The Write outline still names those scenes in the side panel.
+Opening a chapter shows each nested scene’s text in the main editor, after the next scene break (`---`, `***`, `* * *`), in book order. Scenes past the last break follow that break. Saving the chapter does not copy that text into the chapter record. Scene rows in the manuscript rail show a page icon. The Write outline still names those scenes in the side panel.
 
 ### Rollback
 
@@ -164,15 +215,46 @@ Author-reviewed migration from Markdown character dossiers into Living Character
 
 Revert upgrade domain/service/UI, `migrationHold` key, archive field helpers, help, and labels. Archived snapshots and hold items already saved remain in dossier fields until an edit removes them. No manuscript rewrite.
 
+## Living Character Profiles — Series Development (Nov 22, 2026)
+
+Extended Living Profiles for multi-book series development on the same `character_dossier` overlay (`fields.characterDevelopment` v1, additive). Added series-level plan, book-level plan fields on `bookStates`, milestone kinds and reference links, expanded state facets, chapter anchors, retcon supersession (`supersedesId`), historical state resolution with baseline/book-start/book-end boundaries, state comparison, development timeline, and typed identity-variant relationships. Series-wide evidence catalogs load chapters, scenes, events, beats, and timeline orders across sibling books. Single-book projects keep working; legacy rows read with empty defaults. No SQLite migration.
+
+| Check | Result |
+| --- | --- |
+| `pnpm exec vitest run tests/unit/character-development.test.ts tests/acceptance/character-development.test.ts tests/unit/help.test.ts` | 3 files, 39 tests passed |
+| `pnpm exec vitest run tests/unit/character-dossier-upgrade.test.ts tests/acceptance/character-dossier-upgrade.test.ts` | 2 files, 25 tests passed |
+| Filtered `tsc` on changed character/help files | No errors in changed files |
+| Schema | No SQLite migration; additive JSON only |
+
+### Rollback
+
+Revert series-plan/book-plan/state-resolution/UI helpers, help, and labels. Saved additive keys remain readable until edited. No manuscript rewrite.
+
+## Living Character Profiles — Author Experience (Nov 22, 2026)
+
+Improved the Living Character Profile author UI on the same `character_dossier` overlay. Importance levels are now protagonist, major supporting, supporting, minor, and background (legacy `recurring` remaps to supporting on read). Importance recommends open sections without restricting features; Show more sections overrides. Progressive disclosure uses existing context tabs with clearer labels (Overview & identity, Personality & psychology, Mannerisms, Abilities & limits, Story evidence, Original dossier). Completeness counts recommended sections with any note — not every optional field. Canon badges, psychology/arc concept help with author examples, empty states, keyboard tab navigation, and unsaved-change protection via the shell leave guard. Image, relationship, reference, and dossier surfaces are unchanged.
+
+| Check | Result |
+| --- | --- |
+| `pnpm exec vitest run tests/unit/character-development.test.ts tests/acceptance/character-development.test.ts tests/unit/help.test.ts` | 3 files, 36 tests passed |
+| `pnpm exec vitest run tests/unit/character-dossier-upgrade.test.ts tests/acceptance/character-dossier-upgrade.test.ts` | 2 files, passed |
+| Filtered `tsc` on changed character/help files | No errors in changed files |
+| Schema | No SQLite migration; additive UX over existing v1 JSON |
+
+### Rollback
+
+Revert importance/completeness helpers, panel UX, development filter labels, Help, and PROGRESS. Saved profiles remain readable; legacy `recurring` still remaps on read if the helper is kept.
+
 ## Living Character Profiles — Psychology and Archetypes (Nov 22, 2026)
 
 Extended Living Profile psychology and archetypes on the same dossier overlay (`fields.characterDevelopment` v1, additive). Added optional psychology keys (core motivation, blind spots, emotional triggers, behavioral patterns, self/external perception), framework approval/provenance, archetype shadow rank and evolution fields, field-authority UI, extended Markdown heading map (Enneagram, archetypes, narrative role, psychology aliases, mental-health → lived boundary notes), upgrade apply/conflict guards, and context/export split for established vs draft archetypes/frameworks. Personality typologies stay non-clinical and separate from lived experience and behavior.
 
 | Check | Result |
 | --- | --- |
-| `pnpm exec vitest run` (character suites + help) | Pending verification this session |
-| `pnpm exec tsc --noEmit` | Pending |
-| `pnpm build` | Pending |
+| `pnpm exec vitest run tests/unit/character-development.test.ts tests/unit/character-dossier-upgrade.test.ts` | 2 files, 37 tests passed |
+| `pnpm exec vitest run tests/acceptance/character-development.test.ts tests/acceptance/character-dossier-upgrade.test.ts tests/unit/help.test.ts` | 3 files, 22 tests passed |
+| Typecheck of psychology/archetype files | No errors in changed character files |
+| `pnpm build` | Compile succeeded; failed typecheck on unrelated `SyncBundleClient.tsx` DiffPart props (pre-existing outside this milestone) |
 | Schema | No SQLite migration; additive JSON keys only |
 
 ### Rollback

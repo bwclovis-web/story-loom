@@ -10,6 +10,7 @@ import type {
   ConversationView,
   SelectableRecord,
 } from "@/server/services/assistantService";
+import type { PromptPresetView } from "@/server/services/promptPresetService";
 import { ASSISTANT } from "@/ui/labels";
 import { AssistantComposerProvider } from "./AssistantComposerBridge";
 import { AssistantPanel } from "./AssistantPanel";
@@ -40,9 +41,11 @@ export function AssistantWorkspace({
   invalidConversationId,
   seedHint,
   boardHint,
+  chatPresets = [],
 }: {
   projectId: string;
   configured: boolean;
+  chatPresets?: PromptPresetView[];
   maxInputChars: number;
   proposalExtraChars: number;
   conversation: ConversationView | null;
@@ -149,6 +152,7 @@ export function AssistantWorkspace({
             boardSeed={boardSeed}
             layout={workbench ? "workbench" : "home"}
             onOpenSettings={() => setSettingsOpen(true)}
+            chatPresets={chatPresets}
           />
         </AssistantComposerProvider>
       ) : null}

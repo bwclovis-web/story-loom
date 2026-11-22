@@ -10,7 +10,7 @@ import type { Issue } from "@/domain/issues";
 import { NAV, WRITE } from "@/ui/labels";
 import { buildManuscriptTree, chapterOf, filterManuscriptTree, type TreeScene } from "@/ui/manuscriptTree";
 import type { RecordNavEntry } from "@/ui/navigation";
-import { ChevronRightIcon, PlusIcon } from "./icons";
+import { ChevronRightIcon, PlusIcon, SceneDocIcon } from "./icons";
 import { confirmLeave } from "./unsaved";
 
 export function ManuscriptTree({
@@ -53,7 +53,8 @@ export function ManuscriptTree({
     return (
       <li key={s.id}>
         <Link href={base + encodeURIComponent(s.id)} className="tree-link scene" aria-current={current ? "page" : undefined} title={s.title}>
-          {s.title}
+          <SceneDocIcon />
+          <span className="tree-scene-title">{s.title}</span>
         </Link>
       </li>
     );

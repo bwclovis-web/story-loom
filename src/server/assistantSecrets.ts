@@ -102,7 +102,7 @@ export function loadAssistantSecrets(): AssistantSecrets {
   const keys = { ...file.keys };
   const desktopKey = desktopInjectedApiKey();
   if (desktopKey) {
-    keys.openai = keys.openai ?? desktopKey;
+    keys.openai = desktopKey;
   }
   const bridge = loadDesktopAssistantBridge();
   const model = (bridge?.model ?? file.model) || file.model;

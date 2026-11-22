@@ -1047,6 +1047,43 @@ export const workspaceBackupV1Schema = z
           .strict(),
       )
       .optional(),
+    /** Evidence-based living character analysis. Omitted when the project has none. */
+    characterAnalyses: z
+      .array(
+        z
+          .object({
+            id,
+            projectId: id,
+            characterRecordIdsJson: z.string().max(20_000),
+            scopeKind: z.enum(["scene", "chapter", "chapter_range", "book", "multi_book", "series"]),
+            scopeSpecJson: z.string().max(50_000),
+            actionsJson: z.string().max(4_000),
+            status: z.enum(["preparing", "running", "partial", "proposed", "applying", "applied", "failed", "cancelled"]),
+            errorCode: z.string().max(80).nullable().optional(),
+            errorMessage: z.string().max(4000).nullable().optional(),
+            totalSegments: z.number().int().min(0),
+            completedSegments: z.number().int().min(0),
+            currentSegmentLabel: z.string().max(500).optional(),
+            segmentsJson: z.string().max(200_000),
+            segmentResultsJson: z.string().max(1_000_000),
+            findingsJson: z.string().max(1_000_000),
+            decisionsJson: z.string().max(500_000),
+            omissionsJson: z.string().max(200_000),
+            appliedPackageIdsJson: z.string().max(50_000),
+            sourceHash: z.string().max(64),
+            contentHash: z.string().max(64),
+            requestChars: z.number().int().min(0),
+            model: z.string().max(120).nullable().optional(),
+            inputTokens: z.number().int().nullable().optional(),
+            outputTokens: z.number().int().nullable().optional(),
+            totalTokens: z.number().int().nullable().optional(),
+            usageEstimated: z.boolean().optional(),
+            createdAt: timestamp,
+            completedAt: timestamp.nullable().optional(),
+          })
+          .strict(),
+      )
+      .optional(),
     counts: z
       .object({
         projects: z.number().int(),
@@ -1086,6 +1123,7 @@ export const workspaceBackupV1Schema = z
         storyEventOrders: z.number().int().optional(),
         storyEventEvidence: z.number().int().optional(),
         chapterAnalyses: z.number().int().optional(),
+        characterAnalyses: z.number().int().optional(),
         weaveGrids: z.number().int().optional(),
         weaveThreads: z.number().int().optional(),
         weaveBeats: z.number().int().optional(),

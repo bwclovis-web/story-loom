@@ -154,4 +154,69 @@ describe("Continuity Ledger", () => {
     expect(dangling?.severity).toBe("warn");
     expect(dangling?.href).toContain(`/plan/weave/${gridId}`);
   });
+
+  it("lists unsettled continuity notes and pending facts, and leaves approved notes off", async () => {
+    const openNoteId = newId("rec");
+    const settledNoteId = newId("rec");
+    const factId = newId("fct");
+    await applyMutations(
+      t.db,
+      {
+        projectId: IDS.project,
+        actor: "author",
+        source: { kind: "ui" },
+        scope: "reference",
+        protectedOverrides: new Set(),
+      },
+      [
+        {
+          kind: "create_record",
+          recordId: openNoteId,
+          type: "continuity_note",
+          title: "Harbour timing still open",
+          body: "The tide table is not settled.\n",
+          fields: {},
+          authorityStatus: "proposed",
+          protected: false,
+        },
+        {
+          kind: "create_record",
+          recordId: settledNoteId,
+          type: "continuity_note",
+          title: "Harbour name settled",
+          body: "The harbour keeps its name.\n",
+          fields: {},
+          authorityStatus: "approved",
+          protected: false,
+        },
+      ],
+      { action: "test.create", summary: "Continuity notes" },
+    );
+    await t.db.establishedFact.create({
+      data: {
+        id: factId,
+        projectId: IDS.project,
+        subjectRecordId: openNoteId,
+        statement: "The quay bell rings at dusk.",
+        status: "pending",
+        evidenceKind: "planned",
+      },
+    });
+
+    const before = await snapshotState(t.db);
+    const items = await listContinuityLedger(t.db, IDS.project);
+    expect(await snapshotState(t.db)).toEqual(before);
+
+    const note = items.find((i) => i.key === `continuity_note:${openNoteId}`);
+    expect(note?.kind).toBe("continuity_note");
+    expect(note?.category).toBe("bible");
+    expect(note?.detail).toBe("Still proposed.");
+    expect(items.some((i) => i.key === `continuity_note:${settledNoteId}`)).toBe(false);
+
+    const fact = items.find((i) => i.key === `fact:${factId}`);
+    expect(fact?.kind).toBe("fact");
+    expect(fact?.category).toBe("stale");
+    expect(fact?.detail).toContain("Pending.");
+    expect(fact?.detail).toContain("The quay bell rings at dusk.");
+  });
 });

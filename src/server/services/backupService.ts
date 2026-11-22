@@ -191,6 +191,9 @@ function storyEventEvidenceOf(b: WorkspaceBackupV1) {
 function chapterAnalysesOf(b: WorkspaceBackupV1) {
   return b.chapterAnalyses ?? [];
 }
+function characterAnalysesOf(b: WorkspaceBackupV1) {
+  return b.characterAnalyses ?? [];
+}
 
 function establishedFactsOf(b: WorkspaceBackupV1) {
   return b.establishedFacts ?? [];
@@ -910,6 +913,15 @@ async function chapterAnalysisRows(db: DbOrTx, projectIds: string[]) {
   });
 }
 
+async function characterAnalysisRows(db: DbOrTx, projectIds: string[]) {
+  return storyRows(db, "characterAnalysisRun", async () => {
+    return await db.characterAnalysisRun.findMany({
+      where: { projectId: { in: projectIds } },
+      orderBy: [{ projectId: "asc" }, { id: "asc" }],
+    });
+  });
+}
+
 async function establishedFactRows(db: DbOrTx, projectIds: string[]) {
   if (!("establishedFact" in db) || !(db as { establishedFact?: { findMany: unknown } }).establishedFact) return [];
   try {
@@ -1151,6 +1163,7 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
     assistantProposals,
     projectAssistantSettings,
     chapterAnalyses,
+    characterAnalyses,
     worldKindTemplates,
   ] = await Promise.all([
     recordRows(db, projectIds),
@@ -1198,6 +1211,7 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
     assistantProposalRows(db, projectIds),
     projectAssistantSettingsRows(db, projectIds),
     chapterAnalysisRows(db, projectIds),
+    characterAnalysisRows(db, projectIds),
     worldKindTemplateRows(db, projectIds),
   ]);
   const continuitySuppressions = await continuitySuppressionRows(db, projectIds).catch(() => [] as Awaited<ReturnType<typeof continuitySuppressionRows>>);
@@ -1433,7 +1447,8 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
             id: row.id,
             projectId: row.projectId,
             title: row.title,
-            surface: row.surface === "selection" || row.surface === "beat" ? row.surface : ("chat" as const),
+            surface:
+              row.surface === "selection" || row.surface === "beat" || row.surface === "chat" ? row.surface : "chat",
             instructionText: row.instructionText,
             createdAt: iso(row.createdAt),
             updatedAt: iso(row.updatedAt),
@@ -1799,6 +1814,48 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
           })),
         }
       : {}),
+    ...(characterAnalyses.length
+      ? {
+          characterAnalyses: characterAnalyses.map((row) => ({
+            id: row.id,
+            projectId: row.projectId,
+            characterRecordIdsJson: row.characterRecordIdsJson,
+            scopeKind: row.scopeKind as "scene" | "chapter" | "chapter_range" | "book" | "multi_book" | "series",
+            scopeSpecJson: row.scopeSpecJson,
+            actionsJson: row.actionsJson,
+            status: row.status as
+              | "preparing"
+              | "running"
+              | "partial"
+              | "proposed"
+              | "applying"
+              | "applied"
+              | "failed"
+              | "cancelled",
+            ...(row.errorCode ? { errorCode: row.errorCode } : {}),
+            ...(row.errorMessage ? { errorMessage: row.errorMessage } : {}),
+            totalSegments: row.totalSegments,
+            completedSegments: row.completedSegments,
+            ...(row.currentSegmentLabel ? { currentSegmentLabel: row.currentSegmentLabel } : {}),
+            segmentsJson: row.segmentsJson,
+            segmentResultsJson: row.segmentResultsJson,
+            findingsJson: row.findingsJson,
+            decisionsJson: row.decisionsJson,
+            omissionsJson: row.omissionsJson,
+            appliedPackageIdsJson: row.appliedPackageIdsJson,
+            sourceHash: row.sourceHash,
+            contentHash: row.contentHash,
+            requestChars: row.requestChars,
+            ...(row.model ? { model: row.model } : {}),
+            ...(row.inputTokens != null ? { inputTokens: row.inputTokens } : {}),
+            ...(row.outputTokens != null ? { outputTokens: row.outputTokens } : {}),
+            ...(row.totalTokens != null ? { totalTokens: row.totalTokens } : {}),
+            ...(row.usageEstimated ? { usageEstimated: true as const } : {}),
+            createdAt: iso(row.createdAt),
+            ...(row.completedAt ? { completedAt: iso(row.completedAt) } : {}),
+          })),
+        }
+      : {}),
     ...(weaveGrids.length
       ? {
           weaveGrids: weaveGrids.map((g) => ({
@@ -2089,6 +2146,7 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
       ...(storyEventOrders.length ? { storyEventOrders: storyEventOrders.length } : {}),
       ...(storyEventEvidence.length ? { storyEventEvidence: storyEventEvidence.length } : {}),
       ...(chapterAnalyses.length ? { chapterAnalyses: chapterAnalyses.length } : {}),
+      ...(characterAnalyses.length ? { characterAnalyses: characterAnalyses.length } : {}),
       ...(weaveGrids.length ? { weaveGrids: weaveGrids.length } : {}),
       ...(weaveThreads.length ? { weaveThreads: weaveThreads.length } : {}),
       ...(weaveBeats.length ? { weaveBeats: weaveBeats.length } : {}),
@@ -2180,6 +2238,7 @@ function checkInternalConsistency(b: WorkspaceBackupV1): Issue[] {
     storyEventOrders: storyEventOrdersOf(b).length,
     storyEventEvidence: storyEventEvidenceOf(b).length,
     chapterAnalyses: chapterAnalysesOf(b).length,
+    characterAnalyses: characterAnalysesOf(b).length,
     weaveGrids: weaveGridsOf(b).length,
     weaveThreads: weaveThreadsOf(b).length,
     weaveBeats: weaveBeatsOf(b).length,
@@ -2311,6 +2370,7 @@ function checkInternalConsistency(b: WorkspaceBackupV1): Issue[] {
   );
   checkUnique(storyEventEvidenceOf(b).map((row) => row.id), "story event evidence", issues);
   checkUnique(chapterAnalysesOf(b).map((row) => row.id), "chapter analysis", issues);
+  checkUnique(characterAnalysesOf(b).map((row) => row.id), "character analysis", issues);
   checkUnique(weaveGridsOf(b).map((x) => x.id), "weave grid", issues);
   checkUnique(weaveThreadsOf(b).map((x) => x.id), "weave thread", issues);
   checkUnique(weaveBeatsOf(b).map((x) => x.id), "weave beat", issues);
@@ -2756,6 +2816,23 @@ function checkInternalConsistency(b: WorkspaceBackupV1): Issue[] {
       issues.push(integrity(`Chapter analysis ${row.id} pins a missing revision.`));
     }
   });
+  characterAnalysesOf(b).forEach((row) => {
+    needProject(row.projectId, `Character analysis ${row.id}`);
+    let characterIds: string[] = [];
+    try {
+      const parsed = JSON.parse(row.characterRecordIdsJson) as unknown;
+      characterIds = Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === "string") : [];
+    } catch {
+      issues.push(integrity(`Character analysis ${row.id} has invalid characterRecordIdsJson.`));
+    }
+    for (const characterId of characterIds) {
+      if (!recordIds.has(characterId)) {
+        issues.push(integrity(`Character analysis ${row.id} references missing character ${characterId}.`));
+      } else if (recordType.get(characterId) && recordType.get(characterId) !== "character_dossier") {
+        issues.push(integrity(`Character analysis ${row.id} must cite a character dossier (${characterId}).`));
+      }
+    }
+  });
   const weaveGridIds = new Set(weaveGridsOf(b).map((x) => x.id));
   const weaveGridProject = new Map(weaveGridsOf(b).map((x) => [x.id, x.projectId]));
   weaveGridsOf(b).forEach((g) => needProject(g.projectId, `Weave grid ${g.id}`));
@@ -3130,6 +3207,12 @@ async function findCollisions(db: DbOrTx, b: WorkspaceBackupV1): Promise<Issue[]
       db.chapterAnalysisRun.count({ where: { id: { in: chapterAnalysesOf(b).map((row) => row.id) } } }),
     );
   }
+  if (characterAnalysesOf(b).length) {
+    await check(
+      "character analysis",
+      db.characterAnalysisRun.count({ where: { id: { in: characterAnalysesOf(b).map((row) => row.id) } } }),
+    );
+  }
   if (weaveGridsOf(b).length) {
     await check("weave grid", db.weaveGrid.count({ where: { id: { in: weaveGridsOf(b).map((x) => x.id) } } }));
   }
@@ -3353,6 +3436,7 @@ export async function restoreWorkspaceBackup(db: Db, input: string | unknown, op
   storyEventOrdersOf(b).forEach((row) => assign(row.id, "evo"));
   storyEventEvidenceOf(b).forEach((row) => assign(row.id, "eve"));
   chapterAnalysesOf(b).forEach((row) => assign(row.id, "car"));
+  characterAnalysesOf(b).forEach((row) => assign(row.id, "carc"));
   weaveGridsOf(b).forEach((x) => assign(x.id, "wvg"));
   weaveThreadsOf(b).forEach((x) => assign(x.id, "wth"));
   weaveBeatsOf(b).forEach((x) => assign(x.id, "wvb"));
@@ -4034,6 +4118,42 @@ export async function restoreWorkspaceBackup(db: Db, input: string | unknown, op
               totalTokens: row.totalTokens ?? null,
               usageEstimated: row.usageEstimated ?? false,
               createdAt: new Date(row.createdAt),
+            })),
+          });
+        }
+        const characterRuns = characterAnalysesOf(b);
+        if (characterRuns.length) {
+          await tx.characterAnalysisRun.createMany({
+            data: characterRuns.map((row) => ({
+              id: m(row.id),
+              workspaceId,
+              projectId: m(row.projectId),
+              characterRecordIdsJson: remapOpaque(row.characterRecordIdsJson),
+              scopeKind: row.scopeKind,
+              scopeSpecJson: remapOpaque(row.scopeSpecJson),
+              actionsJson: row.actionsJson,
+              status: row.status,
+              errorCode: row.errorCode ?? null,
+              errorMessage: row.errorMessage ?? null,
+              totalSegments: row.totalSegments,
+              completedSegments: row.completedSegments,
+              currentSegmentLabel: row.currentSegmentLabel ?? "",
+              segmentsJson: remapOpaque(row.segmentsJson),
+              segmentResultsJson: remapOpaque(row.segmentResultsJson),
+              findingsJson: remapOpaque(row.findingsJson),
+              decisionsJson: remapOpaque(row.decisionsJson),
+              omissionsJson: remapOpaque(row.omissionsJson),
+              appliedPackageIdsJson: remapOpaque(row.appliedPackageIdsJson),
+              sourceHash: row.sourceHash,
+              contentHash: row.contentHash,
+              requestChars: row.requestChars,
+              model: row.model ?? null,
+              inputTokens: row.inputTokens ?? null,
+              outputTokens: row.outputTokens ?? null,
+              totalTokens: row.totalTokens ?? null,
+              usageEstimated: row.usageEstimated ?? false,
+              createdAt: new Date(row.createdAt),
+              completedAt: row.completedAt ? new Date(row.completedAt) : null,
             })),
           });
         }

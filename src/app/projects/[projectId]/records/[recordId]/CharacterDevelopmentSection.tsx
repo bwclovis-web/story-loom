@@ -1,11 +1,15 @@
 import Link from "next/link";
-import { sha256 } from "@/domain/json";
 import { milestoneFreshness } from "@/domain/characterDevelopment";
 import { readDossierMarkdownArchiveWithStatus } from "@/domain/characterDossierUpgrade";
 import { CharacterDevelopmentPanel } from "@/components/world/CharacterDevelopment";
 import { getAssistantConfig } from "@/server/assistantConfig";
 import { getDb } from "@/server/db";
-import { loadCharacterDevelopment, loadSeriesDevelopment, visibleTraits } from "@/server/services/characterDevelopmentService";
+import {
+  loadCharacterDevelopment,
+  loadDevelopmentEvidenceCatalog,
+  loadSeriesDevelopment,
+  visibleTraits,
+} from "@/server/services/characterDevelopmentService";
 import { CHARACTER_DEVELOPMENT } from "@/ui/labels";
 import { seriesRecordHref } from "@/world/seriesHome";
 
@@ -31,18 +35,13 @@ export async function CharacterDevelopmentSection({ projectId, recordId }: { pro
     );
   }
 
-  const [overview, relations, events, manuscript, beats, facts, worldRefs] = await Promise.all([
+  const [overview, evidence, relations, facts, worldRefs] = await Promise.all([
     loadSeriesDevelopment(db, projectId),
+    loadDevelopmentEvidenceCatalog(db, projectId),
     db.recordRelation.findMany({
       where: { projectId, OR: [{ fromRecordId: recordId }, { toRecordId: recordId }] },
       select: { id: true, kind: true, customLabel: true },
     }),
-    db.storyEvent.findMany({ where: { projectId }, select: { id: true, title: true }, orderBy: { title: "asc" } }),
-    db.record.findMany({
-      where: { projectId, trashedAt: null, type: { in: ["manuscript_chapter", "manuscript_scene"] } },
-      select: { id: true, title: true, type: true, currentRevision: true, body: true },
-    }),
-    db.weaveBeat.findMany({ where: { projectId }, select: { id: true, title: true }, orderBy: { title: "asc" }, take: 200 }),
     db.establishedFact.findMany({
       where: { projectId, subjectRecordId: recordId },
       select: { id: true, statement: true },
@@ -65,7 +64,9 @@ export async function CharacterDevelopmentSection({ projectId, recordId }: { pro
     ? String(loaded.record.fields.age)
     : "";
 
-  const revisions = new Map(manuscript.map((row) => [row.id, { revision: row.currentRevision, hash: sha256(row.body) }]));
+  const revisions = new Map(
+    [...evidence.chapters, ...evidence.scenes].map((row) => [row.id, { revision: row.revision, hash: row.bodyHash }]),
+  );
   const staleMilestoneIds = loaded.profile.arcs.flatMap((arc) =>
     arc.milestones.flatMap((milestone) => {
       const sourceId = milestone.sceneRecordId || milestone.chapterRecordId;
@@ -102,13 +103,18 @@ export async function CharacterDevelopmentSection({ projectId, recordId }: { pro
             id: relation.id,
             label: relation.customLabel || relation.kind.replaceAll("_", " "),
           })),
-          events: events.map((event) => ({ id: event.id, label: event.title })),
-          chapters: manuscript.filter((row) => row.type === "manuscript_chapter").map((row) => ({ id: row.id, label: row.title })),
-          scenes: manuscript.filter((row) => row.type === "manuscript_scene").map((row) => ({ id: row.id, label: row.title })),
-          beats: beats.map((beat) => ({ id: beat.id, label: beat.title })),
+          events: evidence.events.map((event) => ({ id: event.id, label: event.label })),
+          chapters: evidence.chapters.map((row) => ({ id: row.id, label: row.label })),
+          scenes: evidence.scenes.map((row) => ({ id: row.id, label: row.label })),
+          beats: evidence.beats.map((beat) => ({ id: beat.id, label: beat.label })),
           facts: facts.map((fact) => ({ id: fact.id, label: fact.statement.slice(0, 80) })),
           worldRefs: worldRefs.map((ref) => ({ id: ref.id, label: ref.title })),
           assistantConfigured: assistant.configured,
+          eventOrders: evidence.eventOrders.map((order) => ({
+            earlierId: order.earlierEventId,
+            laterId: order.laterEventId,
+          })),
+          sceneEventLinks: evidence.sceneEventLinks,
         }}
       />
     </section>
