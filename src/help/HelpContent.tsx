@@ -18,6 +18,7 @@ import {
   KIND_TEMPLATE,
   REFERENCE_META,
   SERIES,
+  SETTINGS,
   CONTINUITY,
   FILE,
   HISTORY,
@@ -36,6 +37,7 @@ import {
   READ_BOOK,
   RECORD,
   RECORD_RENAME,
+  REFERENCE_FORM,
   REVIEW,
   SHELL,
   SELECTION_ASSIST,
@@ -181,6 +183,10 @@ export function HelpContent() {
             </li>
             <li>
               <See anchor="selection-assist" />: optional AI assist on a selection (suggestion only).
+            </li>
+            <li>
+              <See anchor="settings" />: paste your own OpenAI API key; optional library folder and desktop shell (
+              <Cmd script="desktop:dev" />).
             </li>
             <li>
               <See anchor="dictionary" />: multi-word phrase entries; <See anchor="project-search" />: search the whole
@@ -481,6 +487,35 @@ export function HelpContent() {
           This browser remembers whether the navigation is collapsed, the theme, and which project you opened last. It
           keeps them as small cookies. No record text is stored in them.
         </p>
+      </Section>
+
+      <Section id="settings">
+        <p>
+          Open <L>{SETTINGS.heading}</L> from the gear menu in the left column. It holds your own OpenAI API key, an
+          optional library folder for the desktop app, and the optional backup mirror folder.{" "}
+          <L>{SHELL.connections}</L> stays focused on the ChatGPT adapter grant; put credentials on Settings.
+        </p>
+        <Sub id="settings-ai">
+          <p>
+            <L>{SETTINGS.aiHeading}</L>: paste a key from your OpenAI API account and a model ID, then choose{" "}
+            <L>{SETTINGS.aiSave}</L>. The form never shows a saved key again—only that a key is saved.{" "}
+            <L>{SETTINGS.aiClearKey}</L> removes the Settings copy (any <code>.env</code> key still applies after that).{" "}
+            <L>{SETTINGS.aiTest}</L> sends one small paid request. Details: <See anchor="assistant-setup" />.
+          </p>
+        </Sub>
+        <Sub id="settings-library">
+          <p>
+            <L>{SETTINGS.libraryHeading}</L> is optional. When set, the database is <code>storyloom.db</code> inside that
+            folder. Restart after changing it so every process opens the same file. A lock file (
+            <code>storyloom.lock.json</code>) warns if another session may already have the library open—do not run two
+            copies against the same database. The backup mirror on Settings matches{" "}
+            <See anchor="backup-mirror" />.
+          </p>
+          <p>
+            Desktop developers can run <Cmd script="desktop:dev" /> after <code>pnpm build</code> to open an Electron
+            window around the local server. First launch asks for a library folder.
+          </p>
+        </Sub>
       </Section>
 
       <Section id="workspaces">
@@ -1722,8 +1757,8 @@ export function HelpContent() {
           existing record revision. <L>{WORLD.allReferences}</L> and each category still list documents in a table with
           type, canon status, saved version, and protection. Under <L>{WORLD.boards}</L> you can place references,
           images and freeform notes on a
-          focused board (see <See anchor="world-boards" />). Under <L>{WORLD.maps}</L> you can pin places on an existing
-          reference image (see <See anchor="world-maps" />). <L>{WORLD.storyTimeline}</L> lists events in an order you
+          focused board (see <See anchor="world-boards" />). Under <L>{WORLD.maps}</L> you can create a map from an
+          uploaded image or an existing reference image (see <See anchor="world-maps" />). <L>{WORLD.storyTimeline}</L> lists events in an order you
           set, separate from the manuscript (see <See anchor="story-events" />). Plot grids stay under{" "}
           <L>{SHELL.plan}</L>.
         </p>
@@ -1745,13 +1780,15 @@ export function HelpContent() {
             <L>{WORLD.boards}</L> opens the board list for this project. The project column links to Boards; each board
             title stays on that page. A project can have none; creating the
             first board does not change existing records. Choose <L>{WORLD.newBoard}</L> with{" "}
-            <L>{WORLD.templateBlank}</L> (empty) or <L>{WORLD.templateGeography}</L> (invented region notes you can edit,
-            move or remove).
+            <L>{WORLD.templateBlank}</L> ({WORLD.templateBlankHint}) or <L>{WORLD.templateGeography}</L> (
+            {WORLD.templateGeographyHint}). An empty board offers <L>{WORLD.addRecordCard}</L>,{" "}
+            <L>{WORLD.addImageCard}</L>, and <L>{WORLD.writeNote}</L>. <L>{WORLD.writeNote}</L> adds a board note and
+            does not need a World reference. <L>{WORLD.addImageCard}</L> uses an image already stored on a reference.
           </p>
           <ul>
             <li>
-              Add a reference, an image from a reference, or a freeform note. Drag a card to reposition it; the position
-              is stored on that board only.
+              Add a reference, an image from a reference, or <L>{WORLD.writeNote}</L>. A board note is not a World
+              reference document. Drag a card to reposition it; the position is stored on that board only.
             </li>
             <li>
               The same record can appear on several boards. Selecting a reference or image card opens that record in the
@@ -1759,7 +1796,9 @@ export function HelpContent() {
               it). <L>{WORLD.inspectorOpenRecord}</L> opens the record page. The record&apos;s Overview lists the boards
               and maps that contain it. The rail still collapses, resizes, and overlays on a narrow window. Filter by
               card kind, use{" "}
-              <L>{WORLD.fitSelection}</L> / <L>{WORLD.fitAll}</L>, and move between cards with the arrow keys. Unsaved
+              <L>{WORLD.fitSelection}</L> / <L>{WORLD.fitAll}</L>, and move between cards with the arrow keys.{" "}
+              <L>{WORLD.addCardMenu}</L>, renaming, and deleting stay in menus on that one toolbar. The canvas uses the
+              remaining height, and the inspector scrolls on its own. Unsaved
               note title and body stay when the board refreshes after another card save.
             </li>
             <li>
@@ -1808,10 +1847,16 @@ export function HelpContent() {
         <Sub id="world-maps">
           <p>
             <L>{WORLD.maps}</L> use a reference image as a backdrop. <L>{WORLD.newMap}</L> offers{" "}
-            <L>{WORLD.mapSourceUpload}</L> or <L>{WORLD.mapSourceExisting}</L>. An upload is stored with the same image
-            rules as a reference document, including the protection tick, and the image is kept only when the map is
-            created. Marker positions are fractions of the image width and height (0–1), so they stay aligned when the
-            map is resized.
+            <L>{WORLD.mapSourceUpload}</L> or <L>{WORLD.mapSourceExisting}</L>. An upload uses{" "}
+            <L>{WORLD.mapSaveWithReference}</L>: <L>{WORLD.mapUseExistingReference}</L>, including the protection tick
+            when that reference is protected, or <L>{WORLD.mapCreateNewReference}</L>. A new reference asks for its
+            title, document type, and <L>{REFERENCE_FORM.canonStatus}</L>. It does not set a worldbuilding kind, and it
+            is not approved unless you choose approved. {WORLD.mapReferenceStoresImage}{" "}
+            <L>{WORLD.createMap}</L> is the button when the image already has a reference.{" "}
+            <L>{WORLD.createReferenceAndMap}</L> is the button when you are creating both.{" "}
+            <L>{REFERENCE_FORM.cancel}</L> creates nothing. A failure keeps the values you entered and does not leave
+            the new reference or image behind. Marker positions are fractions of the image width and height (0–1), so
+            they stay aligned when the map is resized.
           </p>
           <ul>
             <li>
@@ -1836,7 +1881,9 @@ export function HelpContent() {
             <li>
               Each map has author-defined <L>{WORLD.mapLayers}</L>. Older maps open with the former four groups as
               default layer names. In <L>{WORLD.mapModeEdit}</L> you can rename layers, add more (up to sixteen), and
-              save them. The <L>{WORLD.mapLayerLegend}</L> toggles which layers show on the map.{" "}
+              save them. <L>{WORLD.mapLayerLegend}</L> and <L>{WORLD.pinList}</L> open from the one map toolbar. The
+              canvas uses the remaining height, and those lists plus the inspector scroll on their own. The legend
+              toggles which layers show on the map.{" "}
               <L>{WORLD.mapLayersShowAll}</L>, <L>{WORLD.mapLayersHideAll}</L>, and <L>{WORLD.mapLayerPreset("Places")}</L>{" "}
               switch a whole preset at once. New markers use the
               layer you pick in the toolbar or on the marker form.
@@ -3052,34 +3099,41 @@ export function HelpContent() {
         <Sub id="assistant-setup">
           <p>
             The assistant uses an OpenAI API key, which is separate from a ChatGPT subscription and billed separately by
-            OpenAI. Setup happens in the <code>.env</code> file in the Story Loom folder, never in the app.
+            OpenAI. Story Loom never ships a shared key: you use your own. Prefer{" "}
+            <L>{SETTINGS.heading}</L> in the app (see <See anchor="settings-ai" />). Developers can still set{" "}
+            <code>.env</code> instead.
           </p>
           <ol>
             <li>Create an API key in your OpenAI API account (platform.openai.com).</li>
             <li>
-              Open <code>.env</code> in a text editor and add two lines: <code>WORDLY_OPENAI_API_KEY=</code> followed by
-              your key, and <code>OPENAI_MODEL=</code> followed by a model ID. Choose a text model from OpenAI&apos;s model
-              list that supports the Responses API and that your API project can use.
+              Open <L>{SETTINGS.heading}</L> (under the gear menu in the left column). Paste the key, enter a model ID
+              that supports the Responses API and that your API project can use, and choose{" "}
+              <L>{SETTINGS.aiSave}</L>.
             </li>
-            <li>Save the file.</li>
             <li>
-              Restart the app: press <kbd>Ctrl</kbd>+<kbd>C</kbd> in its terminal, then run <Cmd script="dev" /> again.
+              Optional: choose <L>{SETTINGS.aiTest}</L> to send one small paid check (&ldquo;connected&rdquo;).
             </li>
             <li>
               Open <L>{NAV.assistant}</L>. The model ID and limits are shown at the top. If something is missing, the page
               says what.
             </li>
           </ol>
+          <p>
+            Developers: you may instead put <code>WORDLY_OPENAI_API_KEY</code> and <code>OPENAI_MODEL</code> in{" "}
+            <code>.env</code> and restart with <Cmd script="dev" />. A value saved in Settings overrides the matching{" "}
+            <code>.env</code> line until you clear it. Clearing Settings falls back to <code>.env</code>.
+          </p>
           <p className="warning">
-            Keep the key only in <code>.env</code>. Do not paste it into the app, a record, a chat, or any file that is
-            shared. <code>.env</code> is not saved to git. Never put the key in a variable whose name starts with{" "}
-            <code>NEXT_PUBLIC_</code>; the assistant refuses to run if one is set.
+            The key is stored only on this computer (under <code>local/</code>, which is not saved to git). Do not paste
+            it into a record, a chat, or any shared file. Never put the key in a variable whose name starts with{" "}
+            <code>NEXT_PUBLIC_</code>; the assistant refuses to run if one is set. The Settings form never shows a saved
+            key again after you leave the page.
           </p>
           <p>
             Story Loom uses only its own key. A key in the general <code>OPENAI_API_KEY</code> variable, which other
-            apps on the computer may share, is ignored, and the assistant stays off until <code>WORDLY_OPENAI_API_KEY</code>{" "}
-            is set. A separate key also lets you see this app&apos;s usage and spending on its own in your OpenAI account.
-            Other shared OpenAI settings (organisation, project and server address) are not used either; if{" "}
+            apps on the computer may share, is ignored, and the assistant stays off until a Story Loom key is set. A
+            separate key also lets you see this app&apos;s usage and spending on its own in your OpenAI account. Other
+            shared OpenAI settings (organisation, project and server address) are not used either; if{" "}
             <code>OPENAI_CUSTOM_HEADERS</code> is set, the assistant stays off until it is removed.
           </p>
           <p>
@@ -3902,18 +3956,18 @@ export function HelpContent() {
 
           <dt>The assistant says it is not set up</dt>
           <dd>
-            The page lists what is missing. Check the <code>WORDLY_OPENAI_API_KEY</code> and <code>OPENAI_MODEL</code>{" "}
-            lines in <code>.env</code>, then restart the app. A key under the older name <code>OPENAI_API_KEY</code> is not
-            used: rename that line to <code>WORDLY_OPENAI_API_KEY</code>. Changes to <code>.env</code> are read only when the app starts. See{" "}
-            <See anchor="assistant-setup" />.
+            The page lists what is missing. Open <L>{SETTINGS.heading}</L> and save your own API key and model, or set{" "}
+            <code>WORDLY_OPENAI_API_KEY</code> and <code>OPENAI_MODEL</code> in <code>.env</code> and restart. A key under
+            the older name <code>OPENAI_API_KEY</code> is not used. Settings values apply without a restart;{" "}
+            <code>.env</code> alone still needs a restart. See <See anchor="assistant-setup" />.
           </dd>
 
           <dt>An assistant answer failed</dt>
           <dd>
-            Read the reason under the answer. A rejected key (401) or missing model (404) means the <code>.env</code>{" "}
-            settings need fixing, followed by a restart. A rate limit or quota message (429) comes from OpenAI: wait, or
-            check usage and billing in your OpenAI account. For connection or timeout errors, check the internet
-            connection and choose <L>{ASSISTANT.retry}</L>.
+            Read the reason under the answer. A rejected key (401) or missing model (404) means the key or model on{" "}
+            <L>{SETTINGS.heading}</L> (or in <code>.env</code>) needs fixing. A rate limit or quota message (429) comes
+            from OpenAI: wait, or check usage and billing in your OpenAI account. For connection or timeout errors, check
+            the internet connection and choose <L>{ASSISTANT.retry}</L>.
           </dd>
 
           <dt>A change proposal cannot be applied</dt>

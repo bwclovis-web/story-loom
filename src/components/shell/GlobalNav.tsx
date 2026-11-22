@@ -44,6 +44,7 @@ function authoringItems(projectId: string | null): NavItem[] {
 
 function utilityItems(): NavItem[] {
   return [
+    { id: "settings", label: SHELL.settings, icon: <SettingsIcon />, href: "/settings" },
     { id: "backups", label: SHELL.backups, icon: <BackupIcon />, href: "/backup" },
     { id: "connections", label: SHELL.connections, icon: <ConnectionsIcon />, href: "/connections" },
     { id: "trash", label: SHELL.trash, icon: <TrashIcon />, href: "/trash" },

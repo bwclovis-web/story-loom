@@ -103,18 +103,25 @@ export function readAssistantConfig(env: Env): AssistantConfig {
 
   if (!apiKey && env[SHARED_API_KEY_ENV]?.trim()) {
     problems.push(
-      `${API_KEY_ENV} is not set. ${SHARED_API_KEY_ENV} is set, but that name is shared with other apps on this computer, so Story Loom does not use it. Put a key for this app in ${API_KEY_ENV} in this folder's .env file.`,
+      `${API_KEY_ENV} is not set. ${SHARED_API_KEY_ENV} is set, but that name is shared with other apps on this computer, so Story Loom does not use it. Add a key for this app on the Settings page, or put it in ${API_KEY_ENV} in this folder's .env file.`,
     );
   } else if (!apiKey) {
-    problems.push(`${API_KEY_ENV} is not set.`);
+    problems.push(
+      `${API_KEY_ENV} is not set. Add your OpenAI API key on the Settings page, or set ${API_KEY_ENV} in .env.`,
+    );
   }
   if (env[SHARED_HEADERS_ENV]?.trim()) {
     problems.push(
       `${SHARED_HEADERS_ENV} is set. The OpenAI library would add those headers to this app's requests, so remove it from the environment Story Loom runs in.`,
     );
   }
-  if (!model) problems.push(`${MODEL_ENV} is not set. Choose a text model your API project can use with the Responses API.`);
-  else if (!MODEL_PATTERN.test(model)) problems.push(`${MODEL_ENV} does not look like a model ID.`);
+  if (!model) {
+    problems.push(
+      `${MODEL_ENV} is not set. Choose a text model on the Settings page (or in .env) that your API project can use with the Responses API.`,
+    );
+  } else if (!MODEL_PATTERN.test(model)) {
+    problems.push(`${MODEL_ENV} does not look like a model ID.`);
+  }
 
   const exposed = Object.keys(env).filter((k) => /^NEXT_PUBLIC_.*(OPENAI|API_KEY)/i.test(k) && env[k]);
   for (const name of exposed) {

@@ -13,9 +13,9 @@ read-only retrieval tools (search, passages, facts, planning, earlier scenes,
 and story-event chronology). Change proposals do not. No assistant code calls
 `mutationService` directly.
 
-It is off unless `WORDLY_OPENAI_API_KEY` and `OPENAI_MODEL` are set. Without
-them the page says what is missing, nothing can be sent, and the rest of the
-app is unaffected.
+It is off unless `WORDLY_OPENAI_API_KEY` and `OPENAI_MODEL` are set (from
+**Settings** in the app, or from `.env` when developing). Without them the page
+says what is missing, nothing can be sent, and the rest of the app is unaffected.
 
 ### This app's own key
 
@@ -32,8 +32,13 @@ the assistant stays off while that variable is set.
 
 ## Configuration
 
-All settings are server environment variables in `.env` (git-ignored).
-`.env.example` lists them with blank placeholders.
+**Preferred:** open **Settings** in the app and paste your own OpenAI API key
+and model ID. Values are stored under `local/assistant-secrets.json`
+(git-ignored) and override `.env` for those two keys until cleared.
+
+**Developers:** you can still use server environment variables in `.env`
+(git-ignored). `.env.example` lists them with blank placeholders. Settings wins
+when a value is saved there; clearing Settings falls back to `.env`.
 
 | Variable | Default | Range |
 | --- | --- | --- |
@@ -407,10 +412,11 @@ marked failed as interrupted. Runs are not part of the backup format.
 
 This makes one small paid request. Run it yourself; automated tests never do.
 
-1. In `.env`, set `WORDLY_OPENAI_API_KEY` and `OPENAI_MODEL`. Do not paste the key
-   anywhere else.
-2. Restart `pnpm dev` and open a project's Assistant page. Confirm the model ID
-   and limits are shown and there is no setup warning.
+1. On **Settings**, paste your API key and model, save, then optionally choose
+   **Test connection**. Or set `WORDLY_OPENAI_API_KEY` and `OPENAI_MODEL` in
+   `.env` and restart. Do not paste the key into records or chats.
+2. Open a project's Assistant page. Confirm the model ID and limits are shown
+   and there is no setup warning.
 3. Choose New conversation. Tick no records and no chapter. Ask: "Reply with
    the single word: connected."
 4. Confirm the answer streams, is marked complete, shows "Used: no records."

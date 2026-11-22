@@ -2,6 +2,7 @@ import Link from "next/link";
 import { HelpHint } from "@/components/HelpHint";
 import { ButtonLink } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { ProjectOnboarding } from "@/components/shell/ProjectOnboarding";
 import { WorldToolHeader } from "@/components/world/WorldToolHeader";
 import { getDb } from "@/server/db";
 import { listBoards } from "@/server/services/boardService";
@@ -22,10 +23,12 @@ export default async function WorldBoardsPage({ params }: { params: Promise<{ pr
         projectId={projectId}
         items={worldSurfaceCrumbs(projectId, "boards")}
         title={WORLD.boards}
+        gettingStarted={<ProjectOnboarding projectId={projectId} quiet marked />}
         help={
           <HelpHint anchor="world-boards" topic="World boards">
-            Boards are optional. Removing a card only removes it from that board. Ask about this board previews linked
-            records before opening the assistant.
+            Boards are optional. Blank creates no references. Geography adds four editable board notes and no references.
+            Removing a card only removes it from that board. Ask about this board previews linked records before opening
+            the assistant.
           </HelpHint>
         }
       />

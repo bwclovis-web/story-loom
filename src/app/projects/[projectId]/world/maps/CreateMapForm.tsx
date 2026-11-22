@@ -2,13 +2,22 @@
 
 import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
-import { ButtonLink } from "@/components/ui/Button";
+import { Button } from "@/components/ui/Button";
 import { FileInput } from "@/components/ui/FileInput";
 import { RadioGroup } from "@/components/ui/RadioGroup";
 import { IssueList } from "@/components/IssueList";
-import type { Issue } from "@/domain/issues";
-import { WORLD } from "@/ui/labels";
-import { createWorldMapAction, createWorldMapUploadAction } from "./actions";
+import { errorIssue, type Issue } from "@/domain/issues";
+import { AUTHORITY_STATUSES, isAuthorityStatus, type AuthorityStatus } from "@/domain/statuses";
+import { REFERENCE_FORM, WORLD } from "@/ui/labels";
+import { isMapReferenceType, MAP_REFERENCE_TYPES, type MapReferenceType } from "@/world/mapReference";
+import { createWorldMapAction, createWorldMapUploadAction, createWorldMapWithNewReferenceAction } from "./actions";
+
+const TYPE_LABEL: Record<MapReferenceType, string> = {
+  character_dossier: REFERENCE_FORM.typeCharacter,
+  worldbuilding: REFERENCE_FORM.typeWorldbuilding,
+  rules_glossary: REFERENCE_FORM.typeRules,
+  research_note: REFERENCE_FORM.typeResearch,
+};
 
 export function CreateMapForm({
   projectId,
@@ -21,55 +30,103 @@ export function CreateMapForm({
 }) {
   const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
+  const lock = useRef(false);
+  const [formKey, setFormKey] = useState(0);
   const [title, setTitle] = useState("");
   const [source, setSource] = useState<"upload" | "existing">(images.length ? "existing" : "upload");
   const [imageId, setImageId] = useState(images[0]?.id ?? "");
+  const [hostMode, setHostMode] = useState<"existing" | "new">(hosts.length ? "existing" : "new");
   const [hostId, setHostId] = useState(hosts[0]?.id ?? "");
   const [confirmProtected, setConfirmProtected] = useState(false);
+  const [referenceTitle, setReferenceTitle] = useState("");
+  const [referenceType, setReferenceType] = useState<MapReferenceType>("worldbuilding");
+  const [authorityStatus, setAuthorityStatus] = useState<AuthorityStatus>("draft");
   const [issues, setIssues] = useState<Issue[]>([]);
   const [pending, startTransition] = useTransition();
-  const worldHref = `/projects/${encodeURIComponent(projectId)}/world`;
   const host = hosts.find((item) => item.id === hostId) ?? null;
+  const creatingReference = source === "upload" && hostMode === "new";
 
-  if (hosts.length === 0 && images.length === 0) {
-    return (
-      <div className="stack">
-        <p className="muted" style={{ margin: 0 }}>
-          {WORLD.mapsNeedImage}
-        </p>
-        <ButtonLink href={worldHref}>{WORLD.mapsBrowseWorld}</ButtonLink>
-      </div>
-    );
-  }
+  const reset = () => {
+    setTitle("");
+    setSource(images.length ? "existing" : "upload");
+    setImageId(images[0]?.id ?? "");
+    setHostMode(hosts.length ? "existing" : "new");
+    setHostId(hosts[0]?.id ?? "");
+    setConfirmProtected(false);
+    setReferenceTitle("");
+    setReferenceType("worldbuilding");
+    setAuthorityStatus("draft");
+    setIssues([]);
+    if (fileRef.current) fileRef.current.value = "";
+    setFormKey((key) => key + 1);
+  };
 
   return (
     <form
+      key={formKey}
       className="stack"
+      aria-busy={pending}
       onSubmit={(e) => {
         e.preventDefault();
+        if (lock.current || pending) return;
+        const problems: Issue[] = [];
+        if (!title.trim()) problems.push(errorIssue("INVALID_REFERENCE", "Give the map a title."));
+        if (source === "existing" && !imageId) {
+          problems.push(errorIssue("INVALID_REFERENCE", "Choose an image."));
+        }
+        const file = fileRef.current?.files?.[0];
+        if (source === "upload" && (!file || file.size === 0)) {
+          problems.push(errorIssue("IMAGE_INVALID", "Choose an image to upload."));
+        }
+        if (source === "upload" && hostMode === "existing" && !hostId) {
+          problems.push(errorIssue("INVALID_REFERENCE", WORLD.mapNoHostYet));
+        }
+        if (source === "upload" && hostMode === "existing" && host?.isProtected && !confirmProtected) {
+          problems.push(errorIssue("PROTECTED_CONFIRMATION_REQUIRED", WORLD.mapProtectedConfirm(host.title)));
+        }
+        if (creatingReference && !referenceTitle.trim()) {
+          problems.push(errorIssue("INVALID_REFERENCE", "Give the reference a title."));
+        }
+        if (problems.length) {
+          setIssues(problems);
+          return;
+        }
+        lock.current = true;
         setIssues([]);
         startTransition(async () => {
-          if (source === "existing") {
-            const result = await createWorldMapAction(projectId, { title, imageId });
+          try {
+            if (source === "existing") {
+              const result = await createWorldMapAction(projectId, { title, imageId });
+              if (!result.ok) {
+                setIssues(result.issues);
+                return;
+              }
+              router.push(`/projects/${encodeURIComponent(projectId)}/world/maps/${encodeURIComponent(result.mapId)}`);
+              return;
+            }
+            const body = new FormData();
+            body.set("title", title);
+            if (file) body.set("file", file);
+            const result = creatingReference
+              ? await (async () => {
+                  body.set("referenceTitle", referenceTitle);
+                  body.set("type", referenceType);
+                  body.set("authorityStatus", authorityStatus);
+                  return createWorldMapWithNewReferenceAction(projectId, body);
+                })()
+              : await (async () => {
+                  body.set("recordId", hostId);
+                  if (confirmProtected) body.set("confirmProtected", "on");
+                  return createWorldMapUploadAction(projectId, body);
+                })();
             if (!result.ok) {
               setIssues(result.issues);
               return;
             }
             router.push(`/projects/${encodeURIComponent(projectId)}/world/maps/${encodeURIComponent(result.mapId)}`);
-            return;
+          } finally {
+            lock.current = false;
           }
-          const file = fileRef.current?.files?.[0];
-          const body = new FormData();
-          body.set("title", title);
-          body.set("recordId", hostId);
-          if (confirmProtected) body.set("confirmProtected", "on");
-          if (file) body.set("file", file);
-          const result = await createWorldMapUploadAction(projectId, body);
-          if (!result.ok) {
-            setIssues(result.issues);
-            return;
-          }
-          router.push(`/projects/${encodeURIComponent(projectId)}/world/maps/${encodeURIComponent(result.mapId)}`);
         });
       }}
     >
@@ -91,54 +148,123 @@ export function CreateMapForm({
         ]}
       />
       {source === "existing" ? (
-        <label>
-          {WORLD.mapImage}
-          <select value={imageId} onChange={(e) => setImageId(e.target.value)} required>
-            <option value="">{WORLD.chooseMapImage}</option>
-            {images.map((img) => (
-              <option key={img.id} value={img.id}>
-                {img.label}
-              </option>
-            ))}
-          </select>
-        </label>
-      ) : (
         <>
-          <FileInput ref={fileRef} label={WORLD.mapSourceUpload} accept="image/png,image/jpeg,image/gif,image/webp" required />
           <label>
-            {WORLD.mapHostRecord}
-            <select
-              value={hostId}
-              onChange={(e) => {
-                setHostId(e.target.value);
-                setConfirmProtected(false);
-              }}
-              required
-            >
-              <option value="">{WORLD.chooseMapHost}</option>
-              {hosts.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.title}
+            {WORLD.mapImage}
+            <select value={imageId} onChange={(e) => setImageId(e.target.value)} required>
+              <option value="">{WORLD.chooseMapImage}</option>
+              {images.map((img) => (
+                <option key={img.id} value={img.id}>
+                  {img.label}
                 </option>
               ))}
             </select>
           </label>
-          {host?.isProtected ? (
-            <label className="row">
-              <input
-                type="checkbox"
-                checked={confirmProtected}
-                onChange={(e) => setConfirmProtected(e.target.checked)}
+          <p className="small muted">{WORLD.mapExistingImageStays}</p>
+        </>
+      ) : (
+        <>
+          <FileInput ref={fileRef} label={WORLD.mapSourceUpload} accept="image/png,image/jpeg,image/gif,image/webp" />
+          <RadioGroup
+            layout="stack"
+            legend={WORLD.mapSaveWithReference}
+            name="map-host"
+            value={hostMode}
+            hint={hosts.length === 0 ? WORLD.mapNoHostYet : undefined}
+            onValueChange={(value) => {
+              if (value === "existing" && hosts.length === 0) return;
+              if (value === "existing" || value === "new") {
+                setHostMode(value);
+                setConfirmProtected(false);
+              }
+            }}
+            options={[
+              { value: "existing", label: WORLD.mapUseExistingReference, disabled: hosts.length === 0 },
+              { value: "new", label: WORLD.mapCreateNewReference },
+            ]}
+          />
+          <p className="small muted">{WORLD.mapReferenceStoresImage}</p>
+          {hostMode === "existing" ? (
+            <>
+              <label>
+                {WORLD.mapHostRecord}
+                <select
+                  value={hostId}
+                  onChange={(e) => {
+                    setHostId(e.target.value);
+                    setConfirmProtected(false);
+                  }}
+                  required
+                >
+                  <option value="">{WORLD.chooseMapHost}</option>
+                  {hosts.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.title}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {host?.isProtected ? (
+                <label className="row">
+                  <input
+                    type="checkbox"
+                    checked={confirmProtected}
+                    onChange={(e) => setConfirmProtected(e.target.checked)}
+                  />
+                  {WORLD.mapProtectedConfirm(host.title)}
+                </label>
+              ) : null}
+            </>
+          ) : (
+            <>
+              <label>
+                {WORLD.mapNewReferenceTitle}
+                <input
+                  value={referenceTitle}
+                  onChange={(e) => setReferenceTitle(e.target.value)}
+                  required
+                  maxLength={200}
+                />
+              </label>
+              <RadioGroup
+                layout="row"
+                legend={REFERENCE_FORM.documentType}
+                name="map-reference-type"
+                value={referenceType}
+                onValueChange={(value) => {
+                  if (isMapReferenceType(value)) setReferenceType(value);
+                }}
+                options={MAP_REFERENCE_TYPES.map((type) => ({ value: type, label: TYPE_LABEL[type] }))}
               />
-              {WORLD.mapProtectedConfirm(host.title)}
-            </label>
-          ) : null}
+              <label>
+                {REFERENCE_FORM.canonStatus}
+                <select
+                  value={authorityStatus}
+                  onChange={(e) => {
+                    if (isAuthorityStatus(e.target.value)) setAuthorityStatus(e.target.value);
+                  }}
+                >
+                  {AUTHORITY_STATUSES.map((status) => (
+                    <option key={status} value={status}>
+                      {status.charAt(0).toUpperCase() + status.slice(1)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <p className="small muted">{REFERENCE_FORM.draftHint}</p>
+            </>
+          )}
         </>
       )}
       <IssueList issues={issues} />
-      <button type="submit" disabled={pending || (source === "existing" ? !imageId : !hostId)}>
-        {WORLD.createMap}
-      </button>
+      <div className="row" style={{ gap: "0.5rem", flexWrap: "wrap" }}>
+        <Button type="button" variant="secondary" disabled={pending} onClick={reset}>
+          {REFERENCE_FORM.cancel}
+        </Button>
+        <Button type="submit" disabled={pending}>
+          {pending ? (creatingReference ? WORLD.mapCreatingBoth : WORLD.mapCreating) : creatingReference ? WORLD.createReferenceAndMap : WORLD.createMap}
+        </Button>
+      </div>
     </form>
   );
 }

@@ -1,5 +1,47 @@
 # Progress
 
+## Milestone 1: Desktop shell and Settings BYOK (Nov 21, 2026)
+
+Installable Electron wrapper (`desktop/`), optional library folder (`storyloom.db` + lock file), and **Settings** (`/settings`) where authors paste their own OpenAI API key and model. Settings secrets live in `local/assistant-secrets.json` (git-ignored) and override `.env` until cleared; the UI never echoes the key. Backup mirror can be set from Settings. Help, Connections, and `docs/assistant.md` point at Settings. Scripts: `pnpm desktop:dev`, `pnpm desktop:build`.
+
+| Check | Result |
+| --- | --- |
+| `pnpm exec vitest run tests/unit/assistantSecrets.test.ts tests/unit/libraryLocation.test.ts tests/unit/assistantConfig.test.ts tests/unit/help.test.ts tests/unit/backup-mirror.test.ts` | 5 files, 23 tests passed |
+| `pnpm exec tsc --noEmit` | No errors in Milestone 1 files. Pre-existing error in `worldMapService.ts` (authority status string) remains unrelated. |
+
+### Rollback
+
+Revert Settings route, secrets/library modules, desktop folder, and related help/nav changes. Delete `local/assistant-secrets.json` / `local/library.json` if present. No schema change.
+
+## Map and board setup (Nov 21, 2026)
+
+A map can be created from an existing image, an upload onto an existing reference, or an upload onto a new reference named in the same form. The new reference takes a title, document type, and canon status. It does not receive a worldbuilding kind, and it stays a draft unless the author chooses another status. The reference, image, and map are one transaction: a failure leaves no new reference or image, and existing records stay as they were. Cancel does not write.
+
+A blank board still starts empty. Geography adds the four template notes and nothing else. An empty board offers Add reference, Add image, and Write note. Write note does not need a World reference. Add image uses an image already stored on a reference.
+
+| Check | Result |
+| --- | --- |
+| `pnpm exec vitest run tests/acceptance/map-board-setup.test.ts tests/acceptance/world-maps-place-relations.test.ts tests/acceptance/world-boards.test.ts tests/unit/help.test.ts` | 4 files, 22 tests passed |
+| Browser | The Devil You Know, nothing saved. Existing image keeps Create map. Upload plus Create new reference shows title, document type, Draft canon status, and Create reference and map. Cancel cleared the title. The empty character board shows Add reference, Add image from stored images, and Write note. |
+
+### Rollback
+
+Revert the map create service, the create forms, the empty-board actions, and the help sentences. No data change.
+
+## Maps and boards workspace shell (Nov 21, 2026)
+
+Map and board pages keep the shared project header: cover, series line, page title, and a breadcrumb. Getting started sits in that header. Each canvas has one toolbar. Layers, markers, measure, export, and map upkeep open from menus. Add card, rename, and delete do the same on a board. The canvas fills the remaining height. The inspector stays the existing rail and still opens ReferenceInspector, place events, and linked scenes. Narrow windows keep the overlay drawer.
+
+| Check | Result |
+| --- | --- |
+| `pnpm exec vitest run tests/unit/help.test.ts tests/unit/weave-library.test.ts` | 2 files, 7 tests passed |
+| `pnpm exec tsc --noEmit` | no errors in the maps, boards, header, help, or navigation files |
+| Browser | The Devil You Know, read only. Aldemar map: one header (cover, series, title, breadcrumb, Getting started), one toolbar, layer menu over the canvas, inspector “Selected marker” empty because that map has no markers. Board “character”: one header, Add card menu, canvas fills the column, inspector “Selected card”. At 900px the inspector is the overlay drawer and the page does not scroll sideways. Nothing was created or saved. |
+
+### Rollback
+
+Revert the workspace pages, toolbar markup, and the visual-workspace styles. No data change.
+
 ## Guided tour, help, and docs (Nov 21, 2026)
 
 Getting started is a seven-step tour: write and compare drafts, including the unsaved local copy; pin a reference and insert its name; start from a beat sheet and make a scene; build World references; track the story timeline; share a series bible and review open questions; set a pace, compile, and back up. The tour lives in the onboarding cookie and does not write records. A cookie dismissed on an earlier tour opens again at task 1. Don't show again stores `dismissed:storyloom-tour-2026-11-21` and stays dismissed.

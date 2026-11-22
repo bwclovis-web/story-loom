@@ -40,16 +40,21 @@ changes records; on request it prepares a change proposal for reference
 records, which you review in the usual diff preview and apply yourself.
 The same setup enables **AI proofreading** (spelling, grammar, punctuation)
 on record pages: you accept or dismiss each suggestion in the text box and
-save as usual. To turn it on, set `WORDLY_OPENAI_API_KEY` and `OPENAI_MODEL` (a text model your API
-project can use with the Responses API) in `.env`, then restart `pnpm dev`.
-The app uses only its own key: a shared `OPENAI_API_KEY` (for example one set
-for the whole computer) is ignored, and the assistant stays off until
-`WORDLY_OPENAI_API_KEY` is set. If your `.env` has an `OPENAI_API_KEY=` line from
-an earlier version, rename it.
-Keep the key only in `.env`; never use a `NEXT_PUBLIC_` variable for it.
-Selected content is sent to OpenAI. Request settings, retention, limits, the
-usage cap and a manual connection test are in
-[docs/assistant.md](docs/assistant.md).
+save as usual.
+
+**Preferred setup:** open **Settings** in the app and paste your own OpenAI API
+key and model ID (a text model your API project can use with the Responses API).
+The key is stored under `local/` (git-ignored) and is never shown again after
+save. Developers may instead set `WORDLY_OPENAI_API_KEY` and `OPENAI_MODEL` in
+`.env` and restart `pnpm dev`. Settings overrides `.env` when a value is saved
+there. The app uses only its own key: a shared `OPENAI_API_KEY` is ignored.
+Never use a `NEXT_PUBLIC_` variable for the key. Selected content is sent to
+OpenAI. Details: [docs/assistant.md](docs/assistant.md).
+
+### Desktop app (Milestone 1)
+
+After `pnpm build`, `pnpm desktop:dev` opens an Electron window around the local
+server and asks for a library folder on first launch. See [desktop/README.md](desktop/README.md).
 
 ### Spelling and the project dictionary
 

@@ -13,6 +13,7 @@ export async function WorldToolHeader({
   lead,
   actions,
   help,
+  gettingStarted,
 }: {
   projectId: string;
   items: BreadcrumbItem[];
@@ -20,6 +21,7 @@ export async function WorldToolHeader({
   lead?: ReactNode;
   actions?: ReactNode;
   help?: ReactNode;
+  gettingStarted?: ReactNode;
 }) {
   return (
     <header className="world-tool-header">
@@ -29,6 +31,7 @@ export async function WorldToolHeader({
         description={typeof lead === "string" ? lead : undefined}
         crumbs={items}
         actions={actions}
+        gettingStarted={gettingStarted}
       />
       {lead != null && typeof lead !== "string" ? lead : null}
       {help}

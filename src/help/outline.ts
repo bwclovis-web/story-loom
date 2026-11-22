@@ -34,6 +34,14 @@ export const HELP_SECTIONS = [
   },
   { id: "navigation", title: "Finding your way around" },
   {
+    id: "settings",
+    title: "Settings",
+    children: [
+      { id: "settings-ai", title: "Your OpenAI API key" },
+      { id: "settings-library", title: "Library and backup folders" },
+    ],
+  },
+  {
     id: "workspaces",
     title: "Workspaces and projects",
     children: [{ id: "upgrade-project", title: "Upgrade this project" }],
@@ -202,13 +210,22 @@ export function helpHref(anchor: HelpAnchor): string {
 }
 
 /** package.json scripts the help tells authors to run. Verified by tests/unit/help.test.ts. */
-export const HELP_SCRIPTS = ["dev", "db:setup", "db:backup", "db:info", "db:restore", "mcp:stdio"] as const;
+export const HELP_SCRIPTS = [
+  "dev",
+  "desktop:dev",
+  "db:setup",
+  "db:backup",
+  "db:info",
+  "db:restore",
+  "mcp:stdio",
+] as const;
 export type HelpScript = (typeof HELP_SCRIPTS)[number];
 
 /** App routes the help describes. Verified by tests/unit/help.test.ts. */
 export const HELP_ROUTES = [
   "/",
   "/help",
+  "/settings",
   "/connections",
   "/trash",
   "/backup",

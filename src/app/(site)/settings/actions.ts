@@ -1,0 +1,162 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { MODEL_ENV } from "@/assistant/config";
+import { errorIssue, type Issue } from "@/domain/issues";
+import { testAssistantConnection } from "@/server/assistantConnectionTest";
+import {
+  assistantSecretsStatus,
+  loadAssistantSecrets,
+  saveAssistantSecrets,
+} from "@/server/assistantSecrets";
+import {
+  ensureLibraryDir,
+  inspectLibraryLock,
+  loadLibrarySettings,
+  libraryDatabasePath,
+  librarySettingsPath,
+  saveLibrarySettings,
+  validateLibraryDir,
+  writeLibraryLock,
+} from "@/server/libraryLocation";
+import { appInstanceId } from "@/server/appInstance";
+import { databaseFilePath } from "@/server/dbLocation";
+import {
+  backupMirrorSettingsPath,
+  loadBackupMirrorSettings,
+  saveBackupMirrorSettings,
+  validateMirrorDir,
+} from "@/server/backupMirrorSettings";
+
+const MODEL_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,99}$/;
+
+export type SettingsFormResult = { ok: true; message?: string } | { ok: false; issues: Issue[] };
+
+export async function loadSettingsViewAction() {
+  const secrets = assistantSecretsStatus();
+  const library = loadLibrarySettings();
+  const mirror = loadBackupMirrorSettings();
+  const lock =
+    library.libraryDir != null
+      ? inspectLibraryLock(library.libraryDir, appInstanceId())
+      : { status: "clear" as const };
+  return {
+    keySaved: secrets.keySaved,
+    model: secrets.model ?? process.env[MODEL_ENV]?.trim() ?? "",
+    secretsPath: secrets.secretsPath,
+    libraryDir: library.libraryDir,
+    libraryFromEnv: Boolean(process.env.WORDLY_LIBRARY_DIR?.trim()),
+    librarySettingsPath: librarySettingsPath(),
+    databasePath: databaseFilePath(),
+    libraryDbPath: libraryDatabasePath(library),
+    mirrorDir: mirror.mirrorDir,
+    mirrorFromEnv: Boolean(process.env.WORDLY_BACKUP_MIRROR_DIR?.trim()),
+    mirrorSettingsPath: backupMirrorSettingsPath(),
+    lockStatus: lock.status,
+    lockDetail:
+      lock.status === "foreign" || lock.status === "stale"
+        ? `${lock.lock.hostname} · pid ${lock.lock.pid} · ${lock.lock.startedAt}`
+        : null,
+  };
+}
+
+export async function saveAssistantKeyAction(formData: FormData): Promise<SettingsFormResult> {
+  const rawKey = String(formData.get("apiKey") ?? "");
+  const rawModel = String(formData.get("model") ?? "").trim();
+  const clearKey = formData.get("clearKey") === "1";
+  const issues: Issue[] = [];
+
+  if (rawModel && !MODEL_PATTERN.test(rawModel)) {
+    issues.push(errorIssue("INVALID_CHANGE", `${MODEL_ENV} does not look like a model ID.`));
+  }
+  if (issues.length) return { ok: false, issues };
+
+  const current = loadAssistantSecrets();
+  let apiKey = current.apiKey;
+  if (clearKey) apiKey = null;
+  else if (rawKey.trim()) apiKey = rawKey.trim();
+  // Empty key field with clearKey off keeps the existing saved key.
+
+  const model = rawModel || null;
+  saveAssistantSecrets({ apiKey, model });
+  revalidatePath("/settings");
+  revalidatePath("/connections");
+  return { ok: true, message: clearKey ? "API key cleared." : "Assistant settings saved." };
+}
+
+export async function clearAssistantKeyAction(): Promise<SettingsFormResult> {
+  const current = loadAssistantSecrets();
+  saveAssistantSecrets({ apiKey: null, model: current.model });
+  revalidatePath("/settings");
+  revalidatePath("/connections");
+  return { ok: true, message: "API key cleared." };
+}
+
+export async function testAssistantConnectionAction(): Promise<SettingsFormResult> {
+  const result = await testAssistantConnection();
+  if (!result.ok) return { ok: false, issues: [errorIssue("INVALID_CHANGE", result.message)] };
+  return {
+    ok: true,
+    message: `Connected with model ${result.model}. Reply: ${result.outputPreview}`,
+  };
+}
+
+export async function saveLibraryDirAction(raw: string): Promise<SettingsFormResult> {
+  if (process.env.WORDLY_LIBRARY_DIR?.trim()) {
+    return {
+      ok: false,
+      issues: [errorIssue("INVALID_CHANGE", "Clear WORDLY_LIBRARY_DIR in .env before changing the library folder here.")],
+    };
+  }
+  const trimmed = raw.trim();
+  if (!trimmed) {
+    saveLibrarySettings(null);
+    revalidatePath("/settings");
+    return { ok: true, message: "Library folder cleared. The default database path will be used after restart." };
+  }
+  const check = validateLibraryDir(trimmed);
+  if (!check.ok) return { ok: false, issues: [errorIssue("INVALID_CHANGE", check.message)] };
+  ensureLibraryDir(check.path);
+  const id = appInstanceId();
+  const lock = inspectLibraryLock(check.path, id);
+  if (lock.status === "foreign") {
+    return {
+      ok: false,
+      issues: [
+        errorIssue(
+          "INVALID_CHANGE",
+          `That library looks open elsewhere (${lock.lock.hostname}, pid ${lock.lock.pid}). Close the other copy, or remove storyloom.lock.json only if you are sure nothing else is using it.`,
+        ),
+      ],
+    };
+  }
+  saveLibrarySettings(check.path);
+  writeLibraryLock(check.path, id);
+  revalidatePath("/settings");
+  return {
+    ok: true,
+    message: `Library folder saved. Restart the app so it opens ${check.path}\\storyloom.db (or storyloom.db inside that folder).`,
+  };
+}
+
+export async function saveSettingsMirrorDirAction(raw: string): Promise<SettingsFormResult> {
+  if (process.env.WORDLY_BACKUP_MIRROR_DIR?.trim()) {
+    return {
+      ok: false,
+      issues: [errorIssue("INVALID_CHANGE", "Clear WORDLY_BACKUP_MIRROR_DIR in .env before changing the mirror folder here.")],
+    };
+  }
+  const trimmed = raw.trim();
+  if (!trimmed) {
+    saveBackupMirrorSettings(null);
+    revalidatePath("/settings");
+    revalidatePath("/backup");
+    return { ok: true, message: "Backup mirror cleared." };
+  }
+  const check = validateMirrorDir(trimmed);
+  if (!check.ok) return { ok: false, issues: [errorIssue("INVALID_CHANGE", check.message)] };
+  saveBackupMirrorSettings(check.path);
+  revalidatePath("/settings");
+  revalidatePath("/backup");
+  return { ok: true, message: `Backup mirror set to ${check.path}.` };
+}

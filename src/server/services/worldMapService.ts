@@ -17,9 +17,11 @@ import {
   seedDefaultMapLayers,
   type WorldMapLayerView,
 } from "./worldMapLayerService";
+import { isMapReferenceType, type MapReferenceType } from "@/world/mapReference";
 import type { Db, DbOrTx, Tx } from "../db";
 import { writeAudit } from "./auditService";
 import { MutationRejectedError, NotFoundError } from "./errors";
+import { applyMutationsInTx } from "./mutationService";
 
 /*
  * World maps: a RecordImage backdrop with markers. A marker may link a
@@ -106,6 +108,28 @@ export interface WorldMapView {
 
 function rejected(message: string, recordId?: string): MutationRejectedError {
   return new MutationRejectedError([errorIssue("INVALID_REFERENCE", message, recordId ? { recordId } : {})]);
+}
+
+async function persistMap(
+  tx: Tx,
+  projectId: string,
+  title: string,
+  image: { id: string; name: string; recordId: string },
+  summary: string,
+): Promise<WorldMapView> {
+  const id = newId("wmp");
+  await tx.worldMap.create({
+    data: { id, projectId, title, imageId: image.id },
+  });
+  await seedDefaultMapLayers(tx, projectId, id);
+  await writeAudit(tx, {
+    projectId,
+    action: "world_map.create",
+    actor: UI_ACTOR,
+    summary,
+    details: { mapId: id, imageId: image.id, hostRecordId: image.recordId },
+  });
+  return getWorldMap(tx, projectId, id);
 }
 
 function clampNorm(n: number): number {
@@ -271,19 +295,7 @@ export async function createWorldMap(
       throw rejected("Maps use an image from a reference document.");
     }
 
-    const id = newId("wmp");
-    await tx.worldMap.create({
-      data: { id, projectId, title, imageId: image.id },
-    });
-    await seedDefaultMapLayers(tx, projectId, id);
-    await writeAudit(tx, {
-      projectId,
-      action: "world_map.create",
-      actor: UI_ACTOR,
-      summary: `Created map "${title}" on image "${image.name}"`,
-      details: { mapId: id, imageId: image.id, hostRecordId: image.recordId },
-    });
-    return getWorldMap(tx, projectId, id);
+    return persistMap(tx, projectId, title, image, `Created map "${title}" on image "${image.name}"`);
   });
 }
 
@@ -309,19 +321,90 @@ export async function createWorldMapWithUpload(
     });
     const image = created[0];
     if (!image) throw rejected("That image could not be stored.");
-    const id = newId("wmp");
-    await tx.worldMap.create({
-      data: { id, projectId, title, imageId: image.id },
-    });
-    await seedDefaultMapLayers(tx, projectId, id);
-    await writeAudit(tx, {
+    return persistMap(
+      tx,
       projectId,
-      action: "world_map.create",
-      actor: UI_ACTOR,
-      summary: `Created map "${title}" on uploaded image "${image.name}"`,
-      details: { mapId: id, imageId: image.id, hostRecordId: input.recordId },
+      title,
+      image,
+      `Created map "${title}" on uploaded image "${image.name}"`,
+    );
+  });
+}
+
+/**
+ * Creates a reference, stores the uploaded image on it, and creates the map.
+ * Validation runs before the transaction. Any failure rolls the new reference
+ * and image back and leaves existing records alone.
+ */
+export async function createWorldMapWithNewReference(
+  db: Db,
+  projectId: string,
+  input: {
+    title: string;
+    referenceTitle: string;
+    type: string;
+    authorityStatus: string;
+    file: { filename: string; bytes: Uint8Array };
+  },
+): Promise<WorldMapView> {
+  const title = input.title.trim();
+  const referenceTitle = input.referenceTitle.trim();
+  if (!title) throw rejected("Give the map a title.");
+  if (!referenceTitle) throw rejected("Give the reference a title.");
+  if (!isMapReferenceType(input.type)) {
+    throw rejected("Choose a document type for the new reference.");
+  }
+  if (!isAuthorityStatus(input.authorityStatus)) {
+    throw rejected("Choose a canon status. A reference is not approved unless you choose approved.");
+  }
+  const { validateImageFiles, insertRecordImagesInTx } = await import("./imageService");
+  const { issues, infos } = validateImageFiles([input.file]);
+  if (issues.length) throw new MutationRejectedError(issues);
+  const info = infos[0];
+  if (!info) throw new MutationRejectedError(issues);
+  const type: MapReferenceType = input.type;
+
+  return db.$transaction(async (tx) => {
+    const project = await tx.project.findFirst({ where: { id: projectId, trashedAt: null }, select: { id: true } });
+    if (!project) throw new NotFoundError(`Project ${projectId} not found`);
+    const batch = await applyMutationsInTx(
+      tx,
+      {
+        projectId,
+        actor: UI_ACTOR,
+        source: { kind: "ui" },
+        scope: "manuscript",
+        protectedOverrides: new Set(),
+      },
+      [
+        {
+          kind: "create_record",
+          type,
+          title: referenceTitle,
+          body: "",
+          fields: {},
+          authorityStatus: input.authorityStatus,
+        },
+      ],
+      {
+        action: "record.create",
+        summary: `Created ${RECORD_TYPE_LABELS[type]} "${referenceTitle}"`,
+      },
+    );
+    const recordId = batch.outcomes[0]?.recordId;
+    if (!recordId) throw rejected("The reference could not be created.");
+    const created = await insertRecordImagesInTx(tx, projectId, recordId, [input.file], [info], {
+      confirmProtected: false,
     });
-    return getWorldMap(tx, projectId, id);
+    const image = created[0];
+    if (!image) throw rejected("That image could not be stored.");
+    return persistMap(
+      tx,
+      projectId,
+      title,
+      image,
+      `Created map "${title}" on uploaded image "${image.name}"`,
+    );
   });
 }
 

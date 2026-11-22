@@ -219,40 +219,74 @@ export function BoardCanvas({
     return { x: Math.round(el.scrollLeft + 48), y: Math.round(el.scrollTop + 48) };
   };
 
-  return (
-    <div className="write-layout reference-write-layout board-layout">
-      <div className="write-main board-main">
-        <div className="doc-toolbar">
-          <h2 className="board-title-display">{title}</h2>
-          <div className="doc-toolbar-end">
-            <ContextRailToggle rail={rail} controls={railId} />
-          </div>
-        </div>
+  const placeRecord = (recordId: string) => {
+    if (!recordId) return;
+    const { x, y } = dropPoint();
+    startTransition(async () => {
+      const result = await addRecordCardAction(projectId, board.id, { recordId, x, y });
+      if (!result.ok) {
+        setIssues(result.issues);
+        return;
+      }
+      setIssues([]);
+      setCards((list) => [...list, result.card]);
+      selectCard(result.card);
+      router.refresh();
+    });
+  };
 
+  const placeImage = (imageId: string) => {
+    if (!imageId) return;
+    const { x, y } = dropPoint();
+    startTransition(async () => {
+      const result = await addImageCardAction(projectId, board.id, { imageId, x: x + 40, y: y + 40 });
+      if (!result.ok) {
+        setIssues(result.issues);
+        return;
+      }
+      setIssues([]);
+      setCards((list) => [...list, result.card]);
+      selectCard(result.card);
+      router.refresh();
+    });
+  };
+
+  const placeNote = () => {
+    const { x, y } = dropPoint();
+    startTransition(async () => {
+      const result = await addNoteCardAction(projectId, board.id, {
+        noteTitle: WORLD.noteCard,
+        noteBody: "",
+        x: x + 80,
+        y: y + 80,
+      });
+      if (!result.ok) {
+        setIssues(result.issues);
+        return;
+      }
+      setIssues([]);
+      setCards((list) => [...list, result.card]);
+      selectCard(result.card);
+      router.refresh();
+    });
+  };
+
+  return (
+    <div className="write-layout reference-write-layout board-layout visual-canvas">
+      <div className="write-main board-main">
         <IssueList issues={issues} />
 
         <CanvasToolbar label={WORLD.boardCanvas}>
-          <CanvasToolbarGroup>
+          <BoardOverflowMenu summary={WORLD.addCardMenu}>
             <label>
               <span className="sr-only">{WORLD.addRecordCard}</span>
               <select
                 defaultValue=""
-                disabled={pending}
+                disabled={pending || records.length === 0}
                 onChange={(e) => {
                   const recordId = e.target.value;
                   e.target.value = "";
-                  if (!recordId) return;
-                  const { x, y } = dropPoint();
-                  startTransition(async () => {
-                    const result = await addRecordCardAction(projectId, board.id, { recordId, x, y });
-                    if (!result.ok) {
-                      setIssues(result.issues);
-                      return;
-                    }
-                    setCards((list) => [...list, result.card]);
-                    selectCard(result.card);
-                    router.refresh();
-                  });
+                  placeRecord(recordId);
                 }}
               >
                 <option value="">{WORLD.chooseRecord}</option>
@@ -263,32 +297,10 @@ export function BoardCanvas({
                 ))}
               </select>
             </label>
-            <Button
-              type="button"
-              disabled={pending}
-              onClick={() => {
-                const { x, y } = dropPoint();
-                startTransition(async () => {
-                  const result = await addNoteCardAction(projectId, board.id, {
-                    noteTitle: WORLD.noteCard,
-                    noteBody: "",
-                    x: x + 80,
-                    y: y + 80,
-                  });
-                  if (!result.ok) {
-                    setIssues(result.issues);
-                    return;
-                  }
-                  setCards((list) => [...list, result.card]);
-                  selectCard(result.card);
-                  router.refresh();
-                });
-              }}
-              size="sm"
-            >
-              {WORLD.addNoteCard}
+            <Button type="button" disabled={pending} onClick={placeNote} size="sm">
+              {WORLD.writeNote}
             </Button>
-          </CanvasToolbarGroup>
+          </BoardOverflowMenu>
 
           <CanvasToolbarGroup>
             <label className="small">
@@ -356,18 +368,7 @@ export function BoardCanvas({
                   onChange={(e) => {
                     const imageId = e.target.value;
                     e.target.value = "";
-                    if (!imageId) return;
-                    const { x, y } = dropPoint();
-                    startTransition(async () => {
-                      const result = await addImageCardAction(projectId, board.id, { imageId, x: x + 40, y: y + 40 });
-                      if (!result.ok) {
-                        setIssues(result.issues);
-                        return;
-                      }
-                      setCards((list) => [...list, result.card]);
-                      selectCard(result.card);
-                      router.refresh();
-                    });
+                    placeImage(imageId);
                   }}
                 >
                   <option value="">{WORLD.chooseImage}</option>
@@ -404,6 +405,7 @@ export function BoardCanvas({
                 </Button>
               )}
           </BoardOverflowMenu>
+          <ContextRailToggle rail={rail} controls={railId} />
         </CanvasToolbar>
 
         <div
@@ -446,11 +448,64 @@ export function BoardCanvas({
           }}
         >
           {!cards.length ? (
-            <div className="board-surface-empty">
-              <strong>{WORLD.emptyBoard}</strong>
-              <p className="small muted" style={{ margin: 0 }}>
-                {WORLD.emptyBoardHint}
-              </p>
+            <div className="board-first-actions">
+              <div className="board-first-actions-card" onClick={(event) => event.stopPropagation()}>
+                <strong>{WORLD.emptyBoard}</strong>
+                <p className="small muted">{WORLD.emptyBoardHint}</p>
+                <label>
+                  {WORLD.addRecordCard}
+                  <select
+                    defaultValue=""
+                    disabled={pending || records.length === 0}
+                    aria-describedby={records.length === 0 ? `${idPrefix}-no-references` : undefined}
+                    onChange={(event) => {
+                      const recordId = event.target.value;
+                      event.target.value = "";
+                      placeRecord(recordId);
+                    }}
+                  >
+                    <option value="">{WORLD.chooseRecord}</option>
+                    {records.map((record) => (
+                      <option key={record.id} value={record.id}>
+                        {record.title} ({record.typeLabel})
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                {records.length === 0 ? (
+                  <p id={`${idPrefix}-no-references`} className="small muted">
+                    {WORLD.boardNoReferences}
+                  </p>
+                ) : null}
+                <label>
+                  {WORLD.addImageCard}
+                  <select
+                    defaultValue=""
+                    disabled={pending || images.length === 0}
+                    aria-describedby={images.length === 0 ? `${idPrefix}-no-images` : undefined}
+                    onChange={(event) => {
+                      const imageId = event.target.value;
+                      event.target.value = "";
+                      placeImage(imageId);
+                    }}
+                  >
+                    <option value="">{WORLD.chooseImage}</option>
+                    {images.map((image) => (
+                      <option key={image.id} value={image.id}>
+                        {image.recordTitle}: {image.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                {images.length === 0 ? (
+                  <p id={`${idPrefix}-no-images`} className="small muted">
+                    {WORLD.boardNoImages}
+                  </p>
+                ) : null}
+                <Button type="button" disabled={pending} aria-busy={pending} onClick={placeNote}>
+                  {WORLD.writeNote}
+                </Button>
+              </div>
             </div>
           ) : null}
           {cards.length > 0 && visibleCards.length === 0 ? (
@@ -510,7 +565,7 @@ export function BoardCanvas({
         </div>
       </div>
 
-      <ContextRail id={railId} labelledBy={titleId} rail={rail} className="reference-context">
+      <ContextRail id={railId} labelledBy={titleId} rail={rail} className="reference-context visual-inspector">
         <div
           className="context-inner"
           onKeyDown={(e) => {
@@ -532,7 +587,7 @@ export function BoardCanvas({
           </div>
           <div className="context-body world-context-body">
             {!selected ? (
-              <p className="small muted">{WORLD.noCardSelected}</p>
+              <p className="visual-inspector-empty">{WORLD.noCardSelected}</p>
             ) : selected.kind === "note" ? (
               <div className="stack">
                 <section className="rail-section">

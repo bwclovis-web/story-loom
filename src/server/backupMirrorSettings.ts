@@ -2,8 +2,13 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { parseJsonObject } from "@/domain/json";
 
-const SETTINGS_DIR = path.resolve(process.cwd(), "local");
-const SETTINGS_FILE = path.join(SETTINGS_DIR, "backup-mirror.json");
+function settingsDir(): string {
+  return path.resolve(/*turbopackIgnore: true*/ process.cwd(), "local");
+}
+
+function settingsFile(): string {
+  return path.join(settingsDir(), "backup-mirror.json");
+}
 
 export interface BackupMirrorSettings {
   /** Absolute folder path. Each full backup is copied into a timestamped subfolder here. */
@@ -16,9 +21,10 @@ function fromEnv(): string | null {
 }
 
 function readFileSettings(): BackupMirrorSettings {
-  if (!existsSync(SETTINGS_FILE)) return { mirrorDir: null };
+  const file = settingsFile();
+  if (!existsSync(file)) return { mirrorDir: null };
   try {
-    const parsed = parseJsonObject(readFileSync(SETTINGS_FILE, "utf8"));
+    const parsed = parseJsonObject(readFileSync(file, "utf8"));
     const mirrorDir = typeof parsed.mirrorDir === "string" && parsed.mirrorDir.trim() ? path.resolve(parsed.mirrorDir.trim()) : null;
     return { mirrorDir };
   } catch {
@@ -41,12 +47,12 @@ export function validateMirrorDir(input: string): { ok: true; path: string } | {
 }
 
 export function saveBackupMirrorSettings(mirrorDir: string | null): BackupMirrorSettings {
-  mkdirSync(SETTINGS_DIR, { recursive: true });
+  mkdirSync(settingsDir(), { recursive: true });
   const next: BackupMirrorSettings = { mirrorDir };
-  writeFileSync(SETTINGS_FILE, JSON.stringify(next, null, 2), "utf8");
+  writeFileSync(settingsFile(), JSON.stringify(next, null, 2), "utf8");
   return next;
 }
 
 export function backupMirrorSettingsPath(): string {
-  return SETTINGS_FILE;
+  return settingsFile();
 }

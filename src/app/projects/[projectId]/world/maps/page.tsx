@@ -2,6 +2,7 @@ import Link from "next/link";
 import { HelpHint } from "@/components/HelpHint";
 import { ButtonLink } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { ProjectOnboarding } from "@/components/shell/ProjectOnboarding";
 import { WorldToolHeader } from "@/components/world/WorldToolHeader";
 import { getDb } from "@/server/db";
 import { listRecordImages } from "@/server/services/imageService";
@@ -38,10 +39,12 @@ export default async function WorldMapsPage({ params }: { params: Promise<{ proj
         projectId={projectId}
         items={worldSurfaceCrumbs(projectId, "maps")}
         title={WORLD.maps}
+        gettingStarted={<ProjectOnboarding projectId={projectId} quiet marked />}
         help={
           <HelpHint anchor="world-maps" topic="World maps">
-            Upload a backdrop or choose an existing image. Markers can open a reference, another map, or both. Browse
-            pans the map; Edit moves markers.
+            Upload a backdrop or choose an existing image. An upload can stay on a reference you already have, or on a
+            new reference you name here. Markers can open a reference, another map, or both. Browse pans the map; Edit
+            moves markers.
           </HelpHint>
         }
       />

@@ -14,6 +14,7 @@ import { validateImageFiles } from "@/server/services/imageService";
 import {
   addWorldMapPin,
   createWorldMap,
+  createWorldMapWithNewReference,
   createWorldMapWithUpload,
   deleteWorldMap,
   moveWorldMapPin,
@@ -73,6 +74,37 @@ export async function createWorldMapUploadAction(
       file: { filename: file.name, bytes },
     });
     revalidateMaps(projectId, map.id);
+    return { ok: true, mapId: map.id };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+export async function createWorldMapWithNewReferenceAction(
+  projectId: string,
+  formData: FormData,
+): Promise<{ ok: true; mapId: string } | { ok: false; issues: Issue[] }> {
+  const title = String(formData.get("title") ?? "");
+  const referenceTitle = String(formData.get("referenceTitle") ?? "");
+  const type = String(formData.get("type") ?? "");
+  const authorityStatus = String(formData.get("authorityStatus") ?? "");
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size === 0) {
+    return { ok: false, issues: [errorIssue("IMAGE_INVALID", "Choose an image to upload.")] };
+  }
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const checked = validateImageFiles([{ filename: file.name, bytes }]);
+  if (checked.issues.length) return { ok: false, issues: checked.issues };
+  try {
+    const map = await createWorldMapWithNewReference(getDb(), projectId, {
+      title,
+      referenceTitle,
+      type,
+      authorityStatus,
+      file: { filename: file.name, bytes },
+    });
+    revalidateMaps(projectId, map.id);
+    revalidatePath(`/projects/${projectId}/world`);
     return { ok: true, mapId: map.id };
   } catch (error) {
     return failure(error);

@@ -1,6 +1,8 @@
+import Link from "next/link";
 import { HelpHint } from "@/components/HelpHint";
 import { Banner } from "@/components/ui/Banner";
 import { inspectAdapter, inspectAssistant, type ConnectionState } from "@/mcp/status";
+import { resolveAssistantEnv } from "@/server/assistantSecrets";
 import { getDb } from "@/server/db";
 import { readGrantSettings } from "@/server/services/grantSettingsService";
 import { listWorkspacesWithProjects } from "@/server/services/projectService";
@@ -39,8 +41,9 @@ function Facts({ heading, items }: { heading: string; items: string[] }) {
 
 export default async function ConnectionsPage() {
   const db = getDb();
+  const assistantEnv = resolveAssistantEnv(process.env);
   const [assistant, adapter, grantSettings, workspaces] = await Promise.all([
-    Promise.resolve(inspectAssistant(process.env)),
+    Promise.resolve(inspectAssistant(assistantEnv)),
     inspectAdapter(db, process.env, process.cwd()),
     readGrantSettings(process.env, process.cwd()),
     listWorkspacesWithProjects(db),
@@ -61,7 +64,8 @@ export default async function ConnectionsPage() {
           <State state={assistant.state} />
         </p>
         <p className="small muted">
-          The assistant sends only the context you select from a project. It is separate from the ChatGPT connection and does not use it.
+          The assistant sends only the context you select from a project. It is separate from the ChatGPT connection and does not use it.{" "}
+          <Link href="/settings">{CONNECTIONS.openSettings}</Link>.
         </p>
         <Facts heading={CONNECTIONS.checked} items={assistant.checked} />
         <Facts heading={CONNECTIONS.notChecked} items={assistant.notChecked} />

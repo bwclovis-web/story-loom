@@ -607,7 +607,7 @@ export function MapCanvas({
     `/projects/${encodeURIComponent(projectId)}/records/${encodeURIComponent(recordId)}`;
 
   return (
-    <div className="write-layout reference-write-layout board-layout">
+    <div className="write-layout reference-write-layout board-layout visual-canvas">
       <div className="write-main board-main">
         {trail.length > 0 ? (
           <nav className="map-trail" aria-label={WORLD.mapBreadcrumb}>
@@ -624,57 +624,29 @@ export function MapCanvas({
           </nav>
         ) : null}
 
-        <div className="doc-toolbar">
-          <h2 className="board-title-display">{title}</h2>
-          <div className="map-mode" role="group" aria-label={`${WORLD.mapModeBrowse} / ${WORLD.mapModeEdit}`}>
-            <Button type="button" size="sm" variant={mode === "browse" ? "primary" : "secondary"} aria-pressed={mode === "browse"} onClick={() => changeMode("browse")}>
-              {WORLD.mapModeBrowse}
-            </Button>
-            <Button type="button" size="sm" variant={mode === "edit" ? "primary" : "secondary"} aria-pressed={mode === "edit"} onClick={() => changeMode("edit")}>
-              {WORLD.mapModeEdit}
-            </Button>
-          </div>
-          <div className="doc-toolbar-end">
-            <ContextRailToggle rail={rail} controls={railId} />
-          </div>
-        </div>
-
-        <p className="board-meta small muted">
-          <span>{mode === "browse" ? WORLD.mapModeBrowseHint : WORLD.mapModeEditHint}</span>
-          <span>
-            Backdrop: {map.imageName} on {map.hostRecordTitle}
-          </span>
-        </p>
-        <IssueList issues={issues} />
-
         <CanvasToolbar label={WORLD.mapCanvas}>
           <CanvasToolbarGroup>
-            <Button type="button" size="sm" variant="secondary" onClick={() => setView((current) => ({ ...current, zoom: clampMapZoom(current.zoom * 1.25) }))}>
-              {WORLD.mapZoomIn}
-            </Button>
+            <div className="map-mode" role="group" aria-label={`${WORLD.mapModeBrowse} / ${WORLD.mapModeEdit}`}>
+              <Button type="button" size="sm" variant={mode === "browse" ? "primary" : "secondary"} aria-pressed={mode === "browse"} onClick={() => changeMode("browse")}>
+                {WORLD.mapModeBrowse}
+              </Button>
+              <Button type="button" size="sm" variant={mode === "edit" ? "primary" : "secondary"} aria-pressed={mode === "edit"} onClick={() => changeMode("edit")}>
+                {WORLD.mapModeEdit}
+              </Button>
+            </div>
+          </CanvasToolbarGroup>
+          <CanvasToolbarGroup>
             <Button type="button" size="sm" variant="secondary" onClick={() => setView((current) => ({ ...current, zoom: clampMapZoom(current.zoom / 1.25) }))}>
               {WORLD.mapZoomOut}
             </Button>
+            <span className="map-zoom-readout" aria-live="polite">
+              {Math.round(view.zoom * 100)}%
+            </span>
+            <Button type="button" size="sm" variant="secondary" onClick={() => setView((current) => ({ ...current, zoom: clampMapZoom(current.zoom * 1.25) }))}>
+              {WORLD.mapZoomIn}
+            </Button>
             <Button type="button" size="sm" variant="secondary" onClick={() => setView({ zoom: 1, x: 0, y: 0 })}>
               {WORLD.mapZoomReset}
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant={measuring ? "primary" : "secondary"}
-              aria-pressed={measuring}
-              onClick={() => {
-                setMeasuring((current) => !current);
-                setMeasurePoints([]);
-              }}
-            >
-              {WORLD.mapMeasure}
-            </Button>
-            <Button type="button" size="sm" variant="secondary" onClick={exportAnnotatedSvg}>
-              {WORLD.mapExportSvg}
-            </Button>
-            <Button type="button" size="sm" variant="secondary" onClick={exportAnnotatedPng}>
-              {WORLD.mapExportPng}
             </Button>
           </CanvasToolbarGroup>
           {mode === "edit" ? (
@@ -744,7 +716,182 @@ export function MapCanvas({
               ) : null}
             </CanvasToolbarGroup>
           ) : null}
+          <BoardOverflowMenu summary={WORLD.mapLayerLegend}>
+            <fieldset className="map-legend">
+              <legend className="sr-only">{WORLD.mapLayerLegend}</legend>
+              <div className="map-layer-presets">
+                <Button type="button" size="sm" variant="secondary" onClick={() => applyLayerPreset("all")}>
+                  {WORLD.mapLayersShowAll}
+                </Button>
+                <Button type="button" size="sm" variant="secondary" onClick={() => applyLayerPreset("none")}>
+                  {WORLD.mapLayersHideAll}
+                </Button>
+                {map.layers
+                  .filter((layer, index, all) => layer.legacyGroup && all.findIndex((item) => item.legacyGroup === layer.legacyGroup) === index)
+                  .map((layer) => (
+                    <Button
+                      key={layer.legacyGroup}
+                      type="button"
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => applyLayerPreset({ group: layer.legacyGroup! })}
+                    >
+                      {WORLD.mapLayerPreset(layer.title)}
+                    </Button>
+                  ))}
+              </div>
+              {map.layers.map((layer, index) => (
+                <label key={layer.id}>
+                  <input type="checkbox" checked={!hiddenLayerIds.includes(layer.id)} onChange={() => toggleLayer(layer.id)} />
+                  <span
+                    className="map-legend-swatch"
+                    style={{ background: layerStrokeColor(index), borderColor: "var(--color-surface)" }}
+                    aria-hidden="true"
+                  />
+                  {layer.title}
+                </label>
+              ))}
+            </fieldset>
+            {mode === "edit" ? (
+              <form
+                className="stack"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  startTransition(async () => {
+                    const result = await saveWorldMapLayersAction(
+                      projectId,
+                      map.id,
+                      layerTitles.map((layerTitle) => ({ title: layerTitle })),
+                    );
+                    if (!result.ok) setIssues(result.issues);
+                    else {
+                      setIssues([]);
+                      setMap(result.map);
+                      setPins(result.map.pins);
+                      setLayerTitles(result.map.layers.map((layer) => layer.title));
+                      if (result.map.layers[0]) setPendingLayerId(result.map.layers[0].id);
+                      router.refresh();
+                    }
+                  });
+                }}
+              >
+                <h3>{WORLD.mapLayers}</h3>
+                {layerTitles.map((layerTitle, index) => (
+                  <div key={index} className="row" style={{ gap: "0.35rem", flexWrap: "wrap" }}>
+                    <label className="grow">
+                      <span className="sr-only">
+                        {WORLD.mapLayer} {index + 1}
+                      </span>
+                      <input
+                        value={layerTitle}
+                        maxLength={80}
+                        onChange={(e) =>
+                          setLayerTitles((current) => current.map((row, rowIndex) => (rowIndex === index ? e.target.value : row)))
+                        }
+                      />
+                    </label>
+                    {layerTitles.length > 1 ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => setLayerTitles((current) => current.filter((_, rowIndex) => rowIndex !== index))}
+                      >
+                        {WORLD.removeMapLayer}
+                      </Button>
+                    ) : null}
+                  </div>
+                ))}
+                {layerTitles.length < 16 ? (
+                  <Button type="button" size="sm" variant="secondary" onClick={() => setLayerTitles((current) => [...current, ""])}>
+                    {WORLD.addMapLayer}
+                  </Button>
+                ) : null}
+                <Button type="submit" size="sm" disabled={pending}>
+                  {WORLD.saveMapLayers}
+                </Button>
+              </form>
+            ) : null}
+          </BoardOverflowMenu>
+          <BoardOverflowMenu summary={WORLD.pinList}>
+            <div className="visual-menu-scroll">
+              <h2 id={pinListId} className="sr-only">{WORLD.pinList}</h2>
+              <p className="small muted">{WORLD.pinsCount(shown.length)}</p>
+              <label>
+                {WORLD.markerSearch}
+                <input
+                  id={searchId}
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "ArrowDown" && listed[0]) {
+                      event.preventDefault();
+                      selectPin(listed[0]);
+                      document.getElementById(listboxId)?.focus();
+                    }
+                  }}
+                />
+              </label>
+              {listed.length === 0 ? (
+                <p className="muted">{needle ? WORLD.noMarkerMatch : WORLD.noPinSelected}</p>
+              ) : (
+                <ul
+                  id={listboxId}
+                  className="map-pin-list"
+                  role="listbox"
+                  aria-labelledby={pinListId}
+                  tabIndex={0}
+                  aria-activedescendant={selectedId ? `${idPrefix}-marker-${selectedId}` : undefined}
+                  onKeyDown={onListKey}
+                >
+                  {listed.map((pin) => (
+                    <li key={pin.id} role="presentation">
+                      <button
+                        id={`${idPrefix}-marker-${pin.id}`}
+                        type="button"
+                        role="option"
+                        aria-selected={selectedId === pin.id}
+                        className={`map-pin-list-item${selectedId === pin.id ? " selected" : ""}`}
+                        onClick={() => selectPin(pin)}
+                      >
+                        <span>{pin.title}</span>
+                        <span className="small muted">
+                          {pin.kind === "point"
+                            ? pinLayerTitle(pin, map.layers)
+                            : `${KIND_LABEL[pin.kind]} · ${pinLayerTitle(pin, map.layers)}`}
+                          {pin.typeLabel ? ` · ${pin.typeLabel}` : ""}
+                          {pin.unavailable ? ` · ${WORLD.pinUnavailable}` : ""}
+                          {pin.targetUnavailable ? ` · ${WORLD.targetMapUnavailable}` : ""}
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <MapGeographyPanel projectId={projectId} mapId={map.id} geography={geography} onJumpToPin={jumpToPin} />
+            </div>
+          </BoardOverflowMenu>
           <BoardOverflowMenu>
+              <div className="row" style={{ gap: "0.35rem", flexWrap: "wrap" }}>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={measuring ? "primary" : "secondary"}
+                  aria-pressed={measuring}
+                  onClick={() => {
+                    setMeasuring((current) => !current);
+                    setMeasurePoints([]);
+                  }}
+                >
+                  {WORLD.mapMeasure}
+                </Button>
+                <Button type="button" size="sm" variant="secondary" onClick={exportAnnotatedSvg}>
+                  {WORLD.mapExportSvg}
+                </Button>
+                <Button type="button" size="sm" variant="secondary" onClick={exportAnnotatedPng}>
+                  {WORLD.mapExportPng}
+                </Button>
+              </div>
               <form
                 className="stack"
                 onSubmit={(e) => {
@@ -832,7 +979,12 @@ export function MapCanvas({
                 </Button>
               )}
           </BoardOverflowMenu>
+          <ContextRailToggle rail={rail} controls={railId} />
         </CanvasToolbar>
+        <p className="board-meta small muted">
+          <span>{mode === "browse" ? WORLD.mapModeBrowseHint : WORLD.mapModeEditHint}</span>
+        </p>
+        <IssueList issues={issues} />
         {measuring ? <p className="small muted map-measure-readout">{WORLD.mapMeasureHint}</p> : null}
         {measurePoints.length === 2 ? (
           <p className="small map-measure-readout">
@@ -856,102 +1008,6 @@ export function MapCanvas({
             onSave={saveDraft}
             onDelete={draft.pinId ? deleteDraftShape : null}
           />
-        ) : null}
-
-        <fieldset className="map-legend">
-          <legend>{WORLD.mapLayerLegend}</legend>
-          <div className="map-layer-presets">
-            <Button type="button" size="sm" variant="secondary" onClick={() => applyLayerPreset("all")}>
-              {WORLD.mapLayersShowAll}
-            </Button>
-            <Button type="button" size="sm" variant="secondary" onClick={() => applyLayerPreset("none")}>
-              {WORLD.mapLayersHideAll}
-            </Button>
-            {map.layers
-              .filter((layer, index, all) => layer.legacyGroup && all.findIndex((item) => item.legacyGroup === layer.legacyGroup) === index)
-              .map((layer) => (
-                <Button
-                  key={layer.legacyGroup}
-                  type="button"
-                  size="sm"
-                  variant="secondary"
-                  onClick={() => applyLayerPreset({ group: layer.legacyGroup! })}
-                >
-                  {WORLD.mapLayerPreset(layer.title)}
-                </Button>
-              ))}
-          </div>
-          {map.layers.map((layer, index) => (
-            <label key={layer.id}>
-              <input type="checkbox" checked={!hiddenLayerIds.includes(layer.id)} onChange={() => toggleLayer(layer.id)} />
-              <span
-                className="map-legend-swatch"
-                style={{ background: layerStrokeColor(index), borderColor: "var(--color-surface)" }}
-                aria-hidden="true"
-              />
-              {layer.title}
-            </label>
-          ))}
-        </fieldset>
-        {mode === "edit" ? (
-          <form
-            className="stack panel"
-            onSubmit={(event) => {
-              event.preventDefault();
-              startTransition(async () => {
-                const result = await saveWorldMapLayersAction(
-                  projectId,
-                  map.id,
-                  layerTitles.map((title) => ({ title })),
-                );
-                if (!result.ok) setIssues(result.issues);
-                else {
-                  setIssues([]);
-                  setMap(result.map);
-                  setPins(result.map.pins);
-                  setLayerTitles(result.map.layers.map((layer) => layer.title));
-                  if (result.map.layers[0]) setPendingLayerId(result.map.layers[0].id);
-                  router.refresh();
-                }
-              });
-            }}
-          >
-            <h3>{WORLD.mapLayers}</h3>
-            {layerTitles.map((title, index) => (
-              <div key={index} className="row" style={{ gap: "0.35rem", flexWrap: "wrap" }}>
-                <label className="grow">
-                  <span className="sr-only">
-                    {WORLD.mapLayer} {index + 1}
-                  </span>
-                  <input
-                    value={title}
-                    maxLength={80}
-                    onChange={(e) =>
-                      setLayerTitles((current) => current.map((row, rowIndex) => (rowIndex === index ? e.target.value : row)))
-                    }
-                  />
-                </label>
-                {layerTitles.length > 1 ? (
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="secondary"
-                    onClick={() => setLayerTitles((current) => current.filter((_, rowIndex) => rowIndex !== index))}
-                  >
-                    {WORLD.removeMapLayer}
-                  </Button>
-                ) : null}
-              </div>
-            ))}
-            {layerTitles.length < 16 ? (
-              <Button type="button" size="sm" variant="secondary" onClick={() => setLayerTitles((current) => [...current, ""])}>
-                {WORLD.addMapLayer}
-              </Button>
-            ) : null}
-            <Button type="submit" size="sm" disabled={pending}>
-              {WORLD.saveMapLayers}
-            </Button>
-          </form>
         ) : null}
 
         <div
@@ -1088,67 +1144,9 @@ export function MapCanvas({
           </div>
         </div>
 
-        <MapGeographyPanel projectId={projectId} mapId={map.id} geography={geography} onJumpToPin={jumpToPin} />
-
-        <section className="panel" aria-labelledby={pinListId}>
-          <h2 id={pinListId}>{WORLD.pinList}</h2>
-          <p className="small muted">{WORLD.pinsCount(shown.length)}</p>
-          <p className="small muted">{WORLD.keyboardMarkerHint}</p>
-          <label>
-            {WORLD.markerSearch}
-            <input
-              id={searchId}
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "ArrowDown" && listed[0]) {
-                  event.preventDefault();
-                  selectPin(listed[0]);
-                  document.getElementById(listboxId)?.focus();
-                }
-              }}
-            />
-          </label>
-          {listed.length === 0 ? (
-            <p className="muted">{needle ? WORLD.noMarkerMatch : WORLD.noPinSelected}</p>
-          ) : (
-            <ul
-              id={listboxId}
-              className="map-pin-list"
-              role="listbox"
-              aria-labelledby={pinListId}
-              tabIndex={0}
-              aria-activedescendant={selectedId ? `${idPrefix}-marker-${selectedId}` : undefined}
-              onKeyDown={onListKey}
-            >
-              {listed.map((pin) => (
-                <li key={pin.id} role="presentation">
-                  <button
-                    id={`${idPrefix}-marker-${pin.id}`}
-                    type="button"
-                    role="option"
-                    aria-selected={selectedId === pin.id}
-                    className={`map-pin-list-item${selectedId === pin.id ? " selected" : ""}`}
-                    onClick={() => selectPin(pin)}
-                  >
-                    <span>{pin.title}</span>
-                    <span className="small muted">
-                      {pin.kind === "point"
-                        ? pinLayerTitle(pin, map.layers)
-                        : `${KIND_LABEL[pin.kind]} · ${pinLayerTitle(pin, map.layers)}`}
-                      {pin.typeLabel ? ` · ${pin.typeLabel}` : ""}
-                      {pin.unavailable ? ` · ${WORLD.pinUnavailable}` : ""}
-                      {pin.targetUnavailable ? ` · ${WORLD.targetMapUnavailable}` : ""}
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
       </div>
 
-      <ContextRail id={railId} labelledBy={titleId} rail={rail} focusOnOverlayOpen>
+      <ContextRail id={railId} labelledBy={titleId} rail={rail} className="visual-inspector" focusOnOverlayOpen>
         <div className="context-head">
           <h2 id={titleId}>{WORLD.mapRail}</h2>
           {!rail.wide ? (
@@ -1159,7 +1157,7 @@ export function MapCanvas({
         </div>
         <div className="context-body">
           {!selected ? (
-            <p className="muted">{WORLD.noPinSelected}</p>
+            <p className="visual-inspector-empty">{WORLD.noPinSelected}</p>
           ) : (
             <MarkerRail
               projectId={projectId}

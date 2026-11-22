@@ -143,11 +143,15 @@ rewritten automatically, so do not put project rules inside it.
 - The app uses only its own key, `WORDLY_OPENAI_API_KEY`. Never fall back to the
   shared `OPENAI_API_KEY` or other shared `OPENAI_*` settings; keep every
   OpenAI client option explicit.
+- Authors add their own key on **Settings** (`/settings`). Saved values live in
+  `local/assistant-secrets.json` (git-ignored) and override `.env` for the key
+  and model until cleared. Server status and UI never echo the raw key.
 - `WORDLY_OPENAI_API_KEY` is read only in server modules (`import "server-only"`).
   Never use a `NEXT_PUBLIC_` variable for it, and never put the key, raw
   provider error bodies, prompts or manuscript text into responses, UI,
   logs, tests, fixtures or commits.
-- The model comes from `OPENAI_MODEL`; do not hard-code a model ID.
+- The model comes from `OPENAI_MODEL` (Settings or `.env`); do not hard-code a
+  model ID.
 - Never truncate selected records to fit a limit; refuse with a size
   breakdown instead. Sending chosen sections (whole, by heading) is the
   author's selection, not truncation. A record sent only as sections must

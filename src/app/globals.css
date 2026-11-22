@@ -1313,6 +1313,50 @@ button.context-select[aria-pressed="true"] {
 }
 
 /* World boards + Weave grids (shared canvas) */
+.workspace:has(.visual-workspace) {
+  display: flex; flex-direction: column;
+  height: 100dvh; max-height: 100dvh; overflow: hidden;
+  padding: 0.75rem 1rem 0.6rem;
+}
+.workspace:has(.visual-workspace) .page-enter {
+  display: flex; flex-direction: column; flex: 1; min-height: 0; animation: none;
+}
+.visual-workspace {
+  display: flex; flex-direction: column; flex: 1; min-height: 0; min-width: 0;
+}
+.visual-workspace .landing-header { margin-bottom: 0.35rem; }
+.visual-workspace .board-layout {
+  flex: 1; min-height: 0; overflow: hidden; align-items: stretch;
+}
+.visual-workspace .board-main { overflow: hidden; padding-bottom: 0; gap: 0.4rem; }
+.visual-workspace .board-toolbar-group + .board-toolbar-group {
+  padding-left: 0.65rem;
+  border-left: 1px solid var(--color-border);
+  width: auto;
+}
+.visual-workspace .board-overflow,
+.visual-workspace .board-overflow > summary { width: auto; }
+.visual-workspace .board-overflow > summary {
+  font-size: 0.85rem; font-weight: 600; letter-spacing: 0;
+}
+.visual-workspace .map-viewport,
+.visual-workspace .board-surface,
+.visual-workspace .board-surface-max {
+  flex: 1 1 auto; max-width: none; min-height: 10rem; height: auto;
+}
+.visual-workspace .write-context.inline {
+  position: relative; top: auto; height: auto; max-height: 100%; align-self: stretch;
+}
+.visual-workspace .context-body { overflow: auto; }
+.visual-inspector-empty {
+  margin: 0.5rem 0 0; color: var(--color-text-muted); font-size: 0.9rem;
+}
+.map-zoom-readout {
+  min-width: 3rem; text-align: center; font-variant-numeric: tabular-nums;
+  font-size: 0.82rem; color: var(--color-text);
+}
+.visual-menu-scroll { max-height: min(50vh, 22rem); overflow: auto; }
+.board-overflow-body .map-legend { flex-direction: column; align-items: flex-start; }
 .board-layout { min-height: 78vh; }
 .board-main {
   display: flex; flex-direction: column; gap: 0.65rem;
@@ -1774,6 +1818,19 @@ button.plot-grid-blank-add:focus-visible {
   position: absolute; inset: 0; display: grid; place-content: center; gap: 0.35rem;
   padding: 2rem; text-align: center; pointer-events: none; max-width: 22rem; margin: auto;
 }
+.board-first-actions {
+  position: absolute; inset: 0; display: grid; place-content: center;
+  padding: 1.5rem; pointer-events: none;
+}
+.board-first-actions-card {
+  pointer-events: auto; display: flex; flex-direction: column; gap: 0.65rem;
+  width: min(24rem, 100%); padding: 1rem 1.1rem; text-align: left;
+  border: 1px solid var(--color-border); border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+.board-first-actions-card strong { font-family: var(--font-document); font-size: 1.05rem; font-weight: 600; }
+.board-first-actions-card p { margin: 0; }
+.board-first-actions-card select { width: 100%; }
 .board-surface-empty strong { font-family: var(--font-document); font-size: 1.05rem; font-weight: 600; }
 .board-canvas-size { position: relative; }
 .board-links-layer {

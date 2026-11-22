@@ -1,7 +1,12 @@
 import "server-only";
 import { readAssistantConfig, type AssistantConfig } from "@/assistant/config";
+import { resolveAssistantEnv } from "./assistantSecrets";
 
-/** Reads OPENAI_* and ASSISTANT_* from the server environment on each call, so a restart picks up .env changes. */
+/**
+ * Reads assistant settings on each call. Settings secrets (local file) override
+ * .env for WORDLY_OPENAI_API_KEY and OPENAI_MODEL when present; clearing
+ * Settings falls back to .env without a restart.
+ */
 export function getAssistantConfig(): AssistantConfig {
-  return readAssistantConfig(process.env);
+  return readAssistantConfig(resolveAssistantEnv(process.env));
 }

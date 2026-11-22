@@ -51,6 +51,7 @@ export function CreateBoardForm({ projectId }: { projectId: string }) {
           { value: "geography", label: WORLD.templateGeography },
         ]}
       />
+      <p className="small muted">{WORLD.templateBlankHint}</p>
       {templateKey === "geography" ? <p className="small muted">{WORLD.templateGeographyHint}</p> : null}
       <IssueList issues={issues} />
       <Button type="submit" disabled={pending} size="sm">

@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { ProjectPageHeader } from "@/components/library/ProjectPageHeader";
+import { ProjectOnboarding } from "@/components/shell/ProjectOnboarding";
 import { getDb } from "@/server/db";
 import { getBoard } from "@/server/services/boardService";
 import { NotFoundError } from "@/server/services/errors";
@@ -48,11 +49,12 @@ export default async function WorldBoardPage({
   }
 
   return (
-    <>
+    <div className="visual-workspace">
       <ProjectPageHeader
         projectId={projectId}
         title={board.title}
         crumbs={worldSurfaceCrumbs(projectId, "boards", board.title)}
+        gettingStarted={<ProjectOnboarding projectId={projectId} quiet marked />}
       />
       <BoardCanvas
         projectId={projectId}
@@ -65,6 +67,6 @@ export default async function WorldBoardPage({
         images={images}
         initialCardId={query.card ?? null}
       />
-    </>
+    </div>
   );
 }

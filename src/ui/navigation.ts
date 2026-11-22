@@ -26,7 +26,7 @@ export function groupOfType(type: RecordType): RecordGroup {
   throw new Error(`Record type ${type} has no navigation group`);
 }
 
-export type GlobalNavId = RecordGroup | "assistant" | "backups" | "connections" | "trash" | "help";
+export type GlobalNavId = RecordGroup | "assistant" | "backups" | "connections" | "settings" | "trash" | "help";
 
 /** Shown in the project selector. Counts come from the database; nothing here is estimated. */
 export interface ProjectSummary {
@@ -68,7 +68,7 @@ export function isWeaveLibraryPath(rest: readonly string[]): boolean {
 /** Write, Weave, World, and Assistant landings. Nested tools and records are not included. */
 export function isProjectLandingPath(rest: readonly string[]): boolean {
   if (rest.length === 1 && (rest[0] === "write" || rest[0] === "world" || rest[0] === "assistant")) return true;
-  if (rest.length === 2 && rest[0] === "world" && rest[1] === "new") return true;
+  if (rest[0] === "world" && (rest[1] === "new" || rest[1] === "maps" || rest[1] === "boards")) return true;
   return isWeaveLibraryPath(rest);
 }
 
@@ -97,6 +97,7 @@ export function groupForProjectPath(rest: readonly string[], recordType: (id: st
 export function activeGlobalItem(pathname: string, recordType: (id: string) => RecordType | undefined): GlobalNavId | null {
   if (pathname === "/backup" || pathname.startsWith("/backup/")) return "backups";
   if (pathname === "/connections" || pathname.startsWith("/connections/")) return "connections";
+  if (pathname === "/settings" || pathname.startsWith("/settings/")) return "settings";
   if (pathname === "/trash" || pathname.startsWith("/trash/")) return "trash";
   if (pathname === "/help" || pathname.startsWith("/help/")) return "help";
   if (pathname === "/") return "write";

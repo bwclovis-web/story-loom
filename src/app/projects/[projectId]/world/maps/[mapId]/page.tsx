@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { ProjectPageHeader } from "@/components/library/ProjectPageHeader";
+import { ProjectOnboarding } from "@/components/shell/ProjectOnboarding";
 import { getDb } from "@/server/db";
 import { NotFoundError } from "@/server/services/errors";
 import { listRecords } from "@/server/services/recordService";
@@ -49,11 +50,12 @@ export default async function WorldMapPage({
   const geography = buildMapGeographyTree(graph.nodes, graph.edges, pinsByRecordId);
 
   return (
-    <>
+    <div className="visual-workspace">
       <ProjectPageHeader
         projectId={projectId}
         title={map.title}
         crumbs={worldSurfaceCrumbs(projectId, "maps", map.title)}
+        gettingStarted={<ProjectOnboarding projectId={projectId} quiet marked />}
       />
       <MapCanvas
         projectId={projectId}
@@ -67,6 +69,6 @@ export default async function WorldMapPage({
         initialPinId={query.pin ?? null}
         geography={geography}
       />
-    </>
+    </div>
   );
 }
