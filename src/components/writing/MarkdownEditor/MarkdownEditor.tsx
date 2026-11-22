@@ -5,7 +5,7 @@ import { markdown } from "@codemirror/lang-markdown";
 import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import { searchKeymap } from "@codemirror/search";
 import { Compartment, EditorState } from "@codemirror/state";
-import { EditorView, keymap, placeholder as cmPlaceholder } from "@codemirror/view";
+import { drawSelection, EditorView, keymap, placeholder as cmPlaceholder } from "@codemirror/view";
 import { tags } from "@lezer/highlight";
 import { forwardRef, useEffect, useImperativeHandle, useLayoutEffect, useRef } from "react";
 import type { SpellFlag } from "@/spelling/dictionary";
@@ -212,6 +212,7 @@ export const MarkdownEditor = forwardRef<EditorSurface, MarkdownEditorProps>(fun
       extensions: [
         history(),
         markdown(),
+        drawSelection(),
         syntaxHighlighting(mdHighlight),
         manuscriptTheme,
         spellDecorationExtension(),

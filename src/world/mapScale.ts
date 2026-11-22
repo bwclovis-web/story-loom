@@ -47,6 +47,57 @@ export function formatScaleValue(value: number): string {
   return String(Math.round(value * 10) / 10);
 }
 
+/** Whether the author's scale unit reads as imperial for travel-speed presets. */
+export function scaleUsesImperialUnits(unit: string): boolean {
+  const text = unit.trim().toLowerCase();
+  if (!text) return false;
+  if (/\b(km|kilometer|kilometres?|meters?|metres?)\b/.test(text)) return false;
+  return /\b(miles?|mi\b|feet|foot|ft\b|yards?|yd\b|leagues?)\b/.test(text);
+}
+
+export type TravelSpeedPreset = "walk" | "horse" | "wagon" | "ship" | "custom";
+
+const TRAVEL_SPEED_KMH: Record<Exclude<TravelSpeedPreset, "custom">, number> = {
+  walk: 5,
+  horse: 12,
+  wagon: 6,
+  ship: 8,
+};
+
+const TRAVEL_SPEED_MPH: Record<Exclude<TravelSpeedPreset, "custom">, number> = {
+  walk: 3,
+  horse: 8,
+  wagon: 4,
+  ship: 5,
+};
+
+export function presetTravelSpeed(preset: Exclude<TravelSpeedPreset, "custom">, imperial: boolean): number {
+  return imperial ? TRAVEL_SPEED_MPH[preset] : TRAVEL_SPEED_KMH[preset];
+}
+
+/** Hours for a scaled distance at the given speed; null when distance or speed is invalid. */
+export function travelHoursFromDistance(
+  reading: ScaleReading,
+  speed: number,
+  imperial: boolean,
+): number | null {
+  if (!Number.isFinite(speed) || speed <= 0 || !Number.isFinite(reading.value) || reading.value < 0) return null;
+  const distance = reading.value;
+  const hours = imperial ? distance / speed : distance / speed;
+  return Number.isFinite(hours) && hours >= 0 ? hours : null;
+}
+
+export function formatTravelDuration(hours: number): string {
+  if (!Number.isFinite(hours) || hours < 0) return "";
+  if (hours < 1 / 60) return "<1 min";
+  if (hours < 1) {
+    const minutes = Math.max(1, Math.round(hours * 60));
+    return `~${minutes} min`;
+  }
+  if (hours < 10) return `~${Math.round(hours * 10) / 10} h`;
+  return `~${Math.round(hours)} h`;
+}
+
 export function hiddenLayerIdsForPreset(
   layers: readonly { id: string; legacyGroup: string | null }[],
   preset: "all" | "none" | { group: string },

@@ -16,6 +16,8 @@ import { buildManuscriptTree } from "@/ui/manuscriptTree";
 import { RECORD_GROUPS } from "@/ui/navigation";
 import { CompileProfileForm } from "./CompileProfileForm";
 import { CompileValidationSummary } from "./CompileValidationSummary";
+import { CompileSpreadPreview } from "./CompileSpreadPreview";
+import { BetaReaderDocxForm } from "./BetaReaderDocxForm";
 import { ExportPresets } from "./ExportPresets";
 import { PdfReferencePicker, type PdfPickerGroup } from "./PdfReferencePicker";
 
@@ -67,6 +69,7 @@ export default async function ExportPdfPage({
   const docxHref = `/projects/${encodeURIComponent(projectId)}/docx`;
   const epubHref = `/projects/${encodeURIComponent(projectId)}/epub`;
   const markdownHref = `/projects/${encodeURIComponent(projectId)}/markdown`;
+  const wikiHref = `/projects/${encodeURIComponent(projectId)}/wiki`;
   const base = `/projects/${encodeURIComponent(projectId)}`;
 
   // Preselection from a "Export PDF" link; the author can still change every tick.
@@ -94,6 +97,10 @@ export default async function ExportPdfPage({
   });
 
   const showManuscript = !hasDrafts || !!selectedDraftId;
+  const spoilerChapters = tree.chapters.map((chapter) => ({ id: chapter.id, title: chapter.title }));
+  const previewChapter = tree.chapters[0];
+  const previewChapterRecord = previewChapter ? records.find((r) => r.id === previewChapter.id) : undefined;
+  const previewSampleBody = previewChapterRecord?.body.trim() ?? "";
 
   return (
     <>
@@ -121,6 +128,16 @@ export default async function ExportPdfPage({
 
       {showManuscript && (tree.chapters.length || tree.unplaced.length) ? (
         <CompileValidationSummary report={compileValidation} />
+      ) : null}
+
+      {showManuscript && previewChapter ? (
+        <section className="panel stack">
+          <CompileSpreadPreview
+            profile={compileProfile}
+            chapterTitle={previewChapter.title}
+            sampleBody={previewSampleBody}
+          />
+        </section>
       ) : null}
 
       <section className="panel stack" aria-labelledby="pdf-manuscript-heading">
@@ -183,6 +200,14 @@ export default async function ExportPdfPage({
         ) : (
           <p className="muted">{PDF.noManuscript}</p>
         )}
+        {showManuscript && (tree.chapters.length || tree.unplaced.length) ? (
+          <section className="stack panel" aria-labelledby="beta-reader-docx-heading" style={{ marginTop: "1rem" }}>
+            <h3 id="beta-reader-docx-heading" className="h3">
+              {PDF.betaReaderHeading}
+            </h3>
+            <BetaReaderDocxForm docxHref={docxHref} draftId={selectedDraftId} />
+          </section>
+        ) : null}
       </section>
 
       <section className="stack" aria-labelledby="pdf-references-heading">
@@ -197,6 +222,8 @@ export default async function ExportPdfPage({
             docxAction={docxHref}
             epubAction={epubHref}
             markdownAction={markdownHref}
+            wikiAction={wikiHref}
+            spoilerChapters={spoilerChapters}
             groups={groups}
             initialSelection={initialSelection}
           />

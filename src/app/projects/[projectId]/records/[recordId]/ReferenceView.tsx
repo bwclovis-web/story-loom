@@ -21,7 +21,7 @@ import type { LinkingRecord } from "@/server/services/linkService";
 import type { RevisionWithSource } from "@/server/services/recordService";
 import type { DictionaryWord } from "@/spelling/dictionary";
 import type { MentionedByItem } from "@/server/services/mentionedByService";
-import { isReferenceTemplateKey } from "@/world/referenceTemplates";
+import { isWorldKindKey } from "@/world/referenceTemplates";
 import {
   WORLDBUILDING_KIND_OTHER,
   worldbuildingCustomKind,
@@ -149,7 +149,7 @@ function fieldLabel(key: string, recordType: RecordView["type"]): string {
 }
 
 function fieldValue(key: string, recordType: RecordView["type"], value: JsonValue): ReactNode {
-  if (key === "kind" && recordType === "worldbuilding" && typeof value === "string" && isReferenceTemplateKey(value)) {
+  if (key === "kind" && recordType === "worldbuilding" && typeof value === "string" && isWorldKindKey(value)) {
     return worldKindLabel(value);
   }
   if (value === null) return <span className="muted">null</span>;

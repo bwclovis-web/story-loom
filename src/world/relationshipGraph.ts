@@ -32,7 +32,13 @@ function recordKindLabel(kind: (typeof RECORD_RELATION_KINDS)[number]): string {
   return kind === "custom" ? "Custom (record)" : RECORD_RELATION_LABELS[kind];
 }
 
-export type RelationshipEdgeFamily = "place" | "record";
+export type RelationshipEdgeFamily = "place" | "record" | "link" | "mention";
+
+const LINK_RELATION_LABELS = { linked: "Linked reference" } as const;
+const MENTION_RELATION_LABELS = {
+  named_in: "Named in manuscript",
+  mentioned_by: "Mentioned by text",
+} as const;
 
 export interface RelationshipEdge {
   id: string;
@@ -49,7 +55,13 @@ export interface RelationshipNode {
   typeLabel: string;
   /** Set when the record has a primary profile image. */
   profileImageUrl?: string | null;
+  /** Populated on the all-connections graph for filters. */
+  recordType?: string;
+  authorityStatus?: string | null;
+  draftId?: string | null;
 }
+
+export type GraphKindOption = { id: string; label: string; family: RelationshipEdgeFamily };
 
 export interface RelationshipTreeNode {
   id: string;
@@ -59,7 +71,11 @@ export interface RelationshipTreeNode {
   children: RelationshipTreeNode[];
 }
 
-export const GRAPH_KIND_OPTIONS: { id: string; label: string; family: RelationshipEdgeFamily }[] = [
+export function edgeKindKey(family: RelationshipEdgeFamily, kind: string): string {
+  return `${family}:${kind}`;
+}
+
+export const GRAPH_KIND_OPTIONS: GraphKindOption[] = [
   ...PLACE_RELATION_KINDS.map((kind) => ({
     id: `place:${kind}`,
     label: PLACE_RELATION_LABELS[kind],
@@ -72,14 +88,97 @@ export const GRAPH_KIND_OPTIONS: { id: string; label: string; family: Relationsh
   })),
 ];
 
-export const DEFAULT_GRAPH_KINDS = new Set(GRAPH_KIND_OPTIONS.map((k) => k.id));
+export const ALL_CONNECTION_EXTRA_KINDS: GraphKindOption[] = [
+  {
+    id: edgeKindKey("link", "linked"),
+    label: LINK_RELATION_LABELS.linked,
+    family: "link",
+  },
+  {
+    id: edgeKindKey("mention", "named_in"),
+    label: MENTION_RELATION_LABELS.named_in,
+    family: "mention",
+  },
+  {
+    id: edgeKindKey("mention", "mentioned_by"),
+    label: MENTION_RELATION_LABELS.mentioned_by,
+    family: "mention",
+  },
+];
 
-export function edgeKindKey(family: RelationshipEdgeFamily, kind: string): string {
-  return `${family}:${kind}`;
-}
+export const ALL_CONNECTION_KIND_OPTIONS: GraphKindOption[] = [...GRAPH_KIND_OPTIONS, ...ALL_CONNECTION_EXTRA_KINDS];
+
+export const DEFAULT_GRAPH_KINDS = new Set(GRAPH_KIND_OPTIONS.map((k) => k.id));
+export const DEFAULT_ALL_CONNECTION_KINDS = new Set(ALL_CONNECTION_KIND_OPTIONS.map((k) => k.id));
 
 function edgeAllowed(edge: RelationshipEdge, allowed: Set<string>): boolean {
   return allowed.has(edgeKindKey(edge.family, edge.kind));
+}
+
+const MANUSCRIPT_TYPES = new Set(["manuscript_chapter", "manuscript_scene"]);
+
+function manuscriptMatchesDraft(node: RelationshipNode | undefined, draftFilter: string | null | undefined): boolean {
+  if (!node?.recordType || !MANUSCRIPT_TYPES.has(node.recordType)) return true;
+  if (draftFilter === undefined || draftFilter === null) return true;
+  if (draftFilter === "") return node.draftId == null;
+  return node.draftId === draftFilter;
+}
+
+export interface ConnectionGraphFilters {
+  allowedKinds: Set<string>;
+  recordType: string | null;
+  authorityStatus: string | null;
+  /** Empty string = legacy manuscript (null draftId); null = all drafts. */
+  draftId: string | null;
+  orphansOnly: boolean;
+}
+
+export function filterConnectionGraph(
+  nodes: readonly RelationshipNode[],
+  edges: readonly RelationshipEdge[],
+  filters: ConnectionGraphFilters,
+): { nodes: RelationshipNode[]; edges: RelationshipEdge[] } {
+  const byId = new Map(nodes.map((n) => [n.id, n]));
+  const candidates = nodes.filter((n) => {
+    if (filters.recordType && n.recordType !== filters.recordType) return false;
+    if (filters.authorityStatus && n.authorityStatus !== filters.authorityStatus) return false;
+    if (filters.draftId !== null && !manuscriptMatchesDraft(n, filters.draftId)) return false;
+    return true;
+  });
+  const candidateIds = new Set(candidates.map((n) => n.id));
+
+  let filtered = edges.filter((e) => edgeAllowed(e, filters.allowedKinds));
+  if (filters.draftId !== null) {
+    filtered = filtered.filter(
+      (e) =>
+        manuscriptMatchesDraft(byId.get(e.fromRecordId), filters.draftId) &&
+        manuscriptMatchesDraft(byId.get(e.toRecordId), filters.draftId),
+    );
+  }
+  filtered = filtered.filter((e) => candidateIds.has(e.fromRecordId) && candidateIds.has(e.toRecordId));
+
+  if (filters.orphansOnly) {
+    const degree = new Map<string, number>();
+    for (const id of candidateIds) degree.set(id, 0);
+    for (const e of filtered) {
+      degree.set(e.fromRecordId, (degree.get(e.fromRecordId) ?? 0) + 1);
+      degree.set(e.toRecordId, (degree.get(e.toRecordId) ?? 0) + 1);
+    }
+    return {
+      nodes: candidates.filter((n) => (degree.get(n.id) ?? 0) === 0),
+      edges: [],
+    };
+  }
+
+  const nodeIds = new Set<string>();
+  for (const e of filtered) {
+    nodeIds.add(e.fromRecordId);
+    nodeIds.add(e.toRecordId);
+  }
+  return {
+    nodes: [...nodeIds].map((id) => byId.get(id)).filter((n): n is RelationshipNode => !!n),
+    edges: filtered,
+  };
 }
 
 /** Undirected hop expansion from `focusId`; empty focus returns the filtered full graph. */

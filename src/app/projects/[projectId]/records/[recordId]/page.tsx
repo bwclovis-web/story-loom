@@ -34,6 +34,7 @@ import {
   listRecordsInside,
   listReferenceChoices,
   listManuscriptNav,
+  listScenesInChapter,
   listRevisions,
   type RevisionWithSource,
 } from "@/server/services/recordService";
@@ -92,7 +93,30 @@ export default async function RecordPage({
   if (!owned) {
     const shared = await getSeriesSharedRecord(db, projectId, recordId);
     if (!shared) notFound();
-    const kindTemplates = await listWorldKindTemplates(db, shared.home.projectId);
+    const crossEditing = query.edit === "cross";
+    const [kindTemplates, spellingLanguage, spellChecker, dictionaryWords] = await Promise.all([
+      listWorldKindTemplates(db, shared.home.projectId),
+      crossEditing ? getSpellingLanguage() : null,
+      crossEditing ? getSpellChecker() : null,
+      crossEditing ? dictionaryWordsForProject(db, projectId) : null,
+    ]);
+    const editor = crossEditing
+      ? (() => {
+          const { status: assistant } = getAssistantConfig();
+          const proofreadFixedChars = PROOFREAD_INSTRUCTIONS.length + PROOFREAD_SCHEMA_CHARS + 300;
+          return {
+            spellingLanguage: spellingLanguage!,
+            spellChecker: spellChecker!,
+            dictionaryWords: dictionaryWords!,
+            proofread: {
+              configured: assistant.configured,
+              maxInputChars: assistant.limits.maxInputChars,
+              fixedChars: proofreadFixedChars,
+              problems: assistant.problems,
+            },
+          };
+        })()
+      : undefined;
     return (
       <>
         <ProjectPageHeader
@@ -103,7 +127,14 @@ export default async function RecordPage({
             { label: shared.record.title, current: true },
           ]}
         />
-        <SeriesSharedRecord record={shared.record} home={shared.home} kindTemplates={kindTemplates} />
+        <SeriesSharedRecord
+          viewingProjectId={projectId}
+          record={shared.record}
+          home={shared.home}
+          kindTemplates={kindTemplates}
+          crossEditing={crossEditing}
+          editor={editor}
+        />
       </>
     );
   }
@@ -159,9 +190,10 @@ export default async function RecordPage({
               ),
             )
           ).flat();
-    const [notes, linked, sceneLocations, choices, sources, attachableSources, pins, plotBeats, synopsis, marginComments, codexEntries, continuityFindings, characterCues] =
+    const [notes, chapterScenes, linked, sceneLocations, choices, sources, attachableSources, pins, plotBeats, synopsis, marginComments, codexEntries, continuityFindings, characterCues] =
       await Promise.all([
       listNotes(db, projectId, record.id),
+      record.type === "manuscript_chapter" ? listScenesInChapter(db, projectId, record.id) : Promise.resolve([]),
       listLinkedReferences(db, projectId, record.id),
       listSceneLocationsForManuscript(db, projectId, record.id),
       listReferenceChoices(db, projectId),
@@ -210,6 +242,7 @@ export default async function RecordPage({
         authorityStatus={record.authorityStatus}
         isProtected={record.protected}
         parent={parent ? { id: parent.id, title: parent.title } : null}
+        scenes={chapterScenes}
         canvasBack={canvasBack}
         initialFind={query.find?.trim() ? { query: query.find.trim(), matchCase: query.case === "1" } : null}
         initialStyleRange={parseStyleRangeQuery(query)}

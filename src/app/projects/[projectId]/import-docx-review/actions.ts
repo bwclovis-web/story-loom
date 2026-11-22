@@ -39,6 +39,7 @@ export async function applyDocxReviewAction(
     base64: string;
     acceptIndexes: number[];
     importComments: boolean;
+    commentsOnly?: boolean;
     confirmProtected: boolean;
   },
 ): Promise<DocxReviewOutcome> {
@@ -51,6 +52,7 @@ export async function applyDocxReviewAction(
     bytes: decodeBase64(input.base64),
     acceptIndexes: Array.isArray(input.acceptIndexes) ? input.acceptIndexes.filter((n) => Number.isInteger(n)) : [],
     importComments: input.importComments === true,
+    commentsOnly: input.commentsOnly === true,
     confirmProtected: input.confirmProtected === true,
   });
   if (outcome.status === "applied") revalidatePath(`/projects/${projectId}`, "layout");

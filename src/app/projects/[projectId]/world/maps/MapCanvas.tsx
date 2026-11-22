@@ -5,6 +5,7 @@ import { useEffect, useId, useRef, useState, useTransition, type KeyboardEvent a
 import { StatusBadge } from "@/components/Badges";
 import { IssueList } from "@/components/IssueList";
 import { BoardOverflowMenu } from "@/components/ui/BoardOverflowMenu";
+import { Breadcrumbs } from "@/components/ui/Breadcrumbs";
 import { Button, ButtonLink } from "@/components/ui/Button";
 import { CanvasToolbar } from "@/components/ui/CanvasToolbar";
 import { SegmentedControl, SegmentedOption } from "@/components/ui/SegmentedControl";
@@ -55,9 +56,17 @@ import {
   annotatedMapSvg,
   distanceFromScale,
   formatScaleValue,
+  formatTravelDuration,
   hiddenLayerIdsForPreset,
   normalizedLength,
+  presetTravelSpeed,
+  scaleUsesImperialUnits,
+  travelHoursFromDistance,
+  type ScaleReading,
+  type TravelSpeedPreset,
 } from "@/world/mapScale";
+import type { MapPinFilterContext } from "@/server/services/mapPinFilterService";
+import { pinMatchesMapFilter } from "@/world/mapPinFilter";
 import {
   clampMapZoom,
   pushMapTrail,
@@ -86,6 +95,7 @@ import {
   saveWorldMapLayersAction,
   setWorldMapPinGeometryAction,
   updateWorldMapPinAction,
+  loadMapPinFilterContextAction,
   updateWorldMapScaleAction,
 } from "./actions";
 import { MapGeographyPanel } from "./MapGeographyPanel";
@@ -192,6 +202,10 @@ export function MapCanvas({
   const [drawPhase, setDrawPhase] = useState<DrawPhase>("drawing");
   const [keepPlacing, setKeepPlacing] = useState(false);
   const [hoverPoint, setHoverPoint] = useState<{ x: number; y: number } | null>(null);
+  const [pinFilter, setPinFilter] = useState({ era: "all", draft: "all", book: "all" });
+  const [pinFilterContext, setPinFilterContext] = useState<MapPinFilterContext | null>(null);
+  const [travelPreset, setTravelPreset] = useState<TravelSpeedPreset>("walk");
+  const [travelCustomSpeed, setTravelCustomSpeed] = useState("");
   const viewportRef = useRef<HTMLDivElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
   const viewRef = useRef(view);
@@ -253,6 +267,11 @@ export function MapCanvas({
 
   const selected = pins.find((p) => p.id === selectedId) ?? null;
   const inspectRecordId = selected?.recordId && !selected.unavailable ? selected.recordId : null;
+  const pinFilterActive = pinFilter.era !== "all" || pinFilter.draft !== "all" || pinFilter.book !== "all";
+  const pinPassesFilter = (pin: WorldMapPinView) =>
+    pinMatchesMapFilter(pin.recordId, pinFilter, pin.recordId ? pinFilterContext?.byRecordId[pin.recordId] : undefined);
+  const pinFilterClass = (pin: WorldMapPinView) =>
+    pinFilterActive ? (pinPassesFilter(pin) ? " filter-match" : " filter-dimmed") : "";
   const shown = pins.filter((pin) => {
     const layerId = effectiveLayerId(pin, map.layers);
     return !layerId || !hiddenLayerIds.includes(layerId);
@@ -293,6 +312,18 @@ export function MapCanvas({
       if (!railRef.current.visible) railRef.current.toggle();
     }
   }, [initialPinId, initial.pins]);
+
+  useEffect(() => {
+    const recordIds = pins.flatMap((pin) => (pin.recordId && !pin.unavailable ? [pin.recordId] : []));
+    let cancelled = false;
+    void loadMapPinFilterContextAction(projectId, recordIds).then((result) => {
+      if (cancelled || !result.ok) return;
+      setPinFilterContext(result.context);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [projectId, pins]);
 
   useEffect(() => {
     if (!inspectRecordId) {
@@ -816,18 +847,17 @@ export function MapCanvas({
     <div className="write-layout reference-write-layout board-layout visual-canvas">
       <div className="write-main board-main">
         {trail.length > 0 ? (
-          <nav className="map-trail" aria-label={WORLD.mapBreadcrumb}>
-            <ol>
-              {trail.map((item, index) => (
-                <li key={item.id}>
-                  <button type="button" onClick={() => returnToTrail(index)}>
-                    {item.title}
-                  </button>
-                </li>
-              ))}
-              <li aria-current="page">{map.title}</li>
-            </ol>
-          </nav>
+          <Breadcrumbs
+            className="map-trail"
+            label={WORLD.mapBreadcrumb}
+            items={[
+              ...trail.map((item, index) => ({
+                label: item.title,
+                onSelect: () => returnToTrail(index),
+              })),
+              { label: map.title, current: true },
+            ]}
+          />
         ) : null}
 
         <CanvasToolbar label={WORLD.mapCanvas} className="map-toolbar visual-canvas-toolbar">
@@ -848,6 +878,46 @@ export function MapCanvas({
               ))}
             </SegmentedControl>
           ) : null}
+          <MapToolbarPopover label={WORLD.mapPinFilter} className="map-pin-filter-popover" align="start">
+            <p className="small muted">{WORLD.mapPinFilterHint}</p>
+            <div className="row" style={{ gap: "0.5rem", flexWrap: "wrap" }}>
+              <label className="world-toolbar-field">
+                {WORLD.mapPinFilterEra}
+                <select value={pinFilter.era} onChange={(event) => setPinFilter((f) => ({ ...f, era: event.target.value }))}>
+                  <option value="all">{WORLD.mapPinFilterAllEras}</option>
+                  {(pinFilterContext?.choices.eras ?? []).map((era) => (
+                    <option key={era.id} value={era.id}>
+                      {era.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="world-toolbar-field">
+                {WORLD.sceneDraftFilter}
+                <select value={pinFilter.draft} onChange={(event) => setPinFilter((f) => ({ ...f, draft: event.target.value }))}>
+                  <option value="all">{WORLD.allDrafts}</option>
+                  <option value="unscoped">{WORLD.unscopedDraft}</option>
+                  {(pinFilterContext?.choices.drafts ?? []).map((draft) => (
+                    <option key={draft.id} value={draft.id}>
+                      {draft.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="world-toolbar-field">
+                {WORLD.sceneBookFilter}
+                <select value={pinFilter.book} onChange={(event) => setPinFilter((f) => ({ ...f, book: event.target.value }))}>
+                  <option value="all">{WORLD.allBooks}</option>
+                  <option value="ungrouped">{WORLD.ungroupedBook}</option>
+                  {(pinFilterContext?.choices.books ?? []).map((book) => (
+                    <option key={book.id} value={book.id}>
+                      {book.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          </MapToolbarPopover>
           <MapToolbarPopover label={WORLD.mapLayers} className="map-layers-popover" align="start">
             <fieldset className="map-legend">
               <legend className="sr-only">{WORLD.mapLayerLegend}</legend>
@@ -1003,7 +1073,7 @@ export function MapCanvas({
                         type="button"
                         role="option"
                         aria-selected={selectedId === pin.id}
-                        className={`map-pin-list-item${selectedId === pin.id ? " selected" : ""}`}
+                        className={`map-pin-list-item${selectedId === pin.id ? " selected" : ""}${pinFilterClass(pin)}`}
                         onClick={() => selectPin(pin)}
                       >
                         <span>{pin.title}</span>
@@ -1176,17 +1246,37 @@ export function MapCanvas({
         {missingSelection ? <p className="small" role="status">{missingSelection}</p> : null}
         {measuring ? <p className="small muted map-measure-readout">{WORLD.mapMeasureHint}</p> : null}
         {measurePoints.length === 2 ? (
-          <p className="small map-measure-readout">
-            {measureReading
-              ? `${formatScaleValue(measureReading.value)} ${measureReading.unit}`.trim()
-              : WORLD.mapMeasureNeedScale}
-            {measureReading ? ` · ${WORLD.mapMeasureDerived}` : ""}
-          </p>
+          <div className="map-measure-readout stack" style={{ gap: "0.25rem" }}>
+            <p className="small" style={{ margin: 0 }}>
+              {measureReading
+                ? `${formatScaleValue(measureReading.value)} ${measureReading.unit}`.trim()
+                : WORLD.mapMeasureNeedScale}
+              {measureReading ? ` · ${WORLD.mapMeasureDerived}` : ""}
+            </p>
+            {measureReading ? (
+              <MapTravelEstimator
+                reading={measureReading}
+                preset={travelPreset}
+                onPreset={setTravelPreset}
+                customSpeed={travelCustomSpeed}
+                onCustomSpeed={setTravelCustomSpeed}
+              />
+            ) : null}
+          </div>
         ) : null}
         {routeReading ? (
-          <p className="small map-measure-readout">
-            {WORLD.mapRouteLength}: {formatScaleValue(routeReading.value)} {routeReading.unit} · {WORLD.mapMeasureDerived}
-          </p>
+          <div className="map-measure-readout stack" style={{ gap: "0.25rem" }}>
+            <p className="small" style={{ margin: 0 }}>
+              {WORLD.mapRouteLength}: {formatScaleValue(routeReading.value)} {routeReading.unit} · {WORLD.mapMeasureDerived}
+            </p>
+            <MapTravelEstimator
+              reading={routeReading}
+              preset={travelPreset}
+              onPreset={setTravelPreset}
+              customSpeed={travelCustomSpeed}
+              onCustomSpeed={setTravelCustomSpeed}
+            />
+          </div>
         ) : null}
         {draft ? (
           <div className="map-draw-bar">
@@ -1318,7 +1408,7 @@ export function MapCanvas({
                   data-pin-id={pin.id}
                   data-group={pin.markerGroup}
                   data-kind={pin.kind}
-                  className={`map-pin${selectedId === pin.id ? " selected" : ""}${pin.unavailable || pin.targetUnavailable ? " unavailable" : ""}`}
+                  className={`map-pin${selectedId === pin.id ? " selected" : ""}${pin.unavailable || pin.targetUnavailable ? " unavailable" : ""}${pinFilterClass(pin)}`}
                   style={{ left: `${pin.xNorm * 100}%`, top: `${pin.yNorm * 100}%` }}
                   aria-label={
                     pin.unavailable
@@ -1545,6 +1635,74 @@ export function MapCanvas({
   );
 }
 
+const TRAVEL_LABEL: Record<TravelSpeedPreset, string> = {
+  walk: WORLD.mapTravelWalking,
+  horse: WORLD.mapTravelHorse,
+  wagon: WORLD.mapTravelWagon,
+  ship: WORLD.mapTravelShip,
+  custom: WORLD.mapTravelCustom,
+};
+
+function MapTravelEstimator({
+  reading,
+  preset,
+  onPreset,
+  customSpeed,
+  onCustomSpeed,
+}: {
+  reading: ScaleReading;
+  preset: TravelSpeedPreset;
+  onPreset: (value: TravelSpeedPreset) => void;
+  customSpeed: string;
+  onCustomSpeed: (value: string) => void;
+}) {
+  const imperial = scaleUsesImperialUnits(reading.unit);
+  const speedUnit = imperial ? "mph" : "km/h";
+  const presetSpeed = preset !== "custom" ? presetTravelSpeed(preset, imperial) : Number(customSpeed);
+  const hours =
+    preset === "custom"
+      ? travelHoursFromDistance(reading, Number(customSpeed), imperial)
+      : travelHoursFromDistance(reading, presetSpeed, imperial);
+  const duration = hours != null ? formatTravelDuration(hours) : "";
+  const modeLabel = TRAVEL_LABEL[preset].toLowerCase();
+  return (
+    <div className="map-travel-estimates">
+      <label className="small">
+        {WORLD.mapTravelSpeed}
+        <select value={preset} onChange={(event) => onPreset(event.target.value as TravelSpeedPreset)}>
+          {(Object.keys(TRAVEL_LABEL) as TravelSpeedPreset[]).map((key) => (
+            <option key={key} value={key}>
+              {TRAVEL_LABEL[key]}
+            </option>
+          ))}
+        </select>
+      </label>
+      {preset === "custom" ? (
+        <label className="small">
+          {WORLD.mapTravelCustomSpeed}
+          <input
+            type="number"
+            min={0.1}
+            step={0.1}
+            value={customSpeed}
+            onChange={(event) => onCustomSpeed(event.target.value)}
+            aria-describedby="map-travel-unit"
+          />
+          <span id="map-travel-unit" className="muted">
+            {" "}
+            {WORLD.mapTravelPerHour(speedUnit)}
+          </span>
+        </label>
+      ) : null}
+      {duration ? (
+        <p className="small" style={{ margin: 0 }} role="status">
+          {WORLD.mapTravelEstimate(duration, modeLabel)} · {WORLD.mapTravelNote}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 function MarkerRail({
   projectId,
   mapId,
@@ -1616,9 +1774,14 @@ function MarkerRail({
       {pin.unavailable ? <p className="small muted">{WORLD.pinUnavailable}</p> : null}
       {pin.targetUnavailable ? <p className="small muted">{WORLD.targetMapUnavailable}</p> : null}
       {pin.targetMapId && !pin.targetUnavailable ? (
-        <Button type="button" variant="secondary" size="sm" onClick={() => onOpenMap(pin.targetMapId!)}>
-          {WORLD.openDetailedMap}
-        </Button>
+        <div className="map-drill-callout">
+          <Button type="button" variant="primary" size="sm" onClick={() => onOpenMap(pin.targetMapId!)}>
+            {WORLD.mapDrillIn}
+          </Button>
+          <p className="small muted" style={{ margin: "0.35rem 0 0" }}>
+            {WORLD.openDetailedMap}
+          </p>
+        </div>
       ) : null}
       {pin.recordId && !pin.unavailable ? (
         inspection?.ok ? (
@@ -1703,7 +1866,7 @@ function MarkerRail({
             </select>
           </label>
           <label>
-            {WORLD.chooseDetailedMap}
+            {WORLD.mapLinkDetailMap}
             <select value={targetMapId} onChange={(e) => setTargetMapId(e.target.value)}>
               <option value="">{WORLD.chooseDetailedMap}</option>
               {otherMaps.map((item) => (
@@ -1713,6 +1876,11 @@ function MarkerRail({
               ))}
             </select>
           </label>
+          {targetMapId && otherMaps.some((item) => item.id === targetMapId) ? (
+            <Button type="button" variant="primary" size="sm" onClick={() => onOpenMap(targetMapId)}>
+              {WORLD.mapDrillIn}
+            </Button>
+          ) : null}
           <label>
             {WORLD.markerLabel}
             <input value={label} maxLength={120} onChange={(e) => setLabel(e.target.value)} />

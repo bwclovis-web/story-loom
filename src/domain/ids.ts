@@ -26,6 +26,7 @@ export type IdPrefix =
   | "rsl" // rewrite source link
   | "pin" // reading pin (reference beside prose)
   | "wgoal" // writing goal (word target)
+  | "scol" // smart collection (saved manuscript/world filter)
   | "man" // manuscript annotation (synopsis or margin comment)
   | "cprof" // manuscript compile profile (export front/back matter)
   | "brd" // world board

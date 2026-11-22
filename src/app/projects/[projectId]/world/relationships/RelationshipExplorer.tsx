@@ -5,51 +5,99 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useId, useMemo, useState } from "react";
 import { profileGraphNode } from "@/components/world/ProfileGraphNode";
+import { Banner } from "@/components/ui/Banner";
+import { Button } from "@/components/ui/Button";
+import { RadioGroup } from "@/components/ui/RadioGroup";
 import { SegmentedControl, SegmentedOption } from "@/components/ui/SegmentedControl";
-import type { ProjectRelationshipGraph } from "@/server/services/relationshipGraphService";
-import { WORLD } from "@/ui/labels";
+import { AUTHORITY_STATUSES } from "@/domain/statuses";
+import { RECORD_TYPES, RECORD_TYPE_LABELS } from "@/domain/recordTypes";
+import type { ManuscriptDraftView } from "@/server/services/draftService";
+import type { ProjectAllConnectionsGraph, ProjectRelationshipGraph } from "@/server/services/relationshipGraphService";
+import { RELATIONSHIP, WORLD } from "@/ui/labels";
 import {
+  ALL_CONNECTION_KIND_OPTIONS,
   buildFamilyForest,
   buildGeographyForest,
   buildOrganizationForest,
+  DEFAULT_ALL_CONNECTION_KINDS,
   DEFAULT_GRAPH_KINDS,
+  filterConnectionGraph,
   GRAPH_KIND_OPTIONS,
   edgeKindKey,
   layoutRadial,
   subgraphByHops,
   type RelationshipEdge,
+  type RelationshipNode,
   type RelationshipTreeNode,
 } from "@/world/relationshipGraph";
 
 type ExplorerView = "graph" | "family" | "organization" | "geography";
 type Presentation = "diagram" | "list";
+type ConnectionMode = "explicit" | "all";
 
 export function RelationshipExplorer({
   projectId,
   graph,
+  allConnections,
+  drafts,
   initialFocus,
   initialSteps,
+  initialConnectionMode,
 }: {
   projectId: string;
   graph: ProjectRelationshipGraph;
+  allConnections: ProjectAllConnectionsGraph;
+  drafts: ManuscriptDraftView[];
   initialFocus: string;
   initialSteps: number;
+  initialConnectionMode: ConnectionMode;
 }) {
   const router = useRouter();
   const base = `/projects/${encodeURIComponent(projectId)}`;
+  const [connectionMode, setConnectionMode] = useState<ConnectionMode>(initialConnectionMode);
   const [view, setView] = useState<ExplorerView>("graph");
   const [presentation, setPresentation] = useState<Presentation>("diagram");
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [focusId, setFocusId] = useState(initialFocus);
   const [steps, setSteps] = useState(initialSteps);
   const [kinds, setKinds] = useState<Set<string>>(() => new Set(DEFAULT_GRAPH_KINDS));
+  const [recordTypeFilter, setRecordTypeFilter] = useState("");
+  const [authorityFilter, setAuthorityFilter] = useState("");
+  const [draftFilter, setDraftFilter] = useState<string | null>(null);
+  const [orphansOnly, setOrphansOnly] = useState(false);
   const controlsId = useId();
   const inspectorId = useId();
+  const modeGroupId = useId();
 
   const allowedKinds = kinds;
+  const kindOptions = connectionMode === "all" ? ALL_CONNECTION_KIND_OPTIONS : GRAPH_KIND_OPTIONS;
+
+  const filteredAll = useMemo(() => {
+    if (connectionMode !== "all") return null;
+    return filterConnectionGraph(allConnections.allNodes, allConnections.edges, {
+      allowedKinds,
+      recordType: recordTypeFilter || null,
+      authorityStatus: authorityFilter || null,
+      draftId: draftFilter,
+      orphansOnly,
+    });
+  }, [
+    allConnections,
+    allowedKinds,
+    authorityFilter,
+    connectionMode,
+    draftFilter,
+    orphansOnly,
+    recordTypeFilter,
+  ]);
+
+  const baseGraph = connectionMode === "all" && filteredAll ? filteredAll : { nodes: graph.nodes, edges: graph.edges };
   const subgraph = useMemo(
-    () => subgraphByHops(graph.nodes, graph.edges, focusId || null, steps, allowedKinds),
-    [graph, focusId, steps, allowedKinds],
+    () =>
+      orphansOnly && connectionMode === "all"
+        ? { nodes: filteredAll?.nodes ?? [], edges: [] }
+        : subgraphByHops(baseGraph.nodes, baseGraph.edges, focusId || null, steps, allowedKinds),
+    [allowedKinds, baseGraph, connectionMode, filteredAll, focusId, orphansOnly, steps],
   );
   const positions = useMemo(
     () => (presentation === "diagram" && view === "graph" ? layoutRadial(subgraph.nodes, subgraph.edges, focusId || null, 720, 420) : new Map()),
@@ -61,12 +109,20 @@ export function RelationshipExplorer({
   const organization = useMemo(() => buildOrganizationForest(graph.nodes, graph.edges), [graph]);
   const geography = useMemo(() => buildGeographyForest(graph.nodes, graph.edges), [graph]);
 
-  const pushFocus = (nextFocus: string, nextSteps: number) => {
+  const pushQuery = (nextFocus: string, nextSteps: number, nextMode: ConnectionMode) => {
     const q = new URLSearchParams();
     if (nextFocus) q.set("focus", nextFocus);
     if (nextSteps !== 2) q.set("steps", String(nextSteps));
+    if (nextMode === "all") q.set("connection", "all");
     const text = q.toString();
     router.replace(text ? `${base}/world/relationships?${text}` : `${base}/world/relationships`);
+  };
+
+  const setConnectionModeAndUrl = (next: ConnectionMode) => {
+    setConnectionMode(next);
+    setKinds(new Set(next === "all" ? DEFAULT_ALL_CONNECTION_KINDS : DEFAULT_GRAPH_KINDS));
+    if (next === "all") setView("graph");
+    pushQuery(focusId, steps, next);
   };
 
   const toggleKind = (key: string) => {
@@ -84,6 +140,23 @@ export function RelationshipExplorer({
         {WORLD.relationshipExplorerControls}
       </h2>
 
+      <RadioGroup
+        legend={RELATIONSHIP.connectionMode}
+        name={modeGroupId}
+        value={connectionMode}
+        onValueChange={(value) => setConnectionModeAndUrl(value as ConnectionMode)}
+        layout="row"
+        options={[
+          { value: "explicit", label: RELATIONSHIP.modeExplicit },
+          { value: "all", label: RELATIONSHIP.modeAllConnections },
+        ]}
+        hint={connectionMode === "explicit" ? RELATIONSHIP.explicitOnlyNote : undefined}
+      />
+
+      {connectionMode === "all" ? (
+        <Banner tone="info">{RELATIONSHIP.allConnectionsBanner}</Banner>
+      ) : null}
+
       <div className="relationship-toolbar">
       <SegmentedControl label={WORLD.relationshipViewTabs}>
         {(
@@ -94,7 +167,12 @@ export function RelationshipExplorer({
             ["geography", WORLD.relationshipGeographyView],
           ] as const
         ).map(([key, label]) => (
-          <SegmentedOption key={key} selected={view === key} onClick={() => setView(key)}>
+          <SegmentedOption
+            key={key}
+            selected={view === key}
+            disabled={connectionMode === "all" && key !== "graph"}
+            onClick={() => setView(key)}
+          >
             {label}
           </SegmentedOption>
         ))}
@@ -121,11 +199,11 @@ export function RelationshipExplorer({
               value={focusId}
               onChange={(e) => {
                 setFocusId(e.target.value);
-                pushFocus(e.target.value, steps);
+                pushQuery(e.target.value, steps, connectionMode);
               }}
             >
               <option value="">{WORLD.relationshipFocusAll}</option>
-              {graph.nodes.map((c) => (
+              {(connectionMode === "all" ? allConnections.nodes : graph.nodes).map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.title} ({c.typeLabel})
                 </option>
@@ -142,16 +220,71 @@ export function RelationshipExplorer({
               onChange={(e) => {
                 const n = Math.min(6, Math.max(1, Number(e.target.value) || 1));
                 setSteps(n);
-                pushFocus(focusId, n);
+                pushQuery(focusId, n, connectionMode);
               }}
             />
           </label>
         </div>
       ) : null}
 
+      {connectionMode === "all" && view === "graph" ? (
+        <div className="row relationship-all-filters" style={{ flexWrap: "wrap", gap: "0.75rem", alignItems: "end" }}>
+          <label className="world-toolbar-field">
+            {RELATIONSHIP.filterRecordType}
+            <select value={recordTypeFilter} onChange={(e) => setRecordTypeFilter(e.target.value)}>
+              <option value="">{RELATIONSHIP.filterRecordTypeAll}</option>
+              {RECORD_TYPES.map((type) => (
+                <option key={type} value={type}>
+                  {RECORD_TYPE_LABELS[type]}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="world-toolbar-field">
+            {RELATIONSHIP.filterAuthority}
+            <select value={authorityFilter} onChange={(e) => setAuthorityFilter(e.target.value)}>
+              <option value="">{RELATIONSHIP.filterAuthorityAll}</option>
+              {AUTHORITY_STATUSES.map((status) => (
+                <option key={status} value={status}>
+                  {status}
+                </option>
+              ))}
+            </select>
+          </label>
+          {drafts.length > 0 ? (
+            <label className="world-toolbar-field">
+              {RELATIONSHIP.filterDraft}
+              <select
+                value={draftFilter === null ? "__all__" : draftFilter}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setDraftFilter(v === "__all__" ? null : v);
+                }}
+              >
+                <option value="__all__">{RELATIONSHIP.filterDraftAll}</option>
+                <option value="">{RELATIONSHIP.filterDraftLegacy}</option>
+                {drafts.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
+          <Button
+            type="button"
+            variant={orphansOnly ? "primary" : "secondary"}
+            aria-pressed={orphansOnly}
+            onClick={() => setOrphansOnly((v) => !v)}
+          >
+            {RELATIONSHIP.orphansOnly}
+          </Button>
+        </div>
+      ) : null}
+
       {view === "graph" ? (
         <SegmentedControl label={WORLD.relationshipKindFilters} className="relationship-kind-toggles" size="sm">
-          {GRAPH_KIND_OPTIONS.map((opt) => (
+          {kindOptions.map((opt) => (
             <SegmentedOption key={opt.id} selected={kinds.has(opt.id)} onClick={() => toggleKind(opt.id)}>
               {opt.label}
             </SegmentedOption>
@@ -160,8 +293,12 @@ export function RelationshipExplorer({
       ) : null}
       </div>
 
-      {graph.edges.length === 0 ? (
-        <p className="muted">{WORLD.relationshipNoData}</p>
+      {(connectionMode === "explicit" ? graph.edges.length === 0 : allConnections.edges.length === 0) ? (
+        <p className="muted">
+          {connectionMode === "all" ? RELATIONSHIP.allConnectionsNoData : WORLD.relationshipNoData}
+        </p>
+      ) : orphansOnly && connectionMode === "all" && !(filteredAll?.nodes.length ?? 0) ? (
+        <p className="muted">{RELATIONSHIP.orphansEmpty}</p>
       ) : view === "graph" ? (
         <div className="relationship-workspace">
           {presentation === "diagram" ? (
@@ -173,7 +310,10 @@ export function RelationshipExplorer({
               focusId={focusId || null}
               selectedId={selectedEdge?.id ?? null}
               onSelect={setSelectedEdgeId}
+              orphansOnly={orphansOnly && connectionMode === "all"}
             />
+          ) : orphansOnly && connectionMode === "all" ? (
+            <NodeList projectId={projectId} nodes={subgraph.nodes} />
           ) : (
             <EdgeList
               projectId={projectId}
@@ -190,7 +330,7 @@ export function RelationshipExplorer({
             nodes={subgraph.nodes}
           />
         </div>
-      ) : view === "family" ? (
+      ) : connectionMode === "all" ? null : view === "family" ? (
         presentation === "diagram" ? (
           <ForestDiagram projectId={projectId} trees={family.tree} extras={family.loose} nodes={graph.nodes} />
         ) : (
@@ -208,13 +348,29 @@ export function RelationshipExplorer({
         <ForestList projectId={projectId} trees={geography} nodes={graph.nodes} />
       )}
 
-      <p className="small muted">{WORLD.relationshipSourceNote}</p>
+      <p className="small muted">
+        {connectionMode === "all" ? RELATIONSHIP.allConnectionsBanner : WORLD.relationshipSourceNote}
+      </p>
     </div>
   );
 }
 
 function recordHref(projectId: string, recordId: string) {
   return `/projects/${encodeURIComponent(projectId)}/records/${encodeURIComponent(recordId)}`;
+}
+
+function NodeList({ projectId, nodes }: { projectId: string; nodes: RelationshipNode[] }) {
+  if (!nodes.length) return <p className="muted small">{RELATIONSHIP.orphansEmpty}</p>;
+  return (
+    <ul className="relationship-edge-list" aria-label={RELATIONSHIP.listNodeLabel}>
+      {nodes.map((n) => (
+        <li key={n.id}>
+          <Link href={recordHref(projectId, n.id)}>{n.title}</Link>
+          <span className="small muted"> ({n.typeLabel})</span>
+        </li>
+      ))}
+    </ul>
+  );
 }
 
 function GraphSvg({
@@ -225,14 +381,16 @@ function GraphSvg({
   focusId,
   selectedId,
   onSelect,
+  orphansOnly = false,
 }: {
   projectId: string;
-  nodes: ProjectRelationshipGraph["nodes"];
+  nodes: RelationshipNode[];
   edges: RelationshipEdge[];
   positions: Map<string, { x: number; y: number }>;
   focusId: string | null;
   selectedId: string | null;
   onSelect: (id: string) => void;
+  orphansOnly?: boolean;
 }) {
   const byId = new Map(nodes.map((n) => [n.id, n]));
   return (
@@ -268,24 +426,32 @@ function GraphSvg({
           const p = positions.get(n.id);
           if (!p) return null;
           const r = n.id === focusId ? 18 : 14;
+          const href = recordHref(projectId, n.id);
+          const short = n.title.length > 22 ? `${n.title.slice(0, 20)}…` : n.title;
           return (
             <g key={n.id}>
-              {profileGraphNode(n.id, p.x, p.y, r, n.title, n.profileImageUrl, n.id === focusId)}
+              <a href={href} aria-label={`${RELATIONSHIP.nodeOpenRecord}: ${n.title}`}>
+                {profileGraphNode(n.id, p.x, p.y, r, n.title, n.profileImageUrl, n.id === focusId)}
+              </a>
               <text x={p.x} y={p.y + r + 14} textAnchor="middle" className="relationship-node-label">
-                {n.title.length > 22 ? `${n.title.slice(0, 20)}…` : n.title}
+                <a href={href}>{short}</a>
               </text>
             </g>
           );
         })}
       </svg>
       <figcaption className="small muted">
-        <ul className="relationship-node-links">
-          {nodes.map((n) => (
-            <li key={n.id}>
-              <Link href={recordHref(projectId, n.id)}>{n.title}</Link>
-            </li>
-          ))}
-        </ul>
+        {orphansOnly && !edges.length ? (
+          <p>{RELATIONSHIP.orphansHint}</p>
+        ) : (
+          <ul className="relationship-node-links">
+            {nodes.map((n) => (
+              <li key={n.id}>
+                <Link href={recordHref(projectId, n.id)}>{n.title}</Link>
+              </li>
+            ))}
+          </ul>
+        )}
       </figcaption>
     </figure>
   );

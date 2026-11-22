@@ -1,5 +1,33 @@
 # Progress
 
+## Chapter pages list nested scenes (Nov 22, 2026)
+
+A chapter’s writing page lists the scenes stored under that chapter, in book order. The Write outline opens the selected chapter’s scenes and names them in the side panel. Scene text stays on the scene page; Scrivenings still shows the chapter and its scenes in one scroll. Scenes stay on the draft where they were created.
+
+### Rollback
+
+Revert the chapter scene list, outline inspector, Help, and this note. No schema change.
+
+## Milestone 8: Outliner, smart collections & developmental insights (Nov 22, 2026)
+
+- **8A Outliner:** Write landing tab with a table of chapters/scenes; inline synopsis, POV, scene status, and chapter word targets. Client-side sort/filter only; protected POV/status stay read-only until unlock on the record.
+- **8B Smart collections:** `SmartCollection` model (`filterJson`, manuscript/world scope), management UI at `/write/collections`, optional backup field.
+- **8C Style insights:** Style page pacing vs chapter targets, POV sequence, character×chapter matrix, Weave setup→payoff spans (read-only).
+- **8D Beta reader:** DOCX export with watermark / paragraph numbers / approved glossary; DOCX review **comments-only** import that never replaces prose.
+
+| Check | Result |
+| --- | --- |
+| Isolated migration SQL (temp SQLite) | `SmartCollection` table created |
+| `pnpm db:deploy` | Applied `20261122180000_smart_collections`; backup `backups/2026-11-22T16-47-29-148Z-pre-migrate` |
+| `pnpm exec tsc --noEmit` | pass |
+| `pnpm exec vitest run tests/unit/smartCollection.test.ts tests/unit/help.test.ts tests/acceptance/style-check.test.ts tests/acceptance/docx-import.test.ts` | 4 files, 9 tests passed |
+
+Help: dedicated **Outliner** topic (`manuscript-outliner`) covers what to edit in-table vs location/continuity; **Style check** topic covers where **Manuscript insights** lives and what each panel shows. M7 Live Markdown / named snapshots / read-aloud copy clarified. Jump list on How to use links both.
+
+### Rollback
+
+Revert Outliner/collections/style/export/import UI and services, Help, labels, and this note. Working DB: restore `backups/2026-11-22T16-47-29-148Z-pre-migrate` or leave empty `SmartCollection` rows. Older backups omit `smartCollections` and restore cleanly.
+
 ## Reference context tabs and image view (Nov 22, 2026)
 
 Reference context tabs are a short text row instead of the tall Write icon tabs. Choosing an image in that tab opens it in a lightbox (previous, next, Escape to close) instead of jumping to the images section.
@@ -60,6 +88,47 @@ Character dossiers can carry an optional development profile: Enneagram and othe
 ### Rollback
 
 Revert the character development domain, dossier section, World development page, inspector lines, cue strips, help, and labels. Profiles already saved remain inside dossier fields until an edit removes `characterDevelopment`. No schema change and no manuscript rewrite.
+
+## Living Character Profiles (Nov 22, 2026)
+
+The same `fields.characterDevelopment` object (still version 1) gains optional foundation, voice (with per-book overrides), lived-experience notes, and a knowledge ledger beside the existing psychology, arcs, and state. Unknown top-level keys are kept on save. An unsupported version refuses the development save so an empty profile cannot wipe stored data. Change packages that set `characterDevelopment` validate before write. Assistant retrieval for character dossiers uses a continuity slice instead of dumping the raw fields JSON; lived experience and omit-secrets stay out of default context. Redacted Markdown export is the writing download; full JSON remains available locally. No Prisma migration.
+
+| Check | Result |
+| --- | --- |
+| `pnpm exec vitest run tests/unit/character-development.test.ts tests/acceptance/character-development.test.ts tests/unit/help.test.ts tests/unit/worldKinds.test.ts` | 4 files, 29 tests passed |
+| `pnpm exec tsc --noEmit` | No errors in the Living Character Profiles files |
+| Browser | Character dossier shows Foundation, Voice, Lived experience, and Knowledge tabs with Pronouns and related fields |
+
+### Rollback
+
+Revert the living-profile domain, panel tabs, retrieval slices, help, labels, and package validation. Profiles already saved keep their new keys inside dossier fields; an older checkout that saves development may drop keys it does not know. No schema change and no manuscript rewrite.
+
+## Living Character Profiles Phase 1 (Nov 22, 2026)
+
+Phase 1 expands the same dossier-bound profile into Identity, Psychology, Voice, Behavior, Lived experience, Relationships, Capabilities, Development, and Continuity. Importance templates open a thinner or fuller section set without deleting notes. Name, aliases, images, and `RecordRelation` edges stay on existing surfaces; capabilities can link worldbuilding record ids. Storage remains additive JSON on `fields.characterDevelopment` (version 1). No SQLite table migration and no database reset—author IDs, Markdown, images, and revisions are unchanged.
+
+| Check | Result |
+| --- | --- |
+| `pnpm exec vitest run tests/unit/character-development.test.ts tests/acceptance/character-development.test.ts tests/unit/help.test.ts` | 3 files, 28 tests passed |
+| Schema | No SQLite migration required; Phase 1 is additive `fields.characterDevelopment` JSON on existing dossiers |
+
+### Rollback
+
+Revert Phase 1 domain keys (behavior, capabilities, expanded identity/voice/lived), panel section layout, help, and labels. Saved profiles keep any new keys in dossier fields. No schema change.
+
+## Character Dossier Upgrade (Nov 22, 2026)
+
+Author-reviewed migration from Markdown character dossiers into Living Character Profiles. Preview classifies headings into identity, psychology, voice, behavior, lived experience, relationships, capabilities, development, continuity, historical amendments, protected unknowns, proposed material, and unclassified. Authors accept, modify, reject, or defer each item. Apply writes `fields.characterDevelopment` (including `migrationHold`) and `fields.dossierMarkdownArchive` on the same dossier record; the Markdown body and revision history stay intact. Proposals are not auto-approved, mysteries stay unresolved, and planned growth is not treated as completed development. Entry points: dossier Upgrade page (with pasted Markdown analysis), project review under World → Character development → upgrades, and export of a proposed change package for Import package. Idempotent re-apply; failed/stale previews leave data unchanged.
+
+| Check | Result |
+| --- | --- |
+| `pnpm exec vitest run tests/unit/character-dossier-upgrade.test.ts tests/acceptance/character-dossier-upgrade.test.ts` | 2 files, 16 tests passed |
+| `pnpm exec vitest run tests/unit/character-development.test.ts tests/unit/help.test.ts` | 2 files, 19 tests passed |
+| Schema | No SQLite migration; additive dossier field JSON only |
+
+### Rollback
+
+Revert upgrade domain/service/UI, `migrationHold` key, archive field helpers, help, and labels. Archived snapshots and hold items already saved remain in dossier fields until an edit removes them. No manuscript rewrite.
 
 ## Milestone 5: Export presets & compile validation (Nov 22, 2026)
 
@@ -306,7 +375,7 @@ Revert the header components, page call sites, and the header rules. No data cha
 
 ## Series bible, kind templates, and continuity triage (Nov 21, 2026)
 
-Series-scoped references from a sibling book with the same series name show on World, in World search, in the chapter context rail, and in context export. Opening one in the other book is read-only, with Edit in the home book. Book scope and unset scope stay in their own book. Saves still go through the record that owns the row.
+Series-scoped references from a sibling book with the same series name show on World, in World search, in the chapter context rail, and in context export. Opening one in the other book is read-only by default, with **Edit in** the home book and optional **Edit here (cross-book)** (`?edit=cross`) for a guarded reference editor. Cross-book saves still mutate the home project (expected revision, protection, audit). Linking and Trash stay on the owning book. Book scope and unset scope stay in their own book.
 
 Characters, canon decisions, and continuity notes have name, alias chips, and role or summary. Other JSON keys stay. A custom worldbuilding kind can remember field keys and labels on `WorldKindTemplate` (optional backup array `worldKindTemplates`). World → Open questions lists unresolved records, Open questions sections, facts and story evidence that need another look, margin comments that need another look, and open review items.
 
@@ -425,6 +494,18 @@ Migration `20261121160000_world_map_layers`: `WorldMapLayer` per map, optional `
 ### Rollback
 
 Revert code; backups without layers restore with default layer names and no scale bar.
+
+## All connections knowledge graph (M9B, Nov 22, 2026)
+
+World → **Relationships** page: **Explicit relations** (unchanged graph and family/organization/geography trees) and **All connections** mode combining place/record relations, `RecordLink`, and cross-reference mention edges (`named_in` / `mentioned_by`) from saved text. Filters: record type, canon status, draft scope when drafts exist, edge kinds, and orphan-only records. Diagram nodes link to record pages. No schema change.
+
+| Check | Result |
+| --- | --- |
+| `pnpm exec vitest run tests/unit/relationship-graph.test.ts tests/acceptance/relationship-views.test.ts tests/unit/help.test.ts` | 12/12 passed |
+
+### Rollback
+
+Revert code only.
 
 ## Relationship graph and trees (Nov 21, 2026)
 

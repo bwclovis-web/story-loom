@@ -30,7 +30,7 @@ export async function CharacterDevelopmentSection({ projectId, recordId }: { pro
     );
   }
 
-  const [overview, relations, events, manuscript, beats] = await Promise.all([
+  const [overview, relations, events, manuscript, beats, facts, worldRefs] = await Promise.all([
     loadSeriesDevelopment(db, projectId),
     db.recordRelation.findMany({
       where: { projectId, OR: [{ fromRecordId: recordId }, { toRecordId: recordId }] },
@@ -42,7 +42,27 @@ export async function CharacterDevelopmentSection({ projectId, recordId }: { pro
       select: { id: true, title: true, type: true, currentRevision: true, body: true },
     }),
     db.weaveBeat.findMany({ where: { projectId }, select: { id: true, title: true }, orderBy: { title: "asc" }, take: 200 }),
+    db.establishedFact.findMany({
+      where: { projectId, subjectRecordId: recordId },
+      select: { id: true, statement: true },
+      orderBy: { updatedAt: "desc" },
+      take: 100,
+    }),
+    db.record.findMany({
+      where: {
+        projectId,
+        trashedAt: null,
+        type: { in: ["worldbuilding", "rules_glossary", "reference_note"] },
+      },
+      select: { id: true, title: true },
+      orderBy: { title: "asc" },
+      take: 200,
+    }),
   ]);
+
+  const fieldAge = typeof loaded.record.fields.age === "string" || typeof loaded.record.fields.age === "number"
+    ? String(loaded.record.fields.age)
+    : "";
 
   const revisions = new Map(manuscript.map((row) => [row.id, { revision: row.currentRevision, hash: sha256(row.body) }]));
   const staleMilestoneIds = loaded.profile.arcs.flatMap((arc) =>
@@ -62,9 +82,11 @@ export async function CharacterDevelopmentSection({ projectId, recordId }: { pro
         projectId={projectId}
         recordId={recordId}
         title={loaded.record.title}
+        body={loaded.record.body}
         revision={loaded.record.currentRevision}
         isProtected={loaded.record.protected}
         initialProfile={loaded.profile}
+        fieldAge={fieldAge}
         traits={visibleTraits(loaded.profile, loaded.foundation?.profile ?? null)}
         staleMilestoneIds={staleMilestoneIds}
         catalog={{
@@ -80,6 +102,8 @@ export async function CharacterDevelopmentSection({ projectId, recordId }: { pro
           chapters: manuscript.filter((row) => row.type === "manuscript_chapter").map((row) => ({ id: row.id, label: row.title })),
           scenes: manuscript.filter((row) => row.type === "manuscript_scene").map((row) => ({ id: row.id, label: row.title })),
           beats: beats.map((beat) => ({ id: beat.id, label: beat.title })),
+          facts: facts.map((fact) => ({ id: fact.id, label: fact.statement.slice(0, 80) })),
+          worldRefs: worldRefs.map((ref) => ({ id: ref.id, label: ref.title })),
           assistantConfigured: assistant.configured,
         }}
       />

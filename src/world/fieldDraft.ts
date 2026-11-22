@@ -1,5 +1,5 @@
 import { parseJsonObject, type JsonObject, type JsonValue } from "@/domain/json";
-import { isReferenceTemplateKey, type ReferenceTemplateKey } from "./referenceTemplates";
+import { isWorldKindKey } from "./referenceTemplates";
 import { WORLD_KIND_FIELD_SPECS } from "./worldKinds";
 
 export type FieldDraft =
@@ -23,8 +23,8 @@ export function fieldDraftText(value: JsonObject): string {
 
 function kindSpecs(fields: JsonObject): readonly { key: string }[] {
   const kind = fields.kind;
-  if (typeof kind !== "string" || !isReferenceTemplateKey(kind)) return [];
-  return WORLD_KIND_FIELD_SPECS[kind as ReferenceTemplateKey];
+  if (typeof kind !== "string" || !isWorldKindKey(kind)) return [];
+  return WORLD_KIND_FIELD_SPECS[kind];
 }
 
 /** Keys that are not the current kind's friendly fields and not `kind` itself. */

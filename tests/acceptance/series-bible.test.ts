@@ -5,6 +5,11 @@ import { exportContextBundle } from "@/server/services/contextExportService";
 import { NotFoundError } from "@/server/services/errors";
 import { createProject } from "@/server/services/projectService";
 import { createRecord, getRecord, listWorldIndex } from "@/server/services/recordService";
+import {
+  requireSeriesSharedFromSibling,
+  seriesRecordOwningProjectId,
+  updateSeriesSharedFromSibling,
+} from "@/server/services/seriesBibleService";
 import { searchProjectRecords } from "@/server/services/searchService";
 import { listWorldKindTemplates, saveWorldKindTemplate } from "@/server/services/worldKindTemplateService";
 import { createTestDb, IDS, seedProject, type TestDb } from "../helpers";
@@ -61,6 +66,24 @@ describe("series bible and kind templates", () => {
     await expect(getRecord(source.db, BOOK_TWO, "rec_test_shared_mara")).rejects.toBeInstanceOf(NotFoundError);
     const home = await getRecord(source.db, IDS.project, "rec_test_shared_mara");
     expect(home.title).toBe("Shared Mara");
+
+    const siblingView = await requireSeriesSharedFromSibling(source.db, BOOK_TWO, "rec_test_shared_mara");
+    expect(seriesRecordOwningProjectId(siblingView)).toBe(IDS.project);
+    await updateSeriesSharedFromSibling(source.db, BOOK_TWO, {
+      recordId: "rec_test_shared_mara",
+      expectedRevision: home.currentRevision,
+      body: "Keeper of the quay. Revised from Book Two.",
+    });
+    const afterHome = await getRecord(source.db, IDS.project, "rec_test_shared_mara");
+    expect(afterHome.body).toContain("Revised from Book Two");
+    expect(afterHome.currentRevision).toBe(home.currentRevision + 1);
+    await expect(
+      updateSeriesSharedFromSibling(source.db, IDS.project, {
+        recordId: "rec_test_shared_mara",
+        expectedRevision: afterHome.currentRevision,
+        body: "Wrong book.",
+      }),
+    ).rejects.toBeInstanceOf(NotFoundError);
 
     const hits = await searchProjectRecords(source.db, {
       projectId: BOOK_TWO,

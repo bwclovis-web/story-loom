@@ -100,12 +100,25 @@ rewritten automatically, so do not put project rules inside it.
   pages are created only via `mutationService`. Defaults change only on an
   explicit author action. Audited; never revisioned content.
 - Change-package idempotency is per project: (projectId, packageId) + content hash.
-- Optional character psychology, archetypes, arcs, variants, and state history
-  live in `fields.characterDevelopment` on the existing character dossier.
-  Missing metadata leaves the dossier unchanged. Suggestions from Extract or
-  Review are not canon and never edit manuscript prose. Approved opening or
-  closing state for one book is not rewritten by an edit that only touches
-  another book unless the author confirms that rewrite.
+- Optional character psychology, identity, voice, behavior, lived-experience
+  notes, capabilities, knowledge, archetypes, arcs, variants, and state history
+  live in `fields.characterDevelopment` on the existing character dossier
+  (version 1; new keys are optional). Missing metadata leaves the dossier
+  unchanged. Unknown top-level keys are kept on save. An unsupported version
+  refuses the development write. Importance templates only change which
+  sections open first; they never delete filled notes. Name, aliases, images,
+  and relationship edges stay on their existing record surfaces. Suggestions
+  from Extract or Review are not canon and never edit manuscript prose; they do
+  not invent lived-experience notes or secrets. Approved opening or closing
+  state for one book is not rewritten by an edit that only touches another book
+  unless the author confirms that rewrite.
+- Character dossier upgrade (Markdown → Living Profile) is author-reviewed and
+  non-destructive: it never creates a second dossier, never auto-approves
+  proposals as canon, never treats planned growth as completed development,
+  never resolves protected unknowns, and never silently drops conflicts or
+  unclassified text. Approved profile writes go through `updateRecord` /
+  change packages; the original Markdown body stays, with an optional archive
+  snapshot in `fields.dossierMarkdownArchive`.
 
 ## In-app help
 

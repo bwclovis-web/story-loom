@@ -22,6 +22,7 @@ import {
   type RenderContext,
 } from "@/server/pdf/pdfRender";
 import { marginPoints, spacingMetrics, TRIM_SIZES } from "@/writing/compileLayout";
+import { exportTypography } from "@/writing/bookThemes";
 import { parseMarkdown } from "@/writing/markdownParse";
 import type { DbOrTx } from "../db";
 import { NotFoundError } from "./errors";
@@ -227,11 +228,12 @@ export async function buildManuscriptPdf(
   const exportCtx = await buildManuscriptExportContext(db, projectId, options, now);
   const model = exportCtx.model;
   const project = model.projectTitle;
-  const headingAlign = chapterHeadingAlign(exportCtx.compile.chapterHeadingStyle);
+  const typography = exportTypography(exportCtx.compile);
+  const headingAlign = chapterHeadingAlign(typography.chapterHeadingStyle);
   const sceneGlyph = sceneBreakText(exportCtx.compile);
 
   const trim = TRIM_SIZES[exportCtx.compile.trimSize];
-  const spacing = spacingMetrics(exportCtx.compile.spacingPreset);
+  const spacing = spacingMetrics(typography.spacingPreset);
   const manuscriptLook = isStandardManuscriptProfile(exportCtx.compile);
   const doc = createPdf(
     { title: project, subject: "Manuscript exported from Story Loom" },
@@ -239,7 +241,7 @@ export async function buildManuscriptPdf(
       width: trim.width,
       height: trim.height,
       margin: marginPoints(exportCtx.compile.marginInches),
-      fontPreset: exportCtx.compile.fontPreset,
+      fontPreset: typography.fontPreset,
     },
   );
   const generated = defaultTitleSubtitle(model.generatedAt);
@@ -255,9 +257,10 @@ export async function buildManuscriptPdf(
     bodySize: spacing.bodySize,
   };
 
-  const drawText = (body: string) => {
+  const drawText = (recordId: string | null, body: string) => {
     const trimmed = body.trim();
     if (!trimmed) return false;
+    ctx.images = recordId ? (exportCtx.imagesByRecord.get(recordId) ?? EMPTY_IMAGES) : EMPTY_IMAGES;
     const parsed = parseMarkdown(trimmed);
     if (parsed.blocks.length) drawBlocks(doc, parsed.blocks, ctx, contentLeft(doc), contentWidth(doc));
     return parsed.blocks.length > 0;
@@ -265,7 +268,7 @@ export async function buildManuscriptPdf(
 
   if (usesCustomTitlePage(exportCtx.compile)) {
     doc.y = doc.page.margins.top;
-    drawText(exportCtx.compile.titlePageBody);
+    drawText(null, exportCtx.compile.titlePageBody);
     doc.y += 16;
     doc.font("body").fontSize(spacing.bodySize).fillColor(COLORS.muted).text(wordLine, contentLeft(doc), doc.y, {
       width: contentWidth(doc),
@@ -284,7 +287,7 @@ export async function buildManuscriptPdf(
 
   const drawMatterPage = (body: string) => {
     doc.addPage();
-    drawText(body);
+    drawText(null, body);
   };
 
   for (const section of frontMatterSections(exportCtx.compile)) {
@@ -318,9 +321,9 @@ export async function buildManuscriptPdf(
     for (const scene of scenes) {
       if (model.sceneTitles) drawHeading(doc, scene.record.title, 3, contentLeft(doc), contentWidth(doc));
       else if (previousText && scene.record.body.trim()) drawSceneBreak(doc, sceneGlyph);
-      drawText(recordExportPrefix(scene.record.id, exportCtx));
-      previousText = drawText(scene.record.body) || previousText;
-      drawText(recordExportSuffix(scene.record.id, exportCtx));
+      drawText(scene.record.id, recordExportPrefix(scene.record.id, exportCtx));
+      previousText = drawText(scene.record.id, scene.record.body) || previousText;
+      drawText(scene.record.id, recordExportSuffix(scene.record.id, exportCtx));
     }
   };
 
@@ -345,10 +348,10 @@ export async function buildManuscriptPdf(
   for (const chapter of model.chapters) {
     chapters += 1;
     chapterHeading(chapter.record.title, `chapter-${chapter.record.id}`);
-    drawText(recordExportPrefix(chapter.record.id, exportCtx));
-    const body = exportCtx.compile.dropCap ? dropCapBody(chapter.record.body) : chapter.record.body;
-    drawScenes(chapter.scenes, drawText(body));
-    drawText(recordExportSuffix(chapter.record.id, exportCtx));
+    drawText(chapter.record.id, recordExportPrefix(chapter.record.id, exportCtx));
+    const body = typography.dropCap ? dropCapBody(chapter.record.body) : chapter.record.body;
+    drawScenes(chapter.scenes, drawText(chapter.record.id, body));
+    drawText(chapter.record.id, recordExportSuffix(chapter.record.id, exportCtx));
   }
   if (model.unplacedScenes.length) {
     chapterHeading("Scenes not in a chapter");
@@ -375,6 +378,6 @@ export async function buildManuscriptPdf(
     bytes,
     pageCount,
     documentCount: chapters,
-    imagesEmbedded: 0,
+    imagesEmbedded: ctx.embedded,
   };
 }

@@ -12,6 +12,7 @@ import {
   COMPILE_PROFILE,
   CONNECTIONS,
   DICTIONARY,
+  DOCX_REVIEW,
   DRAFT,
   EXPORT,
   INFOBOX,
@@ -37,12 +38,15 @@ import {
   READ_BOOK,
   RECORD,
   CHARACTER_DEVELOPMENT,
+  CHARACTER_DOSSIER_UPGRADE,
   RECORD_RENAME,
+  RELATIONSHIP,
   REFERENCE_FORM,
   REVIEW,
   SHELL,
   SELECTION_ASSIST,
   SPELLING,
+  SMART_COLLECTIONS,
   STYLE_CHECK,
   TEXT_APPEARANCE,
   THEME,
@@ -177,11 +181,16 @@ export function HelpContent() {
               while you pause (<See anchor="protection" />).
             </li>
             <li>
-              <See anchor="manuscript-style-check" />, <See anchor="writing-goals" />, and{" "}
-              <See anchor="manuscript-annotations" />: local style checks, goals, synopsis cards, and margin comments.
+              <See anchor="manuscript-style-check" />, <See anchor="writing-goals" />,{" "}
+              <See anchor="manuscript-annotations" />, and <See anchor="manuscript-outliner" />: style insights, goals,
+              synopsis, corkboard, and the Outliner table.
             </li>
             <li>
-              <See anchor="pdf-export" />: shared compile settings; export PDF, DOCX, or EPUB.
+              <See anchor="live-markdown" /> and <See anchor="named-snapshots" />: live Markdown, Scrivenings, named
+              snapshots, and read aloud.
+            </li>
+            <li>
+              <See anchor="pdf-export" />: shared compile settings; export PDF, DOCX, EPUB, or a beta reader DOCX.
             </li>
             <li>
               <See anchor="selection-assist" />: optional AI assist on a selection (suggestion only).
@@ -909,7 +918,9 @@ export function HelpContent() {
         <h3>Manuscript chapters and scenes</h3>
         <p>
           Chapters and scenes open on their own writing page, with a <L>{WRITE.save}</L> button instead of{" "}
-          <L>{RECORD.saveAsRevision("N")}</L>. Saving works the same way. See <See anchor="write" />.
+          <L>{RECORD.saveAsRevision("N")}</L>. Saving works the same way. See <See anchor="write" />. A chapter page
+          lists the scenes nested under that chapter. Those scenes stay separate pages; their text is not copied into
+          the chapter. <L>{WRITE.scrivenings}</L> on Write opens the chapter and those scenes in one scroll.
         </p>
       </Section>
 
@@ -929,8 +940,10 @@ export function HelpContent() {
           </p>
           <ul>
             <li>
-              Choose the arrow beside a chapter to show or hide its scenes. The number beside a chapter is how many
-              scenes it has.
+              Choose the arrow beside a chapter to show or hide its scenes. Selecting a chapter also opens that list,
+              and the side panel names the scenes. The number beside a chapter is how many scenes it has. Scenes belong
+              to the draft you are viewing: a scene on the Zero draft does not appear under the Author manuscript copy
+              of the same chapter.
             </li>
             <li>
               Type in <L>{WRITE.searchManuscript}</L> to show only chapters and scenes whose titles contain that text.
@@ -1083,18 +1096,49 @@ export function HelpContent() {
 
         <Sub id="manuscript-style-check">
           <p>
-            <L>{STYLE_CHECK.heading}</L> runs deterministic checks on Markdown source text: echoed words in a short
-            window, common filter words, many <code>-ly</code> adverbs, long sentences, and character or place names
-            repeated close together, possible passive voice, and a short list of weak verbs. The manuscript pass also
-            shows <L>{STYLE_CHECK.pacing}</L>, <L>{STYLE_CHECK.dialogue}</L>, and <L>{STYLE_CHECK.pov}</L>. Nothing is
-            stored and nothing changes in the manuscript.
+            <L>{STYLE_CHECK.heading}</L> is on <L>{SHELL.write}</L> under project tools (
+            <L>{SHELL.moreActions}</L>), or open <code>/projects/…/write/style</code>. It never stores results and never
+            changes the manuscript. The page uses the same active draft as Write.
+          </p>
+          <h4>
+            <L>{STYLE_CHECK.insightsHeading}</L>
+          </h4>
+          <p>
+            Near the top of that page, <L>{STYLE_CHECK.insightsHeading}</L> is a read-only dashboard for the saved draft:
+          </p>
+          <ul>
+            <li>
+              <L>{STYLE_CHECK.pacing}</L> — bar chart of chapter and scene word counts; a target mark appears when a
+              chapter has a word target (see <See anchor="writing-goals" />).
+            </li>
+            <li>
+              <L>{STYLE_CHECK.povSequence}</L> — chapters and scenes in book order with the saved{" "}
+              <L>{SCENE_META.pov}</L> field (set in the editor or <See anchor="manuscript-outliner" />).
+            </li>
+            <li>
+              <L>{STYLE_CHECK.characterMatrix}</L> — how often tracked character names appear in each chapter (and its
+              scenes). Cells and titles link into the manuscript.
+            </li>
+            <li>
+              <L>{STYLE_CHECK.weaveSpans}</L> — setup→payoff links from Weave grids, with beat or chapter distance when
+              those links resolve.
+            </li>
+            <li>
+              <L>{STYLE_CHECK.dialogue}</L> and <L>{STYLE_CHECK.pov}</L> (name-mention balance) summarize the same pass.
+            </li>
+          </ul>
+          <h4>
+            <L>{STYLE_CHECK.resultsHeading}</L>
+          </h4>
+          <p>
+            Below the insights, deterministic checks flag echoed words, common filter words, many <code>-ly</code>{" "}
+            adverbs, long sentences, names repeated close together, possible passive voice, and a short list of weak
+            verbs. Each hit opens that chapter or scene and selects the passage (offsets match the saved revision;
+            unsaved edits can shift them).
           </p>
           <p>
-            On a chapter or scene, open <L>{STYLE_CHECK.toolbar}</L> beside <L>{WRITE.spellcheck}</L>. The panel reads the
-            text in the editor (including unsaved changes). Choose a row to select that passage. For the whole draft, open{" "}
-            <L>{STYLE_CHECK.heading}</L> from <L>{SHELL.moreActions}</L> on Write or from the link in the panel; that pass
-            uses saved text only. Each hit opens that chapter or scene, selects the passage, and scrolls the editor
-            (offsets match the saved revision; unsaved edits can shift them).
+            On a chapter or scene, open <L>{STYLE_CHECK.toolbar}</L> beside <L>{WRITE.spellcheck}</L>. That panel reads
+            the text in the editor (including unsaved changes) and does not show the manuscript-wide insights dashboard.
           </p>
           <p className="small muted">
             This complements <L>{WRITE.proofread}</L> and Analyze chapter, which stay spelling, grammar, punctuation and
@@ -1131,15 +1175,71 @@ export function HelpContent() {
           </p>
           <p>
             Edit the synopsis under the text on a chapter or scene, or on the{" "}
-            <L>{MANUSCRIPT_ANNOTATIONS.corkboardTab}</L> tab on <L>{SHELL.write}</L>. That tab lists every chapter and scene
-            in book order, with <L>{SCENE_META.pov}</L> and <L>{SCENE_META.status}</L> when they are set. Save a synopsis on
-            the card. Move a card with <L>{BOOK_ORDER.moveUp}</L>, <L>{BOOK_ORDER.moveDown}</L>, or{" "}
-            <L>{MANUSCRIPT_STRUCTURE.drag}</L>. Reordering uses the same book order as <L>{BOOK_ORDER.heading}</L> and does
-            not need the protection tick. Pin a margin
-            comment to a saved passage by selecting text, saving if needed, then choosing <L>{MANUSCRIPT_ANNOTATIONS.pinSelection}</L>.
-            When you save a new revision, older pins show <L>{MANUSCRIPT_ANNOTATIONS.needsRecheck}</L> until you resolve or remove them.
-            Exports include synopses or margin comments only when the compile profile on{" "}
-            <L>{NAV.exportPdf}</L> asks for them.
+            <L>{MANUSCRIPT_ANNOTATIONS.corkboardTab}</L> or <L>{WRITE.outlinerTab}</L> tab on <L>{SHELL.write}</L> (see{" "}
+            <See anchor="manuscript-outliner" />). The corkboard lists every chapter and scene in book order, with{" "}
+            <L>{SCENE_META.pov}</L> and <L>{SCENE_META.status}</L> when they are set. Save a synopsis on the card. Move a
+            card with <L>{BOOK_ORDER.moveUp}</L>, <L>{BOOK_ORDER.moveDown}</L>, or <L>{MANUSCRIPT_STRUCTURE.drag}</L>.
+            Reordering uses the same book order as <L>{BOOK_ORDER.heading}</L> and does not need the protection tick. Pin a
+            margin comment to a saved passage by selecting text, saving if needed, then choosing{" "}
+            <L>{MANUSCRIPT_ANNOTATIONS.pinSelection}</L>. When you save a new revision, older pins show{" "}
+            <L>{MANUSCRIPT_ANNOTATIONS.needsRecheck}</L> until you resolve or remove them. Exports include synopses or
+            margin comments only when the compile profile on <L>{NAV.exportPdf}</L> asks for them.
+          </p>
+        </Sub>
+
+        <Sub id="manuscript-outliner">
+          <p>
+            On <L>{SHELL.write}</L>, open the <L>{WRITE.outlinerTab}</L> tab (beside <L>{WRITE.chaptersTab}</L>,{" "}
+            <L>{WRITE.scenesTab}</L>, and <L>{MANUSCRIPT_ANNOTATIONS.corkboardTab}</L>). It shows chapters and scenes in a
+            table. {WRITE.outlinerLead}
+          </p>
+          <h4>What you can edit in the table</h4>
+          <ul>
+            <li>
+              <L>{MANUSCRIPT_ANNOTATIONS.synopsis}</L> — change the box, then leave the field (blur saves). Same storage as
+              the corkboard synopsis.
+            </li>
+            <li>
+              <L>{SCENE_META.pov}</L> — type in the cell, then leave the field. Saved in the chapter or scene fields (same
+              as on the writing page).
+            </li>
+            <li>
+              <L>{SCENE_META.status}</L> — choose from the dropdown; it saves when you change it.
+            </li>
+            <li>
+              <L>{WRITE.outlinerColTarget}</L> — chapters only. Enter a word target or clear the box to remove it (same as{" "}
+              <See anchor="writing-goals" />).
+            </li>
+          </ul>
+          <h4>What stays display-only here</h4>
+          <ul>
+            <li>
+              <L>{WRITE.outlinerColLocation}</L> shows the primary scene location when one is set. Assign or change it on
+              the chapter or scene page (see <See anchor="scene-locations" />), not in the Outliner.
+            </li>
+            <li>
+              <L>{WRITE.outlinerColContinuity}</L> counts open Continuity Ledger items for that record; the number links to
+              Continuity. It is not edited here.
+            </li>
+            <li>
+              Word counts are from saved text. Sorting and filtering on this tab never change book order — use{" "}
+              <L>{BOOK_ORDER.heading}</L> under <L>{SHELL.moreActions}</L> or the corkboard for that (
+              <See anchor="book-order" />).
+            </li>
+          </ul>
+          <p>
+            Protected rows stay read-only for <L>{SCENE_META.pov}</L> and <L>{SCENE_META.status}</L>. Open the chapter or
+            scene, enable editing, then change those fields there (or return to the Outliner after unlocking). Synopsis
+            and chapter word targets do not need the protection tick.
+          </p>
+        </Sub>
+
+        <Sub id="smart-collections">
+          <p>
+            <L>{SMART_COLLECTIONS.heading}</L> are saved filters for this project. Open them from project tools on{" "}
+            <L>{SHELL.write}</L>. They never rewrite prose or change book order; they only name a set of predicates such as
+            text query, point of view, word range, or open continuity findings. Collections travel in workspace backups when
+            present; older backups without them restore cleanly with none.
           </p>
         </Sub>
 
@@ -1258,8 +1358,12 @@ export function HelpContent() {
             <li>Pick the edited <code>.docx</code>. Nothing is written yet.</li>
             <li>Review each chapter diff. Accept only the chapters you want to update.</li>
             <li>
-              Tick the protection confirmation when replacing protected chapters, then apply. Earlier versions stay in
-              history.
+              Choose <L>{DOCX_REVIEW.applyModeFull}</L> or <L>{DOCX_REVIEW.applyModeCommentsOnly}</L>. Comments-only imports
+              Word comments as margin comments and never replaces or unlocks chapter prose.
+            </li>
+            <li>
+              Tick the protection confirmation when replacing protected chapters under the full mode, then apply. Earlier
+              versions stay in history.
             </li>
           </ol>
         </Sub>
@@ -1611,24 +1715,31 @@ export function HelpContent() {
 
         <Sub id="live-markdown">
           <p>
-            The writing editor stores exact Markdown. <L>{WRITE.liveMarkdown}</L> paints formatted prose while you type
-            and hides markers except on the caret line (a selected passage stays live-formatted).{" "}
-            <L>{WRITE.preview}</L> is a side rendered view and turns Live Markdown off so you are not looking at two
-            copies of the same scene; turn Live Markdown off to edit raw Markdown. Footnotes use{" "}
-            <code>[^id]</code> in the text and <code>[^id]: note</code> on their own lines. Hover a known character or
-            place name for a short peek. <L>{WRITE.createReferenceFromSelection}</L> turns selected text into a draft
-            reference and can link or pin it without changing the manuscript.{" "}
-            <L>{WRITE.scrivenings}</L> on Write opens a chapter and its scenes in one continuous scroll; each block keeps
-            its own protection, revision, and autosave.
+            The writing editor stores exact Markdown. Turn on <L>{WRITE.liveMarkdown}</L> to paint formatted prose while
+            you type (markers hide except on the caret line). <L>{WRITE.preview}</L> is a separate rendered view; Live
+            Markdown and Preview are exclusive so you are not looking at two copies of the same scene. Footnotes use{" "}
+            <code>[^id]</code> in the text and <code>[^id]: note</code> on their own lines.
+          </p>
+          <p>
+            Hover a known character or place name (including common name forms) for a short peek.{" "}
+            <L>{WRITE.createReferenceFromSelection}</L> turns selected text into a draft reference and can link or pin it
+            without changing the manuscript. <L>{WRITE.scrivenings}</L> (from Write project tools or a chapter header)
+            opens a chapter and its scenes in one continuous scroll; each block keeps its own protection, revision, and
+            autosave. <L>{WRITE.readAloud}</L> is in the editor toolbar — see <See anchor="named-snapshots" />.
           </p>
         </Sub>
 
         <Sub id="named-snapshots">
           <p>
             In <L>{RECORD.historyHeading}</L>, <L>{WRITE.nameSnapshot}</L> labels an existing revision without rewriting
-            its title or text. <L>{RECORD.compareHeading}</L> still shows a word-level diff and lists snapshot names in
-            the revision pickers. <L>{WRITE.readAloud}</L> uses this browser&apos;s speech voice on the selection (or the
-            whole document); it does not call a server and does not save.
+            its title or text. Named labels travel in workspace backups when present. <L>{RECORD.compareHeading}</L>{" "}
+            still shows a word-level diff and lists snapshot names in the revision pickers.
+          </p>
+          <p>
+            <L>{WRITE.readAloud}</L> in the editor toolbar uses this browser&apos;s speech voice on the current selection,
+            or the whole document when nothing is selected. It does not call a server and does not save. If speech is
+            already speaking, Story Loom waits briefly, then starts the new passage so a second click is not usually
+            needed.
           </p>
         </Sub>
       </Section>
@@ -1957,8 +2068,9 @@ export function HelpContent() {
               already assigned, and <L>{WORLD.linkScene}</L>. Planned events stay on the map rail. Opening the reference
               and coming back restores this map, the marker, the search, hidden layers, zoom, and the map path. A
               missing marker or a deleted map is said on the page.{" "}
-              <L>{WORLD.openDetailedMap}</L> opens that map and keeps a path you can follow back. The same place can
-              appear on several maps.
+              <L>{WORLD.openDetailedMap}</L> and <L>{WORLD.mapDrillIn}</L> open a linked detailed map and keep a{" "}
+              <L>{WORLD.mapBreadcrumb}</L> trail you can follow back with the shared breadcrumbs. Use{" "}
+              <L>{WORLD.mapLinkDetailMap}</L> in the inspector to link one. The same place can appear on several maps.
             </li>
             <li>
               <L>{WORLD.mapModeBrowse}</L> pans and zooms without moving markers. <L>{WORLD.mapModeEdit}</L> opens on{" "}
@@ -1978,7 +2090,11 @@ export function HelpContent() {
               <L>{WORLD.drawMoveLater}</L>) select and edit a shape without the pointer. Each marker can still link a
               World reference. Freehand drawing is not part of this screen. Positions are not travel time.{" "}
               <L>{WORLD.mapMeasure}</L> and <L>{WORLD.mapRouteLength}</L> estimate a distance from the scale bar you
-              set, and the result is labelled <L>{WORLD.mapMeasureDerived}</L>.
+              set, and the result is labelled <L>{WORLD.mapMeasureDerived}</L>. After a distance is shown, travel-time
+              presets (walking, horse, wagon, ship, or custom speed) give a read-only estimate such as{" "}
+              <L>{WORLD.mapTravelEstimate("~3 h", "walking")}</L>; nothing is saved as canon. Optional{" "}
+              <L>{WORLD.mapPinFilter}</L> dims markers that have no story event or scene location in the chosen era,
+              draft, or book.
             </li>
             <li>
               Each map has author-defined <L>{WORLD.mapLayers}</L>. Older maps open with the former four groups as
@@ -2045,9 +2161,11 @@ export function HelpContent() {
           <p>
             Soft-trashing a chapter, scene, or place keeps the assignment and hides the trashed end until you restore
             it. Permanently deleting either end removes the assignment. Assigning a location does not change the text
-            or its saved revisions, so protection does not apply. Scene locations are included in workspace backups.
-            Older backups that omit them restore with none. A backup that includes scene locations will not restore on
-            an             older copy of the app that does not know that field.
+            or its saved revisions, so protection does not apply. The <L>{WRITE.outlinerTab}</L> tab shows the primary
+            location as read-only; change assignments here, not in the Outliner (see{" "}
+            <See anchor="manuscript-outliner" />). Scene locations are included in workspace backups. Older backups that
+            omit them restore with none. A backup that includes scene locations will not restore on an older copy of the
+            app that does not know that field.
           </p>
         </Sub>
 
@@ -2119,13 +2237,20 @@ export function HelpContent() {
 
         <Sub id="relationship-views">
           <p>
-            <L>{WORLD.relationships}</L> on <L>{SHELL.world}</L> opens a graph and three trees built only from{" "}
-            <L>{WORLD.placeRelations}</L> and <L>{WORLD.recordRelations}</L>. Choose <L>{WORLD.relationshipGraphView}</L>{" "}
-            to focus on one record and limit how many steps out to show, with kind filters.{" "}
-            <L>{WORLD.relationshipFamilyView}</L>, <L>{WORLD.relationshipOrganizationView}</L>, and{" "}
-            <L>{WORLD.relationshipGeographyView}</L> use <em>parent of</em> / <em>sibling</em> / <em>spouse</em>,{" "}
+            <L>{WORLD.relationships}</L> on <L>{SHELL.world}</L> opens a graph and three trees built from{" "}
+            <L>{WORLD.placeRelations}</L> and <L>{WORLD.recordRelations}</L> when <L>{RELATIONSHIP.modeExplicit}</L> is
+            selected. Choose <L>{WORLD.relationshipGraphView}</L> to focus on one record and limit how many steps out to
+            show, with kind filters. <L>{WORLD.relationshipFamilyView}</L>, <L>{WORLD.relationshipOrganizationView}</L>,
+            and <L>{WORLD.relationshipGeographyView}</L> use <em>parent of</em> / <em>sibling</em> / <em>spouse</em>,{" "}
             <em>member of</em> / <em>leads</em> / <em>serves</em>, and <em>part of</em> respectively. Switch to{" "}
             <L>{WORLD.relationshipListView}</L> for a keyboard-friendly list of the same data.
+          </p>
+          <p>
+            <L>{RELATIONSHIP.modeAllConnections}</L> adds reference links from chapters and scenes, plus manuscript
+            mentions computed from saved text (the same rules as <L>{XREF.namedIn}</L> and{" "}
+            <L>{XREF.mentionedBy}</L>). Filter by record type, canon status, draft scope when drafts exist, edge kind, and{" "}
+            <L>{RELATIONSHIP.orphansOnly}</L> (records with no edges after the other filters). Mention and link edges are
+            read-only and never change canon. Open any node to jump to its record page.
           </p>
           <p>
             Graph and tree nodes show the reference&apos;s <L>{IMAGES.profileImage}</L> when you set one on its{" "}
@@ -2149,31 +2274,49 @@ export function HelpContent() {
 
         <Sub id="character-development">
           <p>
-            On a character dossier, <L>{CHARACTER_DEVELOPMENT.heading}</L> stores optional psychology, archetypes, arcs,
-            relationship perceptions, and state changes on the dossier you already have. Leaving it blank changes
-            nothing. Importance and narrative role suggest how much detail to write; they do not lock any field. A minor
-            character can stay empty. A supporting character can still carry several arcs.
+            On a character dossier, <L>{CHARACTER_DEVELOPMENT.heading}</L> adds optional structured notes beside the
+            Markdown body you already have. Name, aliases, images, and relationship edges stay on their existing panels;
+            the profile does not replace them. Leaving the profile blank changes nothing.{" "}
+            <L>{CHARACTER_DEVELOPMENT.importance}</L> suggests which sections to open first for protagonist, major
+            supporting, recurring, or minor characters. Changing importance never deletes filled notes.
           </p>
           <p>
-            Enneagram types, wings, and archetypes are writing aids. They are not diagnoses, and they do not require the
-            prose to match. Trauma, disability, and neurodivergence stay in the dossier text, separate from those
-            classifications. Narrative role is separate from archetype: a mentor can still be a Trickster.
+            Sections cover Identity, Psychology, Voice, Behavior, Lived experience, Relationships, Capabilities,
+            Development, and Continuity. Enneagram types, wings, and archetypes are writing aids, not diagnoses or
+            behavioral rules. <L>{CHARACTER_DEVELOPMENT.livedTab}</L> holds author-written formative experience,
+            neurodivergence, trauma, coping, and portrayal guidance. Those notes default to omit from AI context, and
+            Extract or Review will not invent them. Capabilities can link existing worldbuilding records instead of
+            copying their prose.
           </p>
           <p>
-            Arcs use the same approval words as other records: draft, proposed, approved, superseded, and unresolved.
-            Movement can pause, regress, stop, or be revisited. A series arc can contain book arcs. Book order in the
-            profile is narrative order, which you set, not publication order and not the order of scenes in the file.
-            Approved opening and closing notes for one book stay put when you edit another book, unless you tick{" "}
-            <L>{CHARACTER_DEVELOPMENT.confirmRewrite}</L>.
+            Development arcs use the same approval words as other records: draft, proposed, approved, superseded, and
+            unresolved. A series arc can contain book arcs. Continuity holds knowledge items and state changes, including
+            opening and closing facets. Approved opening and closing notes for one book stay put when you edit another
+            book, unless you tick <L>{CHARACTER_DEVELOPMENT.confirmRewrite}</L>.
           </p>
           <p>
             <L>{CHARACTER_DEVELOPMENT.extract}</L> and <L>{CHARACTER_DEVELOPMENT.review}</L> need the assistant key on
-            Settings. They propose notes and cite the dossier or a linked passage. Nothing is canon, and the manuscript
-            is not edited, until you save a selected suggestion yourself. A passage linked at a revision is marked when
-            that chapter or scene is saved again. Variants can inherit traits you tick. They do not share knowledge,
-            memories, or arcs. <L>{CHARACTER_DEVELOPMENT.seriesHeading}</L> on World lists the same notes across books,
-            including a novel that is not in a series. The profile is part of the dossier fields, so it travels with
-            revisions, context export, and change packages. An older package that does not mention it leaves it in place.
+            Settings. <L>{CHARACTER_DEVELOPMENT.fillFromHeadings}</L> proposes identity, voice, and psychology text from
+            matching dossier headings; you accept each fill. Variants can inherit identity, voice, behavior, and
+            psychology traits you tick. They do not share knowledge, lived experience, capabilities, secrets, or arcs.
+            The profile stays inside dossier fields (version 1, additive keys), so it travels with revisions and change
+            packages without a database reset. <L>{CHARACTER_DEVELOPMENT.exportRedacted}</L> omits lived experience and
+            secrets; <L>{CHARACTER_DEVELOPMENT.exportFull}</L> keeps the complete structured profile for local backup.
+            <L>{CHARACTER_DOSSIER_UPGRADE.openUpgrade}</L> is the author-reviewed migration path described next.
+          </p>
+        </Sub>
+
+        <Sub id="character-dossier-upgrade">
+          <p>
+            <L>{CHARACTER_DOSSIER_UPGRADE.openUpgrade}</L> classifies existing dossier Markdown into Living Profile
+            destinations (identity, psychology, voice, behavior, lived experience, relationships, capabilities,
+            development, continuity, plus historical amendments, protected unknowns, proposed material, and
+            unclassified). You preview each item with its source text, existing profile content, conflicts, and
+            authority hints, then accept, modify, reject, or defer. Nothing is written until you apply. The original
+            Markdown body and revision history stay put; an archive snapshot is stored on the dossier fields. Proposals
+            never become approved canon automatically, planned growth is not treated as completed development, and
+            protected unknowns stay unresolved. You can also analyze pasted Markdown, review upgrades across the project
+            from Character development, or export a proposed change package for Import package.
           </p>
         </Sub>
 
@@ -2240,8 +2383,10 @@ export function HelpContent() {
           <p>
             When two books in the same workspace share a series name, a reference whose scope is Series shows up in the
             other book. World lists it with <L>{SERIES.homeBadge("the home book")}</L> and{" "}
-            <L>{SERIES.editIn("the home book")}</L>. Opening it there is read-only. Saving, linking, and Trash stay on
-            the book that owns the record. A Book scope, or no scope, stays in its own book. Search on World and the
+            <L>{SERIES.editIn("the home book")}</L>. Opening it there is read-only until you choose{" "}
+            <L>{SERIES.editHereCrossBook}</L>, which opens a guarded editor with a continuity warning. Cross-book saves
+            still write through the home book (revision, protection, and audit). Linking and Trash stay on the book that
+            owns the record. A Book scope, or no scope, stays in its own book. Search on World and the
             context rail beside a chapter can find these references. A context export includes them with{" "}
             <code>seriesHome</code> and tells the reader not to update them in this book&apos;s change package.
           </p>
@@ -2730,8 +2875,11 @@ export function HelpContent() {
           </li>
           <li>
             Choose <L>{PDF.downloadReferences("N")}</L>, <L>{PDF.downloadReferencesDocx("N")}</L>,{" "}
-            <L>{PDF.downloadReferencesEpub("N")}</L>, or <L>{PDF.downloadReferencesMarkdown("N")}</L>. DOCX, EPUB, and
-            the Markdown zip use the same ticked references. The Markdown zip is one file per document plus a list.
+            <L>{PDF.downloadReferencesEpub("N")}</L>, <L>{PDF.downloadReferencesMarkdown("N")}</L>, or{" "}
+            <L>{PDF.downloadReferencesWiki("N")}</L>. DOCX, EPUB, and the Markdown zip use the same ticked references.
+            The HTML wiki zip is searchable offline with one page per document, infoboxes, cross-links, and embedded PNG
+            or JPEG images. Optional spoiler ceilings on that download can limit the export to approved references or trim
+            established facts in infoboxes; body text and relationships are not fully spoiler-filtered.
           </li>
         </ol>
         <p>
@@ -2755,6 +2903,11 @@ export function HelpContent() {
             alignment, trim, margins, running header and footer, font and spacing, and whether to include synopses or margin comments), then choose{" "}
             <L>{PDF.downloadManuscript}</L>, <L>{PDF.downloadManuscriptDocx}</L>, or <L>{PDF.downloadManuscriptEpub}</L>.
           </li>
+          <li>
+            For beta readers, use <L>{PDF.betaReaderHeading}</L> on the same page: optional paragraph numbers, watermark
+            header, and an approved-reference glossary appendix. That DOCX is still a download only; it does not change the
+            manuscript.
+          </li>
         </ol>
         <p>
           Chapters are in book order, as under <L>{BOOK_ORDER.heading}</L> on <L>{SHELL.write}</L>, each starting on a new page, with its text followed by
@@ -2767,8 +2920,10 @@ export function HelpContent() {
           the first chapter in every manuscript format. A custom title page replaces the default project title page. Scene
           breaks use your glyph when scene titles are off. Synopses and unresolved margin comments are optional.{" "}
           <L>{COMPILE_PROFILE.trimSize}</L>, <L>{COMPILE_PROFILE.marginInches}</L>, <L>{COMPILE_PROFILE.runningHeader}</L>,{" "}
-          <L>{COMPILE_PROFILE.runningFooter}</L>, <L>{COMPILE_PROFILE.fontPreset}</L>, and{" "}
-          <L>{COMPILE_PROFILE.spacingPreset}</L> shape the manuscript PDF and DOCX. <L>{COMPILE_PROFILE.includeToc}</L>{" "}
+          <L>{COMPILE_PROFILE.runningFooter}</L>, <L>{COMPILE_PROFILE.fontPreset}</L>,{" "}
+          <L>{COMPILE_PROFILE.spacingPreset}</L>, and optional <L>{COMPILE_PROFILE.bookTheme}</L> shape the manuscript
+          PDF, DOCX, and EPUB. <L>{COMPILE_PROFILE.spreadPreviewHeading}</L> on the same page shows a read-only paperback
+          and e-reader sample. <L>{COMPILE_PROFILE.includeToc}</L>{" "}
           adds a contents page whose chapter titles jump to those chapters. <L>{COMPILE_PROFILE.dropCap}</L> sets the first
           letter of each chapter larger in the PDF. <L>{COMPILE_PROFILE.includeInCompile}</L> leaves unticked chapters
           and scenes out of PDF, DOCX, and EPUB without changing the manuscript. <L>{COMPILE_PROFILE.backMatter}</L>{" "}
@@ -4219,9 +4374,10 @@ export function HelpContent() {
             need the protection tick. Split also needs saved text with words on both sides of the cursor.
           </li>
           <li>
-            Chapters and scenes cannot have images. Images cannot be cropped, resized or renamed in the app. PDFs include
-            PNG and JPEG images only. Manuscript PDF trim, margins, headers, contents, and which chapters to include are
-            set on the compile profile.
+            Chapters, scenes, and references can store images. Use <code>![description](image:name)</code> in the text.
+            Images cannot be cropped, resized or renamed in the app. Manuscript and reference PDFs, DOCX, and EPUB include
+            PNG and JPEG images where the text shows them; GIF and WebP are listed by name instead. Manuscript trim,
+            margins, headers, contents, themes, and which chapters to include are set on the compile profile.
           </li>
           <li>
             Formatting buttons exist only for chapters and scenes, and there is no underline. Reference pages show common

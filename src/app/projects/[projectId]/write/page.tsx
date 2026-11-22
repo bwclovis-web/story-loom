@@ -11,19 +11,22 @@ import {
   type OutlineChapter,
   type OutlineNote,
   type OutlineScene,
+  type OutlinerRow,
 } from "@/components/write/ManuscriptOutline";
 import { RECORD_TYPE_LABELS } from "@/domain/recordTypes";
 import { getDb } from "@/server/db";
 import { readWriteDraftCookie, resolveWriteDraftId } from "@/server/draftSelection";
+import { listContinuityLedger } from "@/server/services/continuityService";
 import { listProjectCoverHashes } from "@/server/services/coverService";
 import { listManuscriptDrafts } from "@/server/services/draftService";
+import { listSynopsesForRecords } from "@/server/services/manuscriptAnnotationService";
 import { findProject } from "@/server/services/projectService";
 import { listRecordNav, listRecords } from "@/server/services/recordService";
 import { countOpenReviewItems } from "@/server/services/reviewService";
-import { buildWritingProgress } from "@/server/services/writingProgressService";
-import { listSynopsesForRecords } from "@/server/services/manuscriptAnnotationService";
 import { searchManuscript, type ManuscriptHit } from "@/server/services/searchService";
-import { MANUSCRIPT_REPLACE, MANUSCRIPT_SEARCH, NAV, SHELL, STYLE_CHECK, WRITE, WRITING_GOALS } from "@/ui/labels";
+import { listChapterWritingGoals } from "@/server/services/writingGoalService";
+import { buildWritingProgress } from "@/server/services/writingProgressService";
+import { MANUSCRIPT_REPLACE, MANUSCRIPT_SEARCH, NAV, SHELL, SMART_COLLECTIONS, STYLE_CHECK, WRITE, WRITING_GOALS } from "@/ui/labels";
 import { manuscriptEyebrow } from "@/ui/library";
 import { buildManuscriptTree } from "@/ui/manuscriptTree";
 import type { RecordNavEntry } from "@/ui/navigation";
@@ -54,19 +57,29 @@ export default async function WritePage({
   const cookieStore = await cookies();
   const sessionRaw = cookieStore.get("wordly-writing-session")?.value;
   const sessionSince = sessionRaw ? new Date(decodeURIComponent(sessionRaw)) : null;
-  const [nav, records, search, coverHashes, openReviewItems, progress] = await Promise.all([
-    listRecordNav(db, projectId, { hasDrafts, draftId: activeDraftId }),
-    listRecords(db, projectId),
-    q ? searchManuscript(db, { projectId, query: q, matchCase, hasDrafts, draftId: activeDraftId }) : null,
-    listProjectCoverHashes(db, [projectId]),
-    countOpenReviewItems(db, projectId),
-    buildWritingProgress(db, {
-      projectId,
-      hasDrafts,
-      draftId: activeDraftId,
-      sessionSince: sessionSince && !Number.isNaN(sessionSince.getTime()) ? sessionSince : null,
-    }),
-  ]);
+  const [nav, records, search, coverHashes, openReviewItems, progress, chapterGoals, continuityItems, primaryLocations] =
+    await Promise.all([
+      listRecordNav(db, projectId, { hasDrafts, draftId: activeDraftId }),
+      listRecords(db, projectId),
+      q ? searchManuscript(db, { projectId, query: q, matchCase, hasDrafts, draftId: activeDraftId }) : null,
+      listProjectCoverHashes(db, [projectId]),
+      countOpenReviewItems(db, projectId),
+      buildWritingProgress(db, {
+        projectId,
+        hasDrafts,
+        draftId: activeDraftId,
+        sessionSince: sessionSince && !Number.isNaN(sessionSince.getTime()) ? sessionSince : null,
+      }),
+      listChapterWritingGoals(db, projectId),
+      listContinuityLedger(db, projectId).catch(() => []),
+      db.sceneLocation.findMany({
+        where: { projectId, isPrimary: true },
+        select: {
+          manuscriptRecordId: true,
+          location: { select: { title: true, trashedAt: true } },
+        },
+      }),
+    ]);
 
   const byId = new Map(records.map((record) => [record.id, record]));
   const item = (id: string, title: string): OrderItem | null => {
@@ -101,6 +114,20 @@ export default async function WritePage({
     nav.filter((r) => r.type === "manuscript_chapter" || r.type === "manuscript_scene").map((r) => r.id),
   );
   const corkboard = buildCorkboard(outline, byId, synopsisById);
+  const goalByChapter = new Map(
+    chapterGoals.filter((g) => g.recordId).map((g) => [g.recordId!, g.targetWords] as const),
+  );
+  const continuityByRecord = new Map<string, number>();
+  for (const item of continuityItems) {
+    if (!item.recordId) continue;
+    continuityByRecord.set(item.recordId, (continuityByRecord.get(item.recordId) ?? 0) + 1);
+  }
+  const locationByRecord = new Map<string, string>();
+  for (const row of primaryLocations) {
+    if (row.location.trashedAt) continue;
+    locationByRecord.set(row.manuscriptRecordId, row.location.title);
+  }
+  const outlinerRows = buildOutlinerRows(outline, byId, synopsisById, goalByChapter, continuityByRecord, locationByRecord);
   const bookWords = [...chapters.flatMap((chapter) => [chapter, ...chapter.scenes]), ...unplaced].reduce(
     (sum, record) => sum + record.words,
     0,
@@ -127,6 +154,7 @@ export default async function WritePage({
       synopsisById={synopsisById}
       corkboardGroups={corkboard.groups}
       corkboardUnplaced={corkboard.unplaced}
+      outlinerRows={outlinerRows}
       draftId={activeDraftId}
       initialQuery={q}
       headerActions={
@@ -169,6 +197,64 @@ export default async function WritePage({
     />
     </>
   );
+}
+
+function buildOutlinerRows(
+  outline: { chapters: OutlineChapter[]; unplaced: OutlineScene[] },
+  byId: Map<
+    string,
+    {
+      fields: Record<string, unknown>;
+      body: string;
+      protected: boolean;
+      currentRevision: number;
+    }
+  >,
+  synopsisById: Map<string, string>,
+  goalByChapter: Map<string, number>,
+  continuityByRecord: Map<string, number>,
+  locationByRecord: Map<string, string>,
+): OutlinerRow[] {
+  const rows: OutlinerRow[] = [];
+  const push = (
+    recordId: string,
+    title: string,
+    type: "manuscript_chapter" | "manuscript_scene",
+    chapterTitle: string | null,
+    number: string | null,
+    parentRecordId: string | null,
+  ) => {
+    const record = byId.get(recordId);
+    if (!record) return;
+    const meta = readManuscriptMeta(record.fields);
+    rows.push({
+      recordId,
+      title,
+      type,
+      chapterTitle,
+      number,
+      synopsis: synopsisById.get(recordId) ?? "",
+      pov: meta.pov,
+      sceneStatus: meta.sceneStatus,
+      words: countWords(record.body),
+      wordTarget: type === "manuscript_chapter" ? (goalByChapter.get(recordId) ?? null) : null,
+      locationTitle: locationByRecord.get(recordId) ?? null,
+      continuityOpen: continuityByRecord.get(recordId) ?? 0,
+      isProtected: record.protected,
+      revision: record.currentRevision,
+      parentRecordId,
+    });
+  };
+  for (const chapter of outline.chapters) {
+    push(chapter.id, chapter.title, "manuscript_chapter", null, chapter.number, null);
+    for (const scene of chapter.scenes) {
+      push(scene.id, scene.title, "manuscript_scene", chapter.title, null, chapter.id);
+    }
+  }
+  for (const scene of outline.unplaced) {
+    push(scene.id, scene.title, "manuscript_scene", null, null, null);
+  }
+  return rows;
 }
 
 function buildCorkboard(
@@ -264,6 +350,7 @@ function ProjectTools({ base, openReviewItems }: { base: string; openReviewItems
         { href: `${base}/write/replace`, label: MANUSCRIPT_REPLACE.heading },
         { href: `${base}/write/style`, label: STYLE_CHECK.heading },
         { href: `${base}/write/goals`, label: WRITING_GOALS.heading },
+        { href: `${base}/write/collections`, label: SMART_COLLECTIONS.heading },
         { href: `${base}/upgrade`, label: NAV.upgradeProject },
       ],
     },

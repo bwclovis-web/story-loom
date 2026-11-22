@@ -1,4 +1,8 @@
 import { compareBookOrder, orderAfterMove } from "@/domain/bookOrder";
+import {
+  CHARACTER_DEVELOPMENT_KEY,
+  characterDevelopmentWriteProblems,
+} from "@/domain/characterDevelopment";
 import { newId } from "@/domain/ids";
 import { errorIssue, warningIssue, type Issue } from "@/domain/issues";
 import { stableStringify, type JsonObject } from "@/domain/json";
@@ -33,6 +37,16 @@ import { clearWeaveForDeletedRecordsInTx } from "./weaveService";
  * The only code path that writes Record and Revision rows. The UI, the
  * change-package importer, and any future API/MCP adapter all go through here.
  */
+
+function issuesForCharacterDevelopmentField(
+  fields: JsonObject,
+  path: { path?: string; recordId?: string },
+): Issue[] {
+  if (!(CHARACTER_DEVELOPMENT_KEY in fields)) return [];
+  return characterDevelopmentWriteProblems(fields[CHARACTER_DEVELOPMENT_KEY]).map((problem) =>
+    errorIssue("INVALID_CHANGE", problem.message, { ...path, path: problem.path }),
+  );
+}
 
 export interface CreateRecordMutation {
   kind: "create_record";
@@ -259,6 +273,7 @@ export async function planMutations(
       if (!m.title.trim()) {
         issues.push(errorIssue("INVALID_CHANGE", "Title must not be empty.", at("title")));
       }
+      issues.push(...issuesForCharacterDevelopmentField(m.fields, { ...at("fields"), recordId }));
       if (m.draftId && !draftsInProject.has(m.draftId)) {
         issues.push(errorIssue("INVALID_CHANGE", `Draft ${m.draftId} does not exist in this project.`, at("draftId")));
       }
@@ -361,6 +376,7 @@ export async function planMutations(
           delete after.fields[key];
         }
         Object.assign(after.fields, set);
+        issues.push(...issuesForCharacterDevelopmentField(set, { ...at("changes.fields.set"), recordId: record.id }));
       }
       if (m.authorityStatus !== undefined) {
         after.authorityStatus = m.authorityStatus;

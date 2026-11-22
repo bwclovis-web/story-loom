@@ -15,6 +15,7 @@ import { useEffect, useRef, useState } from "react";
 export function useReadAloud(text: string) {
   const [speaking, setSpeaking] = useState(false);
   const [supported, setSupported] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const textRef = useRef(text);
   const generationRef = useRef(0);
   const speakTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -59,6 +60,7 @@ export function useReadAloud(text: string) {
       window.speechSynthesis.cancel();
     }
     setSpeaking(false);
+    setError(null);
   };
 
   const speakNow = (clipped: string, rate: number, generation: number) => {
@@ -75,16 +77,24 @@ export function useReadAloud(text: string) {
       if (preferred) utterance.voice = preferred;
     }
     utterance.onstart = () => {
-      if (generationRef.current === generation) setSpeaking(true);
+      if (generationRef.current === generation) {
+        setSpeaking(true);
+        setError(null);
+      }
     };
     utterance.onend = () => {
       if (generationRef.current === generation) setSpeaking(false);
     };
-    utterance.onerror = () => {
-      if (generationRef.current === generation) setSpeaking(false);
+    utterance.onerror = (event) => {
+      if (generationRef.current !== generation) return;
+      setSpeaking(false);
+      if (event.error && event.error !== "canceled" && event.error !== "interrupted") {
+        setError(WRITE_SPEECH_ERROR);
+      }
     };
 
     setSpeaking(true);
+    setError(null);
     try {
       synth.resume();
     } catch {
@@ -132,5 +142,8 @@ export function useReadAloud(text: string) {
     speakNow(clipped, rate, generation);
   };
 
-  return { supported, speaking, start, stop };
+  return { supported, speaking, error, start, stop };
 }
+
+const WRITE_SPEECH_ERROR =
+  "This browser could not start read-aloud. Check that system speech voices are installed and the tab is not muted.";

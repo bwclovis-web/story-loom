@@ -1,7 +1,21 @@
 "use client";
 
 import { useEffect, useId, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode, type RefObject } from "react";
-import { Bold, Ellipsis, Italic, Link2, List, ListChecks, ListOrdered, Redo2, Search, SpellCheck, Undo2 } from "lucide-react";
+import {
+  Bold,
+  Ellipsis,
+  Italic,
+  Link2,
+  List,
+  ListChecks,
+  ListOrdered,
+  Redo2,
+  Search,
+  SpellCheck,
+  Undo2,
+  Volume2,
+  VolumeX,
+} from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { TextAppearanceMenu } from "@/components/TextAppearanceMenu";
 import { STYLE_CHECK, WRITE } from "@/ui/labels";
@@ -114,6 +128,7 @@ export function EditorToolbar({
   styleOpen,
   onToggleStyle,
   linkRequest,
+  readAloud,
 }: {
   editorId: string;
   textareaRef: RefObject<import("./EditorSurface").EditorSurface | HTMLTextAreaElement | null>;
@@ -133,6 +148,12 @@ export function EditorToolbar({
   onToggleStyle: () => void;
   /** Set when the link shortcut is pressed in the text box; `id` changes on every press. */
   linkRequest: (LinkSeed & { id: number }) | null;
+  /** Browser speech for the selection or whole scene. Lives in the toolbar so it is not covered by sticky chrome. */
+  readAloud?: {
+    supported: boolean;
+    speaking: boolean;
+    onToggle: () => void;
+  } | null;
 }) {
   const idPrefix = useId();
   const inline = inlineState(text, selection);
@@ -306,6 +327,22 @@ export function EditorToolbar({
           {STYLE_CHECK.toolbar}
         </Button>
         <TextAppearanceMenu presentation="toolbar" />
+        {readAloud?.supported ? (
+          <Button
+            type="button"
+            variant="toolbar"
+            size="toolbar"
+            className="tool-labeled"
+            aria-label={readAloud.speaking ? WRITE.readAloudStop : WRITE.readAloud}
+            aria-pressed={readAloud.speaking}
+            title={readAloud.speaking ? WRITE.readAloudStop : WRITE.readAloud}
+            onMouseDown={keepSelection}
+            onClick={readAloud.onToggle}
+            icon={readAloud.speaking ? <VolumeX strokeWidth={1.75} /> : <Volume2 strokeWidth={1.75} />}
+          >
+            {readAloud.speaking ? WRITE.readAloudStop : WRITE.readAloud}
+          </Button>
+        ) : null}
         <div className="tool-more">
           <ToolButton
             label={WRITE.moreFormatting}

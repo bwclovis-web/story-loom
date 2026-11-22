@@ -2,12 +2,28 @@ import "server-only";
 import { Document, Packer, Paragraph, TextRun } from "docx";
 import JSZip from "jszip";
 import { toRecordView } from "@/domain/records";
-import { isManuscriptType, RECORD_TYPES } from "@/domain/recordTypes";
+import { isManuscriptType, isRecordType, RECORD_TYPES } from "@/domain/recordTypes";
 import type { DbOrTx } from "../db";
+import { listEstablishedFactsForSubject, type EstablishedFactView } from "./establishedFactService";
+import { imageDataByIds, imagesByRecord } from "./imageService";
+import { listWorldKindTemplates } from "./worldKindTemplateService";
 import { NotFoundError } from "./errors";
 import { bodyToEpubSectionHtml, escapeHtml } from "./manuscriptExportMarkdown";
 import { exportDateStamp, exportSlug } from "./manuscriptExportModel";
 import { LIVE_PROJECT } from "./trashFilters";
+import { manuscriptIdsInBookOrder } from "@/ui/manuscriptTree";
+import { PDF } from "@/ui/labels";
+import {
+  buildWikiIndexHtml,
+  buildWikiLinkIndex,
+  buildWikiPageHtml,
+  isEmbeddableWikiImage,
+  WIKI_SCRIPT,
+  WIKI_STYLES,
+  wikiImageZipPath,
+  type WikiExportContext,
+  type WikiImageRef,
+} from "./wikiExportHtml";
 
 export interface WorldBibleFile {
   filename: string;
@@ -28,6 +44,177 @@ async function selectedReferences(db: DbOrTx, projectId: string, recordIds: read
     .sort((a, b) => RECORD_TYPES.indexOf(a.type) - RECORD_TYPES.indexOf(b.type) || a.title.localeCompare(b.title) || a.id.localeCompare(b.id));
   if (!records.length) throw new NotFoundError("No reference documents were selected.");
   return { projectTitle: project.title, records };
+}
+
+export interface WikiSpoilerCeiling {
+  /** Drop non-approved records from the export (among the ids the author selected). */
+  approvedOnly?: boolean;
+  /** Manuscript chapter or scene id: established facts need evidence at or before this point in book order. */
+  spoilerBeforeRecordId?: string | null;
+}
+
+function filterFactsBySpoiler(
+  facts: readonly EstablishedFactView[],
+  bookRank: Map<string, number>,
+  ceilingRank: number,
+): EstablishedFactView[] {
+  return facts.filter((fact) => {
+    const manuscriptEvidence = fact.evidence.filter((e) => {
+      const label = e.sourceTypeLabel;
+      return label === "Manuscript chapter" || label === "Manuscript scene";
+    });
+    if (!manuscriptEvidence.length) return false;
+    return manuscriptEvidence.some((e) => (bookRank.get(e.sourceRecordId) ?? Number.MAX_SAFE_INTEGER) <= ceilingRank);
+  });
+}
+
+async function bookRankForProject(db: DbOrTx, projectId: string): Promise<Map<string, number>> {
+  const rows = await db.record.findMany({
+    where: { projectId, trashedAt: null, type: { in: ["manuscript_chapter", "manuscript_scene"] } },
+    select: { id: true, title: true, type: true, parentRecordId: true, position: true, createdAt: true, draftId: true },
+  });
+  const nav = rows.flatMap((row) => {
+    if (!isRecordType(row.type)) return [];
+    return [
+      {
+        id: row.id,
+        title: row.title,
+        type: row.type,
+        parentRecordId: row.parentRecordId,
+        position: row.position,
+        createdAt: row.createdAt.toISOString(),
+        draftId: row.draftId,
+      },
+    ];
+  });
+  const order = manuscriptIdsInBookOrder(nav);
+  return new Map(order.map((id, index) => [id, index]));
+}
+
+export async function buildReferencesWikiZip(
+  db: DbOrTx,
+  projectId: string,
+  recordIds: readonly string[],
+  ceiling: WikiSpoilerCeiling = {},
+  now = new Date(),
+): Promise<WorldBibleFile> {
+  let { projectTitle, records } = await selectedReferences(db, projectId, recordIds);
+  const skipped = ceiling.approvedOnly ? records.filter((r) => r.authorityStatus !== "approved") : [];
+  if (ceiling.approvedOnly) records = records.filter((r) => r.authorityStatus === "approved");
+  if (!records.length) throw new NotFoundError("No reference documents remain after the spoiler ceiling.");
+
+  const [kindTemplates, imagesMeta, bookRank] = await Promise.all([
+    listWorldKindTemplates(db, projectId),
+    imagesByRecord(
+      db,
+      projectId,
+      records.map((r) => r.id),
+    ),
+    bookRankForProject(db, projectId),
+  ]);
+
+  const ceilingRank =
+    ceiling.spoilerBeforeRecordId && bookRank.has(ceiling.spoilerBeforeRecordId)
+      ? bookRank.get(ceiling.spoilerBeforeRecordId)!
+      : null;
+
+  const factsByRecord = new Map<string, EstablishedFactView[]>();
+  await Promise.all(
+    records.map(async (record) => {
+      const all = await listEstablishedFactsForSubject(db, projectId, record.id);
+      const filtered =
+        ceilingRank === null ? all : filterFactsBySpoiler(all, bookRank, ceilingRank);
+      factsByRecord.set(record.id, filtered);
+    }),
+  );
+
+  const embeddableIds = [...imagesMeta.values()]
+    .flat()
+    .filter((img) => isEmbeddableWikiImage(img.mimeType))
+    .map((img) => img.id);
+  const imageBytes = await imageDataByIds(db, projectId, embeddableIds);
+
+  const wikiImagesByRecord = new Map<string, Map<string, WikiImageRef>>();
+  for (const [recordId, images] of imagesMeta) {
+    const byName = new Map<string, WikiImageRef>();
+    for (const img of images) {
+      if (!isEmbeddableWikiImage(img.mimeType)) continue;
+      const zipPath = wikiImageZipPath(recordId, img.name, img.mimeType);
+      byName.set(img.name, { zipPath, mimeType: img.mimeType });
+    }
+    if (byName.size) wikiImagesByRecord.set(recordId, byName);
+  }
+
+  const { linkTerms, pageById } = buildWikiLinkIndex(records);
+  const generated = `Exported ${now.toLocaleString("en-GB", { dateStyle: "long", timeStyle: "short" })}`;
+  const spoilerParts: string[] = [];
+  if (ceiling.approvedOnly) {
+    spoilerParts.push(
+      skipped.length
+        ? `Only approved references are included; ${skipped.length} selected document${skipped.length === 1 ? "" : "s"} with another canon status were omitted.`
+        : "Only approved references are included.",
+    );
+  }
+  if (ceilingRank !== null && ceiling.spoilerBeforeRecordId) {
+    const anchor = await db.record.findFirst({
+      where: { id: ceiling.spoilerBeforeRecordId, projectId },
+      select: { title: true },
+    });
+    spoilerParts.push(
+      `Established facts in infoboxes are limited to those with manuscript evidence at or before “${anchor?.title ?? ceiling.spoilerBeforeRecordId}” in book order. Facts without manuscript evidence, body text, relationships, and map pins are not spoiler-filtered.`,
+    );
+  } else if (ceiling.spoilerBeforeRecordId) {
+    spoilerParts.push(PDF.wikiSpoilerLimitUnknownChapter);
+  }
+  const spoilerNote = spoilerParts.length ? spoilerParts.join(" ") : null;
+
+  const ctx: WikiExportContext = {
+    projectTitle,
+    generated,
+    linkTerms,
+    pageById,
+    imagesByRecord: wikiImagesByRecord,
+    spoilerNote,
+  };
+
+  const zip = new JSZip();
+  zip.file("assets/wiki.css", WIKI_STYLES);
+  zip.file("assets/wiki.js", WIKI_SCRIPT);
+  zip.file("index.html", buildWikiIndexHtml(records, ctx));
+
+  for (const record of records) {
+    const html = buildWikiPageHtml(
+      { record, facts: factsByRecord.get(record.id) ?? [], kindTemplates },
+      ctx,
+    );
+    zip.file(`pages/${pageById.get(record.id)!}.html`, html);
+  }
+
+  for (const [recordId, images] of imagesMeta) {
+    for (const img of images) {
+      if (!isEmbeddableWikiImage(img.mimeType)) continue;
+      const bytes = imageBytes.get(img.id);
+      if (!bytes) continue;
+      const ref = wikiImagesByRecord.get(recordId)?.get(img.name);
+      if (!ref) continue;
+      zip.file(ref.zipPath, Buffer.from(bytes));
+    }
+  }
+
+  if (spoilerNote) {
+    zip.file(
+      "SPOILER-CEILING.txt",
+      `${spoilerNote}\n\nThis static wiki does not run Story Loom continuity rules. Treat it as a read-only snapshot.`,
+    );
+  }
+
+  const bytes = Buffer.from(await zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" }));
+  return {
+    filename: `${exportSlug(projectTitle)}-wiki-${exportDateStamp(now)}.zip`,
+    bytes,
+    documentCount: records.length,
+    contentType: "application/zip",
+  };
 }
 
 export async function buildReferencesMarkdownBundle(

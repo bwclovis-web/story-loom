@@ -14,7 +14,7 @@ export const manuscriptTheme = EditorView.theme(
       lineHeight: "calc(1.8 * var(--text-leading))",
       padding: "0.5rem 0.75rem",
       caretColor: "var(--color-accent)",
-      minHeight: "60vh",
+      minHeight: "16rem",
     },
     ".cm-scroller": {
       fontFamily: "var(--text-font)",

@@ -22,7 +22,7 @@ import { searchProjectRecords, type SearchHit } from "@/server/services/searchSe
 import { GROUP_PAGES, SERIES, SHELL, WORLD, WORLD_KIND } from "@/ui/labels";
 import { seriesBookLabel, seriesRecordHref } from "@/world/seriesHome";
 import { manuscriptEyebrow } from "@/ui/library";
-import { isReferenceTemplateKey } from "@/world/referenceTemplates";
+import { isWorldKindKey } from "@/world/referenceTemplates";
 import {
   WORLDBUILDING_KIND_OTHER,
   WORLDBUILDING_KIND_UNSET,
@@ -112,7 +112,7 @@ export default async function WorldPage({
   const exportHref = `${base}/export?${selection}`;
   const pdfHref = `${base}/export-pdf?${selection}`;
   const listTitle =
-    type === "worldbuilding" && kindFilter && isReferenceTemplateKey(kindFilter)
+    type === "worldbuilding" && kindFilter && isWorldKindKey(kindFilter)
       ? worldKindLabel(kindFilter)
       : type === "worldbuilding" && kindFilter === WORLDBUILDING_KIND_OTHER
         ? WORLD.worldKindOther

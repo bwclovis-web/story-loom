@@ -84,6 +84,10 @@ function writingGoalsOf(b: WorkspaceBackupV1) {
   return b.writingGoals ?? [];
 }
 
+function smartCollectionsOf(b: WorkspaceBackupV1) {
+  return b.smartCollections ?? [];
+}
+
 function worldCalendarsOf(b: WorkspaceBackupV1) {
   return b.worldCalendars ?? [];
 }
@@ -404,6 +408,19 @@ async function writingGoalRows(db: DbOrTx, projectIds: string[]) {
     return await db.writingGoal.findMany({
       where: { projectId: { in: projectIds } },
       orderBy: [{ projectId: "asc" }, { scope: "asc" }, { recordId: "asc" }, { id: "asc" }],
+    });
+  } catch (error) {
+    if (isMissingSchemaError(error, "P2021")) return [];
+    throw error;
+  }
+}
+
+async function smartCollectionRows(db: DbOrTx, projectIds: string[]) {
+  if (!("smartCollection" in db) || !(db as { smartCollection?: { findMany: unknown } }).smartCollection) return [];
+  try {
+    return await db.smartCollection.findMany({
+      where: { projectId: { in: projectIds } },
+      orderBy: [{ projectId: "asc" }, { scope: "asc" }, { position: "asc" }, { id: "asc" }],
     });
   } catch (error) {
     if (isMissingSchemaError(error, "P2021")) return [];
@@ -1084,6 +1101,7 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
     rewriteSourceLinks,
     readingPins,
     writingGoals,
+    smartCollections,
     worldCalendars,
     manuscriptAnnotations,
     compileProfiles,
@@ -1129,6 +1147,7 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
     rewriteSourceLinkRows(db, projectIds),
     readingPinRows(db, projectIds),
     writingGoalRows(db, projectIds),
+    smartCollectionRows(db, projectIds),
     worldCalendarRows(db, projectIds),
     manuscriptAnnotationRows(db, projectIds),
     compileProfileRows(db, projectIds),
@@ -1372,6 +1391,20 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
           })),
         }
       : {}),
+    ...(smartCollections.length
+      ? {
+          smartCollections: smartCollections.map((row) => ({
+            id: row.id,
+            projectId: row.projectId,
+            title: row.title,
+            scope: row.scope === "world" ? ("world" as const) : ("manuscript" as const),
+            filterJson: row.filterJson,
+            position: row.position,
+            createdAt: iso(row.createdAt),
+            updatedAt: iso(row.updatedAt),
+          })),
+        }
+      : {}),
     ...(worldCalendars.length
       ? {
           worldCalendars: worldCalendars.map((calendar) => ({
@@ -1437,6 +1470,7 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
             runningHeader: p.runningHeader,
             runningFooter: p.runningFooter,
             fontPreset: p.fontPreset === "sans" || p.fontPreset === "mono" ? p.fontPreset : ("serif" as const),
+            ...("bookTheme" in p && p.bookTheme ? { bookTheme: p.bookTheme } : {}),
             spacingPreset: p.spacingPreset === "tight" || p.spacingPreset === "loose" ? p.spacingPreset : ("novel" as const),
             firstParagraphNoIndent: p.firstParagraphNoIndent,
             dropCap: p.dropCap,
@@ -1994,6 +2028,7 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
       ...(rewriteSourceLinks.length ? { rewriteSourceLinks: rewriteSourceLinks.length } : {}),
       ...(readingPins.length ? { readingPins: readingPins.length } : {}),
       ...(writingGoals.length ? { writingGoals: writingGoals.length } : {}),
+      ...(smartCollections.length ? { smartCollections: smartCollections.length } : {}),
       ...(manuscriptAnnotations.length ? { manuscriptAnnotations: manuscriptAnnotations.length } : {}),
       ...(compileProfiles.length ? { compileProfiles: compileProfiles.length } : {}),
       ...(worldKindTemplates.length ? { worldKindTemplates: worldKindTemplates.length } : {}),
@@ -2083,6 +2118,7 @@ function checkInternalConsistency(b: WorkspaceBackupV1): Issue[] {
     rewriteSourceLinks: rewriteSourceLinksOf(b).length,
     readingPins: readingPinsOf(b).length,
     writingGoals: writingGoalsOf(b).length,
+    smartCollections: smartCollectionsOf(b).length,
     manuscriptAnnotations: manuscriptAnnotationsOf(b).length,
     compileProfiles: compileProfilesOf(b).length,
     worldKindTemplates: worldKindTemplatesOf(b).length,
@@ -2165,6 +2201,12 @@ function checkInternalConsistency(b: WorkspaceBackupV1): Issue[] {
   checkUnique(
     writingGoalsOf(b).map((g) => `${g.projectId}/${g.scope}/${g.recordId ?? ""}`),
     "writing goal scope",
+    issues,
+  );
+  checkUnique(smartCollectionsOf(b).map((c) => c.id), "smart collection", issues);
+  checkUnique(
+    smartCollectionsOf(b).map((c) => `${c.projectId}/${c.scope}/${c.title}`),
+    "smart collection title",
     issues,
   );
   checkUnique(manuscriptAnnotationsOf(b).map((a) => a.id), "manuscript annotation", issues);
@@ -2357,6 +2399,23 @@ function checkInternalConsistency(b: WorkspaceBackupV1): Issue[] {
       }
     } else {
       issues.push(integrity(`Writing goal ${g.id} has unknown scope ${g.scope}.`));
+    }
+  });
+  smartCollectionsOf(b).forEach((c) => {
+    needProject(c.projectId, `Smart collection ${c.id}`);
+    if (c.scope !== "manuscript" && c.scope !== "world") {
+      issues.push(integrity(`Smart collection ${c.id} has unknown scope ${c.scope}.`));
+    }
+    if (c.position < 0) {
+      issues.push(integrity(`Smart collection ${c.id} has invalid position ${c.position}.`));
+    }
+    try {
+      const parsed = JSON.parse(c.filterJson) as unknown;
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+        issues.push(integrity(`Smart collection ${c.id} filterJson must be a JSON object.`));
+      }
+    } catch {
+      issues.push(integrity(`Smart collection ${c.id} filterJson is not valid JSON.`));
     }
   });
   worldKindTemplatesOf(b).forEach((template) => {
@@ -2926,6 +2985,12 @@ async function findCollisions(db: DbOrTx, b: WorkspaceBackupV1): Promise<Issue[]
   if (writingGoalsOf(b).length) {
     await check("writing goal", db.writingGoal.count({ where: { id: { in: writingGoalsOf(b).map((g) => g.id) } } }));
   }
+  if (smartCollectionsOf(b).length && "smartCollection" in db) {
+    await check(
+      "smart collection",
+      db.smartCollection.count({ where: { id: { in: smartCollectionsOf(b).map((c) => c.id) } } }),
+    );
+  }
   if (manuscriptAnnotationsOf(b).length) {
     await check(
       "manuscript annotation",
@@ -3204,6 +3269,7 @@ export async function restoreWorkspaceBackup(db: Db, input: string | unknown, op
   rewriteSourceLinksOf(b).forEach((l) => assign(l.id, "rsl"));
   readingPinsOf(b).forEach((p) => assign(p.id, "pin"));
   writingGoalsOf(b).forEach((g) => assign(g.id, "wgoal"));
+  smartCollectionsOf(b).forEach((c) => assign(c.id, "scol"));
   manuscriptAnnotationsOf(b).forEach((a) => assign(a.id, "man"));
   compileProfilesOf(b).forEach((p) => assign(p.id, "cprof"));
   worldKindTemplatesOf(b).forEach((template) => assign(template.id, "wkt"));
@@ -3509,6 +3575,21 @@ export async function restoreWorkspaceBackup(db: Db, input: string | unknown, op
             })),
           });
         }
+        const collections = smartCollectionsOf(b);
+        if (collections.length && "smartCollection" in tx) {
+          await tx.smartCollection.createMany({
+            data: collections.map((row) => ({
+              id: m(row.id),
+              projectId: m(row.projectId),
+              title: row.title,
+              scope: row.scope,
+              filterJson: row.filterJson,
+              position: row.position,
+              createdAt: new Date(row.createdAt),
+              updatedAt: new Date(row.updatedAt),
+            })),
+          });
+        }
         const annotations = manuscriptAnnotationsOf(b);
         if (annotations.length) {
           await tx.manuscriptAnnotation.createMany({
@@ -3582,6 +3663,7 @@ export async function restoreWorkspaceBackup(db: Db, input: string | unknown, op
               runningHeader: p.runningHeader ?? "",
               runningFooter: p.runningFooter ?? "",
               fontPreset: p.fontPreset ?? "serif",
+              bookTheme: p.bookTheme ?? null,
               spacingPreset: p.spacingPreset ?? "novel",
               firstParagraphNoIndent: p.firstParagraphNoIndent ?? true,
               dropCap: p.dropCap ?? false,

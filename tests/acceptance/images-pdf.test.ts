@@ -12,7 +12,7 @@ import {
 } from "@/server/services/imageService";
 import { buildManuscriptPdf, buildReferencesPdf } from "@/server/services/pdfExportService";
 import { createRecord, getRecord, setProtection, updateRecord } from "@/server/services/recordService";
-import { createTestDb, IDS, seedProject, type TestDb } from "../helpers";
+import { CHAPTER_PROSE, createTestDb, IDS, seedProject, type TestDb } from "../helpers";
 import { makeGifHeader, makePng } from "../imageFixtures";
 
 const codes = async (p: Promise<unknown>) => {
@@ -70,11 +70,16 @@ describe("images on reference documents", () => {
     expect(JSON.stringify(audit)).not.toContain(Buffer.from(png).toString("base64"));
   });
 
-  it("refuses chapters, wrong files and locked protected documents, writing nothing", async () => {
+  it("stores images on chapters, refuses bad files and locked protected documents", async () => {
     const png = makePng(2, 2);
-    expect(await codes(addRecordImages(t.db, IDS.project, IDS.chapter, [{ filename: "a.png", bytes: png }], UNLOCK))).toEqual([
-      "INVALID_REFERENCE",
-    ]);
+    const [chapterImg] = await addRecordImages(
+      t.db,
+      IDS.project,
+      IDS.chapter,
+      [{ filename: "ornament.png", bytes: png }],
+      { confirmProtected: true },
+    );
+    expect(chapterImg.name).toBe("ornament.png");
     const svg = new TextEncoder().encode("<svg xmlns='http://www.w3.org/2000/svg'/>");
     expect(
       await codes(
@@ -95,10 +100,10 @@ describe("images on reference documents", () => {
     expect(await codes(addRecordImages(t.db, IDS.project, IDS.world, [{ filename: "a.png", bytes: png }], UNLOCK))).toEqual([
       "PROTECTED_CONFIRMATION_REQUIRED",
     ]);
-    expect(await t.db.recordImage.count()).toBe(0);
+    expect(await t.db.recordImage.count()).toBe(1);
 
     await addRecordImages(t.db, IDS.project, IDS.world, [{ filename: "a.png", bytes: png }], { confirmProtected: true });
-    expect(await t.db.recordImage.count()).toBe(1);
+    expect(await t.db.recordImage.count()).toBe(2);
   });
 
   it("keeps an image the text shows, and audits caption changes and removal", async () => {
@@ -219,6 +224,20 @@ describe("PDF export", () => {
 
     await expect(buildReferencesPdf(t.db, IDS.project, [IDS.chapter])).rejects.toBeInstanceOf(NotFoundError);
     await expect(buildReferencesPdf(t.db, "prj_other", [IDS.dossier])).rejects.toBeInstanceOf(NotFoundError);
+  });
+
+  it("builds the manuscript in Write-page order, embedding chapter images when shown in the text", async () => {
+    await addRecordImages(t.db, IDS.project, IDS.chapter, [{ filename: "seal.png", bytes: makePng(30, 20) }], {
+      confirmProtected: true,
+    });
+    await updateRecord(t.db, IDS.project, {
+      recordId: IDS.chapter,
+      expectedRevision: 1,
+      body: `${CHAPTER_PROSE}\n\n![Guild seal](image:seal.png)`,
+      unlockProtected: true,
+    });
+    const file = await buildManuscriptPdf(t.db, IDS.project, { sceneTitles: false }, new Date(2026, 0, 2));
+    expect(file.imagesEmbedded).toBe(1);
   });
 
   it("builds the manuscript in Write-page order, with or without scene titles", async () => {

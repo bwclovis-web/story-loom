@@ -1,7 +1,7 @@
 import { newId } from "@/domain/ids";
 import { errorIssue, type Issue } from "@/domain/issues";
 import { sha256Bytes } from "@/domain/json";
-import { isManuscriptType, isRecordType, RECORD_TYPE_LABELS } from "@/domain/recordTypes";
+import { isRecordType } from "@/domain/recordTypes";
 import { Prisma } from "@/generated/prisma/client";
 import {
   formatBytes,
@@ -23,11 +23,10 @@ import { LIVE_RECORD } from "./trashFilters";
 import { deleteMapsForImageInTx } from "./worldMapService";
 
 /*
- * Images on reference documents. An image is not record content: adding,
- * editing or removing one creates no revision and never changes the record's
- * text, so it does not go through mutationService. Every change is audited.
- * Protected records need the same explicit tick as editing their text.
- * Manuscript chapters and scenes cannot have images.
+ * Images on chapters, scenes, and reference documents. An image is not record
+ * content: adding, editing or removing one creates no revision and never changes
+ * the record's text, so it does not go through mutationService. Every change is
+ * audited. Protected records need the same explicit tick as editing their text.
  */
 
 const UI_ACTOR = "author";
@@ -149,9 +148,8 @@ async function findImageRecord(tx: DbOrTx, projectId: string, recordId: string) 
     select: { id: true, title: true, type: true, body: true, protected: true },
   });
   if (!record) throw rejected("RECORD_NOT_FOUND", `Record ${recordId} does not exist in this project.`, { recordId });
-  if (!isRecordType(record.type) || isManuscriptType(record.type)) {
-    const label = isRecordType(record.type) ? RECORD_TYPE_LABELS[record.type] : record.type;
-    throw rejected("INVALID_REFERENCE", `A ${label} cannot have images. Images belong to reference documents.`, { recordId });
+  if (!isRecordType(record.type)) {
+    throw rejected("INVALID_REFERENCE", `This record type cannot have images.`, { recordId });
   }
   return record;
 }

@@ -26,6 +26,12 @@ const KIND_LABEL: Record<StyleCheckKind, string> = {
   weak_verb: STYLE_CHECK.kindWeakVerb,
 };
 
+function povChipClass(pov: string): string {
+  if (!pov) return "style-pov-chip style-pov-chip--empty";
+  const bucket = [...pov].reduce((sum, ch) => sum + ch.charCodeAt(0), 0) % 3;
+  return `style-pov-chip style-pov-chip--${["a", "b", "c"][bucket]}`;
+}
+
 export async function generateMetadata({ params }: { params: Promise<{ projectId: string }> }): Promise<Metadata> {
   const { projectId } = await params;
   const db = getDb();
@@ -43,6 +49,8 @@ export default async function ManuscriptStylePage({ params }: { params: Promise<
   const hasDrafts = drafts.length > 0;
   const draftId = resolveWriteDraftId(drafts, await readWriteDraftCookie());
   const result = await runManuscriptStyleCheck(db, { projectId, hasDrafts, draftId });
+  const paceMax = Math.max(...result.pacing.map((item) => Math.max(item.words, item.wordTarget ?? 0)), 1);
+  const { characterMatrix, weaveSpans, povSequence } = result;
 
   return (
     <>
@@ -55,8 +63,8 @@ export default async function ManuscriptStylePage({ params }: { params: Promise<
           { label: STYLE_CHECK.heading, current: true },
         ]}
       />
-      <HelpHint anchor="manuscript-style-check" topic="local style checks">
-        {STYLE_CHECK.panelNote}
+      <HelpHint anchor="manuscript-style-check" topic="style check and insights">
+        {STYLE_CHECK.insightsLead} {STYLE_CHECK.panelNote}
       </HelpHint>
 
       <div className="row" style={{ marginBottom: "1rem" }}>
@@ -81,25 +89,133 @@ export default async function ManuscriptStylePage({ params }: { params: Promise<
         </section>
       ) : null}
 
-      <section className="panel" aria-labelledby="style-pacing">
-        <h2 id="style-pacing" style={{ marginTop: 0 }}>
-          {STYLE_CHECK.pacing}
+      <section className="panel" aria-labelledby="style-insights">
+        <h2 id="style-insights" style={{ marginTop: 0 }}>
+          {STYLE_CHECK.insightsHeading}
         </h2>
+        <p className="small muted">{STYLE_CHECK.insightsLead}</p>
+
+        <h3 id="style-pacing">{STYLE_CHECK.pacing}</h3>
         {result.pacing.length === 0 ? (
           <p className="muted">{STYLE_CHECK.noResults}</p>
         ) : (
           <div className="pace-chart" aria-label={STYLE_CHECK.pacing}>
             {result.pacing.map((bar) => {
-              const max = Math.max(...result.pacing.map((item) => item.words), 1);
+              const targetPct = bar.wordTarget !== undefined ? Math.min(100, (bar.wordTarget / paceMax) * 100) : null;
+              const barPct = Math.max(4, (bar.words / paceMax) * 100);
+              const title =
+                bar.wordTarget !== undefined
+                  ? `${bar.title}: ${STYLE_CHECK.pacingTarget(bar.words, bar.wordTarget)}`
+                  : `${bar.title}: ${bar.words}`;
               return (
-                <div key={bar.id} className="pace-chart-col" title={`${bar.title}: ${bar.words}`}>
-                  <div className="pace-chart-bar" style={{ height: `${Math.max(4, (bar.words / max) * 100)}%` }} />
+                <div key={bar.id} className="pace-chart-col" title={title}>
+                  <div className="pace-chart-stack">
+                    {targetPct !== null ? (
+                      <div className="pace-chart-target" style={{ bottom: `${targetPct}%` }} aria-hidden />
+                    ) : null}
+                    <div className="pace-chart-bar" style={{ height: `${barPct}%` }} />
+                  </div>
                   <span className="small">{bar.words}</span>
                 </div>
               );
             })}
           </div>
         )}
+
+        <h3 id="style-pov-sequence">{STYLE_CHECK.povSequence}</h3>
+        {povSequence.length === 0 ? (
+          <p className="muted">{STYLE_CHECK.povSequenceEmpty}</p>
+        ) : (
+          <div className="style-pov-strip" aria-labelledby="style-pov-sequence">
+            {povSequence.map((item) => (
+              <Link key={item.recordId} href={`${base}/records/${encodeURIComponent(item.recordId)}`} className={povChipClass(item.pov)}>
+                <span className="small muted">{RECORD_TYPE_LABELS[item.type]}</span>
+                <span>{item.title}</span>
+                <span className="small">{item.pov || STYLE_CHECK.povUnset}</span>
+              </Link>
+            ))}
+          </div>
+        )}
+
+        <h3 id="style-character-matrix">{STYLE_CHECK.characterMatrix}</h3>
+        {characterMatrix.rows.length === 0 || characterMatrix.chapters.length === 0 ? (
+          <p className="muted">{STYLE_CHECK.characterMatrixEmpty}</p>
+        ) : (
+          <>
+            <p className="small muted">
+              {STYLE_CHECK.characterMatrixCaption(characterMatrix.chapters.length, characterMatrix.rows.length)}
+            </p>
+            <div style={{ overflowX: "auto" }}>
+              <table className="style-character-matrix" aria-labelledby="style-character-matrix">
+                <thead>
+                  <tr>
+                    <th scope="col" className="sr-only">
+                      Character
+                    </th>
+                    {characterMatrix.chapters.map((ch) => (
+                      <th key={ch.id} scope="col" title={ch.title}>
+                        <Link href={`${base}/records/${encodeURIComponent(ch.id)}`}>{ch.title}</Link>
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {characterMatrix.rows.map((row) => (
+                    <tr key={row.recordId}>
+                      <th scope="row">
+                        <Link href={`${base}/records/${encodeURIComponent(row.recordId)}`}>{row.name}</Link>
+                      </th>
+                      {row.counts.map((count, i) => {
+                        const ch = characterMatrix.chapters[i]!;
+                        return (
+                          <td key={`${row.recordId}-${ch.id}`} className={count === 0 ? "style-matrix-zero" : undefined}>
+                            {count > 0 ? (
+                              <Link href={`${base}/records/${encodeURIComponent(ch.id)}`}>{count}</Link>
+                            ) : (
+                              "0"
+                            )}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
+
+        <h3 id="style-weave-spans">{STYLE_CHECK.weaveSpans}</h3>
+        {weaveSpans.length === 0 ? (
+          <p className="muted">{STYLE_CHECK.weaveSpansEmpty}</p>
+        ) : (
+          <ul className="style-weave-spans" aria-labelledby="style-weave-spans">
+            {weaveSpans.map((span) => (
+              <li key={span.id} className="style-weave-span">
+                <p className="small muted" style={{ margin: "0 0 0.25rem" }}>
+                  <Link href={`${base}/plan/weave/${encodeURIComponent(span.gridId)}`}>{span.gridTitle}</Link>
+                  {span.fromProjectId !== span.toProjectId ? (
+                    <>
+                      {" "}
+                      · {span.fromProjectTitle} → {span.toProjectTitle}
+                    </>
+                  ) : null}
+                </p>
+                <p style={{ margin: "0 0 0.25rem" }}>
+                  <strong>{span.fromTitle}</strong> → <strong>{span.toTitle}</strong>
+                </p>
+                {span.note ? <p className="small muted" style={{ margin: "0 0 0.25rem" }}>{span.note}</p> : null}
+                <p className="small" style={{ margin: 0 }}>
+                  {span.spanBeats !== null ? STYLE_CHECK.weaveSpanBeatGap(span.spanBeats) : null}
+                  {span.spanBeats !== null && span.spanChapters !== null ? " · " : null}
+                  {span.spanChapters !== null ? STYLE_CHECK.weaveSpanChapterGap(span.spanChapters) : null}
+                  {span.spanBeats === null && span.spanChapters === null ? STYLE_CHECK.weaveSpanNoDistance : null}
+                </p>
+              </li>
+            ))}
+          </ul>
+        )}
+
         <p>
           {STYLE_CHECK.dialogue}: {STYLE_CHECK.dialogueRatio(result.dialogue.dialogueWords, result.dialogue.narrationWords)}
         </p>

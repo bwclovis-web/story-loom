@@ -26,6 +26,11 @@ import {
   type ProviderToolItem,
   type ProviderUsage,
 } from "@/assistant/provider";
+import {
+  developmentIsEmpty,
+  readCharacterDevelopment,
+  renderCharacterContextSlice,
+} from "@/domain/characterDevelopment";
 import { newId } from "@/domain/ids";
 import { parseJsonObject } from "@/domain/json";
 import { contentClassOf, isRecordType, type ContentClass, type RecordType } from "@/domain/recordTypes";
@@ -234,9 +239,20 @@ function sha256(text: string): string {
   return createHash("sha256").update(text, "utf8").digest("hex");
 }
 
-/** What a selected reference contributes: its body and, if any, its structured fields. */
-export function referenceText(body: string, fieldsJson: string): string {
+/** What a selected reference contributes: its body and a task-specific character slice or raw fields. */
+export function referenceText(body: string, fieldsJson: string, opts?: { title?: string; type?: string }): string {
   const fields = parseJsonObject(fieldsJson);
+  if (opts?.type === "character_dossier") {
+    const read = readCharacterDevelopment(fields);
+    if (!developmentIsEmpty(read.profile)) {
+      return renderCharacterContextSlice({
+        title: opts.title ?? "",
+        body,
+        profile: read.profile,
+        slice: "continuity",
+      });
+    }
+  }
   return Object.keys(fields).length ? `${body}\n\nStructured fields (JSON): ${JSON.stringify(fields)}` : body;
 }
 
@@ -442,7 +458,10 @@ export async function listSelectableRecords(db: Db, projectId: string): Promise<
         authorityStatus: r.authorityStatus,
         currentRevision: r.currentRevision,
         draftId: r.draftId,
-        chars: contentClass === "reference" ? referenceText(r.body, r.fields).length : r.body.length,
+        chars:
+          contentClass === "reference"
+            ? referenceText(r.body, r.fields, { title: r.title, type: r.type }).length
+            : r.body.length,
         sections:
           contentClass === "reference"
             ? listSections(r.body).map((s) => ({
@@ -567,7 +586,10 @@ async function loadDocuments(db: Db, projectId: string, refs: ItemRef[], require
       docs.push(...sectionDocuments(base, ref, revision.body));
       continue;
     }
-    let text = ref.kind === "reference" ? referenceText(revision.body, revision.fields) : revision.body;
+    let text =
+      ref.kind === "reference"
+        ? referenceText(revision.body, revision.fields, { title: revision.title, type: record.type })
+        : revision.body;
     if (ref.kind === "passage") {
       const p = ref.passage;
       if (!p || !Number.isInteger(p.start) || !Number.isInteger(p.end) || p.start < 0 || p.end > revision.body.length || p.start >= p.end) {

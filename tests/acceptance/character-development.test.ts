@@ -160,4 +160,99 @@ describe("character development on the dossier", () => {
       }),
     ).rejects.toBeInstanceOf(NotFoundError);
   });
+
+  it("keeps unknown development keys and refuses an unsupported version without wiping", async () => {
+    const current = await getRecord(t.db, IDS.project, IDS.dossier);
+    await updateRecord(t.db, IDS.project, {
+      recordId: IDS.dossier,
+      expectedRevision: current.currentRevision,
+      fields: {
+        ...current.fields,
+        characterDevelopment: {
+          version: 1,
+          futureNote: "keep me",
+          psychology: { coreDesire: "to keep the record" },
+        },
+      },
+    });
+    const profile = emptyCharacterDevelopment();
+    profile.psychology.coreDesire = "to keep the salt";
+    profile.foundation.appearance = "salt-grey cloak";
+    await saveCharacterDevelopment(t.db, IDS.project, {
+      recordId: IDS.dossier,
+      expectedRevision: 2,
+      profile,
+    });
+    const saved = await getRecord(t.db, IDS.project, IDS.dossier);
+    expect(saved.body).toBe("Archivist. Thirty years old.");
+    expect(saved.fields.name).toBe("Mara Venn");
+    const blob = saved.fields.characterDevelopment as { futureNote?: string; psychology?: { coreDesire?: string } };
+    expect(blob.futureNote).toBe("keep me");
+    expect(blob.psychology?.coreDesire).toBe("to keep the salt");
+
+    // Plant an unsupported version outside mutationService (packages and saves refuse to write it).
+    await t.db.record.update({
+      where: { id: IDS.dossier },
+      data: {
+        fields: JSON.stringify({
+          ...saved.fields,
+          characterDevelopment: { version: 9, futureNote: "do not wipe" },
+        }),
+      },
+    });
+    const unsupported = await getRecord(t.db, IDS.project, IDS.dossier);
+    await expect(
+      saveCharacterDevelopment(t.db, IDS.project, {
+        recordId: IDS.dossier,
+        expectedRevision: unsupported.currentRevision,
+        profile: emptyCharacterDevelopment(),
+      }),
+    ).rejects.toBeInstanceOf(MutationRejectedError);
+    const untouched = await getRecord(t.db, IDS.project, IDS.dossier);
+    expect(untouched.fields.characterDevelopment).toEqual({ version: 9, futureNote: "do not wipe" });
+  });
+
+  it("saves Phase 1 behavior and capabilities without rewriting dossier Markdown", async () => {
+    const profile = emptyCharacterDevelopment();
+    profile.importance = "supporting";
+    profile.foundation.culturalIdentity = "Harrowgate";
+    profile.behavior.socialBehavior = "Warm in private, cool in public";
+    profile.capabilities.magicalAbilities = "None she admits";
+    profile.capabilities.linkedRecordIds = ["rec_world_ref_01"];
+    const saved = await saveCharacterDevelopment(t.db, IDS.project, {
+      recordId: IDS.dossier,
+      expectedRevision: 1,
+      profile,
+    });
+    expect(saved.revision).toBe(2);
+    const dossier = await getRecord(t.db, IDS.project, IDS.dossier);
+    expect(dossier.body).toBe("Archivist. Thirty years old.");
+    expect(dossier.fields.name).toBe("Mara Venn");
+    const blob = dossier.fields.characterDevelopment as {
+      behavior?: { socialBehavior?: string };
+      capabilities?: { linkedRecordIds?: string[] };
+    };
+    expect(blob.behavior?.socialBehavior).toBe("Warm in private, cool in public");
+    expect(blob.capabilities?.linkedRecordIds).toEqual(["rec_world_ref_01"]);
+  });
+
+  it("rejects a change package that sets an invalid character development object", async () => {
+    const current = await getRecord(t.db, IDS.project, IDS.dossier);
+    const pkg = makePackage({
+      packageId: "pkg_character_bad_version",
+      operations: [
+        {
+          op: "update_record",
+          recordId: IDS.dossier,
+          expectedRevision: current.currentRevision,
+          changes: { fields: { set: { characterDevelopment: { version: 9 } } } },
+        },
+      ],
+    });
+    const outcome = await applyChangePackage(t.db, pkg, { projectId: IDS.project });
+    expect(outcome.status).not.toBe("applied");
+    const dossier = await getRecord(t.db, IDS.project, IDS.dossier);
+    expect(dossier.fields.characterDevelopment).toBeUndefined();
+    expect(dossier.currentRevision).toBe(current.currentRevision);
+  });
 });

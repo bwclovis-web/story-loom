@@ -18,6 +18,8 @@ export function PdfReferencePicker({
   docxAction,
   epubAction,
   markdownAction,
+  wikiAction,
+  spoilerChapters = [],
   groups,
   initialSelection,
 }: {
@@ -25,10 +27,14 @@ export function PdfReferencePicker({
   docxAction: string;
   epubAction: string;
   markdownAction: string;
+  wikiAction: string;
+  spoilerChapters?: { id: string; title: string }[];
   groups: PdfPickerGroup[];
   initialSelection: string[];
 }) {
   const [selected, setSelected] = useState<Set<string>>(() => new Set(initialSelection));
+  const [wikiCeilingApproved, setWikiCeilingApproved] = useState(false);
+  const [wikiSpoilerBefore, setWikiSpoilerBefore] = useState("");
   const toggle = (ids: string[], on: boolean) =>
     setSelected((prev) => {
       const next = new Set(prev);
@@ -39,6 +45,8 @@ export function PdfReferencePicker({
   return (
     <form method="get" action={action} className="stack pdf-picker">
       <input type="hidden" name="kind" value="references" />
+      {wikiCeilingApproved ? <input type="hidden" name="ceiling" value="approved" /> : null}
+      {wikiSpoilerBefore ? <input type="hidden" name="spoilerBefore" value={wikiSpoilerBefore} /> : null}
       {groups.map((group) => {
         const ids = group.records.map((r) => r.id);
         const allOn = ids.every((id) => selected.has(id));
@@ -89,12 +97,45 @@ export function PdfReferencePicker({
         <button type="submit" formAction={markdownAction} formMethod="get" disabled={selected.size === 0}>
           {PDF.downloadReferencesMarkdown(selected.size)}
         </button>
+        <button type="submit" formAction={wikiAction} formMethod="get" disabled={selected.size === 0}>
+          {PDF.downloadReferencesWiki(selected.size)}
+        </button>
         {selected.size === 0 ? (
           <span className="small muted" role="status">
             {PDF.nothingSelected}
           </span>
         ) : null}
       </div>
+      <fieldset className="stack panel" style={{ border: "none", padding: 0, margin: 0 }}>
+        <legend className="h3">{PDF.wikiOptionsHeading}</legend>
+        <p className="small muted">{PDF.wikiFormatsNote}</p>
+        <Checkbox
+          checked={wikiCeilingApproved}
+          onChange={(e) => setWikiCeilingApproved(e.target.checked)}
+          label={PDF.wikiSpoilerApproved}
+        />
+        {spoilerChapters.length ? (
+          <label className="stack">
+            <span>{PDF.wikiSpoilerBefore}</span>
+            <select
+              className="input"
+              value={wikiSpoilerBefore}
+              onChange={(e) => setWikiSpoilerBefore(e.target.value)}
+            >
+              <option value="">{PDF.wikiSpoilerBeforeNone}</option>
+              {spoilerChapters.map((chapter) => (
+                <option key={chapter.id} value={chapter.id}>
+                  {chapter.title}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
+        <p className="small muted">
+          Spoiler options apply only to the HTML wiki download. They filter selected documents or established facts in
+          infoboxes; they do not change records.
+        </p>
+      </fieldset>
     </form>
   );
 }

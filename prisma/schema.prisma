@@ -91,8 +91,26 @@ model Project {
   worldCalendarEras      WorldCalendarEra[]
   worldKindTemplates     WorldKindTemplate[]
   continuitySuppressions ContinuitySuppression[]
+  smartCollections       SmartCollection[]
 
   @@index([workspaceId])
+}
+
+/// Saved dynamic filter for manuscript or world lists. Not revisioned content.
+model SmartCollection {
+  id         String   @id
+  projectId  String
+  project    Project  @relation(fields: [projectId], references: [id])
+  title      String
+  /// manuscript | world
+  scope      String
+  /// JSON predicates (types, status, POV, word range, continuity, query, …).
+  filterJson String   @default("{}")
+  position   Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([projectId, scope])
 }
 
 /// Author marked a Continuity Ledger issue intentional or ignored. Non-destructive;
@@ -383,6 +401,8 @@ model CompileProfile {
   runningFooter          String   @default("")
   /// serif | sans | mono
   fontPreset             String   @default("serif")
+  /// classic_novel | fantasy_ornamental | thriller_clean | nonfiction | romance_warm
+  bookTheme              String?
   /// novel | tight | loose
   spacingPreset          String   @default("novel")
   firstParagraphNoIndent Boolean  @default(true)

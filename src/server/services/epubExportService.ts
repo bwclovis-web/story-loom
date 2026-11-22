@@ -13,7 +13,8 @@ import {
   type ManuscriptExportBuildOptions,
   usesCustomTitlePage,
 } from "./manuscriptExportCompile";
-import { bodyToEpubSectionHtml, escapeHtml, sceneBreakHtml } from "./manuscriptExportMarkdown";
+import { bodyToEpubSectionHtml, escapeHtml, sceneBreakHtml, type EpubImageSink } from "./manuscriptExportMarkdown";
+import { docxImageType, type ExportInlineImage } from "./manuscriptExportImages";
 import { exportDateStamp, exportSlug } from "./manuscriptExportModel";
 import type { DbOrTx } from "../db";
 
@@ -48,9 +49,33 @@ const MATTER_LABELS: Record<string, string> = {
   "back-matter": "Back matter",
 };
 
-function appendMarkdown(parts: string[], markdown: string) {
+function appendMarkdown(
+  parts: string[],
+  markdown: string,
+  images?: ReadonlyMap<string, ExportInlineImage>,
+  sink?: EpubImageSink,
+) {
   const trimmed = markdown.trim();
-  if (trimmed) parts.push(bodyToEpubSectionHtml(trimmed));
+  if (trimmed) parts.push(bodyToEpubSectionHtml(trimmed, images, sink));
+}
+
+class EpubImageRegistry implements EpubImageSink {
+  private readonly used = new Map<string, { id: string; href: string; mime: string; data: Uint8Array }>();
+
+  register(image: ExportInlineImage): string {
+    const existing = this.used.get(image.name);
+    if (existing) return existing.href;
+    const ext = docxImageType(image.mimeType) ?? "png";
+    const id = `img-${this.used.size + 1}`;
+    const href = `images/${id}.${ext}`;
+    const mime = image.mimeType === "image/jpeg" ? "image/jpeg" : "image/png";
+    this.used.set(image.name, { id, href, mime, data: image.data ?? new Uint8Array() });
+    return href;
+  }
+
+  entries() {
+    return [...this.used.values()];
+  }
 }
 
 export async function buildManuscriptEpub(
@@ -66,6 +91,7 @@ export async function buildManuscriptEpub(
   const generated = defaultTitleSubtitle(model.generatedAt);
   const chapterAlign = chapterHeadingAlign(exportCtx.compile.chapterHeadingStyle);
   const glyph = sceneBreakText(exportCtx.compile);
+  const imageRegistry = new EpubImageRegistry();
 
   const spine: string[] = ["title"];
   const manifest: { id: string; href: string; mime: string }[] = [
@@ -91,7 +117,7 @@ export async function buildManuscriptEpub(
 
   const wordLine = `<p>About ${manuscriptExportWordCount(exportCtx).toLocaleString("en-US")} words</p>`;
   const titleBody = usesCustomTitlePage(exportCtx.compile)
-    ? `${bodyToEpubSectionHtml(exportCtx.compile.titlePageBody)}${wordLine}`
+    ? `${bodyToEpubSectionHtml(exportCtx.compile.titlePageBody, undefined, imageRegistry)}${wordLine}`
     : `<h1>${escapeHtml(model.projectTitle)}</h1><p><em>Manuscript</em></p><p>${escapeHtml(generated)}</p>${wordLine}`;
   zip.file("OEBPS/title.xhtml", xhtmlPage(model.projectTitle, titleBody));
 
@@ -99,7 +125,7 @@ export async function buildManuscriptEpub(
     const id = `matter-${section.key}`;
     const href = `${id}.xhtml`;
     const label = MATTER_LABELS[section.key] ?? section.key;
-    zip.file(`OEBPS/${href}`, xhtmlPage(label, bodyToEpubSectionHtml(section.body)));
+    zip.file(`OEBPS/${href}`, xhtmlPage(label, bodyToEpubSectionHtml(section.body, undefined, imageRegistry)));
     spine.push(id);
     manifest.push({ id, href, mime: "application/xhtml+xml" });
     navItems.push({ label, href });
@@ -116,8 +142,9 @@ export async function buildManuscriptEpub(
     const parts: string[] = [
       `<h1 style="text-align:${chapterAlign}">${escapeHtml(chapter.record.title)}</h1>`,
     ];
-    appendMarkdown(parts, recordExportPrefix(chapter.record.id, exportCtx));
-    parts.push(bodyToEpubSectionHtml(chapter.record.body));
+    const chapterImages = exportCtx.imagesByRecord.get(chapter.record.id);
+    appendMarkdown(parts, recordExportPrefix(chapter.record.id, exportCtx), chapterImages, imageRegistry);
+    parts.push(bodyToEpubSectionHtml(chapter.record.body, chapterImages, imageRegistry));
     let sceneHadText = chapter.record.body.trim().length > 0;
     for (const scene of chapter.scenes) {
       if (model.sceneTitles) {
@@ -125,12 +152,13 @@ export async function buildManuscriptEpub(
       } else if (sceneHadText && scene.record.body.trim()) {
         parts.push(sceneBreakHtml(glyph));
       }
-      appendMarkdown(parts, recordExportPrefix(scene.record.id, exportCtx));
-      parts.push(bodyToEpubSectionHtml(scene.record.body));
+      const sceneImages = exportCtx.imagesByRecord.get(scene.record.id);
+      appendMarkdown(parts, recordExportPrefix(scene.record.id, exportCtx), sceneImages, imageRegistry);
+      parts.push(bodyToEpubSectionHtml(scene.record.body, sceneImages, imageRegistry));
       sceneHadText = sceneHadText || scene.record.body.trim().length > 0;
-      appendMarkdown(parts, recordExportSuffix(scene.record.id, exportCtx));
+      appendMarkdown(parts, recordExportSuffix(scene.record.id, exportCtx), sceneImages, imageRegistry);
     }
-    appendMarkdown(parts, recordExportSuffix(chapter.record.id, exportCtx));
+    appendMarkdown(parts, recordExportSuffix(chapter.record.id, exportCtx), chapterImages, imageRegistry);
     const body = parts.join("\n");
     zip.file(`OEBPS/${href}`, xhtmlPage(chapter.record.title, body));
     spine.push(id);
@@ -147,10 +175,11 @@ export async function buildManuscriptEpub(
     for (const scene of model.unplacedScenes) {
       if (model.sceneTitles) parts.push(`<h3>${escapeHtml(scene.record.title)}</h3>`);
       else if (sceneHadText && scene.record.body.trim()) parts.push(sceneBreakHtml(glyph));
-      appendMarkdown(parts, recordExportPrefix(scene.record.id, exportCtx));
-      parts.push(bodyToEpubSectionHtml(scene.record.body));
+      const sceneImages = exportCtx.imagesByRecord.get(scene.record.id);
+      appendMarkdown(parts, recordExportPrefix(scene.record.id, exportCtx), sceneImages, imageRegistry);
+      parts.push(bodyToEpubSectionHtml(scene.record.body, sceneImages, imageRegistry));
       sceneHadText = sceneHadText || scene.record.body.trim().length > 0;
-      appendMarkdown(parts, recordExportSuffix(scene.record.id, exportCtx));
+      appendMarkdown(parts, recordExportSuffix(scene.record.id, exportCtx), sceneImages, imageRegistry);
     }
     zip.file(`OEBPS/${href}`, xhtmlPage("Scenes not in a chapter", parts.join("\n")));
     spine.push(id);
@@ -191,6 +220,11 @@ export async function buildManuscriptEpub(
   <navMap>${ncxPoints}</navMap>
 </ncx>`,
   );
+
+  for (const image of imageRegistry.entries()) {
+    zip.file(`OEBPS/${image.href}`, Buffer.from(image.data));
+    manifest.push({ id: image.id, href: image.href, mime: image.mime });
+  }
 
   const manifestXml = manifest
     .map((item) => `<item id="${item.id}" href="${item.href}" media-type="${item.mime}"/>`)

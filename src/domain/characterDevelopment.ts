@@ -8,11 +8,52 @@ import { orderRelation, type OrderEdge } from "@/world/storyOrder";
  * dossier's `fields.characterDevelopment`. The dossier record stays the
  * identity. Empty or missing metadata means the dossier works as before.
  * Personality notes are writing aids, not diagnoses or behavioural rules.
- * Trauma, disability, and neurodivergence are not fields here.
+ * Lived-experience notes are author-written writing context, not a diagnosis.
+ * Version stays at 1; new keys are optional. Unknown top-level keys are kept
+ * on save so a newer build's fields survive an older panel.
  */
 
 export const CHARACTER_DEVELOPMENT_KEY = "characterDevelopment";
 export const CHARACTER_DEVELOPMENT_VERSION = 1;
+
+/** Top-level keys this build reads and writes. Other keys stay on save. */
+export const CHARACTER_DEVELOPMENT_KNOWN_KEYS = [
+  "version",
+  "importance",
+  "narrativeRole",
+  "psychology",
+  "archetypes",
+  "bookImportance",
+  "arcs",
+  "stateChanges",
+  "bookStates",
+  "variant",
+  "reviewNotes",
+  "sourceRevision",
+  "sourceBodyHash",
+  "foundation",
+  "voice",
+  "bookVoices",
+  "behavior",
+  "livedExperience",
+  "capabilities",
+  "knowledge",
+  "migrationHold",
+] as const;
+
+/** Panel sections for progressive disclosure. Changing importance never deletes filled data. */
+export const PROFILE_SECTIONS = [
+  "identity",
+  "psychology",
+  "voice",
+  "behavior",
+  "lived",
+  "relationships",
+  "capabilities",
+  "development",
+  "continuity",
+] as const;
+export type ProfileSection = (typeof PROFILE_SECTIONS)[number];
 
 export const ENNEAGRAM_TYPES = [1, 2, 3, 4, 5, 6, 7, 8, 9] as const;
 export type EnneagramNumber = (typeof ENNEAGRAM_TYPES)[number];
@@ -112,9 +153,110 @@ export const PSYCHOLOGY_TEXT_KEYS = [
 ] as const;
 export type PsychologyTextKey = (typeof PSYCHOLOGY_TEXT_KEYS)[number];
 
-/** Traits a variant may inherit. Arcs, state, and knowledge are never inherited. */
-export const INHERITABLE_KEYS = ["importance", "narrativeRole", "archetypes", ...PSYCHOLOGY_TEXT_KEYS, "enneagram", "wing"] as const;
+/** Traits a variant may inherit. Arcs, state, knowledge, lived experience, and capabilities are never inherited. */
+export const INHERITABLE_KEYS = [
+  "importance",
+  "narrativeRole",
+  "archetypes",
+  "foundation",
+  "voice",
+  "behavior",
+  ...PSYCHOLOGY_TEXT_KEYS,
+  "enneagram",
+  "wing",
+] as const;
 export type InheritableKey = (typeof INHERITABLE_KEYS)[number];
+
+export const FOUNDATION_TEXT_KEYS = [
+  "pronouns",
+  "ancestry",
+  "appearance",
+  "physicalCharacteristics",
+  "lifeStage",
+  "publicRole",
+  "privateSelf",
+  "occupation",
+  "culturalIdentity",
+  "formativeBackground",
+  "externalGoal",
+] as const;
+export type FoundationTextKey = (typeof FOUNDATION_TEXT_KEYS)[number];
+
+export const VOICE_TEXT_KEYS = [
+  "diction",
+  "rhythm",
+  "vocabulary",
+  "verbalHabits",
+  "humor",
+  "emotionalExpression",
+  "internalNarrative",
+  "speechPatterns",
+  "linesTheyReachFor",
+  "linesTheyAvoid",
+  "exampleDialogue",
+  "approvedExamples",
+  "consistencyGuardrails",
+  "pointOfViewNotes",
+] as const;
+export type VoiceTextKey = (typeof VOICE_TEXT_KEYS)[number];
+
+export const BEHAVIOR_TEXT_KEYS = [
+  "habits",
+  "mannerisms",
+  "underPressure",
+  "socialBehavior",
+  "emotionalRegulation",
+  "conflictAndAccountability",
+  "interestsAndPreferences",
+] as const;
+export type BehaviorTextKey = (typeof BEHAVIOR_TEXT_KEYS)[number];
+
+export const LIVED_EXPERIENCE_TEXT_KEYS = [
+  "formativeExperiences",
+  "neurodivergence",
+  "disability",
+  "trauma",
+  "coping",
+  "supportNeeds",
+  "portrayalGuidance",
+  "stereotypesToAvoid",
+  "boundaryNote",
+] as const;
+export type LivedExperienceTextKey = (typeof LIVED_EXPERIENCE_TEXT_KEYS)[number];
+
+export const CAPABILITIES_TEXT_KEYS = [
+  "skills",
+  "limitations",
+  "magicalAbilities",
+  "equipment",
+] as const;
+export type CapabilitiesTextKey = (typeof CAPABILITIES_TEXT_KEYS)[number];
+
+/**
+ * Suggested open sections by importance. Unlisted sections stay available
+ * behind "Show more"; filled fields are never discarded when importance changes.
+ */
+export const IMPORTANCE_SECTION_TEMPLATES: Record<ImportanceLevel, readonly ProfileSection[]> = {
+  major: [...PROFILE_SECTIONS],
+  supporting: ["identity", "psychology", "voice", "behavior", "relationships", "development", "continuity"],
+  recurring: ["identity", "voice", "behavior", "relationships", "continuity"],
+  minor: ["identity", "continuity"],
+};
+
+export const AI_VISIBILITY = ["include", "spoiler", "omit"] as const;
+export type AiVisibility = (typeof AI_VISIBILITY)[number];
+
+export const KNOWLEDGE_KINDS = ["knowledge", "belief", "misbelief", "secret"] as const;
+export type KnowledgeKind = (typeof KNOWLEDGE_KINDS)[number];
+
+export const KNOWLEDGE_HOLDERS = ["character", "reader", "both"] as const;
+export type KnowledgeHolder = (typeof KNOWLEDGE_HOLDERS)[number];
+
+export const PROVENANCE_ORIGINS = ["author", "imported", "extracted"] as const;
+export type ProvenanceOrigin = (typeof PROVENANCE_ORIGINS)[number];
+
+export const CONTEXT_SLICES = ["dialogue", "continuity", "spoiler"] as const;
+export type ContextSlice = (typeof CONTEXT_SLICES)[number];
 
 export const REVIEW_CHECKS = [
   "personality",
@@ -277,6 +419,121 @@ export interface ReviewNote {
   accepted: boolean;
 }
 
+export interface ClaimProvenance {
+  origin: ProvenanceOrigin;
+  note: string;
+}
+
+export interface FoundationProfile {
+  pronouns: string;
+  ancestry: string;
+  appearance: string;
+  physicalCharacteristics: string;
+  lifeStage: string;
+  publicRole: string;
+  privateSelf: string;
+  occupation: string;
+  culturalIdentity: string;
+  formativeBackground: string;
+  externalGoal: string;
+}
+
+export interface VoiceProfile {
+  diction: string;
+  rhythm: string;
+  vocabulary: string;
+  verbalHabits: string;
+  humor: string;
+  emotionalExpression: string;
+  internalNarrative: string;
+  speechPatterns: string;
+  linesTheyReachFor: string;
+  linesTheyAvoid: string;
+  exampleDialogue: string;
+  approvedExamples: string;
+  consistencyGuardrails: string;
+  pointOfViewNotes: string;
+}
+
+export interface BookVoice {
+  projectId: string;
+  voice: VoiceProfile;
+}
+
+export interface BehaviorProfile {
+  habits: string;
+  mannerisms: string;
+  underPressure: string;
+  socialBehavior: string;
+  emotionalRegulation: string;
+  conflictAndAccountability: string;
+  interestsAndPreferences: string;
+}
+
+export interface LivedExperienceProfile {
+  formativeExperiences: string;
+  neurodivergence: string;
+  disability: string;
+  trauma: string;
+  coping: string;
+  supportNeeds: string;
+  portrayalGuidance: string;
+  stereotypesToAvoid: string;
+  /** What must not be flattened when writing or prompting. */
+  boundaryNote: string;
+  approval: AuthorityStatus;
+  /** Defaults to omit. Never inferred by Extract or Review. */
+  aiVisibility: AiVisibility;
+  provenance: ClaimProvenance;
+}
+
+export interface CapabilitiesProfile {
+  skills: string;
+  limitations: string;
+  magicalAbilities: string;
+  equipment: string;
+  /** Existing worldbuilding / magic / object record ids. Not duplicated prose. */
+  linkedRecordIds: string[];
+}
+
+export interface KnowledgeItem {
+  id: string;
+  kind: KnowledgeKind;
+  statement: string;
+  approval: AuthorityStatus;
+  planned: boolean;
+  bookProjectId: string | null;
+  fromStoryEventId: string | null;
+  untilStoryEventId: string | null;
+  sceneRecordId: string | null;
+  holder: KnowledgeHolder;
+  aiVisibility: AiVisibility;
+  establishedFactId: string | null;
+  provenance: ClaimProvenance;
+}
+
+/** Held upgrade passages that must not silently become approved structured fields. */
+export const MIGRATION_HOLD_KINDS = [
+  "historical_amendments",
+  "protected_unknowns",
+  "proposed_unapproved",
+  "unclassified",
+  "relationships_notes",
+  "continuity_notes",
+] as const;
+export type MigrationHoldKind = (typeof MIGRATION_HOLD_KINDS)[number];
+
+export interface MigrationHoldItem {
+  id: string;
+  kind: MigrationHoldKind;
+  fieldPath: string;
+  heading: string;
+  text: string;
+  sourceText: string;
+  note: string;
+  decision: "retained" | "deferred";
+}
+
 export interface CharacterDevelopment {
   version: 1;
   importance: ImportanceLevel | null;
@@ -292,6 +549,15 @@ export interface CharacterDevelopment {
   /** Dossier revision and body hash when the author last checked this profile against the prose. */
   sourceRevision: number | null;
   sourceBodyHash: string | null;
+  foundation: FoundationProfile;
+  voice: VoiceProfile;
+  bookVoices: BookVoice[];
+  behavior: BehaviorProfile;
+  livedExperience: LivedExperienceProfile;
+  capabilities: CapabilitiesProfile;
+  knowledge: KnowledgeItem[];
+  /** Author-reviewed upgrade hold: conflicts, unknowns, proposals, unclassified. */
+  migrationHold: MigrationHoldItem[];
 }
 
 export interface ProfileProblem {
@@ -396,6 +662,80 @@ function emptyPsychology(): PsychologyProfile {
   };
 }
 
+export function emptyFoundation(): FoundationProfile {
+  return {
+    pronouns: "",
+    ancestry: "",
+    appearance: "",
+    physicalCharacteristics: "",
+    lifeStage: "",
+    publicRole: "",
+    privateSelf: "",
+    occupation: "",
+    culturalIdentity: "",
+    formativeBackground: "",
+    externalGoal: "",
+  };
+}
+
+export function emptyVoice(): VoiceProfile {
+  return {
+    diction: "",
+    rhythm: "",
+    vocabulary: "",
+    verbalHabits: "",
+    humor: "",
+    emotionalExpression: "",
+    internalNarrative: "",
+    speechPatterns: "",
+    linesTheyReachFor: "",
+    linesTheyAvoid: "",
+    exampleDialogue: "",
+    approvedExamples: "",
+    consistencyGuardrails: "",
+    pointOfViewNotes: "",
+  };
+}
+
+export function emptyBehavior(): BehaviorProfile {
+  return {
+    habits: "",
+    mannerisms: "",
+    underPressure: "",
+    socialBehavior: "",
+    emotionalRegulation: "",
+    conflictAndAccountability: "",
+    interestsAndPreferences: "",
+  };
+}
+
+export function emptyLivedExperience(): LivedExperienceProfile {
+  return {
+    formativeExperiences: "",
+    neurodivergence: "",
+    disability: "",
+    trauma: "",
+    coping: "",
+    supportNeeds: "",
+    portrayalGuidance: "",
+    stereotypesToAvoid: "",
+    boundaryNote: "",
+    approval: "draft",
+    aiVisibility: "omit",
+    provenance: { origin: "author", note: "" },
+  };
+}
+
+export function emptyCapabilities(): CapabilitiesProfile {
+  return {
+    skills: "",
+    limitations: "",
+    magicalAbilities: "",
+    equipment: "",
+    linkedRecordIds: [],
+  };
+}
+
 export function emptyCharacterDevelopment(): CharacterDevelopment {
   return {
     version: 1,
@@ -411,7 +751,65 @@ export function emptyCharacterDevelopment(): CharacterDevelopment {
     reviewNotes: [],
     sourceRevision: null,
     sourceBodyHash: null,
+    foundation: emptyFoundation(),
+    voice: emptyVoice(),
+    bookVoices: [],
+    behavior: emptyBehavior(),
+    livedExperience: emptyLivedExperience(),
+    capabilities: emptyCapabilities(),
+    knowledge: [],
+    migrationHold: [],
   };
+}
+
+/** Sections suggested for this importance, plus any section that already has content. */
+export function visibleProfileSections(profile: CharacterDevelopment): ProfileSection[] {
+  const suggested = new Set<ProfileSection>(
+    profile.importance ? IMPORTANCE_SECTION_TEMPLATES[profile.importance] : PROFILE_SECTIONS,
+  );
+  if (!sectionIsEmpty("identity", profile)) suggested.add("identity");
+  if (!sectionIsEmpty("psychology", profile)) suggested.add("psychology");
+  if (!sectionIsEmpty("voice", profile)) suggested.add("voice");
+  if (!sectionIsEmpty("behavior", profile)) suggested.add("behavior");
+  if (!sectionIsEmpty("lived", profile)) suggested.add("lived");
+  if (!sectionIsEmpty("relationships", profile)) suggested.add("relationships");
+  if (!sectionIsEmpty("capabilities", profile)) suggested.add("capabilities");
+  if (!sectionIsEmpty("development", profile)) suggested.add("development");
+  if (!sectionIsEmpty("continuity", profile)) suggested.add("continuity");
+  return PROFILE_SECTIONS.filter((section) => suggested.has(section));
+}
+
+export function sectionIsEmpty(section: ProfileSection, profile: CharacterDevelopment): boolean {
+  switch (section) {
+    case "identity":
+      return !summarizeTextGroup(profile.foundation).trim() && profile.importance === null && profile.narrativeRole === null;
+    case "psychology":
+      return (
+        !profile.psychology.enneagram &&
+        !profile.psychology.wing &&
+        !profile.psychology.frameworks.length &&
+        !PSYCHOLOGY_TEXT_KEYS.some((key) => profile.psychology[key].trim()) &&
+        profile.archetypes.length === 0
+      );
+    case "voice":
+      return !summarizeTextGroup(profile.voice).trim() && profile.bookVoices.every((book) => !summarizeTextGroup(book.voice).trim());
+    case "behavior":
+      return !summarizeTextGroup(profile.behavior).trim();
+    case "lived":
+      return !LIVED_EXPERIENCE_TEXT_KEYS.some((key) => profile.livedExperience[key].trim());
+    case "relationships":
+      return !profile.arcs.some(
+        (arc) => arc.template === "relationship" || arc.relationId || arc.perceptions.length > 0,
+      );
+    case "capabilities":
+      return !CAPABILITIES_TEXT_KEYS.some((key) => profile.capabilities[key].trim()) && profile.capabilities.linkedRecordIds.length === 0;
+    case "development":
+      return profile.arcs.length === 0;
+    case "continuity":
+      return profile.stateChanges.length === 0 && profile.bookStates.length === 0 && profile.knowledge.length === 0;
+    default:
+      return true;
+  }
 }
 
 function text(value: unknown): string {
@@ -669,6 +1067,133 @@ function readVariant(raw: unknown, problems: ProfileProblem[]): VariantLink | nu
   return { foundationRecordId, inheritedKeys };
 }
 
+function readTextGroup<T extends string>(raw: unknown, keys: readonly T[], empty: Record<T, string>): Record<T, string> {
+  const next = { ...empty };
+  const row = asRecord(raw);
+  if (!row) return next;
+  for (const key of keys) next[key] = text(row[key]);
+  return next;
+}
+
+function readFoundation(raw: unknown): FoundationProfile {
+  return readTextGroup(raw, FOUNDATION_TEXT_KEYS, emptyFoundation());
+}
+
+function readVoice(raw: unknown): VoiceProfile {
+  return readTextGroup(raw, VOICE_TEXT_KEYS, emptyVoice());
+}
+
+function readBehavior(raw: unknown): BehaviorProfile {
+  return readTextGroup(raw, BEHAVIOR_TEXT_KEYS, emptyBehavior());
+}
+
+function readCapabilities(raw: unknown): CapabilitiesProfile {
+  const base = emptyCapabilities();
+  const row = asRecord(raw);
+  if (!row) return base;
+  const next = readTextGroup(raw, CAPABILITIES_TEXT_KEYS, base);
+  const linkedRecordIds = Array.isArray(row.linkedRecordIds)
+    ? [...new Set(row.linkedRecordIds.filter((id): id is string => typeof id === "string" && ID_PATTERN.test(id)))]
+    : [];
+  return { ...next, linkedRecordIds };
+}
+
+function readBookVoices(raw: unknown): BookVoice[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.flatMap((item) => {
+    const row = asRecord(item);
+    if (!row) return [];
+    const projectId = text(row.projectId);
+    if (!projectId) return [];
+    return [{ projectId, voice: readVoice(row.voice) }];
+  });
+}
+
+function readProvenance(raw: unknown): ClaimProvenance {
+  const row = asRecord(raw);
+  if (!row) return { origin: "author", note: "" };
+  return {
+    origin: oneOf(row.origin, PROVENANCE_ORIGINS) ?? "author",
+    note: text(row.note),
+  };
+}
+
+function readLivedExperience(raw: unknown): LivedExperienceProfile {
+  const base = emptyLivedExperience();
+  const row = asRecord(raw);
+  if (!row) return base;
+  const next = { ...base };
+  for (const key of LIVED_EXPERIENCE_TEXT_KEYS) next[key] = text(row[key]);
+  next.approval = approvalOf(row.approval);
+  next.aiVisibility = oneOf(row.aiVisibility, AI_VISIBILITY) ?? "omit";
+  next.provenance = readProvenance(row.provenance);
+  return next;
+}
+
+function readKnowledge(raw: unknown): KnowledgeItem[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.flatMap((item, index) => {
+    const row = asRecord(item);
+    if (!row) return [];
+    const kind = oneOf(row.kind, KNOWLEDGE_KINDS);
+    const statement = text(row.statement);
+    if (!kind || !statement) return [];
+    const defaultVisibility: AiVisibility = kind === "secret" ? "omit" : "include";
+    return [
+      {
+        id: idOf(row.id, `know_${index}_saved`),
+        kind,
+        statement,
+        approval: approvalOf(row.approval),
+        planned: row.planned === true,
+        bookProjectId: text(row.bookProjectId) || null,
+        fromStoryEventId: text(row.fromStoryEventId) || null,
+        untilStoryEventId: text(row.untilStoryEventId) || null,
+        sceneRecordId: text(row.sceneRecordId) || null,
+        holder: oneOf(row.holder, KNOWLEDGE_HOLDERS) ?? "character",
+        aiVisibility: oneOf(row.aiVisibility, AI_VISIBILITY) ?? defaultVisibility,
+        establishedFactId: text(row.establishedFactId) || null,
+        provenance: readProvenance(row.provenance),
+      },
+    ];
+  });
+}
+
+function readMigrationHold(raw: unknown): MigrationHoldItem[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.flatMap((item, index) => {
+    const row = asRecord(item);
+    if (!row) return [];
+    const kind = oneOf(row.kind, MIGRATION_HOLD_KINDS);
+    const textBody = text(row.text) || text(row.sourceText);
+    if (!kind || !textBody) return [];
+    return [
+      {
+        id: idOf(row.id, `mhold_${index}_saved`),
+        kind,
+        fieldPath: text(row.fieldPath),
+        heading: text(row.heading),
+        text: textBody,
+        sourceText: text(row.sourceText) || textBody,
+        note: text(row.note),
+        decision: row.decision === "deferred" ? "deferred" : "retained",
+      },
+    ];
+  });
+}
+
+/**
+ * True when stored development names a version this build cannot load.
+ * Saves must refuse so an empty profile cannot wipe the stored object.
+ */
+export function unsupportedCharacterDevelopmentVersion(fields: Readonly<Record<string, unknown>>): boolean {
+  const raw = fields[CHARACTER_DEVELOPMENT_KEY];
+  if (raw === undefined || raw === null) return false;
+  const row = asRecord(raw);
+  if (!row) return false;
+  return row.version !== undefined && row.version !== CHARACTER_DEVELOPMENT_VERSION;
+}
+
 export function readCharacterDevelopment(fields: Readonly<Record<string, unknown>>): {
   profile: CharacterDevelopment;
   problems: ProfileProblem[];
@@ -717,6 +1242,14 @@ export function readCharacterDevelopment(fields: Readonly<Record<string, unknown
       : [],
     sourceRevision: typeof row.sourceRevision === "number" ? row.sourceRevision : null,
     sourceBodyHash: text(row.sourceBodyHash) || null,
+    foundation: readFoundation(row.foundation),
+    voice: readVoice(row.voice),
+    bookVoices: readBookVoices(row.bookVoices),
+    behavior: readBehavior(row.behavior),
+    livedExperience: readLivedExperience(row.livedExperience),
+    capabilities: readCapabilities(row.capabilities),
+    knowledge: readKnowledge(row.knowledge),
+    migrationHold: readMigrationHold(row.migrationHold),
   };
   problems.push(...validateCharacterDevelopment(profile));
   return { profile, problems };
@@ -772,6 +1305,19 @@ export function validateCharacterDevelopment(profile: CharacterDevelopment): Pro
     if (bookIds.has(book.projectId)) problems.push({ path: `bookStates.${book.projectId}`, message: "A book has two state rows." });
     bookIds.add(book.projectId);
   }
+  const voiceBookIds = new Set<string>();
+  for (const book of profile.bookVoices) {
+    if (voiceBookIds.has(book.projectId)) {
+      problems.push({ path: `bookVoices.${book.projectId}`, message: "A book has two voice overrides." });
+    }
+    voiceBookIds.add(book.projectId);
+  }
+  const knowledgeIds = new Set<string>();
+  for (const item of profile.knowledge) {
+    if (!item.statement.trim()) problems.push({ path: `knowledge.${item.id}`, message: "A knowledge item needs a statement." });
+    if (knowledgeIds.has(item.id)) problems.push({ path: `knowledge.${item.id}`, message: "Two knowledge items share an id." });
+    knowledgeIds.add(item.id);
+  }
   return problems;
 }
 
@@ -814,14 +1360,37 @@ export function variantWouldCycle(
   return false;
 }
 
-/** Copy every other field key through, and replace only the development object. */
+/**
+ * Copy every other field key through, and replace only the development object.
+ * Unknown top-level keys already stored on the development object are kept so
+ * an older build cannot strip a newer key by saving.
+ */
 export function withCharacterDevelopment(fields: JsonObject, profile: CharacterDevelopment): JsonObject {
-  const next: JsonObject = { ...fields, [CHARACTER_DEVELOPMENT_KEY]: toJson(profile) };
-  return next;
+  const known = toJson(profile);
+  const previous = asRecord(fields[CHARACTER_DEVELOPMENT_KEY]);
+  const merged: JsonObject = { ...known };
+  const knownSet = new Set<string>(CHARACTER_DEVELOPMENT_KNOWN_KEYS);
+  if (previous) {
+    for (const key of Object.keys(previous)) {
+      if (!knownSet.has(key) && !(key in known)) merged[key] = previous[key] as JsonValue;
+    }
+  }
+  return { ...fields, [CHARACTER_DEVELOPMENT_KEY]: merged };
 }
 
 function toJson(profile: CharacterDevelopment): JsonObject {
   return JSON.parse(JSON.stringify(profile)) as JsonObject;
+}
+
+/** Problems that block writing a development object from a change package or save. */
+export function characterDevelopmentWriteProblems(value: unknown): ProfileProblem[] {
+  if (value === undefined || value === null) return [];
+  const row = asRecord(value);
+  if (!row) return [{ path: CHARACTER_DEVELOPMENT_KEY, message: "Character development metadata is not an object." }];
+  if (row.version !== undefined && row.version !== CHARACTER_DEVELOPMENT_VERSION) {
+    return [{ path: "version", message: "This character development version is not supported." }];
+  }
+  return readCharacterDevelopment({ [CHARACTER_DEVELOPMENT_KEY]: value }).problems;
 }
 
 export function developmentIsEmpty(profile: CharacterDevelopment): boolean {
@@ -985,6 +1554,38 @@ export function resolveCharacterState(
   return { facets, unplacedChangeIds };
 }
 
+function knowledgeWindowOpen(item: KnowledgeItem, point: NarrativePoint, edges: readonly OrderEdge[]): boolean {
+  if (item.bookProjectId && point.bookProjectId && item.bookProjectId !== point.bookProjectId) return false;
+  if (item.fromStoryEventId && point.storyEventId) {
+    if (item.fromStoryEventId !== point.storyEventId) {
+      const relation = orderRelation(edges, item.fromStoryEventId, point.storyEventId);
+      if (relation !== "before") return false;
+    }
+  } else if (item.fromStoryEventId && !point.storyEventId) {
+    return false;
+  }
+  if (item.untilStoryEventId && point.storyEventId) {
+    if (item.untilStoryEventId === point.storyEventId) return false;
+    const relation = orderRelation(edges, item.untilStoryEventId, point.storyEventId);
+    if (relation === "before" || relation === "cycle") return false;
+  }
+  return true;
+}
+
+/**
+ * Approved, unplanned knowledge items in force at a narrative point.
+ * Does not rewrite the one-line knowledge/belief state facets.
+ */
+export function resolveKnowledgeAtPoint(
+  profile: CharacterDevelopment,
+  point: NarrativePoint,
+  edges: readonly OrderEdge[] = [],
+): KnowledgeItem[] {
+  return profile.knowledge.filter(
+    (item) => item.approval === "approved" && !item.planned && knowledgeWindowOpen(item, point, edges),
+  );
+}
+
 export type MilestoneFreshness = "current" | "stale" | "unlinked";
 
 export function milestoneFreshness(
@@ -1004,10 +1605,22 @@ export interface InheritedTrait {
   value: string;
 }
 
+function summarizeTextGroup(
+  values: Readonly<Record<string, string>> | FoundationProfile | VoiceProfile | BehaviorProfile | CapabilitiesProfile,
+): string {
+  return Object.entries(values)
+    .filter(([, value]) => typeof value === "string" && value.trim())
+    .map(([key, value]) => `${key}: ${value}`)
+    .join("; ");
+}
+
 function psychologyValue(profile: CharacterDevelopment, key: InheritableKey): string {
   if (key === "importance") return profile.importance ?? "";
   if (key === "narrativeRole") return profile.narrativeRole ?? "";
   if (key === "archetypes") return profile.archetypes.map((item) => item.name).join(", ");
+  if (key === "foundation") return summarizeTextGroup(profile.foundation);
+  if (key === "voice") return summarizeTextGroup(profile.voice);
+  if (key === "behavior") return summarizeTextGroup(profile.behavior);
   if (key === "enneagram") return profile.psychology.enneagram === null ? "" : String(profile.psychology.enneagram);
   if (key === "wing") return profile.psychology.wing === null ? "" : String(profile.psychology.wing);
   return profile.psychology[key];
@@ -1015,6 +1628,18 @@ function psychologyValue(profile: CharacterDevelopment, key: InheritableKey): st
 
 function hasOwnValue(profile: CharacterDevelopment, key: InheritableKey): boolean {
   return psychologyValue(profile, key).trim() !== "";
+}
+
+/** Series voice with blank book-override fields filled from the series voice. */
+export function effectiveVoice(profile: CharacterDevelopment, bookProjectId: string | null): VoiceProfile {
+  if (!bookProjectId) return { ...profile.voice };
+  const override = profile.bookVoices.find((item) => item.projectId === bookProjectId)?.voice;
+  if (!override) return { ...profile.voice };
+  const next = { ...profile.voice };
+  for (const key of VOICE_TEXT_KEYS) {
+    if (override[key].trim()) next[key] = override[key];
+  }
+  return next;
 }
 
 /**
@@ -1037,7 +1662,7 @@ export function inheritedTraits(variant: CharacterDevelopment, foundation: Chara
 
 export interface ProfileSuggestion {
   id: string;
-  kind: "psychology" | "enneagram" | "wing" | "archetype" | "arc";
+  kind: "psychology" | "enneagram" | "wing" | "archetype" | "arc" | "foundation" | "voice";
   key: string;
   value: string;
   evidence: string;
@@ -1051,6 +1676,8 @@ export function applyProfileSuggestions(
 ): CharacterDevelopment {
   const next: CharacterDevelopment = {
     ...profile,
+    foundation: { ...profile.foundation },
+    voice: { ...profile.voice },
     psychology: { ...profile.psychology, frameworks: [...profile.psychology.frameworks] },
     archetypes: [...profile.archetypes],
     arcs: [...profile.arcs],
@@ -1060,6 +1687,10 @@ export function applyProfileSuggestions(
     if (suggestion.kind === "psychology" && (PSYCHOLOGY_TEXT_KEYS as readonly string[]).includes(suggestion.key)) {
       const key = suggestion.key as PsychologyTextKey;
       next.psychology[key] = suggestion.value.trim();
+    } else if (suggestion.kind === "foundation" && (FOUNDATION_TEXT_KEYS as readonly string[]).includes(suggestion.key)) {
+      next.foundation[suggestion.key as FoundationTextKey] = suggestion.value.trim();
+    } else if (suggestion.kind === "voice" && (VOICE_TEXT_KEYS as readonly string[]).includes(suggestion.key)) {
+      next.voice[suggestion.key as VoiceTextKey] = suggestion.value.trim();
     } else if (suggestion.kind === "enneagram") {
       const choice = enneagramOf(suggestion.value.trim()) ?? enneagramOf(Number(suggestion.value));
       if (choice) next.psychology.enneagram = choice;
@@ -1258,10 +1889,37 @@ export function forgottenArcs(profile: CharacterDevelopment): DevelopmentArc[] {
   );
 }
 
-export function characterProfileMarkdown(title: string, profile: CharacterDevelopment): string {
+export type ProfileExportMode = "redacted" | "full";
+
+function pushTextGroup(
+  lines: string[],
+  heading: string,
+  values: Readonly<Record<string, string>> | FoundationProfile | VoiceProfile | BehaviorProfile | CapabilitiesProfile | LivedExperienceProfile,
+) {
+  const filled = Object.entries(values).filter(([, value]) => typeof value === "string" && value.trim());
+  if (!filled.length) return;
+  lines.push("", `## ${heading}`);
+  for (const [key, value] of filled) lines.push(`- ${key}: ${value}`);
+}
+
+/**
+ * Markdown export for download. Redacted omits lived experience and secrets.
+ * Full includes every structured section for local backup.
+ */
+export function characterProfileMarkdown(
+  title: string,
+  profile: CharacterDevelopment,
+  mode: ProfileExportMode = "redacted",
+): string {
   const lines = [`# ${title}`, "", "Writing aid. Not a diagnosis, and not a rule the character must obey.", ""];
   if (profile.importance) lines.push(`Importance: ${profile.importance}`);
   if (profile.narrativeRole) lines.push(`Narrative role: ${profile.narrativeRole.replaceAll("_", " ")}`);
+  pushTextGroup(lines, "Identity", profile.foundation);
+  pushTextGroup(lines, "Voice", profile.voice);
+  for (const book of profile.bookVoices) {
+    pushTextGroup(lines, `Voice (${book.projectId})`, book.voice);
+  }
+  pushTextGroup(lines, "Behavior", profile.behavior);
   const psych = profile.psychology;
   if (psych.enneagram) lines.push(`Enneagram: ${psych.enneagram}${psych.wing ? ` wing ${psych.wing}` : ""}`);
   for (const key of PSYCHOLOGY_TEXT_KEYS) {
@@ -1274,13 +1932,182 @@ export function characterProfileMarkdown(title: string, profile: CharacterDevelo
       lines.push(`- ${archetype.rank}: ${archetype.name}${period}`);
     }
   }
+  pushTextGroup(lines, "Capabilities", profile.capabilities);
+  if (profile.capabilities.linkedRecordIds.length) {
+    lines.push(`- linkedRecordIds: ${profile.capabilities.linkedRecordIds.join(", ")}`);
+  }
   if (profile.arcs.length) {
-    lines.push("", "## Arcs");
+    lines.push("", "## Development");
     for (const arc of profile.arcs) {
       lines.push(`- ${arc.title} (${arc.template}, ${arc.approval}, ${arc.movement}, ${arc.scope})`);
     }
   }
+  const knowledge = profile.knowledge.filter((item) => {
+    if (mode === "full") return true;
+    if (item.kind === "secret") return false;
+    if (item.aiVisibility === "omit") return false;
+    return true;
+  });
+  if (knowledge.length) {
+    lines.push("", "## Continuity knowledge");
+    for (const item of knowledge) {
+      lines.push(`- ${item.kind}: ${item.statement} (${item.approval})`);
+    }
+  }
+  if (mode === "full") {
+    const lived: Record<string, string> = {};
+    for (const key of LIVED_EXPERIENCE_TEXT_KEYS) lived[key] = profile.livedExperience[key];
+    pushTextGroup(lines, "Lived experience", lived);
+  }
   return `${lines.join("\n")}\n`;
+}
+
+function formatFacetSummary(state: ResolvedState): string {
+  return STATE_FACETS.flatMap((facet) => {
+    const value = state.facets[facet];
+    if (value.presence === "unset") return [];
+    if (value.presence === "unknown") return [`${facet}: unknown`];
+    return [`${facet}: ${value.text}`];
+  }).join("; ");
+}
+
+function knowledgeLinesForSlice(items: readonly KnowledgeItem[], slice: ContextSlice): string[] {
+  return items
+    .filter((item) => {
+      if (item.aiVisibility === "omit") return false;
+      if (item.aiVisibility === "spoiler") return slice === "spoiler";
+      return true;
+    })
+    .map((item) => `- ${item.kind} (${item.holder}): ${item.statement}`);
+}
+
+/**
+ * Task-specific character context. Lived experience and omit-secrets stay out
+ * of every default slice. Spoiler items appear only when slice is "spoiler".
+ */
+export function renderCharacterContextSlice(input: {
+  title: string;
+  body?: string;
+  profile: CharacterDevelopment;
+  slice: ContextSlice;
+  bookProjectId?: string | null;
+  point?: NarrativePoint | null;
+  edges?: readonly OrderEdge[];
+  passages?: readonly { label: string; excerpt: string }[];
+}): string {
+  const profile = input.profile;
+  const voice = effectiveVoice(profile, input.bookProjectId ?? null);
+  const point = input.point ?? { bookProjectId: input.bookProjectId ?? null, storyEventId: null, sequence: null };
+  const edges = input.edges ?? [];
+  const state = resolveCharacterState(profile, point, edges);
+  const knowledge = resolveKnowledgeAtPoint(profile, point, edges);
+  const lines: string[] = [`# ${input.title}`];
+  if (input.body?.trim() && input.slice !== "dialogue") lines.push(input.body.trim(), "");
+  pushTextGroup(lines, "Identity", profile.foundation);
+  pushTextGroup(lines, "Voice", voice);
+  if (input.slice === "dialogue") pushTextGroup(lines, "Behavior", profile.behavior);
+  if (input.slice === "dialogue" || input.slice === "continuity" || input.slice === "spoiler") {
+    const psychBits = PSYCHOLOGY_TEXT_KEYS.flatMap((key) => (profile.psychology[key] ? [`${key}: ${profile.psychology[key]}`] : []));
+    if (profile.psychology.enneagram) {
+      psychBits.unshift(`Enneagram: ${profile.psychology.enneagram}${profile.psychology.wing ? ` wing ${profile.psychology.wing}` : ""}`);
+    }
+    if (psychBits.length) {
+      lines.push("", "## Psychology", ...psychBits.map((bit) => `- ${bit}`));
+    }
+    pushTextGroup(lines, "Capabilities", profile.capabilities);
+  }
+  const facetSummary = formatFacetSummary(state);
+  if (facetSummary) lines.push("", `Resolved state: ${facetSummary}`);
+  if (input.slice === "continuity" || input.slice === "spoiler") {
+    const canonArcs = profile.arcs.filter((arc) => arc.approval === "approved").map((arc) => arc.title);
+    const plannedArcs = profile.arcs.filter((arc) => arc.approval !== "approved").map((arc) => arc.title);
+    lines.push("", `Canon arcs: ${canonArcs.join(", ") || "(none)"}`);
+    lines.push(`Planned arcs: ${plannedArcs.join(", ") || "(none)"}`);
+  }
+  const knowLines = knowledgeLinesForSlice(knowledge, input.slice);
+  if (knowLines.length) lines.push("", "## Knowledge", ...knowLines);
+  for (const passage of input.passages ?? []) {
+    lines.push("", `## ${passage.label}`, passage.excerpt);
+  }
+  return lines.join("\n");
+}
+
+/** Map dossier Markdown headings to empty profile fields for author confirmation. */
+export const CHARACTER_HEADING_FIELD_MAP: ReadonlyArray<{
+  heading: string;
+  target: "foundation" | "voice" | "psychology";
+  key: string;
+}> = [
+  { heading: "Appearance", target: "foundation", key: "appearance" },
+  { heading: "Role", target: "foundation", key: "publicRole" },
+  { heading: "Background", target: "foundation", key: "formativeBackground" },
+  { heading: "Goals", target: "foundation", key: "externalGoal" },
+  { heading: "Voice", target: "voice", key: "diction" },
+  { heading: "Dialogue", target: "voice", key: "exampleDialogue" },
+  { heading: "Personality", target: "psychology", key: "values" },
+  { heading: "Desire", target: "psychology", key: "coreDesire" },
+  { heading: "Fear", target: "psychology", key: "coreFear" },
+];
+
+export interface ProfileFillSuggestion {
+  id: string;
+  target: "foundation" | "voice" | "psychology";
+  key: string;
+  value: string;
+  heading: string;
+}
+
+export function proposeProfileFillFromBody(body: string, profile: CharacterDevelopment): ProfileFillSuggestion[] {
+  const sections = body.split(/\n(?=##\s+)/);
+  const suggestions: ProfileFillSuggestion[] = [];
+  for (const section of sections) {
+    const match = section.match(/^##\s+(.+?)\s*\n([\s\S]*)$/);
+    if (!match) continue;
+    const heading = match[1]!.trim();
+    const textBody = match[2]!.trim();
+    if (!textBody) continue;
+    const mapped = CHARACTER_HEADING_FIELD_MAP.find((item) => item.heading.toLowerCase() === heading.toLowerCase());
+    if (!mapped) continue;
+    const current =
+      mapped.target === "foundation"
+        ? profile.foundation[mapped.key as FoundationTextKey]
+        : mapped.target === "voice"
+          ? profile.voice[mapped.key as VoiceTextKey]
+          : profile.psychology[mapped.key as PsychologyTextKey];
+    if (current.trim()) continue;
+    suggestions.push({
+      id: `fill_${mapped.target}_${mapped.key}`,
+      target: mapped.target,
+      key: mapped.key,
+      value: textBody,
+      heading,
+    });
+  }
+  return suggestions;
+}
+
+export function applyProfileFillSuggestions(
+  profile: CharacterDevelopment,
+  accepted: readonly ProfileFillSuggestion[],
+): CharacterDevelopment {
+  const next: CharacterDevelopment = {
+    ...profile,
+    foundation: { ...profile.foundation },
+    voice: { ...profile.voice },
+    psychology: { ...profile.psychology, frameworks: [...profile.psychology.frameworks] },
+  };
+  for (const suggestion of accepted) {
+    const value = suggestion.value.trim();
+    if (!value) continue;
+    if (suggestion.target === "foundation" && (FOUNDATION_TEXT_KEYS as readonly string[]).includes(suggestion.key)) {
+      next.foundation[suggestion.key as FoundationTextKey] = value;
+    } else if (suggestion.target === "voice" && (VOICE_TEXT_KEYS as readonly string[]).includes(suggestion.key)) {
+      next.voice[suggestion.key as VoiceTextKey] = value;
+    } else if (suggestion.target === "psychology" && (PSYCHOLOGY_TEXT_KEYS as readonly string[]).includes(suggestion.key)) {
+      next.psychology[suggestion.key as PsychologyTextKey] = value;
+    }
+  }
+  return next;
 }
 
 export function parseProfileSuggestions(value: unknown): { ok: true; suggestions: ProfileSuggestion[] } | { ok: false; message: string } {
@@ -1291,13 +2118,15 @@ export function parseProfileSuggestions(value: unknown): { ok: true; suggestions
   for (const item of list) {
     const suggestion = asRecord(item);
     if (!suggestion) continue;
-    const kind = oneOf(suggestion.kind, ["psychology", "enneagram", "wing", "archetype", "arc"] as const);
+    const kind = oneOf(suggestion.kind, ["psychology", "enneagram", "wing", "archetype", "arc", "foundation", "voice"] as const);
     const confidence = oneOf(suggestion.confidence, ["low", "medium", "high"] as const);
     const id = text(suggestion.id);
     const key = text(suggestion.key);
     const suggestionValue = text(suggestion.value);
     if (!kind || !confidence || !id || !suggestionValue) continue;
     if (kind === "psychology" && !(PSYCHOLOGY_TEXT_KEYS as readonly string[]).includes(key)) continue;
+    if (kind === "foundation" && !(FOUNDATION_TEXT_KEYS as readonly string[]).includes(key)) continue;
+    if (kind === "voice" && !(VOICE_TEXT_KEYS as readonly string[]).includes(key)) continue;
     suggestions.push({
       id,
       kind,
@@ -1345,7 +2174,7 @@ export const PROFILE_SUGGESTION_JSON_SCHEMA = {
         required: ["id", "kind", "key", "value", "evidence", "confidence"],
         properties: {
           id: { type: "string" },
-          kind: { type: "string", enum: ["psychology", "enneagram", "wing", "archetype", "arc"] },
+          kind: { type: "string", enum: ["psychology", "enneagram", "wing", "archetype", "arc", "foundation", "voice"] },
           key: { type: "string" },
           value: { type: "string" },
           evidence: { type: "string" },
@@ -1383,7 +2212,9 @@ export function extractInstructions(): string {
   return [
     "You propose optional character-writing notes from one dossier.",
     "Personality frameworks are writing aids, not diagnoses or rules.",
-    "Do not infer trauma, disability, or neurodivergence as a personality type.",
+    "Do not infer trauma, disability, or neurodivergence.",
+    "Do not suggest lived-experience fields or secrets.",
+    "You may suggest foundation, voice, psychology, enneagram, archetype, or arc notes when the dossier supports them.",
     "Every suggestion needs a short evidence quote from the dossier.",
     "If the dossier does not support a field, omit it.",
     "Nothing you return is canon.",
@@ -1396,6 +2227,7 @@ export function reviewInstructions(): string {
     "Cite only the evidence you were given.",
     "Approved arcs and approved state changes are canon. Drafts, proposals, and planned changes are author plans.",
     "Personality profiles are optional writing aids, not rules the prose must satisfy.",
+    "Do not invent trauma, disability, neurodivergence, or secrets.",
     "Say when you are uncertain.",
     "Suggest notes for the author. Do not rewrite manuscript prose.",
   ].join(" ");
@@ -1407,21 +2239,21 @@ export function characterContextText(input: {
   body: string;
   profile: CharacterDevelopment;
   passages: readonly { label: string; excerpt: string }[];
+  slice?: ContextSlice;
+  bookProjectId?: string | null;
+  point?: NarrativePoint | null;
+  edges?: readonly OrderEdge[];
 }): string {
-  const profile = input.profile;
-  const canonArcs = profile.arcs.filter((arc) => arc.approval === "approved").map((arc) => arc.title);
-  const plannedArcs = profile.arcs.filter((arc) => arc.approval !== "approved").map((arc) => arc.title);
-  const passages = input.passages.map((passage) => `## ${passage.label}\n${passage.excerpt}`);
-  return [
-    `# ${input.title}`,
-    input.body,
-    "",
-    `Canon arcs: ${canonArcs.join(", ") || "(none)"}`,
-    `Planned arcs: ${plannedArcs.join(", ") || "(none)"}`,
-    `Enneagram: ${profile.psychology.enneagram ?? "(unset)"}`,
-    "",
-    ...passages,
-  ].join("\n");
+  return renderCharacterContextSlice({
+    title: input.title,
+    body: input.body,
+    profile: input.profile,
+    slice: input.slice ?? (input.passages.length ? "continuity" : "dialogue"),
+    bookProjectId: input.bookProjectId ?? null,
+    point: input.point,
+    edges: input.edges,
+    passages: input.passages,
+  });
 }
 
 export function isJsonObject(value: JsonValue | undefined): value is JsonObject {

@@ -49,6 +49,8 @@ export interface DocxReviewApplyRequest {
   acceptIndexes: readonly number[];
   /** When true, also pin Word comments as margin comments after body apply. */
   importComments?: boolean;
+  /** Import Word comments only; no body replacements. */
+  commentsOnly?: boolean;
   confirmProtected?: boolean;
   actor?: string;
 }
@@ -166,18 +168,29 @@ export async function applyDocxReview(db: Db, req: DocxReviewApplyRequest): Prom
   const issues: Issue[] = [];
 
   if (targets.length === 0) {
-    return { status: "rejected", issues: [errorIssue("IMPORT_INVALID", "Choose at least one chapter change to apply.")] };
+    const message = req.commentsOnly
+      ? "Choose at least one chapter with Word comments to import."
+      : "Choose at least one chapter change to apply.";
+    return { status: "rejected", issues: [errorIssue("IMPORT_INVALID", message)] };
   }
+
+  const importComments = req.commentsOnly || req.importComments;
 
   for (const c of targets) {
     if (!c.recordId || c.currentRevision === null) {
       issues.push(errorIssue("IMPORT_INVALID", `“${c.title}” does not match a chapter in this project.`, { operationIndex: c.index }));
       continue;
     }
-    if (!c.hasBodyChange && !(req.importComments && c.comments.length)) {
+    if (req.commentsOnly) {
+      if (!c.comments.length) {
+        issues.push(
+          errorIssue("NO_EFFECTIVE_CHANGE", `“${c.title}” has no Word comments to import.`, { recordId: c.recordId, operationIndex: c.index }),
+        );
+      }
+    } else if (!c.hasBodyChange && !(importComments && c.comments.length)) {
       issues.push(errorIssue("NO_EFFECTIVE_CHANGE", `“${c.title}” has no accepted text change.`, { recordId: c.recordId, operationIndex: c.index }));
     }
-    if (c.protected && c.hasBodyChange && !req.confirmProtected) {
+    if (!req.commentsOnly && c.protected && c.hasBodyChange && !req.confirmProtected) {
       issues.push(
         errorIssue("PROTECTED_CONFIRMATION_REQUIRED", `Confirm replacing the protected chapter “${c.recordTitle ?? c.title}”.`, {
           recordId: c.recordId,
@@ -190,16 +203,20 @@ export async function applyDocxReview(db: Db, req: DocxReviewApplyRequest): Prom
 
   const actor = req.actor ?? "author";
   const protectedOverrides = new Set(
-    targets.filter((c) => c.protected && c.hasBodyChange && req.confirmProtected).map((c) => c.recordId!),
+    req.commentsOnly
+      ? []
+      : targets.filter((c) => c.protected && c.hasBodyChange && req.confirmProtected).map((c) => c.recordId!),
   );
-  const mutations: Mutation[] = targets
-    .filter((c) => c.hasBodyChange && c.recordId && c.currentRevision !== null)
-    .map((c) => ({
-      kind: "update_record" as const,
-      recordId: c.recordId!,
-      expectedRevision: c.currentRevision!,
-      changes: { body: c.afterBody },
-    }));
+  const mutations: Mutation[] = req.commentsOnly
+    ? []
+    : targets
+        .filter((c) => c.hasBodyChange && c.recordId && c.currentRevision !== null)
+        .map((c) => ({
+          kind: "update_record" as const,
+          recordId: c.recordId!,
+          expectedRevision: c.currentRevision!,
+          changes: { body: c.afterBody },
+        }));
 
   const ctx: MutationContext = {
     projectId: req.projectId,
@@ -238,12 +255,14 @@ export async function applyDocxReview(db: Db, req: DocxReviewApplyRequest): Prom
         projectId: req.projectId,
         action: "docx.review.batch",
         actor,
-        summary: `Editor DOCX review applied (${updated.length} chapter${updated.length === 1 ? "" : "s"}) from ${req.filename}`,
-        details: { filename: req.filename, recordIds: updated.map((u) => u.recordId) },
+        summary: req.commentsOnly
+          ? `Editor DOCX comments imported (${updated.length} chapter${updated.length === 1 ? "" : "s"}) from ${req.filename}`
+          : `Editor DOCX review applied (${updated.length} chapter${updated.length === 1 ? "" : "s"}) from ${req.filename}`,
+        details: { filename: req.filename, recordIds: updated.map((u) => u.recordId), commentsOnly: req.commentsOnly ?? false },
       });
     });
 
-    if (req.importComments) {
+    if (importComments) {
       for (const c of targets) {
         if (!c.recordId) continue;
         const row = updated.find((u) => u.recordId === c.recordId);

@@ -1,6 +1,11 @@
 import JSZip from "jszip";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { buildReferencesDocx, buildReferencesEpub, buildReferencesMarkdownBundle } from "@/server/services/worldBibleExport";
+import {
+  buildReferencesDocx,
+  buildReferencesEpub,
+  buildReferencesMarkdownBundle,
+  buildReferencesWikiZip,
+} from "@/server/services/worldBibleExport";
 import { buildReferencesPdf } from "@/server/services/pdfExportService";
 import { createTestDb, IDS, seedProject, type TestDb } from "../helpers";
 
@@ -14,13 +19,14 @@ describe("world bible export", () => {
     await t.cleanup();
   });
 
-  it("exports the same reference as PDF, DOCX, EPUB, and a Markdown zip", async () => {
+  it("exports the same reference as PDF, DOCX, EPUB, Markdown zip, and HTML wiki zip", async () => {
     const ids = [IDS.world];
-    const [pdf, docx, epub, markdown] = await Promise.all([
+    const [pdf, docx, epub, markdown, wiki] = await Promise.all([
       buildReferencesPdf(t.db, IDS.project, ids),
       buildReferencesDocx(t.db, IDS.project, ids),
       buildReferencesEpub(t.db, IDS.project, ids),
       buildReferencesMarkdownBundle(t.db, IDS.project, ids),
+      buildReferencesWikiZip(t.db, IDS.project, ids),
     ]);
     expect(pdf.bytes.subarray(0, 5).toString("ascii")).toBe("%PDF-");
     expect(pdf.documentCount).toBe(1);
@@ -34,5 +40,10 @@ describe("world bible export", () => {
     expect(names.some((name) => name.endsWith(".md") && name !== "README.md")).toBe(true);
     const body = await markdownZip.file(names.find((name) => name.endsWith(".md") && name !== "README.md")!)!.async("string");
     expect(body).toContain("The Salt Guild");
+    const wikiZip = await JSZip.loadAsync(wiki.bytes);
+    expect(await wikiZip.file("index.html")?.async("string")).toContain("The Salt Guild");
+    const pageName = Object.keys(wikiZip.files).find((name) => name.startsWith("pages/") && name.endsWith(".html"));
+    expect(pageName).toBeTruthy();
+    expect(await wikiZip.file(pageName!)?.async("string")).toContain("The Salt Guild");
   });
 });

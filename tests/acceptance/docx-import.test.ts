@@ -8,7 +8,7 @@ import { setRecordProtection } from "@/server/services/mutationService";
 import { getRecord } from "@/server/services/recordService";
 import { createTestDb, IDS, seedProject, snapshotState, type TestDb } from "../helpers";
 
-async function buildDocx(paragraphs: string[]): Promise<Buffer> {
+async function buildDocx(paragraphs: string[], commentXml?: string): Promise<Buffer> {
   const body = paragraphs.join("");
   const documentXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
@@ -32,7 +32,28 @@ async function buildDocx(paragraphs: string[]): Promise<Buffer> {
 </Relationships>`,
   );
   zip.folder("word")!.file("document.xml", documentXml);
+  if (commentXml) {
+    zip.folder("word")!.file("comments.xml", commentXml);
+    zip.file(
+      "[Content_Types].xml",
+      `<?xml version="1.0" encoding="UTF-8"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/word/comments.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml"/>
+</Types>`,
+    );
+  }
   return zip.generateAsync({ type: "nodebuffer" });
+}
+
+function pWithComment(text: string, style?: string, bookmark?: string, commentId = "0"): string {
+  const pPr = style ? `<w:pPr><w:pStyle w:val="${style}"/></w:pPr>` : "";
+  const bm = bookmark
+    ? `<w:bookmarkStart w:id="1" w:name="${bookmark}"/><w:bookmarkEnd w:id="1"/>`
+    : "";
+  return `<w:p>${pPr}${bm}<w:commentRangeStart w:id="${commentId}"/><w:r><w:t>${text}</w:t></w:r><w:commentRangeEnd w:id="${commentId}"/></w:p>`;
 }
 
 function p(text: string, style?: string, bookmark?: string): string {
@@ -131,5 +152,42 @@ describe("DOCX chapter import and editor review", () => {
     const after = await getRecord(t.db, IDS.project, IDS.chapter);
     expect(after.body).toContain("Editor revised the opening line.");
     expect(after.currentRevision).toBeGreaterThan(chapter.currentRevision);
+  });
+
+  it("imports Word comments only without replacing protected chapter prose", async () => {
+    await setRecordProtection(t.db, {
+      projectId: IDS.project,
+      recordId: IDS.chapter,
+      protected: true,
+      actor: "author",
+    });
+    const chapter = await getRecord(t.db, IDS.project, IDS.chapter);
+    const bookmark = `sl_record_${IDS.chapter.replace(/[^A-Za-z0-9]/g, "_")}`;
+    const passage = "ledger had been";
+    const commentXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:comment w:id="0" w:author="Beta" w:date="2020-01-01T00:00:00Z">
+    <w:p><w:r><w:t>Clarify this beat.</w:t></w:r></w:p>
+  </w:comment>
+</w:comments>`;
+    const bytes = await buildDocx(
+      [p(chapter.title, "Heading1", bookmark), pWithComment(`${passage} dry for three hundred years.`, undefined, undefined, "0")],
+      commentXml,
+    );
+
+    const preview = await previewDocxReview(t.db, IDS.project, { filename: "notes.docx", bytes });
+    expect(preview.chapters[0]?.comments.length).toBeGreaterThan(0);
+
+    const applied = await applyDocxReview(t.db, {
+      projectId: IDS.project,
+      filename: "notes.docx",
+      bytes,
+      acceptIndexes: [0],
+      commentsOnly: true,
+    });
+    expect(applied.status).toBe("applied");
+    const after = await getRecord(t.db, IDS.project, IDS.chapter);
+    expect(after.body).toBe(chapter.body);
+    expect(after.currentRevision).toBe(chapter.currentRevision);
   });
 });

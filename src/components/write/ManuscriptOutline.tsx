@@ -6,7 +6,9 @@ import { BookOpen, Download, Layers, Plus } from "lucide-react";
 import { LandingHeader } from "@/components/library/LandingHeader";
 import { ChevronRightIcon, SearchIcon } from "@/components/shell/icons";
 import { ManuscriptCreateForm } from "@/components/shell/ManuscriptTree";
+import { HelpHint } from "@/components/HelpHint";
 import { Corkboard, type CorkboardCard, type CorkboardGroup } from "@/components/write/Corkboard";
+import { Outliner, type OutlinerRow } from "@/components/write/Outliner";
 import { Button, ButtonLink } from "@/components/ui/Button";
 import { RECORD_TYPE_LABELS } from "@/domain/recordTypes";
 import { MANUSCRIPT_ANNOTATIONS, MANUSCRIPT_SEARCH, NAV, WRITE } from "@/ui/labels";
@@ -24,9 +26,9 @@ export type OutlineChapter = {
   notes: OutlineNote[];
 };
 
-type Tab = "chapters" | "scenes" | "corkboard";
+type Tab = "chapters" | "scenes" | "corkboard" | "outliner";
 
-export type { CorkboardCard, CorkboardGroup };
+export type { CorkboardCard, CorkboardGroup, OutlinerRow };
 
 /**
  * Write landing: one ordered outline. Chapter and scene titles open the editor.
@@ -51,6 +53,7 @@ export function ManuscriptOutline({
   synopsisById = new Map<string, string>(),
   corkboardGroups = [],
   corkboardUnplaced = [],
+  outlinerRows = [],
 }: {
   projectId: string;
   title: string;
@@ -70,12 +73,13 @@ export function ManuscriptOutline({
   synopsisById?: Map<string, string>;
   corkboardGroups?: CorkboardGroup[];
   corkboardUnplaced?: CorkboardCard[];
+  outlinerRows?: OutlinerRow[];
 }) {
   const uid = useId();
   const base = `/projects/${encodeURIComponent(projectId)}`;
   const [tab, setTab] = useState<Tab>("chapters");
   const [titleQuery, setTitleQuery] = useState(initialQuery);
-  const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set());
+  const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set(chapters[0] ? [chapters[0].id] : []));
   const [creating, setCreating] = useState<"chapter" | "scene" | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(chapters[0]?.id ?? null);
 
@@ -86,7 +90,7 @@ export function ManuscriptOutline({
   const chapterOptions = chapters.map((chapter) => ({ id: chapter.id, title: chapter.title }));
 
   const onTabKey = (event: KeyboardEvent<HTMLButtonElement>) => {
-    const order: Tab[] = ["chapters", "scenes", "corkboard"];
+    const order: Tab[] = ["chapters", "scenes", "corkboard", "outliner"];
     const index = order.indexOf(tab);
     let next = index;
     if (event.key === "ArrowRight") next = (index + 1) % order.length;
@@ -176,6 +180,19 @@ export function ManuscriptOutline({
         >
           {MANUSCRIPT_ANNOTATIONS.corkboardTab}
         </button>
+        <button
+          type="button"
+          className="outline-tab"
+          id={`${uid}-tab-outliner`}
+          role="tab"
+          aria-selected={tab === "outliner"}
+          aria-controls={`${uid}-panel-outliner`}
+          tabIndex={tab === "outliner" ? 0 : -1}
+          onClick={() => setTab("outliner")}
+          onKeyDown={onTabKey}
+        >
+          {WRITE.outlinerTab}
+        </button>
       </div>
 
       <div className="outline-toolbar">
@@ -259,6 +276,7 @@ export function ManuscriptOutline({
                     onClick={(event) => {
                       if ((event.target as HTMLElement).closest("button.outline-disclose")) return;
                       setSelectedId(chapter.id);
+                      setExpanded((prev) => (prev.has(chapter.id) ? prev : new Set(prev).add(chapter.id)));
                     }}
                   >
                     <Button
@@ -346,6 +364,13 @@ export function ManuscriptOutline({
         <p className="small muted corkboard-lead">{MANUSCRIPT_ANNOTATIONS.corkboardLead}</p>
         <Corkboard projectId={projectId} groups={corkboardGroups} unplaced={corkboardUnplaced} />
       </div>
+
+      <div role="tabpanel" id={`${uid}-panel-outliner`} aria-labelledby={`${uid}-tab-outliner`} hidden={tab !== "outliner"}>
+        <HelpHint anchor="manuscript-outliner" topic="Outliner">
+          {WRITE.outlinerLead}
+        </HelpHint>
+        <Outliner projectId={projectId} rows={outlinerRows} />
+      </div>
       </div>
       {selected ? (
         <aside className="outline-inspector" aria-label={WRITE.selectedChapter}>
@@ -353,6 +378,20 @@ export function ManuscriptOutline({
           <p className="outline-inspector-number">{selected.number}</p>
           <h2 className="outline-inspector-title">{selected.title}</h2>
           <p className="outline-inspector-kind">{WRITE.chapterKind}</p>
+          {selected.scenes.length ? (
+            <nav className="outline-inspector-scenes" aria-label={WRITE.scenesTab}>
+              <p className="small muted">{WRITE.scenes(selected.scenes.length)}</p>
+              <ul>
+                {selected.scenes.map((scene) => (
+                  <li key={scene.id}>
+                    <Link href={recordHref(base, scene.id)}>{scene.title}</Link>
+                  </li>
+                ))}
+              </ul>
+            </nav>
+          ) : (
+            <p className="small muted">{WRITE.noScenes}</p>
+          )}
           {synopsisById.get(selected.id)?.trim() ? (
             <p className="small outline-inspector-synopsis">{synopsisById.get(selected.id)}</p>
           ) : null}

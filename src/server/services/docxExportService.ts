@@ -26,8 +26,11 @@ export async function buildManuscriptDocx(
     sections,
   });
   const bytes = Buffer.from(await Packer.toBuffer(doc));
+  const beta = options.betaReader;
   return {
-    filename: `${exportSlug(model.projectTitle)}-manuscript-${exportDateStamp(now)}.docx`,
+    filename: beta
+      ? `${exportSlug(model.projectTitle)}-beta-reader-${exportDateStamp(now)}.docx`
+      : `${exportSlug(model.projectTitle)}-manuscript-${exportDateStamp(now)}.docx`,
     bytes,
     documentCount: chapterCount,
   };

@@ -285,6 +285,23 @@ export const workspaceBackupV1Schema = z
           .strict(),
       )
       .optional(),
+    /** Saved manuscript/world list filters; omitted in older backups → none. */
+    smartCollections: z
+      .array(
+        z
+          .object({
+            id,
+            projectId: id,
+            title: z.string().min(1).max(120),
+            scope: z.enum(["manuscript", "world"]),
+            filterJson: z.string().max(10_000),
+            position: z.number().int().min(0),
+            createdAt: timestamp,
+            updatedAt: timestamp,
+          })
+          .strict(),
+      )
+      .optional(),
     /** In-world calendar per project; omitted in older backups → none. */
     worldCalendars: z
       .array(
@@ -345,6 +362,10 @@ export const workspaceBackupV1Schema = z
             runningHeader: z.string().max(120).optional(),
             runningFooter: z.string().max(120).optional(),
             fontPreset: z.enum(["serif", "sans", "mono"]).optional(),
+            bookTheme: z
+              .enum(["classic_novel", "fantasy_ornamental", "thriller_clean", "nonfiction", "romance_warm"])
+              .nullable()
+              .optional(),
             spacingPreset: z.enum(["novel", "tight", "loose"]).optional(),
             firstParagraphNoIndent: z.boolean().optional(),
             dropCap: z.boolean().optional(),
@@ -1029,6 +1050,7 @@ export const workspaceBackupV1Schema = z
         rewriteSourceLinks: z.number().int().optional(),
         readingPins: z.number().int().optional(),
         writingGoals: z.number().int().optional(),
+        smartCollections: z.number().int().optional(),
         manuscriptAnnotations: z.number().int().optional(),
         compileProfiles: z.number().int().optional(),
         worldKindTemplates: z.number().int().optional(),

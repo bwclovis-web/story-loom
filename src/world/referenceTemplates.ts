@@ -7,7 +7,8 @@ import { listSections, splitStatusTag } from "@/writing/sections";
  * present. Existing prose, headings, and structured fields are not rewritten.
  */
 
-export const REFERENCE_TEMPLATE_KEYS = [
+/** Worldbuilding `fields.kind` values. Character dossiers do not use these. */
+export const WORLD_KIND_KEYS = [
   "place",
   "religion",
   "culture",
@@ -18,7 +19,16 @@ export const REFERENCE_TEMPLATE_KEYS = [
   "language",
 ] as const;
 
+export type WorldKindKey = (typeof WORLD_KIND_KEYS)[number];
+
+/** Optional Markdown outlines for any World reference, including character dossiers. */
+export const REFERENCE_TEMPLATE_KEYS = ["character", ...WORLD_KIND_KEYS] as const;
+
 export type ReferenceTemplateKey = (typeof REFERENCE_TEMPLATE_KEYS)[number];
+
+export function isWorldKindKey(value: string): value is WorldKindKey {
+  return (WORLD_KIND_KEYS as readonly string[]).includes(value);
+}
 
 export interface ReferenceTemplate {
   key: ReferenceTemplateKey;
@@ -27,6 +37,26 @@ export interface ReferenceTemplate {
 }
 
 export const REFERENCE_TEMPLATES: readonly ReferenceTemplate[] = [
+  {
+    key: "character",
+    label: "Character",
+    sections: [
+      "Overview",
+      "Appearance",
+      "Role",
+      "Background",
+      "Personality",
+      "Desire",
+      "Fear",
+      "Voice",
+      "Dialogue",
+      "Behavior",
+      "Relationships",
+      "Capabilities",
+      "Arc",
+      "Open questions",
+    ],
+  },
   {
     key: "place",
     label: "Place",

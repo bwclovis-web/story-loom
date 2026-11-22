@@ -6,6 +6,8 @@ export type BreadcrumbItem = {
   label: ReactNode;
   href?: string;
   current?: boolean;
+  /** Client navigation (e.g. map trail) when href alone is not enough. */
+  onSelect?: () => void;
 };
 
 /**
@@ -29,7 +31,11 @@ export function Breadcrumbs({
           const current = item.current || (!item.href && index === items.length - 1);
           return (
             <li key={index}>
-              {item.href && !current ? (
+              {item.onSelect && !current ? (
+                <button type="button" className="breadcrumb-link" onClick={item.onSelect}>
+                  {item.label}
+                </button>
+              ) : item.href && !current ? (
                 <Link href={item.href}>{item.label}</Link>
               ) : (
                 <span aria-current={current ? "page" : undefined}>{item.label}</span>

@@ -36,6 +36,9 @@ import { useLocalRecovery } from "@/writing/useLocalRecovery";
 import { invertEdit } from "@/writing/findReplace";
 import type { SpellChecker, SpellingLanguage } from "@/writing/spelling";
 import { saveRecordAction, setStatusAction, type FormResult } from "../../actions";
+import type { saveSeriesSharedRecordAction } from "./seriesSharedActions";
+
+type RecordSaveAction = typeof saveRecordAction | typeof saveSeriesSharedRecordAction;
 
 function Result({ state }: { state: FormResult }) {
   return (
@@ -127,9 +130,11 @@ export function RecordEditor(props: {
   images?: { name: string; label: string }[];
   codexEntries?: CodexEntry[];
   kindTemplates?: readonly KindTemplateView[];
+  saveAction?: RecordSaveAction;
 }) {
+  const save = props.saveAction ?? saveRecordAction;
   const [state, action, pending] = useActionState<FormResult, FormData>(
-    saveRecordAction.bind(null, props.projectId, props.recordId),
+    save.bind(null, props.projectId, props.recordId),
     { ok: true },
   );
   const bodyRef = useRef<HTMLTextAreaElement>(null);

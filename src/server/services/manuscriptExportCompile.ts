@@ -7,14 +7,28 @@ import {
 } from "./compileProfileService";
 import { buildManuscriptExportModel, type ManuscriptExportModel } from "./manuscriptExportModel";
 import { listExportMarginCommentsForRecords, listSynopsesForRecords } from "./manuscriptAnnotationService";
+import { isManuscriptType } from "@/domain/recordTypes";
 import { filterCompileTree } from "@/writing/compileLayout";
 import { countWords } from "@/writing/wordCount";
 import type { DbOrTx } from "../db";
+import { loadManuscriptExportImages, type ExportInlineImage } from "./manuscriptExportImages";
+
+export interface ManuscriptExportBetaReaderOptions {
+  lineNumbers?: boolean;
+  watermark?: string;
+  glossaryAppendix?: boolean;
+}
 
 export interface ManuscriptExportBuildOptions {
   sceneTitles: boolean;
   draftId?: string | null;
   hasDrafts?: boolean;
+  betaReader?: ManuscriptExportBetaReaderOptions;
+}
+
+export interface GlossaryAppendixEntry {
+  title: string;
+  body: string;
 }
 
 export interface ExportMarginComment {
@@ -27,6 +41,15 @@ export interface ManuscriptExportContext {
   compile: CompileProfileView;
   synopses: Map<string, string>;
   comments: Map<string, ExportMarginComment[]>;
+  buildOptions: ManuscriptExportBuildOptions;
+  glossaryAppendix?: GlossaryAppendixEntry[];
+  imagesByRecord: Map<string, Map<string, ExportInlineImage>>;
+}
+
+function shortReferenceBody(body: string, max = 800): string {
+  const stripped = body.replace(/^#+\s[^\n]*\n+/, "").trim();
+  if (stripped.length <= max) return stripped;
+  return `${stripped.slice(0, max).trimEnd()}…`;
 }
 
 function recordIdsFromModel(model: ManuscriptExportModel): string[] {
@@ -62,13 +85,27 @@ export async function buildManuscriptExportContext(
   );
   const visible = { ...model, chapters: filtered.chapters, unplacedScenes: filtered.unplaced };
   const recordIds = recordIdsFromModel(visible);
-  const [synopses, comments] = await Promise.all([
+  const [synopses, comments, glossaryRows, imagesByRecord] = await Promise.all([
     compile.includeSynopses ? listSynopsesForRecords(db, projectId, recordIds) : Promise.resolve(new Map<string, string>()),
     compile.includeMarginComments
       ? listExportMarginCommentsForRecords(db, projectId, recordIds)
       : Promise.resolve(new Map<string, ExportMarginComment[]>()),
+    options.betaReader?.glossaryAppendix
+      ? db.record.findMany({
+          where: { projectId, trashedAt: null, authorityStatus: "approved" },
+          select: { type: true, title: true, body: true },
+          orderBy: [{ title: "asc" }, { id: "asc" }],
+        })
+      : Promise.resolve([]),
+    loadManuscriptExportImages(db, projectId, recordIds),
   ]);
-  return { model: visible, compile, synopses, comments };
+  const glossaryAppendix = options.betaReader?.glossaryAppendix
+    ? glossaryRows
+        .filter((row) => !isManuscriptType(row.type))
+        .map((row) => ({ title: row.title, body: shortReferenceBody(row.body) }))
+        .filter((row) => row.body.trim().length > 0)
+    : undefined;
+  return { model: visible, compile, synopses, comments, buildOptions: options, glossaryAppendix, imagesByRecord };
 }
 
 export function chapterHeadingAlign(style: ChapterHeadingStyle): "center" | "left" {

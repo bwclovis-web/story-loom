@@ -11,6 +11,7 @@ import {
 } from "@/server/services/placeRelationService";
 import { MutationRejectedError, NotFoundError } from "@/server/services/errors";
 import { validateImageFiles } from "@/server/services/imageService";
+import { loadMapPinFilterContext, type MapPinFilterContext } from "@/server/services/mapPinFilterService";
 import {
   addWorldMapPin,
   createWorldMap,
@@ -261,6 +262,18 @@ export async function saveWorldMapLayersAction(
     const map = await saveWorldMapLayers(getDb(), projectId, mapId, layers);
     revalidateMaps(projectId, mapId);
     return { ok: true as const, map };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+export async function loadMapPinFilterContextAction(
+  projectId: string,
+  locationRecordIds: string[],
+): Promise<{ ok: true; context: MapPinFilterContext } | { ok: false; issues: Issue[] }> {
+  try {
+    const context = await loadMapPinFilterContext(getDb(), projectId, locationRecordIds);
+    return { ok: true, context };
   } catch (error) {
     return failure(error);
   }

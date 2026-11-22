@@ -1,4 +1,9 @@
-import { parseJsonObject } from "@/domain/json";
+import {
+  developmentIsEmpty,
+  readCharacterDevelopment,
+  renderCharacterContextSlice,
+} from "@/domain/characterDevelopment";
+import { parseJsonObject, type JsonObject } from "@/domain/json";
 import { contentClassOf, isManuscriptType, isRecordType, RECORD_TYPE_LABELS, type RecordType } from "@/domain/recordTypes";
 import { isAuthorityStatus } from "@/domain/statuses";
 import type { ContextDocument, ContextKind } from "@/assistant/prompt";
@@ -39,9 +44,20 @@ function omit(meta: RetrievalMeta, omission: RetrievalOmission) {
   meta.omissions.push(omission);
 }
 
-function referenceText(body: string, fieldsJson: string): string {
+function referenceText(title: string, body: string, fieldsJson: string, recordType?: string): string {
   try {
-    const fields = parseJsonObject(fieldsJson);
+    const fields = parseJsonObject(fieldsJson) as JsonObject;
+    if (recordType === "character_dossier") {
+      const read = readCharacterDevelopment(fields);
+      if (!developmentIsEmpty(read.profile)) {
+        return renderCharacterContextSlice({
+          title,
+          body,
+          profile: read.profile,
+          slice: "continuity",
+        });
+      }
+    }
     return Object.keys(fields).length ? `${body}\n\nStructured fields (JSON): ${JSON.stringify(fields)}` : body;
   } catch {
     return body;
@@ -294,7 +310,10 @@ async function readPassageTool(db: DbOrTx, ctx: RetrievalContext, args: Record<s
     };
   }
 
-  let text = contentClassOf(record.type) === "reference" ? referenceText(record.body, record.fields) : record.body;
+  let text =
+    contentClassOf(record.type) === "reference"
+      ? referenceText(record.title, record.body, record.fields, record.type)
+      : record.body;
   let kind: ContextKind = contentClassOf(record.type) === "reference" ? "reference" : "manuscript";
   let passage: { start: number; end: number } | undefined;
   let section: ContextDocument["section"];

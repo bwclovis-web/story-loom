@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { WORLD } from "@/ui/labels";
-import { REFERENCE_TEMPLATES } from "@/world/referenceTemplates";
+import { isWorldKindKey, WORLD_KIND_KEYS, referenceTemplate } from "@/world/referenceTemplates";
 import {
   WORLDBUILDING_KIND_OTHER,
   WORLDBUILDING_KIND_UNSET,
@@ -84,8 +84,8 @@ export function WorldKindBrowse({
   kindCounts: Record<WorldbuildingKindFilter, number>;
 }) {
   const current =
-    kind && isTemplateKind(kind)
-      ? REFERENCE_TEMPLATES.find((template) => template.key === kind)?.label
+    kind && isWorldKindKey(kind)
+      ? referenceTemplate(kind).label
       : kind === WORLDBUILDING_KIND_OTHER
         ? WORLD.worldKindOther
         : kind === WORLDBUILDING_KIND_UNSET
@@ -106,14 +106,14 @@ export function WorldKindBrowse({
             {WORLD.allKinds}
           </Link>
         </li>
-        {REFERENCE_TEMPLATES.map((template) => (
-          <li key={template.key}>
+        {WORLD_KIND_KEYS.map((key) => (
+          <li key={key}>
             <Link
-              href={worldHref(projectId, { type: "worldbuilding", kind: template.key })}
-              aria-current={!searching && kind === template.key ? "page" : undefined}
+              href={worldHref(projectId, { type: "worldbuilding", kind: key })}
+              aria-current={!searching && kind === key ? "page" : undefined}
             >
-              {template.label}
-              <span className="nav-count">{kindCounts[template.key]}</span>
+              {referenceTemplate(key).label}
+              <span className="nav-count">{kindCounts[key]}</span>
             </Link>
           </li>
         ))}
@@ -141,6 +141,3 @@ export function WorldKindBrowse({
   );
 }
 
-function isTemplateKind(kind: WorldbuildingKindFilter): boolean {
-  return REFERENCE_TEMPLATES.some((template) => template.key === kind);
-}

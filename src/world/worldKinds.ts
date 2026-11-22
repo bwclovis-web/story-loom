@@ -1,9 +1,9 @@
 import type { JsonObject, JsonValue } from "@/domain/json";
 import {
-  isReferenceTemplateKey,
+  isWorldKindKey,
   referenceTemplate,
-  REFERENCE_TEMPLATE_KEYS,
-  type ReferenceTemplateKey,
+  WORLD_KIND_KEYS,
+  type WorldKindKey,
 } from "./referenceTemplates";
 
 /** Optional structured fields per Worldbuilding kind (stored in `fields`, alongside `kind`). */
@@ -14,7 +14,7 @@ export interface WorldKindFieldSpec {
   multiline?: boolean;
 }
 
-export const WORLD_KIND_FIELD_SPECS: Record<ReferenceTemplateKey, readonly WorldKindFieldSpec[]> = {
+export const WORLD_KIND_FIELD_SPECS: Record<WorldKindKey, readonly WorldKindFieldSpec[]> = {
   place: [
     { key: "parentPlace", label: "Parent place", placeholder: "Region or parent location" },
     { key: "climate", label: "Climate", placeholder: "e.g. Temperate coast" },
@@ -68,7 +68,7 @@ export const WORLDBUILDING_KIND_OTHER = "__other" as const;
 export const WORLD_KIND_CUSTOM_UI = "__custom__" as const;
 
 export type WorldbuildingKindFilter =
-  | ReferenceTemplateKey
+  | WorldKindKey
   | typeof WORLDBUILDING_KIND_UNSET
   | typeof WORLDBUILDING_KIND_OTHER;
 
@@ -86,9 +86,9 @@ export function worldbuildingKindRaw(fields: unknown): string | null {
   return text ? text.trim() : null;
 }
 
-export function worldbuildingKindFromFields(fields: unknown): ReferenceTemplateKey | null {
+export function worldbuildingKindFromFields(fields: unknown): WorldKindKey | null {
   const raw = worldbuildingKindRaw(fields);
-  return raw && isReferenceTemplateKey(raw) ? raw : null;
+  return raw && isWorldKindKey(raw) ? raw : null;
 }
 
 /**
@@ -101,7 +101,7 @@ export function worldKindEditorMode(
 ): { selectValue: string; customName: string } {
   const text = worldbuildingKindText(fields);
   const raw = text ? text.trim() : null;
-  const known = raw && isReferenceTemplateKey(raw) ? raw : null;
+  const known = raw && isWorldKindKey(raw) ? raw : null;
   const customName = text && !known ? text : "";
   const showCustom = Boolean(customName) || (customPending && !known);
   return {
@@ -112,17 +112,17 @@ export function worldKindEditorMode(
 
 export function worldbuildingCustomKind(fields: unknown): string | null {
   const raw = worldbuildingKindRaw(fields);
-  return raw && !isReferenceTemplateKey(raw) ? raw : null;
+  return raw && !isWorldKindKey(raw) ? raw : null;
 }
 
 /** Label for badges and tables: built-in name or the author&apos;s custom string. */
 export function worldKindDisplayFromFields(fields: unknown): string | null {
   const raw = worldbuildingKindRaw(fields);
   if (!raw) return null;
-  return isReferenceTemplateKey(raw) ? worldKindLabel(raw) : raw;
+  return isWorldKindKey(raw) ? worldKindLabel(raw) : raw;
 }
 
-export function worldKindLabel(key: ReferenceTemplateKey): string {
+export function worldKindLabel(key: WorldKindKey): string {
   return referenceTemplate(key).label;
 }
 
@@ -151,7 +151,7 @@ export function applyWorldKindToFields(
     delete next.kind;
     return next;
   }
-  if (isReferenceTemplateKey(kind)) {
+  if (isWorldKindKey(kind)) {
     next.kind = kind;
     for (const spec of WORLD_KIND_FIELD_SPECS[kind]) {
       const value = (typedValues[spec.key] ?? "").trim();
@@ -168,9 +168,9 @@ export function applyWorldKindToFields(
 }
 
 export function worldKindCounts(
-  records: readonly { type: string; worldKind?: ReferenceTemplateKey | null; customKind?: string | null }[],
+  records: readonly { type: string; worldKind?: WorldKindKey | null; customKind?: string | null }[],
 ): Record<WorldbuildingKindFilter, number> {
-  const counts = Object.fromEntries(REFERENCE_TEMPLATE_KEYS.map((k) => [k, 0])) as Record<ReferenceTemplateKey, number>;
+  const counts = Object.fromEntries(WORLD_KIND_KEYS.map((k) => [k, 0])) as Record<WorldKindKey, number>;
   let none = 0;
   let other = 0;
   for (const r of records) {
@@ -186,7 +186,7 @@ export function isWorldbuildingKindFilter(value: string | null | undefined): val
   return (
     value === WORLDBUILDING_KIND_UNSET ||
     value === WORLDBUILDING_KIND_OTHER ||
-    (!!value && isReferenceTemplateKey(value))
+    (!!value && isWorldKindKey(value))
   );
 }
 

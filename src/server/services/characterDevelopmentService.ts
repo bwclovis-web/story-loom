@@ -4,6 +4,7 @@ import {
   CHARACTER_DEVELOPMENT_KEY,
   applyProfileSuggestions,
   characterContextText,
+  characterProfileMarkdown,
   cuesForBeats,
   cuesForEvents,
   cuesForManuscript,
@@ -14,10 +15,12 @@ import {
   parseReviewObservations,
   PROFILE_SUGGESTION_JSON_SCHEMA,
   readCharacterDevelopment,
+  renderCharacterContextSlice,
   reviewInstructions,
   REVIEW_OBSERVATION_JSON_SCHEMA,
   reviewNotesFromObservations,
   seriesMatrix,
+  unsupportedCharacterDevelopmentVersion,
   validateCharacterDevelopment,
   variantWouldCycle,
   withCharacterDevelopment,
@@ -142,6 +145,13 @@ export async function saveCharacterDevelopment(
   if (record.type !== "character_dossier") {
     throw new MutationRejectedError([errorIssue("INVALID_CHANGE", "Character development belongs on a character dossier.")]);
   }
+  if (unsupportedCharacterDevelopmentVersion(record.fields)) {
+    throw new MutationRejectedError([
+      errorIssue("INVALID_CHANGE", "This character development version is not supported. The stored profile was left unchanged.", {
+        path: "version",
+      }),
+    ]);
+  }
   const problems = validateCharacterDevelopment(input.profile);
   if (problems.length) {
     throw new MutationRejectedError(problems.map((problem) => errorIssue("INVALID_CHANGE", problem.message, { path: problem.path })));
@@ -256,7 +266,29 @@ export function visibleTraits(profile: CharacterDevelopment, foundation: Charact
 export function profileExport(record: { title: string; fields: JsonObject }): JsonObject | null {
   const read = readCharacterDevelopment(record.fields);
   if (developmentIsEmpty(read.profile)) return null;
-  return { title: record.title, [CHARACTER_DEVELOPMENT_KEY]: read.profile as unknown as JsonObject };
+  const stored = record.fields[CHARACTER_DEVELOPMENT_KEY];
+  return {
+    title: record.title,
+    [CHARACTER_DEVELOPMENT_KEY]: (stored && typeof stored === "object" ? stored : read.profile) as JsonObject,
+    markdown: characterProfileMarkdown(record.title, read.profile, "full"),
+    redactedMarkdown: characterProfileMarkdown(record.title, read.profile, "redacted"),
+  };
+}
+
+export function characterReferenceContextText(input: {
+  title: string;
+  body: string;
+  fields: JsonObject;
+  slice?: "dialogue" | "continuity" | "spoiler";
+}): string {
+  const read = readCharacterDevelopment(input.fields);
+  if (developmentIsEmpty(read.profile)) return input.body;
+  return renderCharacterContextSlice({
+    title: input.title,
+    body: input.body,
+    profile: read.profile,
+    slice: input.slice ?? "continuity",
+  });
 }
 
 function suggestionId(): string {

@@ -9,6 +9,7 @@ import { submitWithoutReset } from "@/components/submitWithoutReset";
 import type { CompileProfileView } from "@/server/services/compileProfileService";
 import { CHAPTER_HEADING_STYLE } from "@/server/services/compileProfileService";
 import { TRIM_SIZE_KEYS, TRIM_SIZES } from "@/writing/compileLayout";
+import { BOOK_THEME_KEYS } from "@/writing/bookThemes";
 import { COMPILE_PROFILE } from "@/ui/labels";
 import { saveCompileProfileAction, type CompileProfileFormResult } from "./actions";
 
@@ -69,6 +70,17 @@ export function CompileProfileForm({
         <label>
           {COMPILE_PROFILE.marginInches}
           <input name="marginInches" type="number" min={0.5} max={1.25} step={0.05} defaultValue={profile.marginInches} />
+        </label>
+        <label>
+          {COMPILE_PROFILE.bookTheme}
+          <select name="bookTheme" defaultValue={profile.bookTheme ?? ""}>
+            <option value="">{COMPILE_PROFILE.bookThemeNone}</option>
+            {BOOK_THEME_KEYS.map((key) => (
+              <option key={key} value={key}>
+                {COMPILE_PROFILE.bookThemeOption(key)}
+              </option>
+            ))}
+          </select>
         </label>
         <label>
           {COMPILE_PROFILE.fontPreset}

@@ -4,7 +4,9 @@ import {
   buildOrganizationForest,
   DEFAULT_GRAPH_KINDS,
   edgeKindKey,
+  filterConnectionGraph,
   subgraphByHops,
+  DEFAULT_ALL_CONNECTION_KINDS,
   type RelationshipEdge,
   type RelationshipNode,
 } from "@/world/relationshipGraph";
@@ -68,5 +70,21 @@ describe("relationship graph", () => {
   it("builds organization tree from member edges", () => {
     const tree = buildOrganizationForest(nodes, edges);
     expect(tree.some((t) => t.id === "b" && t.children.some((c) => c.id === "a"))).toBe(true);
+  });
+
+  it("lists orphan nodes when requested", () => {
+    const rich: RelationshipNode[] = [
+      ...nodes,
+      { id: "lonely", title: "Lonely note", typeLabel: "Research note", recordType: "research_note" },
+    ];
+    const filtered = filterConnectionGraph(rich, edges, {
+      allowedKinds: DEFAULT_ALL_CONNECTION_KINDS,
+      recordType: "research_note",
+      authorityStatus: null,
+      draftId: null,
+      orphansOnly: true,
+    });
+    expect(filtered.nodes.map((n) => n.id)).toEqual(["lonely"]);
+    expect(filtered.edges).toHaveLength(0);
   });
 });

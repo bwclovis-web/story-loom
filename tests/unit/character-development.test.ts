@@ -1,16 +1,23 @@
 import { describe, expect, it } from "vitest";
 import {
   adjacentWings,
+  applyProfileFillSuggestions,
   applyProfileSuggestions,
+  characterProfileMarkdown,
   cuesForManuscript,
   emptyCharacterDevelopment,
   inheritedTraits,
   milestoneFreshness,
   parseProfileSuggestions,
+  proposeProfileFillFromBody,
   readCharacterDevelopment,
+  renderCharacterContextSlice,
   resolveCharacterState,
+  resolveKnowledgeAtPoint,
   seriesMatrix,
+  unsupportedCharacterDevelopmentVersion,
   variantWouldCycle,
+  visibleProfileSections,
   wingIsValid,
   withCharacterDevelopment,
   type CharacterDevelopment,
@@ -252,6 +259,164 @@ describe("character development", () => {
     const read = readCharacterDevelopment({ characterDevelopment: { version: 9 } });
     expect(read.problems[0]?.message).toMatch(/not supported/);
     expect(read.profile).toEqual(emptyCharacterDevelopment());
+    expect(unsupportedCharacterDevelopmentVersion({ characterDevelopment: { version: 9 } })).toBe(true);
+  });
+
+  it("keeps unknown development keys when saving a known profile", () => {
+    const profile = emptyCharacterDevelopment();
+    profile.psychology.coreDesire = "to keep the record";
+    const stored = withCharacterDevelopment(
+      { name: "Mara", characterDevelopment: { version: 1, futureNote: "keep me", psychology: { coreDesire: "old" } } },
+      profile,
+    );
+    const blob = stored.characterDevelopment as Record<string, unknown>;
+    expect(blob.futureNote).toBe("keep me");
+    expect(stored.name).toBe("Mara");
+    expect(readCharacterDevelopment(stored).profile.psychology.coreDesire).toBe("to keep the record");
+  });
+
+  it("reads foundation, voice, lived experience, and knowledge without marking an empty profile filled", () => {
+    const profile = emptyCharacterDevelopment();
+    profile.foundation.appearance = "salt-grey cloak";
+    profile.voice.diction = "clipped";
+    profile.livedExperience.trauma = "the quay fire";
+    profile.livedExperience.aiVisibility = "omit";
+    profile.knowledge = [
+      {
+        id: "know_secret_01",
+        kind: "secret",
+        statement: "The ledger is forged",
+        approval: "approved",
+        planned: false,
+        bookProjectId: "book-1",
+        fromStoryEventId: "event-early",
+        untilStoryEventId: null,
+        sceneRecordId: null,
+        holder: "character",
+        aiVisibility: "omit",
+        establishedFactId: null,
+        provenance: { origin: "author", note: "" },
+      },
+      {
+        id: "know_belief_01",
+        kind: "belief",
+        statement: "Salt remembers",
+        approval: "approved",
+        planned: false,
+        bookProjectId: "book-1",
+        fromStoryEventId: null,
+        untilStoryEventId: null,
+        sceneRecordId: null,
+        holder: "both",
+        aiVisibility: "include",
+        establishedFactId: null,
+        provenance: { origin: "author", note: "" },
+      },
+    ];
+    const roundTrip = readCharacterDevelopment(withCharacterDevelopment({}, profile));
+    expect(roundTrip.problems).toEqual([]);
+    expect(roundTrip.profile.foundation.appearance).toBe("salt-grey cloak");
+    expect(roundTrip.profile.voice.diction).toBe("clipped");
+    expect(roundTrip.profile.livedExperience.trauma).toBe("the quay fire");
+    const atPoint = resolveKnowledgeAtPoint(
+      profile,
+      { bookProjectId: "book-1", storyEventId: "event-early", sequence: null },
+      [{ earlierId: "event-early", laterId: "event-later" }],
+    );
+    expect(atPoint.map((item) => item.id)).toEqual(["know_secret_01", "know_belief_01"]);
+    const dialogue = renderCharacterContextSlice({
+      title: "Mara",
+      body: "Archivist.",
+      profile,
+      slice: "dialogue",
+    });
+    expect(dialogue).toContain("salt-grey cloak");
+    expect(dialogue).not.toContain("the quay fire");
+    expect(dialogue).not.toContain("The ledger is forged");
+    const continuity = renderCharacterContextSlice({ title: "Mara", profile, slice: "continuity" });
+    expect(continuity).toContain("Salt remembers");
+    expect(continuity).not.toContain("The ledger is forged");
+    const redacted = characterProfileMarkdown("Mara", profile, "redacted");
+    expect(redacted).not.toContain("the quay fire");
+    expect(redacted).not.toContain("The ledger is forged");
+    const full = characterProfileMarkdown("Mara", profile, "full");
+    expect(full).toContain("the quay fire");
+    expect(full).toContain("The ledger is forged");
+  });
+
+  it("lets a variant inherit foundation and voice but not knowledge", () => {
+    const foundation = emptyCharacterDevelopment();
+    foundation.foundation.publicRole = "Archivist";
+    foundation.voice.diction = "clipped";
+    foundation.knowledge = [
+      {
+        id: "know_found_01",
+        kind: "knowledge",
+        statement: "The first fire",
+        approval: "approved",
+        planned: false,
+        bookProjectId: "book-1",
+        fromStoryEventId: null,
+        untilStoryEventId: null,
+        sceneRecordId: null,
+        holder: "character",
+        aiVisibility: "include",
+        establishedFactId: null,
+        provenance: { origin: "author", note: "" },
+      },
+    ];
+    const variant = emptyCharacterDevelopment();
+    variant.variant = { foundationRecordId: "char-foundation", inheritedKeys: ["foundation", "voice"] };
+    expect(inheritedTraits(variant, foundation)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ key: "foundation", source: "inherited" }),
+        expect.objectContaining({ key: "voice", source: "inherited" }),
+      ]),
+    );
+    expect(resolveKnowledgeAtPoint(variant, { bookProjectId: "book-1", storyEventId: null, sequence: null })).toEqual([]);
+  });
+
+  it("proposes profile fills from matching headings without inventing lived experience", () => {
+    const body = "## Appearance\nSalt-grey cloak.\n\n## Voice\nClipped answers.\n\n## Trauma\nDo not copy this.\n";
+    const suggestions = proposeProfileFillFromBody(body, emptyCharacterDevelopment());
+    expect(suggestions.map((item) => item.key)).toEqual(["appearance", "diction"]);
+    const next = applyProfileFillSuggestions(emptyCharacterDevelopment(), suggestions);
+    expect(next.foundation.appearance).toBe("Salt-grey cloak.");
+    expect(next.voice.diction).toBe("Clipped answers.");
+    expect(next.livedExperience.trauma).toBe("");
+  });
+
+  it("keeps Phase 1 identity, behavior, and capabilities through a round trip", () => {
+    const profile = emptyCharacterDevelopment();
+    profile.foundation.ancestry = "Greyhaven line";
+    profile.foundation.culturalIdentity = "Harrowgate clerk";
+    profile.voice.humor = "dry";
+    profile.voice.consistencyGuardrails = "Never slangy";
+    profile.behavior.underPressure = "Goes quiet, then decisive";
+    profile.capabilities.skills = "Ledgers and locks";
+    profile.capabilities.linkedRecordIds = ["rec_magic_01"];
+    profile.livedExperience.formativeExperiences = "The quay fire";
+    profile.livedExperience.stereotypesToAvoid = "Helpless trauma survivor";
+    const stored = withCharacterDevelopment({ name: "Mara" }, profile);
+    const read = readCharacterDevelopment(stored);
+    expect(read.problems).toEqual([]);
+    expect(read.profile.foundation.ancestry).toBe("Greyhaven line");
+    expect(read.profile.behavior.underPressure).toBe("Goes quiet, then decisive");
+    expect(read.profile.capabilities.linkedRecordIds).toEqual(["rec_magic_01"]);
+    expect(read.profile.livedExperience.stereotypesToAvoid).toBe("Helpless trauma survivor");
+    expect(stored.name).toBe("Mara");
+  });
+
+  it("suggests thinner sections for minor importance without discarding filled notes", () => {
+    const profile = emptyCharacterDevelopment();
+    profile.importance = "minor";
+    expect(visibleProfileSections(profile)).toEqual(["identity", "continuity"]);
+    profile.behavior.habits = "Checks the lock twice";
+    profile.importance = "minor";
+    expect(visibleProfileSections(profile)).toContain("behavior");
+    profile.importance = "major";
+    expect(visibleProfileSections(profile)).toContain("psychology");
+    expect(profile.behavior.habits).toBe("Checks the lock twice");
   });
 });
 

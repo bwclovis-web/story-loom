@@ -102,6 +102,8 @@ export function WriteEditor(props: {
   isProtected: boolean;
   canvasBack?: { href: string; label: string } | { unavailable: true } | null;
   parent: { id: string; title: string } | null;
+  /** Scenes nested under this chapter, in book order. Empty for a scene. */
+  scenes?: ReadonlyArray<{ id: string; title: string }>;
   /** Opens Find with this text, from a manuscript search result. */
   initialFind: { query: string; matchCase: boolean } | null;
   initialStyleRange: { start: number; end: number } | null;
@@ -161,7 +163,8 @@ export function WriteEditor(props: {
   const [title, setTitle] = useState(props.title);
   const [fields, setFields] = useState(props.fieldsJson);
   const [selection, setSelection] = useState({ start: 0, end: 0 });
-  const [editorChrome, setEditorChrome] = useState<EditorChrome>("live");
+  // Raw by default: Live Markdown can make a selected passage look like a second copy.
+  const [editorChrome, setEditorChrome] = useState<EditorChrome>("raw");
   const [unlocked, setUnlocked] = useState(false);
   const [unlockedRevision, setUnlockedRevision] = useState(props.revision);
   const [knownRevision, setKnownRevision] = useState(props.revision);
@@ -703,6 +706,19 @@ export function WriteEditor(props: {
                     onInput={(e) => setTitle(e.currentTarget.value)}
                   />
                 </h1>
+                {props.kind === "chapter" && props.scenes && props.scenes.length > 0 ? (
+                  <nav className="write-scenes" aria-label={WRITE.scenesTab}>
+                    <ol>
+                      {props.scenes.map((scene) => (
+                        <li key={scene.id}>
+                          <Link href={`/projects/${encodeURIComponent(props.projectId)}/records/${encodeURIComponent(scene.id)}`}>
+                            {scene.title}
+                          </Link>
+                        </li>
+                      ))}
+                    </ol>
+                  </nav>
+                ) : null}
               </div>
               <div className="write-title-tools">
                 {splitPeers.length > 0 ? (
@@ -762,6 +778,27 @@ export function WriteEditor(props: {
               styleOpen={styleOpen}
               onToggleStyle={() => setStyleOpen((open) => !open)}
               linkRequest={linkRequest}
+              readAloud={
+                readAloud.supported
+                  ? {
+                      supported: true,
+                      speaking: readAloud.speaking,
+                      onToggle: () => {
+                        if (readAloud.speaking) {
+                          readAloud.stop();
+                          return;
+                        }
+                        const surface = bodyRef.current;
+                        const doc = surface?.value ?? text;
+                        const from = surface?.selectionStart ?? selection.start;
+                        const to = surface?.selectionEnd ?? selection.end;
+                        const spoken = from !== to ? doc.slice(from, to) : doc;
+                        spokenPassRef.current = spoken;
+                        readAloud.start({ text: spoken });
+                      },
+                    }
+                  : null
+              }
             />
             <div id={findId} hidden={!findOpen} className="tool-panel">
               <FindReplace
@@ -852,39 +889,13 @@ export function WriteEditor(props: {
                 draftScopeId={props.draftScopeId}
                 selectionText={selectionText}
               />
-              {readAloud.supported ? (
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="secondary"
-                  aria-pressed={readAloud.speaking}
-                  // Same as the format toolbar: keep the editor selection on click.
-                  onMouseDown={(e) => {
-                    e.preventDefault();
-                    const surface = bodyRef.current;
-                    const doc = surface?.value ?? text;
-                    const from = surface?.selectionStart ?? selection.start;
-                    const to = surface?.selectionEnd ?? selection.end;
-                    spokenPassRef.current = from !== to ? doc.slice(from, to) : doc;
-                  }}
-                  onClick={() => {
-                    if (readAloud.speaking) {
-                      readAloud.stop();
-                      return;
-                    }
-                    const spoken = spokenPassRef.current.trim() || text;
-                    readAloud.start({ text: spoken });
-                  }}
-                >
-                  {readAloud.speaking ? WRITE.readAloudStop : WRITE.readAloud}
-                </Button>
-              ) : null}
               {readAloud.speaking ? (
                 <span className="small muted" role="status">
                   {WRITE.readAloudReading}
                 </span>
               ) : null}
             </div>
+            {readAloud.error ? <Banner tone="error">{readAloud.error}</Banner> : null}
             <CodexSuggestBox
               entries={props.codexEntries.filter((entry) => entry.id !== props.recordId)}
               text={text}

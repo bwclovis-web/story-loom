@@ -43,6 +43,7 @@ export async function saveCompileProfileAction(
       runningHeader: String(formData.get("runningHeader") ?? ""),
       runningFooter: String(formData.get("runningFooter") ?? ""),
       fontPreset: String(formData.get("fontPreset") ?? "serif"),
+      bookTheme: String(formData.get("bookTheme") ?? "") || null,
       spacingPreset: String(formData.get("spacingPreset") ?? "novel"),
       firstParagraphNoIndent: checkbox(formData, "firstParagraphNoIndent"),
       dropCap: checkbox(formData, "dropCap"),

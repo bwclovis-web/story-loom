@@ -6,7 +6,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { forgottenArcs } from "@/domain/characterDevelopment";
 import { getDb } from "@/server/db";
 import { loadSeriesDevelopment } from "@/server/services/characterDevelopmentService";
-import { CHARACTER_DEVELOPMENT } from "@/ui/labels";
+import { CHARACTER_DEVELOPMENT, CHARACTER_DOSSIER_UPGRADE } from "@/ui/labels";
 import { worldSurfaceCrumbs } from "@/ui/worldDestinations";
 
 export const dynamic = "force-dynamic";
@@ -40,6 +40,11 @@ export default async function CharacterDevelopmentPage({
         title={CHARACTER_DEVELOPMENT.seriesHeading}
         lead={overview.standalone ? `${CHARACTER_DEVELOPMENT.seriesLead}` : CHARACTER_DEVELOPMENT.seriesLead}
       />
+      <p className="small">
+        <Link href={`${base}/world/development/upgrade`}>{CHARACTER_DOSSIER_UPGRADE.seriesHeading}</Link>
+        {" — "}
+        {CHARACTER_DOSSIER_UPGRADE.openUpgradeHint}
+      </p>
       <form className="row" method="get" style={{ flexWrap: "wrap", gap: "0.75rem" }}>
         <label>
           {CHARACTER_DEVELOPMENT.filterCharacter}

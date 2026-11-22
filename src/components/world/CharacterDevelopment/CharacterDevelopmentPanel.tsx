@@ -2,48 +2,71 @@
 
 import { useMemo, useState } from "react";
 import { Banner } from "@/components/ui/Banner";
-import { Button } from "@/components/ui/Button";
+import { Button, ButtonLink } from "@/components/ui/Button";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { HelpPopover } from "@/components/ui/HelpPopover";
 import { IssueList } from "@/components/IssueList";
 import {
+  AI_VISIBILITY,
   ARCHETYPE_LIBRARY,
   ARC_MOVEMENTS,
   ARC_TEMPLATES,
+  BEHAVIOR_TEXT_KEYS,
+  CAPABILITIES_TEXT_KEYS,
   ENNEAGRAM_GUIDE,
   ENNEAGRAM_TYPES,
+  FOUNDATION_TEXT_KEYS,
   IMPORTANCE_LEVELS,
   INHERITABLE_KEYS,
+  KNOWLEDGE_HOLDERS,
+  KNOWLEDGE_KINDS,
+  LIVED_EXPERIENCE_TEXT_KEYS,
   MILESTONE_STATUSES,
   NARRATIVE_ROLES,
   PRESENCE_STATES,
+  PROFILE_SECTIONS,
+  proposeProfileFillFromBody,
+  applyProfileFillSuggestions,
   PSYCHOLOGY_TEXT_KEYS,
   STATE_FACETS,
+  VOICE_TEXT_KEYS,
   adjacentWings,
   characterProfileMarkdown,
   developmentIsEmpty,
   emptyCharacterDevelopment,
+  emptyVoice,
   forgottenArcs,
   milestoneFreshness,
   profileFreshness,
+  visibleProfileSections,
   type ArchetypeAssignment,
+  type BehaviorTextKey,
+  type CapabilitiesTextKey,
   type CharacterDevelopment,
   type DevelopmentArc,
   type EnneagramChoice,
   type EnneagramNumber,
+  type FacetValue,
+  type FoundationTextKey,
   type ImportanceLevel,
   type InheritableKey,
   type InheritedTrait,
+  type KnowledgeItem,
+  type LivedExperienceTextKey,
   type MilestoneLink,
   type NarrativeRole,
+  type ProfileFillSuggestion,
+  type ProfileSection,
   type ProfileSuggestion,
   type ReviewObservation,
   type StateChange,
+  type StateFacet,
+  type VoiceTextKey,
 } from "@/domain/characterDevelopment";
 import { AUTHORITY_STATUSES } from "@/domain/statuses";
 import type { Issue } from "@/domain/issues";
-import { CHARACTER_DEVELOPMENT as LABELS } from "@/ui/labels";
+import { CHARACTER_DEVELOPMENT as LABELS, CHARACTER_DOSSIER_UPGRADE } from "@/ui/labels";
 import {
   acceptCharacterReviewAction,
   acceptCharacterSuggestionsAction,
@@ -64,11 +87,24 @@ export interface DevelopmentCatalog {
   chapters: DevelopmentChoice[];
   scenes: DevelopmentChoice[];
   beats: DevelopmentChoice[];
+  facts: DevelopmentChoice[];
+  worldRefs: DevelopmentChoice[];
   assistantConfigured: boolean;
 }
 
-const TABS = ["psychology", "archetypes", "arcs", "relationships", "history"] as const;
-type TabId = (typeof TABS)[number];
+const SECTION_TO_TAB: Record<ProfileSection, ProfileSection> = {
+  identity: "identity",
+  psychology: "psychology",
+  voice: "voice",
+  behavior: "behavior",
+  lived: "lived",
+  relationships: "relationships",
+  capabilities: "capabilities",
+  development: "development",
+  continuity: "continuity",
+};
+
+type TabId = ProfileSection;
 
 function newId(prefix: string): string {
   const body = globalThis.crypto.randomUUID().replace(/-/g, "").slice(0, 24);
@@ -124,9 +160,11 @@ export function CharacterDevelopmentPanel({
   projectId,
   recordId,
   title,
+  body,
   revision,
   isProtected,
   initialProfile,
+  fieldAge,
   catalog,
   traits,
   staleMilestoneIds,
@@ -134,15 +172,18 @@ export function CharacterDevelopmentPanel({
   projectId: string;
   recordId: string;
   title: string;
+  body: string;
   revision: number;
   isProtected: boolean;
   initialProfile: CharacterDevelopment;
+  fieldAge: string;
   catalog: DevelopmentCatalog;
   traits: InheritedTrait[];
   staleMilestoneIds: string[];
 }) {
   const [profile, setProfile] = useState(initialProfile);
-  const [tab, setTab] = useState<TabId>("psychology");
+  const [tab, setTab] = useState<TabId>("identity");
+  const [showAllSections, setShowAllSections] = useState(false);
   const [expectedRevision, setExpectedRevision] = useState(revision);
   const [unlock, setUnlock] = useState(false);
   const [allowRewrite, setAllowRewrite] = useState(false);
@@ -153,11 +194,19 @@ export function CharacterDevelopmentPanel({
   const [pickedSuggestions, setPickedSuggestions] = useState<string[]>([]);
   const [observations, setObservations] = useState<ReviewObservation[]>([]);
   const [pickedNotes, setPickedNotes] = useState<number[]>([]);
+  const [fillSuggestions, setFillSuggestions] = useState<ProfileFillSuggestion[]>([]);
+  const [pickedFills, setPickedFills] = useState<string[]>([]);
   const freshness = profileFreshness(profile, expectedRevision);
   const forgotten = forgottenArcs(profile);
   const relationshipArcs = profile.arcs.filter(
     (arc) => arc.template === "relationship" || arc.relationId || arc.perceptions.length > 0,
   );
+  const openSections = showAllSections ? [...PROFILE_SECTIONS] : visibleProfileSections(profile);
+  const tabs = openSections.map((section) => SECTION_TO_TAB[section]);
+  const activeTabs = tabs.length ? tabs : (["identity"] as TabId[]);
+  if (!activeTabs.includes(tab) && activeTabs[0]) {
+    // Keep render stable; switch on next interaction via effect-free guard in tab click.
+  }
 
   const applyResult = (result: { ok: boolean; message?: string; issues?: Issue[]; revision?: number }) => {
     setMessage(result.message ?? null);
@@ -218,31 +267,55 @@ export function CharacterDevelopmentPanel({
     }
   };
 
-  const download = () => {
-    const blob = new Blob(
-      [characterProfileMarkdown(title, profile), "\n", JSON.stringify(profile, null, 2)],
-      { type: "text/markdown" },
-    );
+  const download = (mode: "redacted" | "full") => {
+    const markdown = characterProfileMarkdown(title, profile, mode === "full" ? "full" : "redacted");
+    const payload =
+      mode === "full"
+        ? `${markdown}\n\n\`\`\`json\n${JSON.stringify(profile, null, 2)}\n\`\`\`\n`
+        : markdown;
+    const blob = new Blob([payload], { type: "text/markdown" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `${title.replace(/[^\w.-]+/g, "-").slice(0, 40) || "character"}-profile.md`;
+    link.download = `${title.replace(/[^\w.-]+/g, "-").slice(0, 40) || "character"}-profile-${mode}.md`;
     link.click();
     URL.revokeObjectURL(url);
   };
 
-  const tabLabels: Record<TabId, string> = {
-    psychology: LABELS.psychology,
-    archetypes: LABELS.archetypes,
-    arcs: LABELS.arcs,
-    relationships: LABELS.relationships,
-    history: LABELS.history,
+  const proposeFill = () => {
+    const next = proposeProfileFillFromBody(body, profile);
+    setFillSuggestions(next);
+    setPickedFills(next.map((item) => item.id));
+    setMessage(next.length ? LABELS.fillFromHeadingsHint : "No empty matching headings were found.");
   };
+
+  const acceptFills = () => {
+    const accepted = fillSuggestions.filter((item) => pickedFills.includes(item.id));
+    setProfile(applyProfileFillSuggestions(profile, accepted));
+    setFillSuggestions([]);
+    setPickedFills([]);
+    setMessage(accepted.length ? "Selected fills were applied locally. Save development to keep them." : null);
+  };
+
+  const tabLabels: Record<TabId, string> = {
+    identity: LABELS.identityTab,
+    psychology: LABELS.psychology,
+    voice: LABELS.voiceTab,
+    behavior: LABELS.behaviorTab,
+    lived: LABELS.livedTab,
+    relationships: LABELS.relationships,
+    capabilities: LABELS.capabilitiesTab,
+    development: LABELS.developmentTab,
+    continuity: LABELS.continuityTab,
+  };
+  const currentTab = activeTabs.includes(tab) ? tab : activeTabs[0]!;
 
   return (
     <div className="stack">
       <p className="small muted">{LABELS.lead}</p>
       <p className="small muted">{LABELS.aid}</p>
+      <p className="small muted">{LABELS.separate}</p>
+      <p className="small muted">{LABELS.metaNotDuplicated}</p>
       {profile.importance === "minor" ? <p className="small">{LABELS.minorHint}</p> : null}
       {freshness === "stale" ? <Banner tone="error">{LABELS.staleProfile}</Banner> : null}
       {freshness === "unchecked" ? <Banner>{LABELS.unchecked}</Banner> : null}
@@ -292,42 +365,92 @@ export function CharacterDevelopmentPanel({
       </div>
 
       <div className="context-tabs" role="tablist" aria-label={LABELS.heading}>
-        {TABS.map((id) => (
+        {activeTabs.map((id) => (
           <button
             key={id}
             type="button"
             className="context-tab"
             role="tab"
-            aria-selected={tab === id}
-            tabIndex={tab === id ? 0 : -1}
+            aria-selected={currentTab === id}
+            tabIndex={currentTab === id ? 0 : -1}
             onClick={() => setTab(id)}
             onKeyDown={(event) => {
-              const index = TABS.indexOf(tab);
-              if (event.key === "ArrowRight") setTab(TABS[(index + 1) % TABS.length]!);
-              if (event.key === "ArrowLeft") setTab(TABS[(index - 1 + TABS.length) % TABS.length]!);
+              const index = activeTabs.indexOf(currentTab);
+              if (event.key === "ArrowRight") setTab(activeTabs[(index + 1) % activeTabs.length]!);
+              if (event.key === "ArrowLeft") setTab(activeTabs[(index - 1 + activeTabs.length) % activeTabs.length]!);
             }}
           >
             {tabLabels[id]}
           </button>
         ))}
       </div>
-
-      {tab === "psychology" ? (
-        <PsychologyFields profile={profile} onChange={setProfile} traits={traits} />
+      {activeTabs.length < PROFILE_SECTIONS.length || showAllSections ? (
+        <Button type="button" variant="secondary" onClick={() => setShowAllSections((value) => !value)}>
+          {showAllSections ? LABELS.hideExtraSections : LABELS.showMoreSections}
+        </Button>
       ) : null}
-      {tab === "archetypes" ? <ArchetypeFields profile={profile} catalog={catalog} onChange={setProfile} /> : null}
-      {tab === "arcs" ? (
+
+      {currentTab === "identity" ? (
+        <FoundationFields profile={profile} fieldAge={fieldAge} onChange={setProfile} />
+      ) : null}
+      {currentTab === "psychology" ? (
+        <div className="stack">
+          <PsychologyFields profile={profile} onChange={setProfile} traits={traits} />
+          <details className="stack">
+            <summary>{LABELS.archetypes}</summary>
+            <ArchetypeFields profile={profile} catalog={catalog} onChange={setProfile} />
+          </details>
+        </div>
+      ) : null}
+      {currentTab === "voice" ? <VoiceFields profile={profile} catalog={catalog} projectId={projectId} onChange={setProfile} /> : null}
+      {currentTab === "behavior" ? <BehaviorFields profile={profile} onChange={setProfile} /> : null}
+      {currentTab === "lived" ? <LivedExperienceFields profile={profile} onChange={setProfile} /> : null}
+      {currentTab === "relationships" ? (
+        <div className="stack">
+          <p className="small muted">{LABELS.metaNotDuplicated}</p>
+          {relationshipArcs.length ? (
+            <ArcFields profile={profile} catalog={catalog} onChange={setProfile} arcs={relationshipArcs} staleMilestoneIds={staleMilestoneIds} />
+          ) : (
+            <EmptyState>{LABELS.noArcs}</EmptyState>
+          )}
+        </div>
+      ) : null}
+      {currentTab === "capabilities" ? <CapabilitiesFields profile={profile} catalog={catalog} onChange={setProfile} /> : null}
+      {currentTab === "development" ? (
         <ArcFields profile={profile} catalog={catalog} onChange={setProfile} arcs={profile.arcs} staleMilestoneIds={staleMilestoneIds} />
       ) : null}
-      {tab === "relationships" ? (
-        relationshipArcs.length ? (
-          <ArcFields profile={profile} catalog={catalog} onChange={setProfile} arcs={relationshipArcs} staleMilestoneIds={staleMilestoneIds} />
-        ) : (
-          <EmptyState>{LABELS.noArcs}</EmptyState>
-        )
+      {currentTab === "continuity" ? (
+        <div className="stack">
+          <KnowledgeFields profile={profile} catalog={catalog} projectId={projectId} onChange={setProfile} />
+          <HistoryFields profile={profile} catalog={catalog} projectId={projectId} onChange={setProfile} />
+        </div>
       ) : null}
-      {tab === "history" ? (
-        <HistoryFields profile={profile} catalog={catalog} projectId={projectId} onChange={setProfile} />
+
+      {fillSuggestions.length ? (
+        <fieldset className="stack">
+          <legend>{LABELS.fillFromHeadings}</legend>
+          {fillSuggestions.map((suggestion) => (
+            <Checkbox
+              key={suggestion.id}
+              className="small"
+              checked={pickedFills.includes(suggestion.id)}
+              onChange={(event) =>
+                setPickedFills((current) =>
+                  event.target.checked ? [...current, suggestion.id] : current.filter((id) => id !== suggestion.id),
+                )
+              }
+              label={
+                <>
+                  {suggestion.heading} → {suggestion.target}.{suggestion.key}
+                  <span className="muted"> — {suggestion.value.slice(0, 120)}</span>
+                </>
+              }
+            />
+          ))}
+          <Button type="button" variant="secondary" onClick={acceptFills}>
+            {LABELS.acceptFill}
+          </Button>
+        </fieldset>
       ) : null}
 
       {suggestions.length ? (
@@ -452,16 +575,543 @@ export function CharacterDevelopmentPanel({
         >
           {LABELS.markChecked}
         </Button>
-        <Button type="button" variant="secondary" onClick={download}>
-          {LABELS.exportProfile}
+        <Button type="button" variant="secondary" onClick={proposeFill}>
+          {LABELS.fillFromHeadings}
+        </Button>
+        <ButtonLink
+          href={`/projects/${encodeURIComponent(projectId)}/records/${encodeURIComponent(recordId)}/upgrade`}
+          variant="secondary"
+        >
+          {CHARACTER_DOSSIER_UPGRADE.openUpgrade}
+        </ButtonLink>
+        <Button type="button" variant="secondary" onClick={() => download("redacted")}>
+          {LABELS.exportRedacted}
+        </Button>
+        <Button type="button" variant="secondary" onClick={() => download("full")}>
+          {LABELS.exportFull}
         </Button>
       </div>
       <p className="small muted">{LABELS.extractHint}</p>
       <p className="small muted">{LABELS.reviewHint}</p>
+      <p className="small muted">{LABELS.fillFromHeadingsHint}</p>
+      <p className="small muted">{CHARACTER_DOSSIER_UPGRADE.openUpgradeHint}</p>
       {isProtected ? (
         <Checkbox className="small" checked={unlock} onChange={(event) => setUnlock(event.target.checked)} label={LABELS.unlock} />
       ) : null}
       <Checkbox className="small" checked={allowRewrite} onChange={(event) => setAllowRewrite(event.target.checked)} label={LABELS.confirmRewrite} />
+    </div>
+  );
+}
+
+function FieldHelp({ field }: { field: keyof typeof LABELS.fieldHelp }) {
+  const text = LABELS.fieldHelp[field];
+  if (!text) return null;
+  return <HelpPopover label={`Explain ${String(field)}`}>{text}</HelpPopover>;
+}
+
+function FoundationFields({
+  profile,
+  fieldAge,
+  onChange,
+}: {
+  profile: CharacterDevelopment;
+  fieldAge: string;
+  onChange: (next: CharacterDevelopment) => void;
+}) {
+  const primary: FoundationTextKey[] = ["pronouns", "appearance", "lifeStage", "occupation", "externalGoal"];
+  const advanced = FOUNDATION_TEXT_KEYS.filter((key) => !primary.includes(key));
+  return (
+    <div className="stack">
+      <p className="small muted">{LABELS.foundationLead}</p>
+      {fieldAge ? (
+        <p className="small">
+          {LABELS.ageBeside}: {fieldAge}{" "}
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() =>
+              onChange({
+                ...profile,
+                foundation: { ...profile.foundation, lifeStage: profile.foundation.lifeStage || fieldAge },
+              })
+            }
+          >
+            {LABELS.copyAge}
+          </Button>
+        </p>
+      ) : null}
+      {primary.map((key) => (
+        <label key={key}>
+          {LABELS.foundationFields[key]}
+          {key in LABELS.fieldHelp ? <FieldHelp field={key as keyof typeof LABELS.fieldHelp} /> : null}
+          <textarea
+            rows={key === "appearance" ? 3 : 2}
+            value={profile.foundation[key]}
+            onChange={(event) => onChange({ ...profile, foundation: { ...profile.foundation, [key]: event.target.value } })}
+          />
+        </label>
+      ))}
+      <details className="stack">
+        <summary>More identity detail</summary>
+        {advanced.map((key) => (
+          <label key={key}>
+            {LABELS.foundationFields[key]}
+            {key in LABELS.fieldHelp ? <FieldHelp field={key as keyof typeof LABELS.fieldHelp} /> : null}
+            <textarea
+              rows={key === "formativeBackground" || key === "physicalCharacteristics" ? 3 : 2}
+              value={profile.foundation[key]}
+              onChange={(event) => onChange({ ...profile, foundation: { ...profile.foundation, [key]: event.target.value } })}
+            />
+          </label>
+        ))}
+      </details>
+    </div>
+  );
+}
+
+function VoiceFields({
+  profile,
+  catalog,
+  projectId,
+  onChange,
+}: {
+  profile: CharacterDevelopment;
+  catalog: DevelopmentCatalog;
+  projectId: string;
+  onChange: (next: CharacterDevelopment) => void;
+}) {
+  const bookVoice = profile.bookVoices.find((item) => item.projectId === projectId);
+  const primary: VoiceTextKey[] = ["diction", "vocabulary", "speechPatterns", "exampleDialogue", "consistencyGuardrails"];
+  const advanced = VOICE_TEXT_KEYS.filter((key) => !primary.includes(key));
+  return (
+    <div className="stack">
+      <p className="small muted">{LABELS.voiceLead}</p>
+      {primary.map((key) => (
+        <label key={key}>
+          {LABELS.voiceFields[key]}
+          {key in LABELS.fieldHelp ? <FieldHelp field={key as keyof typeof LABELS.fieldHelp} /> : null}
+          <textarea
+            rows={key === "exampleDialogue" || key === "consistencyGuardrails" ? 4 : 2}
+            value={profile.voice[key]}
+            onChange={(event) => onChange({ ...profile, voice: { ...profile.voice, [key]: event.target.value } })}
+          />
+        </label>
+      ))}
+      <details className="stack">
+        <summary>More voice detail</summary>
+        {advanced.map((key) => (
+          <label key={key}>
+            {LABELS.voiceFields[key]}
+            {key in LABELS.fieldHelp ? <FieldHelp field={key as keyof typeof LABELS.fieldHelp} /> : null}
+            <textarea
+              rows={key === "approvedExamples" || key === "internalNarrative" ? 4 : 2}
+              value={profile.voice[key]}
+              onChange={(event) => onChange({ ...profile, voice: { ...profile.voice, [key]: event.target.value } })}
+            />
+          </label>
+        ))}
+      </details>
+      <fieldset className="stack">
+        <legend>{LABELS.bookVoice}</legend>
+        <p className="small muted">{LABELS.bookVoiceHint}</p>
+        {bookVoice ? (
+          primary.map((key) => (
+            <label key={`book-${key}`}>
+              {LABELS.voiceFields[key]}
+              <textarea
+                rows={2}
+                value={bookVoice.voice[key]}
+                onChange={(event) =>
+                  onChange({
+                    ...profile,
+                    bookVoices: profile.bookVoices.map((item) =>
+                      item.projectId === projectId
+                        ? { ...item, voice: { ...item.voice, [key]: event.target.value } }
+                        : item,
+                    ),
+                  })
+                }
+              />
+            </label>
+          ))
+        ) : (
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() =>
+              onChange({
+                ...profile,
+                bookVoices: [...profile.bookVoices, { projectId, voice: emptyVoice() }],
+              })
+            }
+          >
+            {LABELS.addBookVoice}
+          </Button>
+        )}
+        {catalog.books.length > 1 && bookVoice ? (
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => onChange({ ...profile, bookVoices: profile.bookVoices.filter((item) => item.projectId !== projectId) })}
+          >
+            Remove
+          </Button>
+        ) : null}
+      </fieldset>
+    </div>
+  );
+}
+
+function BehaviorFields({
+  profile,
+  onChange,
+}: {
+  profile: CharacterDevelopment;
+  onChange: (next: CharacterDevelopment) => void;
+}) {
+  return (
+    <div className="stack">
+      <p className="small muted">{LABELS.behaviorLead}</p>
+      {BEHAVIOR_TEXT_KEYS.map((key) => (
+        <label key={key}>
+          {LABELS.behaviorFields[key as BehaviorTextKey]}
+          {key in LABELS.fieldHelp ? <FieldHelp field={key as keyof typeof LABELS.fieldHelp} /> : null}
+          <textarea
+            rows={3}
+            value={profile.behavior[key]}
+            onChange={(event) => onChange({ ...profile, behavior: { ...profile.behavior, [key]: event.target.value } })}
+          />
+        </label>
+      ))}
+    </div>
+  );
+}
+
+function CapabilitiesFields({
+  profile,
+  catalog,
+  onChange,
+}: {
+  profile: CharacterDevelopment;
+  catalog: DevelopmentCatalog;
+  onChange: (next: CharacterDevelopment) => void;
+}) {
+  return (
+    <div className="stack">
+      <p className="small muted">{LABELS.capabilitiesLead}</p>
+      {CAPABILITIES_TEXT_KEYS.map((key) => (
+        <label key={key}>
+          {LABELS.capabilitiesFields[key as CapabilitiesTextKey]}
+          {key in LABELS.fieldHelp ? <FieldHelp field={key as keyof typeof LABELS.fieldHelp} /> : null}
+          <textarea
+            rows={3}
+            value={profile.capabilities[key]}
+            onChange={(event) =>
+              onChange({ ...profile, capabilities: { ...profile.capabilities, [key]: event.target.value } })
+            }
+          />
+        </label>
+      ))}
+      <fieldset className="stack">
+        <legend>{LABELS.linkedCapabilityRefs}</legend>
+        <p className="small muted">{LABELS.linkedCapabilityRefsHint}</p>
+        {catalog.worldRefs.map((ref) => (
+          <Checkbox
+            key={ref.id}
+            className="small"
+            checked={profile.capabilities.linkedRecordIds.includes(ref.id)}
+            onChange={(event) => {
+              const linkedRecordIds = event.target.checked
+                ? [...profile.capabilities.linkedRecordIds, ref.id]
+                : profile.capabilities.linkedRecordIds.filter((id) => id !== ref.id);
+              onChange({ ...profile, capabilities: { ...profile.capabilities, linkedRecordIds } });
+            }}
+            label={ref.label}
+          />
+        ))}
+        {!catalog.worldRefs.length ? <p className="small muted">{LABELS.none}</p> : null}
+      </fieldset>
+    </div>
+  );
+}
+
+function LivedExperienceFields({
+  profile,
+  onChange,
+}: {
+  profile: CharacterDevelopment;
+  onChange: (next: CharacterDevelopment) => void;
+}) {
+  const lived = profile.livedExperience;
+  const primary: LivedExperienceTextKey[] = ["formativeExperiences", "coping", "portrayalGuidance", "stereotypesToAvoid"];
+  const sensitive = LIVED_EXPERIENCE_TEXT_KEYS.filter((key) => !primary.includes(key));
+  return (
+    <div className="stack">
+      <p className="small muted">{LABELS.livedLead}</p>
+      {primary.map((key) => (
+        <label key={key}>
+          {LABELS.livedFields[key]}
+          {key in LABELS.fieldHelp ? <FieldHelp field={key as keyof typeof LABELS.fieldHelp} /> : null}
+          <textarea
+            rows={3}
+            value={lived[key]}
+            onChange={(event) =>
+              onChange({ ...profile, livedExperience: { ...lived, [key]: event.target.value } })
+            }
+          />
+        </label>
+      ))}
+      <details className="stack">
+        <summary>Neurodivergence, disability, trauma, and boundaries</summary>
+        {sensitive.map((key) => (
+          <label key={key}>
+            {LABELS.livedFields[key]}
+            {key in LABELS.fieldHelp ? <FieldHelp field={key as keyof typeof LABELS.fieldHelp} /> : null}
+            <textarea
+              rows={3}
+              value={lived[key]}
+              onChange={(event) =>
+                onChange({ ...profile, livedExperience: { ...lived, [key]: event.target.value } })
+              }
+            />
+          </label>
+        ))}
+      </details>
+      <label>
+        {LABELS.approval}
+        <select
+          value={lived.approval}
+          onChange={(event) =>
+            onChange({ ...profile, livedExperience: { ...lived, approval: event.target.value as typeof lived.approval } })
+          }
+        >
+          {AUTHORITY_STATUSES.map((status) => (
+            <option key={status} value={status}>
+              {status}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label>
+        {LABELS.livedAiVisibility}
+        <select
+          value={lived.aiVisibility}
+          onChange={(event) =>
+            onChange({
+              ...profile,
+              livedExperience: { ...lived, aiVisibility: event.target.value as typeof lived.aiVisibility },
+            })
+          }
+        >
+          {AI_VISIBILITY.map((value) => (
+            <option key={value} value={value}>
+              {value}
+            </option>
+          ))}
+        </select>
+      </label>
+    </div>
+  );
+}
+
+function KnowledgeFields({
+  profile,
+  catalog,
+  projectId,
+  onChange,
+}: {
+  profile: CharacterDevelopment;
+  catalog: DevelopmentCatalog;
+  projectId: string;
+  onChange: (next: CharacterDevelopment) => void;
+}) {
+  const blank = (): KnowledgeItem => ({
+    id: newId("know"),
+    kind: "knowledge",
+    statement: "",
+    approval: "draft",
+    planned: false,
+    bookProjectId: projectId,
+    fromStoryEventId: null,
+    untilStoryEventId: null,
+    sceneRecordId: null,
+    holder: "character",
+    aiVisibility: "include",
+    establishedFactId: null,
+    provenance: { origin: "author", note: "" },
+  });
+  return (
+    <div className="stack">
+      <p className="small muted">{LABELS.knowledgeLead}</p>
+      {profile.knowledge.map((item) => (
+        <div key={item.id} className="stack">
+          <label>
+            {LABELS.knowledgeKind}
+            <select
+              value={item.kind}
+              onChange={(event) => {
+                const kind = event.target.value as KnowledgeItem["kind"];
+                onChange({
+                  ...profile,
+                  knowledge: profile.knowledge.map((row) =>
+                    row.id === item.id
+                      ? {
+                          ...row,
+                          kind,
+                          aiVisibility: kind === "secret" && row.aiVisibility === "include" ? "omit" : row.aiVisibility,
+                        }
+                      : row,
+                  ),
+                });
+              }}
+            >
+              {KNOWLEDGE_KINDS.map((kind) => (
+                <option key={kind} value={kind}>
+                  {kind}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            {LABELS.knowledgeStatement}
+            <textarea
+              rows={2}
+              value={item.statement}
+              onChange={(event) =>
+                onChange({
+                  ...profile,
+                  knowledge: profile.knowledge.map((row) => (row.id === item.id ? { ...row, statement: event.target.value } : row)),
+                })
+              }
+            />
+          </label>
+          <label>
+            {LABELS.knowledgeHolder}
+            <select
+              value={item.holder}
+              onChange={(event) =>
+                onChange({
+                  ...profile,
+                  knowledge: profile.knowledge.map((row) =>
+                    row.id === item.id ? { ...row, holder: event.target.value as KnowledgeItem["holder"] } : row,
+                  ),
+                })
+              }
+            >
+              {KNOWLEDGE_HOLDERS.map((holder) => (
+                <option key={holder} value={holder}>
+                  {holder}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            {LABELS.approval}
+            <select
+              value={item.approval}
+              onChange={(event) =>
+                onChange({
+                  ...profile,
+                  knowledge: profile.knowledge.map((row) =>
+                    row.id === item.id ? { ...row, approval: event.target.value as KnowledgeItem["approval"] } : row,
+                  ),
+                })
+              }
+            >
+              {AUTHORITY_STATUSES.map((status) => (
+                <option key={status} value={status}>
+                  {status}
+                </option>
+              ))}
+            </select>
+          </label>
+          <Checkbox
+            className="small"
+            checked={item.planned}
+            onChange={(event) =>
+              onChange({
+                ...profile,
+                knowledge: profile.knowledge.map((row) => (row.id === item.id ? { ...row, planned: event.target.checked } : row)),
+              })
+            }
+            label={LABELS.planned}
+          />
+          <label>
+            {LABELS.livedAiVisibility}
+            <select
+              value={item.aiVisibility}
+              onChange={(event) =>
+                onChange({
+                  ...profile,
+                  knowledge: profile.knowledge.map((row) =>
+                    row.id === item.id ? { ...row, aiVisibility: event.target.value as KnowledgeItem["aiVisibility"] } : row,
+                  ),
+                })
+              }
+            >
+              {AI_VISIBILITY.map((value) => (
+                <option key={value} value={value}>
+                  {value}
+                </option>
+              ))}
+            </select>
+          </label>
+          <Choice
+            label={LABELS.knowledgeFrom}
+            value={item.fromStoryEventId}
+            choices={catalog.events}
+            onChange={(fromStoryEventId) =>
+              onChange({
+                ...profile,
+                knowledge: profile.knowledge.map((row) => (row.id === item.id ? { ...row, fromStoryEventId } : row)),
+              })
+            }
+          />
+          <Choice
+            label={LABELS.knowledgeUntil}
+            value={item.untilStoryEventId}
+            choices={catalog.events}
+            onChange={(untilStoryEventId) =>
+              onChange({
+                ...profile,
+                knowledge: profile.knowledge.map((row) => (row.id === item.id ? { ...row, untilStoryEventId } : row)),
+              })
+            }
+          />
+          <Choice
+            label={LABELS.scene}
+            value={item.sceneRecordId}
+            choices={catalog.scenes}
+            onChange={(sceneRecordId) =>
+              onChange({
+                ...profile,
+                knowledge: profile.knowledge.map((row) => (row.id === item.id ? { ...row, sceneRecordId } : row)),
+              })
+            }
+          />
+          <Choice
+            label={LABELS.knowledgeFact}
+            value={item.establishedFactId}
+            choices={catalog.facts}
+            onChange={(establishedFactId) =>
+              onChange({
+                ...profile,
+                knowledge: profile.knowledge.map((row) => (row.id === item.id ? { ...row, establishedFactId } : row)),
+              })
+            }
+          />
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => onChange({ ...profile, knowledge: profile.knowledge.filter((row) => row.id !== item.id) })}
+          >
+            Remove
+          </Button>
+        </div>
+      ))}
+      <Button type="button" variant="secondary" onClick={() => onChange({ ...profile, knowledge: [...profile.knowledge, blank()] })}>
+        {LABELS.addKnowledge}
+      </Button>
     </div>
   );
 }
@@ -1125,9 +1775,45 @@ function HistoryFields({
         <textarea rows={2} value={bookState?.openingNote ?? ""} onChange={(event) => patchState({ openingNote: event.target.value })} />
       </label>
       <label>
+        {LABELS.openingApproval}
+        <select
+          value={bookState?.openingApproval ?? "draft"}
+          onChange={(event) => patchState({ openingApproval: event.target.value as NonNullable<typeof bookState>["openingApproval"] })}
+        >
+          {AUTHORITY_STATUSES.map((status) => (
+            <option key={status} value={status}>
+              {status}
+            </option>
+          ))}
+        </select>
+      </label>
+      <FacetList
+        legend={LABELS.openingFacets}
+        facets={bookState?.opening ?? []}
+        onChange={(opening) => patchState({ opening })}
+      />
+      <label>
         {LABELS.closing}
         <textarea rows={2} value={bookState?.closingNote ?? ""} onChange={(event) => patchState({ closingNote: event.target.value })} />
       </label>
+      <label>
+        {LABELS.closingApproval}
+        <select
+          value={bookState?.closingApproval ?? "draft"}
+          onChange={(event) => patchState({ closingApproval: event.target.value as NonNullable<typeof bookState>["closingApproval"] })}
+        >
+          {AUTHORITY_STATUSES.map((status) => (
+            <option key={status} value={status}>
+              {status}
+            </option>
+          ))}
+        </select>
+      </label>
+      <FacetList
+        legend={LABELS.closingFacets}
+        facets={bookState?.closing ?? []}
+        onChange={(closing) => patchState({ closing })}
+      />
       <fieldset className="stack">
         <legend>State changes</legend>
         {profile.stateChanges.map((change) => (
@@ -1226,6 +1912,74 @@ function HistoryFields({
   );
 }
 
+function FacetList({
+  legend,
+  facets,
+  onChange,
+}: {
+  legend: string;
+  facets: FacetValue[];
+  onChange: (next: FacetValue[]) => void;
+}) {
+  return (
+    <fieldset className="stack">
+      <legend>{legend}</legend>
+      {facets.map((facet, index) => (
+        <div key={`${facet.facet}-${index}`} className="stack">
+          <label>
+            {LABELS.stateFacet}
+            <select
+              value={facet.facet}
+              onChange={(event) =>
+                onChange(facets.map((item, i) => (i === index ? { ...item, facet: event.target.value as StateFacet } : item)))
+              }
+            >
+              {STATE_FACETS.map((name) => (
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <Checkbox
+            className="small"
+            checked={facet.presence === "unknown"}
+            onChange={(event) =>
+              onChange(
+                facets.map((item, i) =>
+                  i === index
+                    ? { ...item, presence: event.target.checked ? "unknown" : "set", text: event.target.checked ? "" : item.text }
+                    : item,
+                ),
+              )
+            }
+            label={LABELS.explicitUnknown}
+          />
+          {facet.presence === "set" ? (
+            <label>
+              {LABELS.stateValue}
+              <input
+                value={facet.text}
+                onChange={(event) => onChange(facets.map((item, i) => (i === index ? { ...item, text: event.target.value } : item)))}
+              />
+            </label>
+          ) : null}
+          <Button type="button" variant="secondary" onClick={() => onChange(facets.filter((_, i) => i !== index))}>
+            Remove
+          </Button>
+        </div>
+      ))}
+      <Button
+        type="button"
+        variant="secondary"
+        onClick={() => onChange([...facets, { facet: "belief", presence: "set", text: "" }])}
+      >
+        {LABELS.addFacet}
+      </Button>
+    </fieldset>
+  );
+}
+
 function StateRow({
   change,
   catalog,
@@ -1272,7 +2026,19 @@ function StateRow({
           ))}
         </select>
       </label>
+      <Choice
+        label={LABELS.stateBook}
+        value={change.bookProjectId}
+        choices={catalog.books}
+        onChange={(bookProjectId) => onChange({ ...change, bookProjectId })}
+      />
       <Choice label="Timeline event" value={change.storyEventId} choices={catalog.events} onChange={(storyEventId) => onChange({ ...change, storyEventId })} />
+      <Choice
+        label={LABELS.scene}
+        value={change.sceneRecordId}
+        choices={catalog.scenes}
+        onChange={(sceneRecordId) => onChange({ ...change, sceneRecordId })}
+      />
       <label>
         Sequence
         <input

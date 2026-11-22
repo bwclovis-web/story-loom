@@ -6,6 +6,7 @@ import { IssueList } from "@/components/IssueList";
 import { Banner } from "@/components/ui/Banner";
 import { Button } from "@/components/ui/Button";
 import { Checkbox } from "@/components/ui/Checkbox";
+import { RadioGroup } from "@/components/ui/RadioGroup";
 import { FileInput } from "@/components/ui/FileInput";
 import type { DiffPart } from "@/changePackage/diff";
 import type { DocxReviewOutcome, DocxReviewPreview } from "@/server/services/docxReviewService";
@@ -47,8 +48,10 @@ export function DocxReviewClient({ projectId }: { projectId: string }) {
   const [base64, setBase64] = useState("");
   const [preview, setPreview] = useState<DocxReviewPreview | null>(null);
   const [selected, setSelected] = useState<Record<number, boolean>>({});
+  const [applyMode, setApplyMode] = useState<"full" | "comments_only">("full");
   const [importComments, setImportComments] = useState(true);
   const [confirmProtected, setConfirmProtected] = useState(false);
+  const commentsOnly = applyMode === "comments_only";
   const [outcome, setOutcome] = useState<DocxReviewOutcome | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -67,6 +70,7 @@ export function DocxReviewClient({ projectId }: { projectId: string }) {
         setBase64(b64);
         const p = await previewDocxReviewAction(projectId, file.name, b64);
         setPreview(p);
+        setApplyMode("full");
         const next: Record<number, boolean> = {};
         for (const c of p.chapters) next[c.index] = c.selected;
         setSelected(next);
@@ -81,8 +85,23 @@ export function DocxReviewClient({ projectId }: { projectId: string }) {
     .filter(([, on]) => on)
     .map(([k]) => Number(k));
 
+  const setSelectionForMode = (p: DocxReviewPreview, mode: "full" | "comments_only") => {
+    const next: Record<number, boolean> = {};
+    for (const c of p.chapters) {
+      next[c.index] =
+        mode === "comments_only" ? Boolean(c.recordId && c.comments.length) : c.selected;
+    }
+    setSelected(next);
+  };
+
   const protectedSelected =
-    preview?.chapters.filter((c) => selected[c.index] && c.protected && c.hasBodyChange).length ?? 0;
+    commentsOnly ? 0 : (preview?.chapters.filter((c) => selected[c.index] && c.protected && c.hasBodyChange).length ?? 0);
+
+  const chapterSelectable = (c: DocxReviewPreview["chapters"][number]) => {
+    if (!c.recordId) return false;
+    if (commentsOnly) return c.comments.length > 0;
+    return c.hasBodyChange || (importComments && c.comments.length > 0);
+  };
 
   const run = () =>
     startTransition(async () => {
@@ -90,7 +109,8 @@ export function DocxReviewClient({ projectId }: { projectId: string }) {
         filename,
         base64,
         acceptIndexes,
-        importComments,
+        importComments: commentsOnly || importComments,
+        commentsOnly,
         confirmProtected,
       });
       setOutcome(result);
@@ -135,14 +155,15 @@ export function DocxReviewClient({ projectId }: { projectId: string }) {
 
       {preview ? (
         <>
-          {preview.hasTrackedChanges ? <Banner tone="warn">{DOCX_REVIEW.trackedHint}</Banner> : null}
+          {preview.hasTrackedChanges && !commentsOnly ? <Banner tone="warn">{DOCX_REVIEW.trackedHint}</Banner> : null}
+          {commentsOnly ? <Banner tone="info">{DOCX_REVIEW.applyModeCommentsHint}</Banner> : null}
           <ol className="chapter-import-list">
             {preview.chapters.map((c) => (
               <li key={c.index} className="panel stack">
                 <div className="row">
                   <Checkbox
                     checked={Boolean(selected[c.index])}
-                    disabled={!c.recordId || (!c.hasBodyChange && !(importComments && c.comments.length))}
+                    disabled={!chapterSelectable(c)}
                     onChange={(e) => setSelected((s) => ({ ...s, [c.index]: e.target.checked }))}
                     label={<strong>{c.title}</strong>}
                   />
@@ -152,7 +173,7 @@ export function DocxReviewClient({ projectId }: { projectId: string }) {
                       : DOCX_REVIEW.unmatched}
                   </span>
                 </div>
-                {c.hasBodyChange ? (
+                {commentsOnly ? null : c.hasBodyChange ? (
                   <details open>
                     <summary className="small">{DOCX_REVIEW.diffHeading}</summary>
                     <DiffView parts={c.bodyDiff} />
@@ -181,7 +202,23 @@ export function DocxReviewClient({ projectId }: { projectId: string }) {
             </Banner>
           ) : null}
           <div className="panel stack">
-            <Checkbox checked={importComments} onChange={(e) => setImportComments(e.target.checked)} label={DOCX_REVIEW.importComments} />
+            <RadioGroup
+              legend={DOCX_REVIEW.applyModeLegend}
+              name="docx-review-apply-mode"
+              value={applyMode}
+              onValueChange={(value) => {
+                const mode = value === "comments_only" ? "comments_only" : "full";
+                setApplyMode(mode);
+                if (preview) setSelectionForMode(preview, mode);
+              }}
+              options={[
+                { value: "full", label: DOCX_REVIEW.applyModeFull },
+                { value: "comments_only", label: DOCX_REVIEW.applyModeCommentsOnly },
+              ]}
+            />
+            {!commentsOnly ? (
+              <Checkbox checked={importComments} onChange={(e) => setImportComments(e.target.checked)} label={DOCX_REVIEW.importComments} />
+            ) : null}
             {protectedSelected > 0 ? (
               <Checkbox
                 checked={confirmProtected}
@@ -191,7 +228,7 @@ export function DocxReviewClient({ projectId }: { projectId: string }) {
             ) : null}
             <IssueList issues={outcome?.status === "rejected" ? outcome.issues : []} />
             <Button onClick={run} disabled={pending || acceptIndexes.length === 0}>
-              {DOCX_REVIEW.apply(acceptIndexes.length)}
+              {commentsOnly ? DOCX_REVIEW.applyCommentsOnly(acceptIndexes.length) : DOCX_REVIEW.apply(acceptIndexes.length)}
             </Button>
           </div>
         </>

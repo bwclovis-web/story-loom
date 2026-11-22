@@ -11,7 +11,7 @@ import {
 import { KIND_TEMPLATE, REFERENCE_FORM, WORLD_KIND } from "@/ui/labels";
 import { parseKindTemplateFields, type KindTemplateField, type KindTemplateView } from "@/world/kindTemplates";
 import { fieldDraftText, otherSavedEntries, parseFieldDraft, valueShape } from "@/world/fieldDraft";
-import { REFERENCE_TEMPLATES } from "@/world/referenceTemplates";
+import { isWorldKindKey, WORLD_KIND_KEYS, referenceTemplate } from "@/world/referenceTemplates";
 import {
   applyWorldKindToFields,
   formatWorldKindFieldValue,
@@ -20,7 +20,6 @@ import {
   worldbuildingKindFromFields,
   worldKindEditorMode,
 } from "@/world/worldKinds";
-import { isReferenceTemplateKey } from "@/world/referenceTemplates";
 
 function restoreKeptValues(before: JsonObject, after: JsonObject): JsonObject {
   const next = { ...after };
@@ -106,7 +105,7 @@ export function WorldKindFields({
     if (!parsed) return;
     const applied = applyWorldKindToFields(parsed, nextKind, values);
     const next = restoreKeptValues(parsed, applied);
-    if (nextKind !== "" && nextKind !== WORLD_KIND_CUSTOM_UI && !isReferenceTemplateKey(nextKind)) {
+    if (nextKind !== "" && nextKind !== WORLD_KIND_CUSTOM_UI && !isWorldKindKey(nextKind)) {
       for (const spec of specsForValues) {
         const value = (values[spec.key] ?? "").trim();
         if (value) next[spec.key] = value;
@@ -156,9 +155,9 @@ export function WorldKindFields({
               }}
             >
               <option value="">{WORLD_KIND.kindNone}</option>
-              {REFERENCE_TEMPLATES.map((template) => (
-                <option key={template.key} value={template.key}>
-                  {template.label}
+              {WORLD_KIND_KEYS.map((key) => (
+                <option key={key} value={key}>
+                  {referenceTemplate(key).label}
                 </option>
               ))}
               <option value={WORLD_KIND_CUSTOM_UI}>{WORLD_KIND.kindCustomOption}</option>

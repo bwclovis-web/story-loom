@@ -34,10 +34,18 @@ export async function GET(request: Request, { params }: { params: Promise<{ proj
     if (hasDrafts && !draftId) {
       return new Response("Choose a manuscript draft for the DOCX.", { status: 400 });
     }
+    const beta = query.get("beta") === "1";
     const file = await buildManuscriptDocx(db, projectId, {
       sceneTitles: query.get("sceneTitles") === "1",
       hasDrafts,
       draftId,
+      betaReader: beta
+        ? {
+            lineNumbers: query.get("lineNumbers") === "1",
+            glossaryAppendix: query.get("glossary") === "1",
+            watermark: query.get("watermark")?.trim() || undefined,
+          }
+        : undefined,
     });
     return new Response(new Uint8Array(file.bytes), {
       headers: {

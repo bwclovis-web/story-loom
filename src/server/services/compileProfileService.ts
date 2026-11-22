@@ -10,6 +10,7 @@ import {
   type SpacingPreset,
   type TrimSize,
 } from "@/writing/compileLayout";
+import { parseBookTheme, type BookThemeKey } from "@/writing/bookThemes";
 import type { Db, DbOrTx } from "../db";
 import { writeAudit } from "./auditService";
 import { MutationRejectedError, NotFoundError } from "./errors";
@@ -37,6 +38,7 @@ export interface CompileProfileView {
   runningHeader: string;
   runningFooter: string;
   fontPreset: FontPreset;
+  bookTheme: BookThemeKey | null;
   spacingPreset: SpacingPreset;
   firstParagraphNoIndent: boolean;
   dropCap: boolean;
@@ -61,6 +63,7 @@ export const DEFAULT_COMPILE_PROFILE: Omit<CompileProfileView, "projectId"> = {
   runningHeader: "",
   runningFooter: "",
   fontPreset: "serif",
+  bookTheme: null,
   spacingPreset: "novel",
   firstParagraphNoIndent: true,
   dropCap: false,
@@ -110,6 +113,7 @@ function toView(row: {
   runningHeader: string;
   runningFooter: string;
   fontPreset: string;
+  bookTheme?: string | null;
   spacingPreset: string;
   firstParagraphNoIndent: boolean;
   dropCap: boolean;
@@ -135,6 +139,7 @@ function toView(row: {
     runningHeader: row.runningHeader.slice(0, 120),
     runningFooter: row.runningFooter.slice(0, 120),
     fontPreset: parseFontPreset(row.fontPreset),
+    bookTheme: parseBookTheme(row.bookTheme),
     spacingPreset: parseSpacingPreset(row.spacingPreset),
     firstParagraphNoIndent: row.firstParagraphNoIndent,
     dropCap: row.dropCap,
@@ -169,6 +174,7 @@ export interface CompileProfileInput {
   runningHeader?: string;
   runningFooter?: string;
   fontPreset?: string;
+  bookTheme?: string | null;
   spacingPreset?: string;
   firstParagraphNoIndent?: boolean;
   dropCap?: boolean;
@@ -192,6 +198,7 @@ export async function upsertCompileProfile(db: Db, projectId: string, input: Com
     runningHeader: (input.runningHeader ?? "").trim().slice(0, 120),
     runningFooter: (input.runningFooter ?? "").trim().slice(0, 120),
     fontPreset: parseFontPreset(input.fontPreset ?? DEFAULT_COMPILE_PROFILE.fontPreset),
+    bookTheme: parseBookTheme(input.bookTheme ?? null),
     spacingPreset: parseSpacingPreset(input.spacingPreset ?? DEFAULT_COMPILE_PROFILE.spacingPreset),
     firstParagraphNoIndent: input.firstParagraphNoIndent !== false,
     dropCap: input.dropCap === true,

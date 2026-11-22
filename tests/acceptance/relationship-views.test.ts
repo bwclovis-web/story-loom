@@ -2,7 +2,13 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { addPlaceRelation } from "@/server/services/placeRelationService";
 import { addRecordRelation } from "@/server/services/recordRelationService";
 import { createRecord, getRecord, updateRecord } from "@/server/services/recordService";
-import { loadProjectRelationshipGraph } from "@/server/services/relationshipGraphService";
+import { linkReference } from "@/server/services/linkService";
+import {
+  buildMentionEdges,
+  loadProjectAllConnectionsGraph,
+  loadProjectRelationshipGraph,
+} from "@/server/services/relationshipGraphService";
+import { loadCrossRefIndex } from "@/server/services/crossRefService";
 import { addRecordImages, recordImagePublicPath, setRecordImagePrimary } from "@/server/services/imageService";
 import { buildGeographyForest, subgraphByHops, DEFAULT_GRAPH_KINDS } from "@/world/relationshipGraph";
 import { createTestDb, IDS, seedProject, type TestDb } from "../helpers";
@@ -58,6 +64,23 @@ describe("relationship views data", () => {
     const geo = buildGeographyForest(graph.nodes, graph.edges);
     const river = geo.find((t) => t.id === "rec_test_river");
     expect(river?.children[0]?.id).toBe("rec_test_quay");
+  });
+
+  it("loads all-connections edges for links and manuscript names", async () => {
+    const chapter = await getRecord(t.db, IDS.project, IDS.chapter);
+    await updateRecord(t.db, IDS.project, {
+      recordId: IDS.chapter,
+      expectedRevision: chapter.currentRevision,
+      body: `${chapter.body}\n\nAldric met the guild at the quay.`,
+      unlockProtected: true,
+    });
+    await linkReference(t.db, IDS.project, IDS.chapter, IDS.world);
+    const all = await loadProjectAllConnectionsGraph(t.db, IDS.project);
+    expect(all.edges.some((e) => e.family === "link")).toBe(true);
+    const index = await loadCrossRefIndex(t.db, IDS.project);
+    const mentions = buildMentionEdges(index);
+    expect(mentions.some((e) => e.kind === "named_in")).toBe(true);
+    expect(all.edges.length).toBeGreaterThan(2);
   });
 
   it("attaches profile image URLs to graph nodes when set", async () => {
