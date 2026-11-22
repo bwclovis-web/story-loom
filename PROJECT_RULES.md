@@ -48,7 +48,11 @@ rewritten automatically, so do not put project rules inside it.
   manuscript scope, protected drafts, an explicit create / replace / skip
   (or accept) for every match, a confirmation for replacing protected
   chapters, all or nothing. These paths never create scene records; scene
-  breaks stay as `***` / headings inside chapter text. Research from
+  breaks stay as `***` / headings inside chapter text. When the project
+  already has a Zero draft and an Author manuscript, each new chapter is
+  placed on the Zero draft and a blank Author manuscript page is created
+  and pinned to that chapter's revision. The imported text is not copied
+  onto the rewrite page. Research from
   Scrivener becomes reference records through the Markdown import path.
   "Load text from file" on a chapter or scene only fills the editor's text
   box, and saving goes through the normal record save (protection tick
@@ -64,7 +68,9 @@ rewritten automatically, so do not put project rules inside it.
   computed from saved text on read (`src/writing/crossRefs.ts`). Never store
   them or edit text because of them. Document keys ignore version, date,
   status words and number prefixes only to suggest a duplicate on import;
-  the author still chooses create, replace or skip.
+  the author still chooses create, replace or skip. The Continuity Ledger
+  (`continuityService`) is read-only on load; Mark intentional / Ignore only
+  writes `ContinuitySuppression` rows (audited) and never edits prose or canon.
 - Scenes belong to a chapter; scene notes belong to a chapter or scene
   (`Record.parentRecordId`, set at creation, same project). Only the author
   creates them in the app; imports and change packages cannot.

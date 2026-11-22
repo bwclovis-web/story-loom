@@ -339,6 +339,160 @@ export async function startAuthorRewrite(db: Db, projectId: string): Promise<Sta
   });
 }
 
+/** Where an imported chapter's text belongs, and whether a blank rewrite page is needed. */
+export interface ManuscriptDraftPlacement {
+  /** Draft that holds the chapter text. Null when the project has no drafts. */
+  textDraftId: string | null;
+  /** Author manuscript that receives a blank page. Set only when both drafts exist. */
+  authorDraftId: string | null;
+}
+
+export async function manuscriptDraftPlacement(db: DbOrTx, projectId: string): Promise<ManuscriptDraftPlacement> {
+  const drafts = await db.manuscriptDraft.findMany({
+    where: { projectId },
+    select: { id: true, kind: true },
+  });
+  const zero = drafts.find((d) => d.kind === "zero_draft");
+  const author = drafts.find((d) => d.kind === "author_manuscript");
+  if (zero && author) return { textDraftId: zero.id, authorDraftId: author.id };
+  if (zero) return { textDraftId: zero.id, authorDraftId: null };
+  if (author) return { textDraftId: author.id, authorDraftId: null };
+  return { textDraftId: null, authorDraftId: null };
+}
+
+/**
+ * Blank Author manuscript page pinned to one Zero draft chapter.
+ * Idempotent when a live rewrite page already pins that chapter.
+ */
+export async function addBlankRewritePageInTx(
+  tx: Tx,
+  projectId: string,
+  source: { id: string; title: string; currentRevision: number },
+  authorDraftId: string,
+): Promise<{ recordId: string; created: boolean }> {
+  const existing = await tx.rewriteSourceLink.findFirst({
+    where: {
+      projectId,
+      toRecordId: source.id,
+      from: { trashedAt: null, draftId: authorDraftId, type: "manuscript_chapter" },
+    },
+    select: { fromRecordId: true },
+  });
+  if (existing) return { recordId: existing.fromRecordId, created: false };
+
+  const recordId = newId("rec");
+  await applyMutationsInTx(
+    tx,
+    uiContext(projectId),
+    [
+      {
+        kind: "create_record",
+        recordId,
+        type: "manuscript_chapter",
+        title: source.title,
+        body: "",
+        fields: {},
+        authorityStatus: "draft",
+        draftId: authorDraftId,
+      },
+    ],
+    {
+      action: "draft.rewrite_page",
+      summary: `Added a blank Author manuscript page for "${source.title}"`,
+    },
+  );
+  await tx.rewriteSourceLink.create({
+    data: {
+      id: newId("rsl"),
+      projectId,
+      fromRecordId: recordId,
+      toRecordId: source.id,
+      toRevisionNumber: source.currentRevision,
+      position: 0,
+    },
+  });
+  return { recordId, created: true };
+}
+
+/**
+ * Manuscript chapters imported before draft assignment existed have a null
+ * draft id, so neither the Zero draft nor the Author manuscript lists them.
+ * Place that text on the Zero draft (or the only draft) and, when a rewrite
+ * already exists, add the blank Author manuscript page.
+ */
+export async function adoptUnassignedManuscript(
+  db: Db,
+  projectId: string,
+): Promise<{ assigned: number; rewritePages: number }> {
+  const placement = await manuscriptDraftPlacement(db, projectId);
+  if (!placement.textDraftId) return { assigned: 0, rewritePages: 0 };
+  const pending = await db.record.count({
+    where: { projectId, draftId: null, trashedAt: null, type: { in: [...MANUSCRIPT_TYPES] } },
+  });
+  if (pending === 0) return { assigned: 0, rewritePages: 0 };
+
+  return db.$transaction(async (tx) => {
+    const live = await manuscriptDraftPlacement(tx, projectId);
+    if (!live.textDraftId) return { assigned: 0, rewritePages: 0 };
+    const orphans = await tx.record.findMany({
+      where: { projectId, draftId: null, trashedAt: null, type: { in: [...MANUSCRIPT_TYPES] } },
+      select: { id: true, type: true, title: true, currentRevision: true, parentRecordId: true },
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+    });
+    const assignedIds: string[] = [];
+    const rewriteIds: string[] = [];
+    for (const row of orphans) {
+      if (row.type !== "manuscript_chapter") continue;
+      const updated = await tx.record.updateMany({
+        where: { id: row.id, projectId, draftId: null, trashedAt: null },
+        data: { draftId: live.textDraftId },
+      });
+      if (updated.count !== 1) continue;
+      assignedIds.push(row.id);
+      if (live.authorDraftId && live.textDraftId !== live.authorDraftId) {
+        const page = await addBlankRewritePageInTx(
+          tx,
+          projectId,
+          { id: row.id, title: row.title, currentRevision: row.currentRevision },
+          live.authorDraftId,
+        );
+        if (page.created) rewriteIds.push(page.recordId);
+      }
+    }
+    for (const row of orphans) {
+      if (row.type !== "manuscript_scene" || !row.parentRecordId) continue;
+      const parent = await tx.record.findFirst({
+        where: { id: row.parentRecordId, projectId, trashedAt: null },
+        select: { draftId: true },
+      });
+      if (!parent || parent.draftId !== live.textDraftId) continue;
+      const updated = await tx.record.updateMany({
+        where: { id: row.id, projectId, draftId: null, trashedAt: null },
+        data: { draftId: live.textDraftId },
+      });
+      if (updated.count === 1) assignedIds.push(row.id);
+    }
+    if (assignedIds.length > 0) {
+      await writeAudit(tx, {
+        projectId,
+        action: "draft.adopt_unassigned",
+        actor: UI_ACTOR,
+        summary:
+          rewriteIds.length > 0
+            ? `Placed ${assignedIds.length} unassigned manuscript ${assignedIds.length === 1 ? "page" : "pages"} on the Zero draft and added ${rewriteIds.length} blank Author manuscript ${rewriteIds.length === 1 ? "page" : "pages"}`
+            : `Placed ${assignedIds.length} unassigned manuscript ${assignedIds.length === 1 ? "page" : "pages"} on the current draft`,
+        details: {
+          recordIds: assignedIds,
+          rewriteRecordIds: rewriteIds,
+          textDraftId: live.textDraftId,
+          authorDraftId: live.authorDraftId,
+        },
+      });
+    }
+    return { assigned: assignedIds.length, rewritePages: rewriteIds.length };
+  });
+}
+
 export async function setDraftCompletion(
   db: Db,
   projectId: string,

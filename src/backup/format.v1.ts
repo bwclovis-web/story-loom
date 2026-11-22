@@ -380,6 +380,22 @@ export const workspaceBackupV1Schema = z
           .strict(),
       )
       .optional(),
+  /** Continuity Ledger suppressions (intentional / ignored). Omitted in older backups → none. */
+    continuitySuppressions: z
+      .array(
+        z
+          .object({
+            id,
+            projectId: id,
+            issueKey: z.string().min(1).max(500),
+            reason: z.enum(["intentional", "ignored"]),
+            note: z.string().max(2000).optional(),
+            actor: z.string().min(1).max(120).optional(),
+            createdAt: timestamp,
+          })
+          .strict(),
+      )
+      .optional(),
   /** Synopsis cards and margin comments; omitted in older backups → none. */
     manuscriptAnnotations: z
       .array(
@@ -1014,6 +1030,7 @@ export const workspaceBackupV1Schema = z
         manuscriptAnnotations: z.number().int().optional(),
         compileProfiles: z.number().int().optional(),
         worldKindTemplates: z.number().int().optional(),
+        continuitySuppressions: z.number().int().optional(),
         boards: z.number().int().optional(),
         boardCards: z.number().int().optional(),
         worldMaps: z.number().int().optional(),

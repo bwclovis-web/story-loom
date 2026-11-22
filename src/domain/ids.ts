@@ -56,7 +56,8 @@ export type IdPrefix =
   | "evo" // story event order constraint
   | "eve" // story event evidence
   | "pas" // project assistant settings
-  | "car"; // chapter analysis run
+  | "car" // chapter analysis run
+  | "csp"; // continuity suppression (ledger ignore / intentional)
 
 export function newId(prefix: IdPrefix): string {
   return `${prefix}_${ulid()}`;

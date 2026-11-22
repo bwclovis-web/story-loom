@@ -1,5 +1,42 @@
 # Progress
 
+## Board canvas interaction (Nov 22, 2026)
+
+Select chooses a card. Pan scrolls the board. A card moves only from its handle after the pointer passes the drag threshold, and only while Lock layout is off. Lock stops moving and resizing and still allows selection, inspection, opening a reference, and note editing. Escape during a move puts the card back before it is saved. Center selection and Center all cards scroll to the middle; they do not zoom. Canvas and List share the cards, filter, and selection. The count says when a filter is hiding cards. Unsaved note text stays across selection changes, view switches, and refreshes. Ask about this board stays an explicit action. Moving a card does not change the reference, and a board note is not turned into one.
+
+| Check | Result |
+| --- | --- |
+| `pnpm exec vitest run tests/unit/board-interaction.test.ts tests/unit/help.test.ts` | 2 files, 8 tests passed |
+| Browser | Character board (0 cards): Lock layout pressed and announced; List hid the canvas, kept the lock, and disabled Select, Pan, and the center buttons. Demo Quay board (not saved): Notes filter read “1 of 3 cards” and “Filters are hiding 2 cards.” List kept that filter, then All kinds showed Inspect, Open record, and Edit note. Inspect opened the reference rail. No card was moved and no note was saved. |
+
+### Rollback
+
+Revert the board interaction helper, canvas pointer and list view, help, and labels. Card positions already saved stay on the board. No schema change.
+
+## Milestone 4: Continuity Ledger (Nov 22, 2026)
+
+World → Continuity Ledger is a read-only audit: unresolved / open questions, draft-in-canon and missing citations, timeline vs book order, conflicting constraints, Weave setups without a manuscript payoff, and stale evidence. Category and severity filters; Mark intentional / Ignore (audited `ContinuitySuppression`, optional in backups); deep links to records, events, and Weave. Write References rail shows findings for the open chapter or scene. Loading the ledger writes nothing.
+
+| Check | Result |
+| --- | --- |
+| `pnpm exec vitest run tests/acceptance/continuity-ledger.test.ts tests/unit/help.test.ts tests/acceptance/series-bible.test.ts` | 3 files, 9 tests passed |
+
+### Rollback
+
+Revert continuity service/UI, Write strip, migration `20261122090000_continuity_suppressions`, and backup optional `continuitySuppressions`. Drop the table only on an isolated copy if needed. Working DB: leave suppressions or delete rows; no manuscript data changes.
+
+## Imported chapters show under the Author manuscript (Nov 22, 2026)
+
+A chapter imported after an author rewrite had started was saved with no draft, so neither the Zero draft nor the Author manuscript listed it. New imports now put the file text on the Zero draft and add a blank Author manuscript page pinned to that chapter. Opening a project that already has drafts places any previously unassigned chapter the same way. The uploaded text stays on the Zero draft.
+
+| Check | Result |
+| --- | --- |
+| `pnpm exec vitest run tests/acceptance/chapter-import.test.ts tests/unit/help.test.ts` | 2 files, 14 tests passed |
+
+### Rollback
+
+Revert the import draft placement, the unassigned-chapter adopt on the project layout, and the help, label, and project-rule sentences. A chapter already moved onto the Zero draft, and its blank Author manuscript page, stay until the author moves or trashes them. No schema change.
+
 ## Milestone 3: DOCX / Scrivener import and editor Word review (Nov 22, 2026)
 
 Import chapters accepts Word `.docx` (Heading 1 → chapters; Heading 2 / `***` stay as scene breaks in the body). Scrivener zip import maps Draft → chapters and Research → research notes, with an unsupported-item report. Editor DOCX review matches exported chapter bookmarks, shows diffs, and applies through mutationService with protection confirmation; optional Word comments become margin comments. Manuscript DOCX export writes `sl_record_*` bookmarks for round-trip. Imports still never create scene records.
@@ -27,12 +64,12 @@ Revert autosave service/hook/action, WriteEditor focus nav and status wiring, se
 
 ## Map canvas interaction (Nov 22, 2026)
 
-Browse selects a marker and pans the background. It does not move markers. Edit opens on Select. Pin places one marker and returns to Select unless Keep placing pins is ticked. Route, area, and label keep an unsaved draft with a live preview and vertex handles. Enter or Finish ends a valid drawing without writing. Escape or Cancel drops it and leaves saved geometry as it was. Save route, Save area, and Save label are the writes. A refused save keeps the draft. A click that does not pass the drag threshold does not write a move. Layers show a hidden state, visible and total counts, and Show all layers when some markers are hidden. The marker list distinguishes an empty map, a search miss, and markers hidden by layers. Fit map resets the view. Center selection pans the current zoom so the selected marker sits in the middle. Viewport, custom layers, and map trails stay as they were.
+Browse selects a marker and pans the background. It does not move markers. Edit opens on Select. Pin places one marker and returns to Select unless Keep placing pins is ticked. Route, area, and label keep an unsaved draft with a live preview and vertex handles. Enter or Finish ends a valid drawing without writing. Escape or Cancel drops it and leaves saved geometry as it was. Save route, Save area, and Save label are the writes. A refused save keeps the draft. A click that does not pass the drag threshold does not write a move. Layers show a hidden state, visible and total counts, and Show all layers when some markers are hidden. The marker list distinguishes an empty map, a search miss, and markers hidden by layers. Fit map resets the view. Center selection pans the current zoom so the selected marker sits in the middle. Viewport, custom layers, and map trails stay as they were. Marker dots and route points stay circles: the shared button minimum height was stretching the point handles into ovals.
 
 | Check | Result |
 | --- | --- |
 | `pnpm exec vitest run tests/unit/map-interaction.test.ts tests/unit/map-keyboard.test.ts tests/unit/help.test.ts` | 3 files, 12 tests passed |
-| Browser | The Devil You Know, Aldemar, nothing saved. Browse stays on the shared header and project navigation. Edit opens on Select. Route shows Finish and Save route, both disabled until the drawing is valid, and Cancel returns to Select. Pin shows Keep placing pins, unticked, and Add marker stays disabled. Center selection stays disabled with no marker. This map has no markers, so a drag was not exercised on the author’s map. |
+| Browser | The Devil You Know, Aldemar, nothing saved. Browse stays on the shared header and project navigation. Edit opens on Select. Route shows Finish and Save route, both disabled until the drawing is valid, and Cancel returns to Select. Pin shows Keep placing pins, unticked, and Add marker stays disabled. Center selection stays disabled with no marker. This map has no markers, so a drag was not exercised on the author’s map. A later unsaved route point measured 13.6×13.6 px and was cancelled; Browse was restored. |
 
 ### Rollback
 

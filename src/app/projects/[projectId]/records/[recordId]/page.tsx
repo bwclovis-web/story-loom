@@ -53,6 +53,7 @@ import { loadCrossRefIndex } from "@/server/services/crossRefService";
 import { listMentionedBy } from "@/server/services/mentionedByService";
 import { buildWritingProgress } from "@/server/services/writingProgressService";
 import { getSynopsis, listMarginComments } from "@/server/services/manuscriptAnnotationService";
+import { listContinuityLedger } from "@/server/services/continuityService";
 import { listWeaveBeatsForManuscript } from "@/server/services/weaveService";
 import { manuscriptEyebrow } from "@/ui/library";
 import { RECORD, SHELL, WRITE, XREF } from "@/ui/labels";
@@ -153,7 +154,7 @@ export default async function RecordPage({
               ),
             )
           ).flat();
-    const [notes, linked, sceneLocations, choices, sources, attachableSources, pins, plotBeats, synopsis, marginComments, codexEntries] =
+    const [notes, linked, sceneLocations, choices, sources, attachableSources, pins, plotBeats, synopsis, marginComments, codexEntries, continuityFindings] =
       await Promise.all([
       listNotes(db, projectId, record.id),
       listLinkedReferences(db, projectId, record.id),
@@ -166,6 +167,7 @@ export default async function RecordPage({
       getSynopsis(db, projectId, record.id),
       listMarginComments(db, projectId, record.id),
       listCodexEntries(db, projectId),
+      listContinuityLedger(db, projectId, { recordId: record.id }),
     ]);
     const chapterProgress =
       record.type === "manuscript_chapter"
@@ -246,6 +248,13 @@ export default async function RecordPage({
           threadTitle: b.threadTitle,
           gridId: b.gridId,
           gridTitle: b.gridTitle,
+        }))}
+        continuityFindings={continuityFindings.map((c) => ({
+          key: c.key,
+          title: c.title,
+          detail: c.detail,
+          href: c.href,
+          severity: c.severity,
         }))}
         manuscriptSplitOptions={manuscriptSplitOptions}
         preferredSplitIds={sources.map((s) => s.toRecordId)}

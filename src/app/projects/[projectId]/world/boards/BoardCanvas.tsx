@@ -14,9 +14,10 @@ import {
 } from "react";
 import { IssueList } from "@/components/IssueList";
 import { BoardOverflowMenu } from "@/components/ui/BoardOverflowMenu";
-import { Button } from "@/components/ui/Button";
+import { Button, ButtonLink } from "@/components/ui/Button";
 import { CanvasToolbar, CanvasToolbarGroup } from "@/components/ui/CanvasToolbar";
 import { IconButton } from "@/components/ui/IconButton";
+import { SegmentedControl, SegmentedOption } from "@/components/ui/SegmentedControl";
 import { ReferenceInspector } from "@/components/world/ReferenceInspector";
 import { ContextRail, ContextRailToggle, useContextRail } from "@/components/shell/ContextRail";
 import { CloseIcon } from "@/components/shell/icons";
@@ -24,6 +25,17 @@ import type { Issue } from "@/domain/issues";
 import type { BoardCardView, BoardView } from "@/server/services/boardService";
 import type { LoadedInspector } from "@/server/services/referenceInspectorService";
 import { WORLD, WRITE } from "@/ui/labels";
+import {
+  centerScroll,
+  dragExceeded,
+  gestureForBoardPointer,
+  mergeBoardCards,
+  rememberNoteDraft,
+  shouldWriteMove,
+  type BoardNoteDraft,
+  type BoardSurfaceView,
+  type BoardTool,
+} from "@/world/boardInteraction";
 import { inspectReferenceAction } from "../inspectorActions";
 import { AskAboutBoard } from "./AskAboutBoard";
 import {
@@ -81,34 +93,44 @@ export function BoardCanvas({
   const [title, setTitle] = useState(initial.title);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [noteEdit, setNoteEdit] = useState<{ title: string; body: string } | null>(null);
+  const [tool, setTool] = useState<BoardTool>("select");
+  const [view, setView] = useState<BoardSurfaceView>("canvas");
+  const [layoutLocked, setLayoutLocked] = useState(false);
   const surfaceRef = useRef<HTMLDivElement>(null);
+  const noteTitleRef = useRef<HTMLInputElement>(null);
+  const noteDraftsRef = useRef<Record<string, BoardNoteDraft>>({});
+  const cardsRef = useRef(initial.cards);
+  const toolRef = useRef(tool);
+  const lockedRef = useRef(layoutLocked);
+  toolRef.current = tool;
+  lockedRef.current = layoutLocked;
   const dragRef = useRef<{
     cardId: string;
     startX: number;
     startY: number;
     originX: number;
     originY: number;
+    x: number;
+    y: number;
+    exceeded: boolean;
+    cancelled: boolean;
   } | null>(null);
+  const panRef = useRef<{ startX: number; startY: number; left: number; top: number; moved: boolean } | null>(null);
+  const suppressClick = useRef(false);
 
   const [kindFilter, setKindFilter] = useState<"all" | "record" | "image" | "note">("all");
-  const dirtyNoteIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     setBoard(initial);
     setTitle(initial.title);
     setCards((prev) => {
-      const dirtyId = dirtyNoteIdRef.current;
-      if (!dirtyId) return initial.cards;
-      const local = prev.find((c) => c.id === dirtyId);
-      if (!local || local.kind !== "note") return initial.cards;
-      return initial.cards.map((c) =>
-        c.id === dirtyId && c.kind === "note"
-          ? { ...c, noteTitle: local.noteTitle, noteBody: local.noteBody, x: local.x, y: local.y }
-          : c,
-      );
+      const next = mergeBoardCards(initial.cards, prev, noteDraftsRef.current);
+      cardsRef.current = next;
+      return next;
     });
   }, [initial]);
 
+  cardsRef.current = cards;
   const selected = cards.find((c) => c.id === selectedId) ?? null;
 
   const visibleCards = useMemo(() => {
@@ -127,9 +149,13 @@ export function BoardCanvas({
     }
   }, [initialCardId, initial.cards]);
 
+  const selectedNoteId = selected?.kind === "note" ? selected.id : null;
+
   useEffect(() => {
-    if (selected?.kind === "note") {
-      setNoteEdit({ title: selected.noteTitle, body: selected.noteBody });
+    const current = selectedNoteId ? cardsRef.current.find((card) => card.id === selectedNoteId) : null;
+    if (current?.kind === "note") {
+      const draft = noteDraftsRef.current[current.id];
+      setNoteEdit(draft ?? { title: current.noteTitle, body: current.noteBody });
       setInspection(null);
       return;
     }
@@ -146,7 +172,7 @@ export function BoardCanvas({
     return () => {
       cancelled = true;
     };
-  }, [projectId, inspectRecordId, selected?.kind, selected?.noteTitle, selected?.noteBody]);
+  }, [projectId, inspectRecordId, selectedNoteId]);
 
   const selectCard = useCallback(
     (card: BoardCardView) => {
@@ -158,60 +184,174 @@ export function BoardCanvas({
 
   const fitRect = useCallback((targets: BoardCardView[]) => {
     const el = surfaceRef.current;
-    if (!el || !targets.length) return;
-    const minX = Math.min(...targets.map((c) => c.x));
-    const minY = Math.min(...targets.map((c) => c.y));
-    const maxX = Math.max(...targets.map((c) => c.x + c.width));
-    const maxY = Math.max(...targets.map((c) => c.y + c.height));
-    el.scrollTo({
-      left: Math.max(0, (minX + maxX) / 2 - el.clientWidth / 2),
-      top: Math.max(0, (minY + maxY) / 2 - el.clientHeight / 2),
-      behavior: "smooth",
-    });
+    if (!el) return;
+    const next = centerScroll(el, targets);
+    if (!next) return;
+    el.scrollTo({ left: next.left, top: next.top, behavior: "smooth" });
   }, []);
 
-  const onPointerDown = (e: ReactPointerEvent, card: BoardCardView) => {
-    if (e.button !== 0) return;
-    e.currentTarget.setPointerCapture(e.pointerId);
+  const restoreDrag = useCallback((drag: NonNullable<typeof dragRef.current>) => {
+    setCards((list) =>
+      list.map((card) => (card.id === drag.cardId ? { ...card, x: drag.originX, y: drag.originY } : card)),
+    );
+  }, []);
+
+  const cancelActiveMove = useCallback(() => {
+    const drag = dragRef.current;
+    if (!drag) return false;
+    drag.cancelled = true;
+    dragRef.current = null;
+    restoreDrag(drag);
+    return true;
+  }, [restoreDrag]);
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || event.metaKey || event.ctrlKey || event.altKey) return;
+      const target = event.target;
+      if (target instanceof Element && target.closest("input, textarea, select, [contenteditable='true']")) return;
+      if (!cancelActiveMove()) return;
+      event.preventDefault();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [cancelActiveMove]);
+
+  const onHandlePointerDown = (event: ReactPointerEvent, card: BoardCardView) => {
+    if (event.button !== 0) return;
+    event.stopPropagation();
+    selectCard(card);
+    const editingText = event.target instanceof Element && Boolean(event.target.closest("input, textarea, select, [contenteditable='true']"));
+    const gesture = gestureForBoardPointer({
+      tool: toolRef.current,
+      locked: lockedRef.current,
+      onHandle: true,
+      onCard: true,
+      editingText,
+      exceeded: false,
+    });
+    if (editingText || lockedRef.current || toolRef.current !== "select" || gesture === "pan") return;
+    event.currentTarget.setPointerCapture(event.pointerId);
     dragRef.current = {
       cardId: card.id,
-      startX: e.clientX,
-      startY: e.clientY,
+      startX: event.clientX,
+      startY: event.clientY,
       originX: card.x,
       originY: card.y,
+      x: card.x,
+      y: card.y,
+      exceeded: false,
+      cancelled: false,
     };
-    selectCard(card);
   };
 
-  const onPointerMove = (e: ReactPointerEvent) => {
+  const onHandlePointerMove = (event: ReactPointerEvent) => {
     const drag = dragRef.current;
-    if (!drag || drag.cardId !== e.currentTarget.getAttribute("data-card-id")) return;
-    const dx = e.clientX - drag.startX;
-    const dy = e.clientY - drag.startY;
-    const x = Math.max(0, Math.round(drag.originX + dx));
-    const y = Math.max(0, Math.round(drag.originY + dy));
-    setCards((list) => list.map((c) => (c.id === drag.cardId ? { ...c, x, y } : c)));
+    if (!drag || drag.cancelled || drag.cardId !== event.currentTarget.getAttribute("data-card-id")) return;
+    const dx = event.clientX - drag.startX;
+    const dy = event.clientY - drag.startY;
+    if (!drag.exceeded) {
+      if (!dragExceeded(dx, dy)) return;
+      drag.exceeded = true;
+    }
+    const gesture = gestureForBoardPointer({
+      tool: toolRef.current,
+      locked: lockedRef.current,
+      onHandle: true,
+      onCard: true,
+      editingText: false,
+      exceeded: true,
+    });
+    if (gesture !== "move") return;
+    drag.x = Math.max(0, Math.round(drag.originX + dx));
+    drag.y = Math.max(0, Math.round(drag.originY + dy));
+    setCards((list) => list.map((card) => (card.id === drag.cardId ? { ...card, x: drag.x, y: drag.y } : card)));
   };
 
-  const onPointerUp = (e: ReactPointerEvent) => {
+  const onHandlePointerUp = () => {
     const drag = dragRef.current;
     if (!drag) return;
     dragRef.current = null;
-    const card = cards.find((c) => c.id === drag.cardId);
-    if (!card) return;
-    const moved = card.x !== drag.originX || card.y !== drag.originY;
-    if (!moved) return;
+    if (!shouldWriteMove({ exceeded: drag.exceeded, cancelled: drag.cancelled, locked: lockedRef.current })) {
+      if (drag.exceeded) restoreDrag(drag);
+      return;
+    }
     startTransition(async () => {
-      const result = await moveBoardCardAction(projectId, board.id, card.id, { x: card.x, y: card.y });
+      const result = await moveBoardCardAction(projectId, board.id, drag.cardId, { x: drag.x, y: drag.y });
       if (!result.ok) {
         setIssues(result.issues);
-        setCards(initial.cards);
+        restoreDrag(drag);
         return;
       }
-      setCards((list) => list.map((c) => (c.id === result.card.id ? result.card : c)));
+      setIssues([]);
+      setCards((list) =>
+        list.map((card) =>
+          card.id === result.card.id
+            ? {
+                ...result.card,
+                noteTitle: noteDraftsRef.current[card.id]?.title ?? result.card.noteTitle,
+                noteBody: noteDraftsRef.current[card.id]?.body ?? result.card.noteBody,
+                label: noteDraftsRef.current[card.id]
+                  ? noteDraftsRef.current[card.id].title.trim() || "Note"
+                  : result.card.label,
+              }
+            : card,
+        ),
+      );
       router.refresh();
     });
   };
+
+  const onSurfacePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (view !== "canvas" || tool !== "pan" || event.button !== 0) return;
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    if (target.closest("button, a, input, textarea, select, [data-drag-handle]")) return;
+    const el = surfaceRef.current;
+    if (!el) return;
+    panRef.current = {
+      startX: event.clientX,
+      startY: event.clientY,
+      left: el.scrollLeft,
+      top: el.scrollTop,
+      moved: false,
+    };
+    el.setPointerCapture(event.pointerId);
+  };
+
+  const onSurfacePointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const pan = panRef.current;
+    const el = surfaceRef.current;
+    if (!pan || !el) return;
+    const dx = event.clientX - pan.startX;
+    const dy = event.clientY - pan.startY;
+    if (!pan.moved && !dragExceeded(dx, dy)) return;
+    pan.moved = true;
+    suppressClick.current = true;
+    el.scrollLeft = pan.left - dx;
+    el.scrollTop = pan.top - dy;
+  };
+
+  const onSurfacePointerUp = () => {
+    panRef.current = null;
+  };
+
+  const rememberNote = (cardId: string, draft: BoardNoteDraft) => {
+    const saved = initial.cards.find((card) => card.id === cardId && card.kind === "note");
+    noteDraftsRef.current = rememberNoteDraft(
+      noteDraftsRef.current,
+      cardId,
+      draft,
+      saved ? { title: saved.noteTitle, body: saved.noteBody } : draft,
+    );
+  };
+
+  const beginNoteEdit = (card: BoardCardView) => {
+    selectCard(card);
+    requestAnimationFrame(() => noteTitleRef.current?.focus());
+  };
+
+  const hiddenByFilter = Math.max(0, cards.length - visibleCards.length);
 
   const dropPoint = () => {
     const el = surfaceRef.current;
@@ -277,6 +417,35 @@ export function BoardCanvas({
         <IssueList issues={issues} />
 
         <CanvasToolbar label={WORLD.boardCanvas}>
+          <SegmentedControl size="sm" label={WORLD.boardViews}>
+            <SegmentedOption selected={view === "canvas"} onClick={() => setView("canvas")}>
+              {WORLD.boardViewCanvas}
+            </SegmentedOption>
+            <SegmentedOption selected={view === "list"} onClick={() => setView("list")}>
+              {WORLD.boardViewList}
+            </SegmentedOption>
+          </SegmentedControl>
+          <SegmentedControl size="sm" label={WORLD.boardTools}>
+            <SegmentedOption selected={tool === "select"} disabled={view !== "canvas"} onClick={() => setTool("select")}>
+              {WORLD.boardToolSelect}
+            </SegmentedOption>
+            <SegmentedOption selected={tool === "pan"} disabled={view !== "canvas"} onClick={() => setTool("pan")}>
+              {WORLD.boardToolPan}
+            </SegmentedOption>
+          </SegmentedControl>
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            className="board-lock"
+            aria-pressed={layoutLocked}
+            onClick={() => {
+              if (!layoutLocked) cancelActiveMove();
+              setLayoutLocked((current) => !current);
+            }}
+          >
+            {WORLD.boardLockLayout}
+          </Button>
           <BoardOverflowMenu summary={WORLD.addCardMenu}>
             <label>
               <span className="sr-only">{WORLD.addRecordCard}</span>
@@ -318,21 +487,21 @@ export function BoardCanvas({
             </label>
             <Button
               type="button"
-              disabled={!selected}
+              disabled={view !== "canvas" || !selected}
               onClick={() => selected && fitRect([selected])}
               variant="secondary"
               size="sm"
             >
-              {WORLD.fitSelection}
+              {WORLD.boardCenterSelection}
             </Button>
             <Button
               type="button"
-              disabled={!visibleCards.length}
+              disabled={view !== "canvas" || !visibleCards.length}
               onClick={() => fitRect(visibleCards)}
               variant="secondary"
               size="sm"
             >
-              {WORLD.fitAll}
+              {WORLD.boardCenterAll}
             </Button>
           </CanvasToolbarGroup>
 
@@ -407,18 +576,41 @@ export function BoardCanvas({
           </BoardOverflowMenu>
           <ContextRailToggle rail={rail} controls={railId} />
         </CanvasToolbar>
+        <p className="board-status small muted" aria-live="polite">
+          {layoutLocked
+            ? WORLD.boardLayoutLocked
+            : view === "list"
+              ? null
+              : tool === "pan"
+                ? WORLD.boardPanHint
+                : WORLD.boardSelectHint}{" "}
+          {WORLD.boardCardCount(visibleCards.length, cards.length)}
+          {hiddenByFilter > 0 ? ` ${WORLD.boardFilterHides(hiddenByFilter)}` : ""}
+        </p>
 
         <div
           ref={surfaceRef}
-          className="board-surface board-surface-max"
+          className={`board-surface board-surface-max${layoutLocked ? " board-layout-locked" : ""}${tool === "pan" ? " board-tool-pan" : ""}`}
           role="listbox"
           aria-label={WORLD.boardCanvas}
           aria-description={WORLD.keyboardBoardHint}
           aria-activedescendant={selectedId ? `${idPrefix}-card-${selectedId}` : undefined}
           tabIndex={0}
-          onClick={() => setSelectedId(null)}
+          hidden={view !== "canvas"}
+          onPointerDown={onSurfacePointerDown}
+          onPointerMove={onSurfacePointerMove}
+          onPointerUp={onSurfacePointerUp}
+          onPointerCancel={onSurfacePointerUp}
+          onClick={() => {
+            if (suppressClick.current) {
+              suppressClick.current = false;
+              return;
+            }
+            setSelectedId(null);
+          }}
           onKeyDown={(e: ReactKeyboardEvent<HTMLDivElement>) => {
             if (e.key === "Escape") {
+              if (cancelActiveMove()) return;
               setSelectedId(null);
               return;
             }
@@ -537,14 +729,27 @@ export function BoardCanvas({
                   e.stopPropagation();
                   selectCard(card);
                 }}
-                onPointerDown={(e) => onPointerDown(e, card)}
-                onPointerMove={onPointerMove}
-                onPointerUp={onPointerUp}
-                onPointerCancel={onPointerUp}
               >
-                <span className="board-card-kind">
-                  {card.kind === "note" ? WORLD.noteCard : card.kind === "image" ? WORLD.imageCard : WORLD.recordCard}
-                </span>
+                <div className="board-card-top">
+                  <button
+                    type="button"
+                    className="board-drag-handle"
+                    data-drag-handle=""
+                    data-card-id={card.id}
+                    aria-label={WORLD.boardDragHandle}
+                    aria-disabled={layoutLocked || tool !== "select"}
+                    onClick={(event) => event.stopPropagation()}
+                    onPointerDown={(event) => onHandlePointerDown(event, card)}
+                    onPointerMove={onHandlePointerMove}
+                    onPointerUp={onHandlePointerUp}
+                    onPointerCancel={cancelActiveMove}
+                  >
+                    <span className="board-drag-grip" aria-hidden="true" />
+                  </button>
+                  <span className="board-card-kind">
+                    {card.kind === "note" ? WORLD.noteCard : card.kind === "image" ? WORLD.imageCard : WORLD.recordCard}
+                  </span>
+                </div>
                 <strong className="board-card-title">{card.label}</strong>
                 {card.kind === "record" && card.recordTypeLabel ? (
                   <span className="board-card-meta">{card.recordTypeLabel}</span>
@@ -562,6 +767,73 @@ export function BoardCanvas({
               </div>
             );
           })}
+        </div>
+        <div
+          className="board-list"
+          role="list"
+          aria-label={WORLD.boardList}
+          hidden={view !== "list"}
+          tabIndex={0}
+          onKeyDown={(event) => {
+            if (event.key === "Escape") {
+              setSelectedId(null);
+              return;
+            }
+            if (!["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(event.key)) return;
+            if (!visibleCards.length) return;
+            event.preventDefault();
+            const ordered = [...visibleCards].sort((a, b) => a.y - b.y || a.x - b.x);
+            const idx = selectedId ? ordered.findIndex((card) => card.id === selectedId) : -1;
+            const nextIdx =
+              event.key === "ArrowRight" || event.key === "ArrowDown"
+                ? idx < 0
+                  ? 0
+                  : Math.min(ordered.length - 1, idx + 1)
+                : idx <= 0
+                  ? ordered.length - 1
+                  : idx - 1;
+            const next = ordered[nextIdx];
+            if (next) selectCard(next);
+          }}
+        >
+          {!cards.length ? (
+            <p className="board-status small muted">{WORLD.emptyBoard}</p>
+          ) : visibleCards.length === 0 ? (
+            <p className="board-status small muted">{WORLD.filterEmptyBoard}</p>
+          ) : (
+            visibleCards.map((card) => (
+              <div
+                key={card.id}
+                role="listitem"
+                className={`board-list-row board-card-${card.kind}${selectedId === card.id ? " selected" : ""}`}
+                aria-current={selectedId === card.id ? "true" : undefined}
+              >
+                <span className="board-card-kind">
+                  {card.kind === "note" ? WORLD.noteCard : card.kind === "image" ? WORLD.imageCard : WORLD.recordCard}
+                </span>
+                <span className="board-list-title">{card.label}</span>
+                <div className="board-list-actions">
+                  <Button type="button" size="sm" variant="secondary" onClick={() => selectCard(card)}>
+                    {WORLD.boardInspect}
+                  </Button>
+                  {card.recordId ? (
+                    <ButtonLink
+                      href={`/projects/${encodeURIComponent(projectId)}/records/${encodeURIComponent(card.recordId)}`}
+                      size="sm"
+                      variant="secondary"
+                    >
+                      {WORLD.inspectorOpenRecord}
+                    </ButtonLink>
+                  ) : null}
+                  {card.kind === "note" ? (
+                    <Button type="button" size="sm" variant="secondary" onClick={() => beginNoteEdit(card)}>
+                      {WORLD.editNote}
+                    </Button>
+                  ) : null}
+                </div>
+              </div>
+            ))
+          )}
         </div>
       </div>
 
@@ -592,39 +864,38 @@ export function BoardCanvas({
               <div className="stack">
                 <section className="rail-section">
                   <h3>{WORLD.noteCard}</h3>
-                  <label>
+                  <label onPointerDown={(event) => event.stopPropagation()}>
                     {WRITE.noteTitle}
                     <input
+                      ref={noteTitleRef}
                       type="text"
                       value={noteEdit?.title ?? selected.noteTitle}
                       onChange={(e) => {
-                        dirtyNoteIdRef.current = selected.id;
-                        setNoteEdit((n) => ({ title: e.target.value, body: n?.body ?? selected.noteBody }));
-                      setCards((list) =>
-                        list.map((c) =>
-                          c.id === selected.id && c.kind === "note"
-                            ? {
-                                ...c,
-                                noteTitle: e.target.value,
-                                label: e.target.value.trim() || "Note",
-                              }
-                            : c,
-                        ),
-                      );
+                        const draft = { title: e.target.value, body: noteEdit?.body ?? selected.noteBody };
+                        rememberNote(selected.id, draft);
+                        setNoteEdit(draft);
+                        setCards((list) =>
+                          list.map((c) =>
+                            c.id === selected.id && c.kind === "note"
+                              ? { ...c, noteTitle: draft.title, label: draft.title.trim() || "Note" }
+                              : c,
+                          ),
+                        );
                       }}
                     />
                   </label>
-                  <label>
+                  <label onPointerDown={(event) => event.stopPropagation()}>
                     {WRITE.noteText}
                     <textarea
                       rows={6}
                       value={noteEdit?.body ?? selected.noteBody}
                       onChange={(e) => {
-                        dirtyNoteIdRef.current = selected.id;
-                        setNoteEdit((n) => ({ title: n?.title ?? selected.noteTitle, body: e.target.value }));
+                        const draft = { title: noteEdit?.title ?? selected.noteTitle, body: e.target.value };
+                        rememberNote(selected.id, draft);
+                        setNoteEdit(draft);
                         setCards((list) =>
                           list.map((c) =>
-                            c.id === selected.id && c.kind === "note" ? { ...c, noteBody: e.target.value } : c,
+                            c.id === selected.id && c.kind === "note" ? { ...c, noteBody: draft.body } : c,
                           ),
                         );
                       }}
@@ -644,7 +915,7 @@ export function BoardCanvas({
                           setIssues(result.issues);
                           return;
                         }
-                        dirtyNoteIdRef.current = null;
+                        delete noteDraftsRef.current[selected.id];
                         setCards((list) => list.map((c) => (c.id === result.card.id ? result.card : c)));
                         router.refresh();
                       })
@@ -668,6 +939,7 @@ export function BoardCanvas({
                           setIssues(result.issues);
                           return;
                         }
+                        delete noteDraftsRef.current[selected.id];
                         setCards((list) => list.filter((c) => c.id !== selected.id));
                         setSelectedId(null);
                         router.refresh();
@@ -710,6 +982,7 @@ export function BoardCanvas({
                           setIssues(result.issues);
                           return;
                         }
+                        delete noteDraftsRef.current[selected.id];
                         setCards((list) => list.filter((c) => c.id !== selected.id));
                         setSelectedId(null);
                         router.refresh();

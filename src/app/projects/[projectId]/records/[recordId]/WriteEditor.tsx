@@ -116,6 +116,7 @@ export function WriteEditor(props: {
   drafts?: DraftOption[];
   initialPins: import("@/server/services/readingPinService").ReadingPinView[];
   plotBeats: PlotBeatItem[];
+  continuityFindings?: Array<{ key: string; title: string; detail: string; href: string; severity: string }>;
   manuscriptSplitOptions: ManuscriptSplitOption[];
   preferredSplitIds: string[];
   /** Chapter and scene ids in book order for Alt+↑ / Alt+↓. */
@@ -1001,6 +1002,7 @@ export function WriteEditor(props: {
           draftScopeId={props.draftScopeId}
           initialPins={props.initialPins}
           plotBeats={props.plotBeats}
+          continuityFindings={props.continuityFindings}
           editorText={text}
           editorDirty={dirty}
           editorSelection={selection}

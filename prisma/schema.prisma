@@ -90,8 +90,27 @@ model Project {
   worldCalendarMonths    WorldCalendarMonth[]
   worldCalendarEras      WorldCalendarEra[]
   worldKindTemplates     WorldKindTemplate[]
+  continuitySuppressions ContinuitySuppression[]
 
   @@index([workspaceId])
+}
+
+/// Author marked a Continuity Ledger issue intentional or ignored. Non-destructive;
+/// the check still runs and the row is filtered unless includeSuppressed is set.
+model ContinuitySuppression {
+  id        String   @id
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id])
+  /// Stable ContinuityLedgerItem.key
+  issueKey  String
+  /// intentional | ignored
+  reason    String
+  note      String   @default("")
+  actor     String   @default("author")
+  createdAt DateTime @default(now())
+
+  @@unique([projectId, issueKey])
+  @@index([projectId])
 }
 
 /// A Zero draft or Author manuscript tree within a project. Not revisioned content.

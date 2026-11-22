@@ -100,6 +100,10 @@ function worldKindTemplatesOf(b: WorkspaceBackupV1) {
   return b.worldKindTemplates ?? [];
 }
 
+function continuitySuppressionsOf(b: WorkspaceBackupV1) {
+  return b.continuitySuppressions ?? [];
+}
+
 function boardsOf(b: WorkspaceBackupV1) {
   return b.boards ?? [];
 }
@@ -444,6 +448,21 @@ async function worldKindTemplateRows(db: DbOrTx, projectIds: string[]) {
     return await db.worldKindTemplate.findMany({
       where: { projectId: { in: projectIds } },
       orderBy: [{ projectId: "asc" }, { kind: "asc" }, { id: "asc" }],
+    });
+  } catch (error) {
+    if (isMissingSchemaError(error, "P2021")) return [];
+    throw error;
+  }
+}
+
+async function continuitySuppressionRows(db: DbOrTx, projectIds: string[]) {
+  if (!("continuitySuppression" in db) || !(db as { continuitySuppression?: { findMany: unknown } }).continuitySuppression) {
+    return [];
+  }
+  try {
+    return await db.continuitySuppression.findMany({
+      where: { projectId: { in: projectIds } },
+      orderBy: [{ projectId: "asc" }, { id: "asc" }],
     });
   } catch (error) {
     if (isMissingSchemaError(error, "P2021")) return [];
@@ -1140,6 +1159,7 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
     chapterAnalysisRows(db, projectIds),
     worldKindTemplateRows(db, projectIds),
   ]);
+  const continuitySuppressions = await continuitySuppressionRows(db, projectIds).catch(() => [] as Awaited<ReturnType<typeof continuitySuppressionRows>>);
   const weaveTemplateBeats = await weaveTemplateBeatRows(
     db,
     weaveTemplates.map((t) => t.id),
@@ -1456,6 +1476,19 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
               updatedAt: iso(template.updatedAt),
             };
           }),
+        }
+      : {}),
+    ...(continuitySuppressions.length
+      ? {
+          continuitySuppressions: continuitySuppressions.map((row) => ({
+            id: row.id,
+            projectId: row.projectId,
+            issueKey: row.issueKey,
+            reason: row.reason === "ignored" ? ("ignored" as const) : ("intentional" as const),
+            ...(row.note ? { note: row.note } : {}),
+            ...(row.actor ? { actor: row.actor } : {}),
+            createdAt: iso(row.createdAt),
+          })),
         }
       : {}),
     ...(boards.length
@@ -1963,6 +1996,7 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
       ...(manuscriptAnnotations.length ? { manuscriptAnnotations: manuscriptAnnotations.length } : {}),
       ...(compileProfiles.length ? { compileProfiles: compileProfiles.length } : {}),
       ...(worldKindTemplates.length ? { worldKindTemplates: worldKindTemplates.length } : {}),
+      ...(continuitySuppressions.length ? { continuitySuppressions: continuitySuppressions.length } : {}),
       ...(boards.length ? { boards: boards.length } : {}),
       ...(boardCards.length ? { boardCards: boardCards.length } : {}),
       ...(worldMaps.length ? { worldMaps: worldMaps.length } : {}),
@@ -2051,6 +2085,7 @@ function checkInternalConsistency(b: WorkspaceBackupV1): Issue[] {
     manuscriptAnnotations: manuscriptAnnotationsOf(b).length,
     compileProfiles: compileProfilesOf(b).length,
     worldKindTemplates: worldKindTemplatesOf(b).length,
+    continuitySuppressions: continuitySuppressionsOf(b).length,
     boards: boardsOf(b).length,
     boardCards: boardCardsOf(b).length,
     worldMaps: worldMapsOf(b).length,
@@ -2905,6 +2940,12 @@ async function findCollisions(db: DbOrTx, b: WorkspaceBackupV1): Promise<Issue[]
       db.worldKindTemplate.count({ where: { id: { in: worldKindTemplatesOf(b).map((template) => template.id) } } }),
     );
   }
+  if (continuitySuppressionsOf(b).length && "continuitySuppression" in db) {
+    await check(
+      "continuity suppression",
+      db.continuitySuppression.count({ where: { id: { in: continuitySuppressionsOf(b).map((row) => row.id) } } }),
+    );
+  }
   if (boardsOf(b).length) {
     await check("board", db.board.count({ where: { id: { in: boardsOf(b).map((x) => x.id) } } }));
   }
@@ -3165,6 +3206,7 @@ export async function restoreWorkspaceBackup(db: Db, input: string | unknown, op
   manuscriptAnnotationsOf(b).forEach((a) => assign(a.id, "man"));
   compileProfilesOf(b).forEach((p) => assign(p.id, "cprof"));
   worldKindTemplatesOf(b).forEach((template) => assign(template.id, "wkt"));
+  continuitySuppressionsOf(b).forEach((row) => assign(row.id, "csp"));
   boardsOf(b).forEach((x) => assign(x.id, "brd"));
   boardCardsOf(b).forEach((c) => assign(c.id, "bcd"));
   worldMapsOf(b).forEach((x) => assign(x.id, "wmp"));
@@ -3502,6 +3544,20 @@ export async function restoreWorkspaceBackup(db: Db, input: string | unknown, op
               ),
               createdAt: new Date(template.createdAt),
               updatedAt: new Date(template.updatedAt),
+            })),
+          });
+        }
+        const suppressions = continuitySuppressionsOf(b);
+        if (suppressions.length && "continuitySuppression" in tx) {
+          await tx.continuitySuppression.createMany({
+            data: suppressions.map((row) => ({
+              id: m(row.id),
+              projectId: m(row.projectId),
+              issueKey: row.issueKey,
+              reason: row.reason,
+              note: row.note ?? "",
+              actor: row.actor ?? "author",
+              createdAt: new Date(row.createdAt),
             })),
           });
         }

@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { applyMarkdownImport } from "@/server/services/markdownImportService";
 import { applyChapterImport, previewChapterImport, suggestChapterTitle } from "@/server/services/chapterImportService";
-import { getRecord, listRecordNav, listRevisions } from "@/server/services/recordService";
+import { adoptUnassignedManuscript, listRewriteSources, startAuthorRewrite } from "@/server/services/draftService";
+import { createRecord, getRecord, listManuscriptNav, listRecordNav, listRevisions } from "@/server/services/recordService";
 import { buildManuscriptTree } from "@/ui/manuscriptTree";
 import { createTestDb, IDS, seedProject, snapshotState, type TestDb } from "../helpers";
 
@@ -149,6 +150,56 @@ describe("Chapter import", () => {
 
     const again = await previewChapterImport(t.db, IDS.project, [messy], { tidy: true });
     expect(again[0].matches[0].reasons).toEqual(expect.arrayContaining(["same_filename", "same_content"]));
+  });
+
+  it("adds a new chapter to the Zero draft and a blank page under the Author manuscript", async () => {
+    const started = await startAuthorRewrite(t.db, IDS.project);
+    const outcome = await applyChapterImport(t.db, {
+      projectId: IDS.project,
+      items: [{ ...TIDE, title: "The Tidewater", decision: { action: "create" } }],
+    });
+    expect(outcome.status).toBe("applied");
+    if (outcome.status !== "applied") return;
+
+    const created = outcome.results[0];
+    const source = await t.db.record.findFirstOrThrow({ where: { id: created.recordId! } });
+    expect(source.draftId).toBe(started.zeroDraft.id);
+    expect(source.body).toContain("The ferry left at dawn.");
+
+    const page = await t.db.record.findFirstOrThrow({ where: { id: created.rewriteRecordId! } });
+    expect([page.draftId, page.title, page.body]).toEqual([started.authorDraft.id, "The Tidewater", ""]);
+    const pins = await listRewriteSources(t.db, IDS.project, page.id);
+    expect(pins.map((p) => [p.toRecordId, p.toRevisionNumber])).toEqual([[source.id, source.currentRevision]]);
+
+    const authorTitles = (await listManuscriptNav(t.db, IDS.project, { hasDrafts: true, draftId: started.authorDraft.id })).map(
+      (row) => row.title,
+    );
+    expect(authorTitles).toContain("The Tidewater");
+  });
+
+  it("places a chapter imported with no draft onto the Zero draft and the Author manuscript", async () => {
+    const started = await startAuthorRewrite(t.db, IDS.project);
+    const created = await createRecord(t.db, IDS.project, {
+      type: "manuscript_chapter",
+      title: "Chapter Thirty-Two",
+      body: "The gate was already open.",
+      authorityStatus: "draft",
+      draftId: null,
+    });
+    const sourceId = created.outcomes[0].recordId;
+    const adopted = await adoptUnassignedManuscript(t.db, IDS.project);
+    expect(adopted).toEqual({ assigned: 1, rewritePages: 1 });
+
+    const source = await t.db.record.findFirstOrThrow({ where: { id: sourceId } });
+    expect(source.draftId).toBe(started.zeroDraft.id);
+    expect(source.body).toContain("already open");
+    const author = await listManuscriptNav(t.db, IDS.project, { hasDrafts: true, draftId: started.authorDraft.id });
+    const page = author.find((row) => row.title === "Chapter Thirty-Two");
+    expect(page).toBeTruthy();
+    const pageRow = await t.db.record.findFirstOrThrow({ where: { id: page!.id } });
+    expect(pageRow.body).toBe("");
+    const again = await adoptUnassignedManuscript(t.db, IDS.project);
+    expect(again).toEqual({ assigned: 0, rewritePages: 0 });
   });
 
   it("leaves the reference importer unable to create chapters", async () => {

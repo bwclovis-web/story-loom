@@ -6,6 +6,7 @@ import { tidyText } from "@/writing/tidy";
 import { countWords } from "@/writing/wordCount";
 import type { Db, DbOrTx } from "../db";
 import { writeAudit } from "./auditService";
+import { addBlankRewritePageInTx, manuscriptDraftPlacement } from "./draftService";
 import { MutationRejectedError, NotFoundError } from "./errors";
 import { LIVE_PROJECT } from "./trashFilters";
 import { applyMutationsInTx, planMutations, type Mutation, type MutationContext } from "./mutationService";
@@ -83,6 +84,8 @@ export interface ChapterImportResult {
   recordId: string | null;
   title: string;
   revision: number | null;
+  /** Blank Author manuscript page added for a new chapter, when a rewrite already exists. */
+  rewriteRecordId: string | null;
 }
 
 export type ChapterImportOutcome =
@@ -207,7 +210,13 @@ function context(req: ChapterImportRequest, item: ChapterImportItem): MutationCo
   };
 }
 
-function mutation(item: ChapterImportItem, recordId: string | undefined, index: number, tidy: boolean): Mutation {
+function mutation(
+  item: ChapterImportItem,
+  recordId: string | undefined,
+  index: number,
+  tidy: boolean,
+  draftId: string | null,
+): Mutation {
   const body = importBody(item.content, tidy);
   if (item.decision?.action === "replace") {
     return {
@@ -227,6 +236,7 @@ function mutation(item: ChapterImportItem, recordId: string | undefined, index: 
     fields: {},
     authorityStatus: "draft",
     protected: true,
+    draftId,
     operationIndex: index,
   };
 }
@@ -234,6 +244,7 @@ function mutation(item: ChapterImportItem, recordId: string | undefined, index: 
 async function validate(db: DbOrTx, req: ChapterImportRequest): Promise<Issue[]> {
   if (req.items.length === 0) return [errorIssue("EMPTY_BATCH", "No files to import.")];
   if (req.items.length > MAX_CHAPTER_FILES) return [errorIssue("IMPORT_INVALID", `At most ${MAX_CHAPTER_FILES} files per import.`)];
+  const placement = await manuscriptDraftPlacement(db, req.projectId);
   const analysis = await analyze(db, req.projectId, req.items, req.tidy === true);
   const issues: Issue[] = [];
   const targets = new Map<string, string>();
@@ -290,7 +301,9 @@ async function validate(db: DbOrTx, req: ChapterImportRequest): Promise<Issue[]>
 
   for (const [index, item] of req.items.entries()) {
     if (item.decision?.action === "skip") continue;
-    const plan = await planMutations(db, context(req, item), [mutation(item, undefined, index, req.tidy === true)]);
+    const plan = await planMutations(db, context(req, item), [
+      mutation(item, undefined, index, req.tidy === true, item.decision?.action === "replace" ? null : placement.textDraftId),
+    ]);
     for (const issue of plan.issues) {
       const hint = issue.code === "NO_EFFECTIVE_CHANGE" ? " The file matches the chapter exactly; choose skip." : "";
       issues.push({ ...issue, operationIndex: index, message: `${item.filename}: ${issue.message}${hint}` });
@@ -320,18 +333,41 @@ export async function applyChapterImport(db: Db, req: ChapterImportRequest): Pro
   try {
     const results = await db.$transaction(
       async (tx) => {
+        const placement = await manuscriptDraftPlacement(tx, req.projectId);
         const out: ChapterImportResult[] = [];
         for (const item of ordered) {
           if (item.decision?.action === "skip") {
-            out.push({ filename: item.filename, action: "skipped", recordId: null, title: item.title.trim(), revision: null });
+            out.push({
+              filename: item.filename,
+              action: "skipped",
+              recordId: null,
+              title: item.title.trim(),
+              revision: null,
+              rewriteRecordId: null,
+            });
             continue;
           }
           const replacing = item.decision?.action === "replace";
-          const batch = await applyMutationsInTx(tx, context(req, item), [mutation(item, newIds.get(item.index), item.index, req.tidy === true)], {
-            action: "chapter.import",
-            summary: `${replacing ? "Replaced the text of" : "Imported"} chapter "${item.title.trim()}" from ${item.filename}`,
-          });
+          const batch = await applyMutationsInTx(
+            tx,
+            context(req, item),
+            [mutation(item, newIds.get(item.index), item.index, req.tidy === true, replacing ? null : placement.textDraftId)],
+            {
+              action: "chapter.import",
+              summary: `${replacing ? "Replaced the text of" : "Imported"} chapter "${item.title.trim()}" from ${item.filename}`,
+            },
+          );
           const outcome = batch.outcomes[0];
+          let rewriteRecordId: string | null = null;
+          if (!replacing && placement.authorDraftId && placement.textDraftId && placement.textDraftId !== placement.authorDraftId) {
+            const page = await addBlankRewritePageInTx(
+              tx,
+              req.projectId,
+              { id: outcome.recordId, title: outcome.title, currentRevision: outcome.newRevision },
+              placement.authorDraftId,
+            );
+            rewriteRecordId = page.recordId;
+          }
           await tx.importedFile.create({
             data: {
               id: newId("imp"),
@@ -353,6 +389,7 @@ export async function applyChapterImport(db: Db, req: ChapterImportRequest): Pro
             recordId: outcome.recordId,
             title: outcome.title,
             revision: outcome.newRevision,
+            rewriteRecordId,
           });
         }
         const counts = { created: 0, replaced: 0, skipped: 0 };
@@ -362,7 +399,16 @@ export async function applyChapterImport(db: Db, req: ChapterImportRequest): Pro
           action: "chapter.import.batch",
           actor,
           summary: `Chapter import: ${counts.created} created, ${counts.replaced} replaced, ${counts.skipped} skipped`,
-          details: { batchId, files: out.map((r) => ({ filename: r.filename, action: r.action, recordId: r.recordId, revision: r.revision })) },
+          details: {
+            batchId,
+            files: out.map((r) => ({
+              filename: r.filename,
+              action: r.action,
+              recordId: r.recordId,
+              revision: r.revision,
+              rewriteRecordId: r.rewriteRecordId,
+            })),
+          },
         });
         return out;
       },

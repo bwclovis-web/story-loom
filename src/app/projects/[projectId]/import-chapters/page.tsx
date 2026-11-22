@@ -1,10 +1,15 @@
 import { ProjectPageHeader } from "@/components/library/ProjectPageHeader";
 import { HelpHint } from "@/components/HelpHint";
+import { getDb } from "@/server/db";
+import { listManuscriptDrafts } from "@/server/services/draftService";
 import { CHAPTER_IMPORT, NAV } from "@/ui/labels";
 import { ChapterImportClient } from "./ChapterImportClient";
 
 export default async function ImportChaptersPage({ params }: { params: Promise<{ projectId: string }> }) {
   const { projectId } = await params;
+  const drafts = await listManuscriptDrafts(getDb(), projectId);
+  const hasRewrite =
+    drafts.some((d) => d.kind === "zero_draft") && drafts.some((d) => d.kind === "author_manuscript");
   return (
     <>
       <ProjectPageHeader projectId={projectId} title={NAV.importChapters} description={CHAPTER_IMPORT.lead} />
@@ -14,6 +19,7 @@ export default async function ImportChaptersPage({ params }: { params: Promise<{
         skip. Each file&apos;s original name and exact content are kept with the chapter, and the whole import is applied
         together or not at all. Series bibles and other notes belong in {NAV.importMarkdown}.
       </p>
+      {hasRewrite ? <p className="muted small">{CHAPTER_IMPORT.draftPlacement}</p> : null}
       <HelpHint anchor="import-chapters" topic="importing chapters">
         Chapters are created as protected drafts. Canon status and protection can be changed afterwards on each chapter.
       </HelpHint>

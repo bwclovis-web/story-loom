@@ -15,7 +15,7 @@ import { submitWithoutReset } from "@/components/submitWithoutReset";
 import type { Issue } from "@/domain/issues";
 import { RECORD_TYPE_LABELS, type RecordType } from "@/domain/recordTypes";
 import type { AuthorityStatus } from "@/domain/statuses";
-import { ASSISTANT, DRAFT, RECORD, SERIES, WEAVE, WRITE } from "@/ui/labels";
+import { ASSISTANT, CONTINUITY, DRAFT, RECORD, SERIES, WEAVE, WRITE } from "@/ui/labels";
 import { seriesBookLabel, seriesRecordHref } from "@/world/seriesHome";
 import {
   attachRewriteSourceAction,
@@ -127,6 +127,7 @@ export function WriteContext({
   draftScopeId,
   initialPins,
   plotBeats,
+  continuityFindings = [],
   editorText,
   editorDirty,
   editorSelection,
@@ -152,6 +153,8 @@ export function WriteContext({
   draftScopeId: string | null;
   initialPins: ReadingPinView[];
   plotBeats: PlotBeatItem[];
+  /** Open Continuity Ledger findings that touch this chapter or scene. */
+  continuityFindings?: Array<{ key: string; title: string; detail: string; href: string; severity: string }>;
   /** Current editor text (may be unsaved). */
   editorText: string;
   editorDirty: boolean;
@@ -225,7 +228,9 @@ export function WriteContext({
             {TAB_LABELS[t]}
             {t === "source" && sources.length ? <span className="nav-count"> {sources.length}</span> : null}
             {t === "notes" && notes.length ? <span className="nav-count"> {notes.length}</span> : null}
-            {t === "references" && linked.length ? <span className="nav-count"> {linked.length}</span> : null}
+            {t === "references" && (linked.length || continuityFindings.length) ? (
+              <span className="nav-count"> {linked.length + continuityFindings.length}</span>
+            ) : null}
             {t === "plot" && plotBeats.length ? <span className="nav-count"> {plotBeats.length}</span> : null}
           </button>
         ))}
@@ -251,6 +256,7 @@ export function WriteContext({
         <Sources projectId={projectId} recordId={recordId} sources={sources} attachable={attachableSources} />
       </div>
       <div role="tabpanel" id={`${idPrefix}-panel-references`} aria-labelledby={`${idPrefix}-tab-references`} hidden={tab !== "references"} className="context-body">
+        <ContinuityStrip projectId={projectId} findings={continuityFindings} />
         <References
           projectId={projectId}
           recordId={recordId}
@@ -271,6 +277,43 @@ export function WriteContext({
       <div role="tabpanel" id={`${idPrefix}-panel-proofread`} aria-labelledby={`${idPrefix}-tab-proofread`} hidden={tab !== "proofread"} className="context-body">
         {proofreader}
       </div>
+    </div>
+  );
+}
+
+function ContinuityStrip({
+  projectId,
+  findings,
+}: {
+  projectId: string;
+  findings: Array<{ key: string; title: string; detail: string; href: string; severity: string }>;
+}) {
+  const ledgerHref = `/projects/${encodeURIComponent(projectId)}/continuity`;
+  return (
+    <div className="stack" style={{ gap: "0.35rem", marginBottom: "0.75rem" }}>
+      <div className="row" style={{ justifyContent: "space-between", alignItems: "baseline" }}>
+        <strong className="small">{CONTINUITY.writeBadge}</strong>
+        <Link className="small" href={ledgerHref}>
+          {CONTINUITY.nav}
+        </Link>
+      </div>
+      {findings.length === 0 ? (
+        <p className="small muted" style={{ margin: 0 }}>
+          {CONTINUITY.writeNone}
+        </p>
+      ) : (
+        <ul className="small" style={{ margin: 0, paddingLeft: "1.1rem" }}>
+          {findings.slice(0, 5).map((f) => (
+            <li key={f.key}>
+              <Link href={f.href}>{f.title}</Link>
+              {f.detail ? <span className="muted"> — {f.detail.slice(0, 120)}</span> : null}
+            </li>
+          ))}
+        </ul>
+      )}
+      <p className="small muted" style={{ margin: 0 }}>
+        {CONTINUITY.writeBadgeHint}
+      </p>
     </div>
   );
 }

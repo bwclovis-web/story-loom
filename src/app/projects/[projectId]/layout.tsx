@@ -4,7 +4,7 @@ import { ProjectNav } from "@/components/shell/ProjectNav";
 import { ProjectOnboarding } from "@/components/shell/ProjectOnboarding";
 import { getDb } from "@/server/db";
 import { readWriteDraftCookie, resolveWriteDraftId } from "@/server/draftSelection";
-import { getDraftDefaults, listManuscriptDrafts } from "@/server/services/draftService";
+import { adoptUnassignedManuscript, getDraftDefaults, listManuscriptDrafts } from "@/server/services/draftService";
 import { findProject } from "@/server/services/projectService";
 import { listRecordNav } from "@/server/services/recordService";
 import { countOpenReviewItems } from "@/server/services/reviewService";
@@ -26,6 +26,7 @@ export default async function ProjectLayout({
   const writeDraftCookie = await readWriteDraftCookie();
   const activeDraftId = resolveWriteDraftId(drafts, writeDraftCookie);
   const hasDrafts = drafts.length > 0;
+  if (hasDrafts) await adoptUnassignedManuscript(db, project.id);
   const [records, openReviewItems] = await Promise.all([
     listRecordNav(db, project.id, { hasDrafts, draftId: activeDraftId }),
     countOpenReviewItems(db, project.id),

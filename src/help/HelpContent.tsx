@@ -986,7 +986,9 @@ export function HelpContent() {
             </li>
             <li>
               After creation, add, omit (Trash), reorder, or attach more Zero draft sources to one rewrite scene under the{" "}
-              <L>{DRAFT.sourceTab}</L> tab. A combined scene can pin several source revisions.
+              <L>{DRAFT.sourceTab}</L> tab. A combined scene can pin several source revisions. A chapter imported after
+              the rewrite exists is added to the Zero draft, and a blank Author manuscript page with the same title is
+              added and pinned to that chapter, so it shows under <L>{DRAFT.authorManuscript}</L>.
             </li>
             <li>
               <L>{DRAFT.markComplete}</L> / <L>{DRAFT.markIncomplete}</L> set a draft-level completion mark only; they do
@@ -1221,6 +1223,12 @@ export function HelpContent() {
             chapter. Chapters already in the project keep their place: a new chapter is added after them, whatever its
             number. Move it afterwards under <L>{BOOK_ORDER.heading}</L> (see <See anchor="book-order" />). A replaced
             chapter keeps its place.
+          </p>
+          <p>
+            <L>{CHAPTER_IMPORT.draftPlacement}</L> The uploaded text stays on the Zero draft. The Author manuscript page
+            starts blank, the same way <L>{DRAFT.startRewrite}</L> does. Choose <L>{DRAFT.authorManuscript}</L> under{" "}
+            <L>{DRAFT.writeDraft}</L> to see the new page. Projects that have not started a rewrite keep the new chapter
+            on the single manuscript, or on the Zero draft if that draft already exists.
           </p>
         </Sub>
 
@@ -1828,18 +1836,25 @@ export function HelpContent() {
           <ul>
             <li>
               Add a reference, an image from a reference, or <L>{WORLD.writeNote}</L>. A board note is not a World
-              reference document. Drag a card to reposition it; the position is stored on that board only.
+              reference document, and it is not turned into one. <L>{WORLD.boardToolSelect}</L> chooses a card. Drag the
+              card&apos;s move handle to reposition it; a click, selecting the text, or editing the note does not. The
+              position is stored on that board only and does not change the reference. <L>{WORLD.boardToolPan}</L>{" "}
+              scrolls the board. <L>{WORLD.boardLockLayout}</L> stops moving and resizing. Escape during a move puts the
+              card back before anything is saved.
             </li>
             <li>
               The same record can appear on several boards. Selecting a reference or image card opens that record in the
               reference inspector (Overview, Sections, Images, Relationships, and Established in when the record supports
               it). <L>{WORLD.inspectorOpenRecord}</L> opens the record page. The record&apos;s Overview lists the boards
               and maps that contain it. The rail still collapses, resizes, and overlays on a narrow window. Filter by
-              card kind, use{" "}
-              <L>{WORLD.fitSelection}</L> / <L>{WORLD.fitAll}</L>, and move between cards with the arrow keys.{" "}
-              <L>{WORLD.addCardMenu}</L>, renaming, and deleting stay in menus on that one toolbar. The canvas uses the
-              remaining height, and the inspector scrolls on its own. Unsaved
-              note title and body stay when the board refreshes after another card save.
+              card kind. <L>{WORLD.boardViewCanvas}</L> and <L>{WORLD.boardViewList}</L> show the same cards, filter, and
+              selection. The list count says when the filter is hiding cards, and each row can inspect, open, or edit.{" "}
+              <L>{WORLD.boardCenterSelection}</L> and <L>{WORLD.boardCenterAll}</L> scroll the board so those cards sit
+              in the middle. They do not zoom. Arrow keys move between visible cards.{" "}
+              <L>{WORLD.addCardMenu}</L>, renaming, deleting, and <L>{WORLD.askAboutBoard}</L> stay as explicit actions
+              on that toolbar. Asking does not send the board on its own. The canvas uses the remaining height, and the
+              inspector scrolls on its own. Unsaved note title and body stay when you select another card, switch
+              between Canvas and List, or the board refreshes after another card save.
             </li>
             <li>
               <L>{WORLD.removeCard}</L> removes the card from that board only; the source record or image is unchanged.
@@ -2162,11 +2177,18 @@ export function HelpContent() {
 
         <Sub id="world-continuity">
           <p>
-            World → <L>{CONTINUITY.nav}</L> (<code>/projects/&lt;project&gt;/continuity</code>) gathers{" "}
-            <L>{CONTINUITY.unresolved}</L>, sections titled <L>{INFOBOX.openQuestions}</L>,{" "}
+            World → <L>{CONTINUITY.nav}</L> (<code>/projects/&lt;project&gt;/continuity</code>) is the Continuity Ledger:
+            a read-only audit. It includes <L>{CONTINUITY.unresolved}</L>, sections titled{" "}
+            <L>{INFOBOX.openQuestions}</L>, draft or unsettled citations in the manuscript, citations with no matching
+            record, timeline vs book order, conflicting timeline constraints, Weave setups without a manuscript payoff,{" "}
             <L>{CONTINUITY.facts}</L>, <L>{CONTINUITY.storyEvidence}</L>, <L>{CONTINUITY.comments}</L>, and{" "}
-            <L>{CONTINUITY.reviews}</L>. Opening the page changes nothing. Each row links to the record, or to the story
-            timeline for story evidence.
+            <L>{CONTINUITY.reviews}</L>. Opening the page changes nothing.
+          </p>
+          <p>
+            Filter by category or severity. Each row deep-links to the chapter, scene, reference, timeline, or Weave
+            grid. <L>{CONTINUITY.markIntentional}</L> or <L>{CONTINUITY.markIgnored}</L> hides a finding (audited);{" "}
+            <L>{CONTINUITY.restore}</L> puts it back. The Write inspector shows a Continuity count for the open chapter
+            or scene; it never edits prose.
           </p>
           <p>
             Characters, canon decisions, and continuity notes can also store <L>{REFERENCE_META.name}</L>,{" "}

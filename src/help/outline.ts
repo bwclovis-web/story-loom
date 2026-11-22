@@ -115,7 +115,7 @@ export const HELP_SECTIONS = [
       { id: "world-nav", title: "Finding references" },
       { id: "world-kinds", title: "Worldbuilding kinds" },
       { id: "world-series", title: "Series references" },
-      { id: "world-continuity", title: "Open questions" },
+      { id: "world-continuity", title: "Continuity Ledger" },
       { id: "world-names", title: "Name generator" },
       { id: "reference-page", title: "Reading a reference (incl. At a glance)" },
       { id: "reference-context", title: "Context beside a reference" },

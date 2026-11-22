@@ -145,6 +145,11 @@ export function ChapterImportClient({ projectId }: { projectId: string }) {
     return (
       <div className="stack">
         <Banner tone="ok">{CHAPTER_IMPORT.done}</Banner>
+        {outcome.results.some((r) => r.rewriteRecordId) ? (
+          <p className="muted small">
+            {CHAPTER_IMPORT.rewritePages(outcome.results.filter((r) => r.rewriteRecordId).length)}
+          </p>
+        ) : null}
         <table>
           <thead>
             <tr>
