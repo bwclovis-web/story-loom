@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Banner } from "@/components/ui/Banner";
-import { Button, ButtonLink } from "@/components/ui/Button";
+import { Button, ButtonLink } from "@/components/ui/Atoms/Button";
 import { Checkbox } from "@/components/ui/Atoms/Checkbox";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { HelpPopover } from "@/components/ui/HelpPopover";

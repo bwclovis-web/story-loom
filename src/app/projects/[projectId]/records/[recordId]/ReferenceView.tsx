@@ -574,6 +574,8 @@ export function ReferenceView(props: ReferenceViewProps) {
             seriesHome={null}
             isProtected={record.protected}
             homeProjectId={projectId}
+            placeRelations={props.placeRelations}
+            placeChoices={props.placeChoices}
           />
 
           {linkable && props.recordRelations ? (

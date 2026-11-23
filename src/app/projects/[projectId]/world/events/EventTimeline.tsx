@@ -8,7 +8,7 @@ import { ContextRail, ContextRailToggle, useContextRail } from "@/components/she
 import { CloseIcon } from "@/components/shell/icons";
 import { IconButton } from "@/components/ui/IconButton";
 import { Banner } from "@/components/ui/Banner";
-import { Button, ButtonLink } from "@/components/ui/Button";
+import { Button, ButtonLink } from "@/components/ui/Atoms/Button";
 import { Checkbox } from "@/components/ui/Atoms/Checkbox";
 import type { Issue } from "@/domain/issues";
 import type { StoryEventDetail, StoryMapChoice, StoryTimeline } from "@/server/services/storyEventService";

@@ -24,6 +24,7 @@ export const WORLD_PROFILE_KNOWN_KEYS = [
   "fieldMeta",
   "migrationHold",
   "fieldHistory",
+  "enabledSections",
 ] as const;
 
 export const WORLD_PROFILE_PROVENANCE_ORIGINS = ["author", "imported", "extracted"] as const;
@@ -93,6 +94,16 @@ export interface WorldProfileRecordRef {
   recordId: string;
 }
 
+export const WORLD_QUANTITY_QUALIFIERS = ["exact", "about", "at_least", "at_most"] as const;
+export type WorldQuantityQualifier = (typeof WORLD_QUANTITY_QUALIFIERS)[number];
+
+/** Qualified numeric estimate with optional unit. amount: 0 is documented zero; null value is unknown. */
+export interface WorldProfileQuantity {
+  amount: number;
+  unit?: string;
+  qualifier?: WorldQuantityQualifier;
+}
+
 export type WorldProfileFieldValue =
   | string
   | number
@@ -100,6 +111,7 @@ export type WorldProfileFieldValue =
   | string[]
   | WorldProfileRecordRef
   | WorldProfileCalendarDate
+  | WorldProfileQuantity
   | null;
 
 export interface WorldProfileCollectionItem {
@@ -157,6 +169,8 @@ export interface WorldProfile {
   migrationHold: WorldMigrationHoldItem[];
   /** Optional dated changes; missing means no story chronology yet. */
   fieldHistory: WorldFieldHistoryChange[];
+  /** Opt-in subcategory section ids (e.g. geography:cities_and_settlements). Missing = []. */
+  enabledSections: string[];
 }
 
 export interface WorldProfileProblem {
@@ -235,7 +249,31 @@ export function emptyWorldProfile(): WorldProfile {
     fieldMeta: {},
     migrationHold: [],
     fieldHistory: [],
+    enabledSections: [],
   };
+}
+
+function readEnabledSections(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((item): item is string => typeof item === "string" && ID_PATTERN.test(item.trim()))
+    .map((item) => item.trim().slice(0, 120))
+    .slice(0, 64);
+}
+
+export function isWorldProfileQuantity(value: unknown): value is WorldProfileQuantity {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const row = value as Record<string, unknown>;
+  if (!("amount" in row)) return false;
+  if (typeof row.amount !== "number" || !Number.isFinite(row.amount)) return false;
+  if (row.unit !== undefined && typeof row.unit !== "string") return false;
+  if (
+    row.qualifier !== undefined &&
+    (typeof row.qualifier !== "string" || !(WORLD_QUANTITY_QUALIFIERS as readonly string[]).includes(row.qualifier))
+  ) {
+    return false;
+  }
+  return true;
 }
 
 function readNullableId(value: unknown): string | null {
@@ -368,6 +406,13 @@ export function readWorldProfileFieldValue(raw: unknown): WorldProfileFieldValue
   if (!row) return null;
   if (typeof row.recordId === "string" && row.recordId.trim() && Object.keys(row).every((k) => k === "recordId")) {
     return { recordId: row.recordId.trim().slice(0, 80) };
+  }
+  if ("amount" in row && typeof row.amount === "number" && Number.isFinite(row.amount)) {
+    const quantity: WorldProfileQuantity = { amount: row.amount };
+    if (typeof row.unit === "string" && row.unit.trim()) quantity.unit = text(row.unit, 40);
+    const qualifier = oneOf(row.qualifier, WORLD_QUANTITY_QUALIFIERS);
+    if (qualifier) quantity.qualifier = qualifier;
+    return quantity;
   }
   if (isCalendarDate(row)) {
     const date: WorldProfileCalendarDate = {};
@@ -513,6 +558,7 @@ export function readWorldProfile(fields: Readonly<Record<string, unknown>>): {
     fieldMeta: readFieldMeta(row.fieldMeta),
     migrationHold: readMigrationHold(row.migrationHold),
     fieldHistory,
+    enabledSections: readEnabledSections(row.enabledSections),
   };
   return { profile, problems, ok: problems.length === 0 };
 }
@@ -591,11 +637,36 @@ export function worldProfileOnUnsupportedTypeProblems(
   ];
 }
 
+function formatQuantityAmount(amount: number): string {
+  if (!Number.isFinite(amount)) return "";
+  if (Number.isInteger(amount) && Math.abs(amount) >= 1000) {
+    return amount.toLocaleString("en-US");
+  }
+  return String(amount);
+}
+
+const QUANTITY_QUALIFIER_LABELS: Record<WorldQuantityQualifier, string> = {
+  exact: "",
+  about: "about",
+  at_least: "at least",
+  at_most: "at most",
+};
+
 export function formatWorldProfileFieldValue(value: WorldProfileFieldValue): string {
   if (value === null || value === undefined) return "";
   if (typeof value === "string") return value;
   if (typeof value === "number" || typeof value === "boolean") return String(value);
   if (Array.isArray(value)) return value.join(", ");
+  if ("amount" in value && typeof (value as WorldProfileQuantity).amount === "number") {
+    const quantity = value as WorldProfileQuantity;
+    const qualifier =
+      quantity.qualifier && quantity.qualifier !== "exact"
+        ? QUANTITY_QUALIFIER_LABELS[quantity.qualifier]
+        : "";
+    const amount = formatQuantityAmount(quantity.amount);
+    const unit = quantity.unit?.trim() ?? "";
+    return [qualifier, amount, unit].filter(Boolean).join(" ");
+  }
   if ("recordId" in value && typeof (value as WorldProfileRecordRef).recordId === "string" && !("freeText" in value)) {
     return (value as WorldProfileRecordRef).recordId;
   }

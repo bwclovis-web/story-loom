@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useId, useMemo, useState, type ReactNode } from "react";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui/Atoms/Button";
 import { Checkbox } from "@/components/ui/Atoms/Checkbox";
+import { HelpPopover } from "@/components/ui/HelpPopover";
 import type { JsonObject, JsonValue } from "@/domain/json";
 import {
   forgetWorldKindTemplateAction,
@@ -140,6 +141,7 @@ export function WorldKindFields({
           <div className="reference-kind-row">
           <label>
             {REFERENCE_FORM.kindLabel}
+            <HelpPopover label={REFERENCE_FORM.kindExplain}>{REFERENCE_FORM.kindHelp}</HelpPopover>
             <select
               value={mode.selectValue}
               disabled={disabled || !parsed}
@@ -168,6 +170,7 @@ export function WorldKindFields({
           {mode.selectValue === WORLD_KIND_CUSTOM_UI ? (
             <label>
               {WORLD_KIND.customLabel}
+              <HelpPopover label={WORLD_KIND.customExplain}>{WORLD_KIND.customHelp}</HelpPopover>
               <input
                 type="text"
                 value={mode.customName}

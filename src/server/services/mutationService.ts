@@ -52,6 +52,7 @@ import {
   markAnnotationNeedsRecheckForSourceInTx,
 } from "./manuscriptAnnotationService";
 import { markStoryEvidenceNeedsRecheckForSourceInTx } from "./storyEventService";
+import { markWorldContradictionNeedsRecheckForSourceInTx } from "./worldContradictionService";
 import { clearWeaveForDeletedRecordsInTx } from "./weaveService";
 
 function isWorldRecordType(type: RecordType): boolean {
@@ -653,6 +654,7 @@ export async function applyMutationsInTx(
       await markEvidenceNeedsRecheckForSourceInTx(tx, ctx.projectId, p.recordId, newRevision);
       await markStoryEvidenceNeedsRecheckForSourceInTx(tx, ctx.projectId, p.recordId, newRevision);
       await markAnnotationNeedsRecheckForSourceInTx(tx, ctx.projectId, p.recordId, newRevision);
+      await markWorldContradictionNeedsRecheckForSourceInTx(tx, ctx.projectId, p.recordId, newRevision);
     }
     outcomes.push({
       index: p.index,

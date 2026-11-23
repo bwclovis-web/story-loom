@@ -117,6 +117,10 @@ function continuitySuppressionsOf(b: WorkspaceBackupV1) {
   return b.continuitySuppressions ?? [];
 }
 
+function worldContradictionChecksOf(b: WorkspaceBackupV1) {
+  return b.worldContradictionChecks ?? [];
+}
+
 function boardsOf(b: WorkspaceBackupV1) {
   return b.boards ?? [];
 }
@@ -573,6 +577,24 @@ async function continuitySuppressionRows(db: DbOrTx, projectIds: string[]) {
   }
   try {
     return await db.continuitySuppression.findMany({
+      where: { projectId: { in: projectIds } },
+      orderBy: [{ projectId: "asc" }, { id: "asc" }],
+    });
+  } catch (error) {
+    if (isMissingSchemaError(error, "P2021")) return [];
+    throw error;
+  }
+}
+
+async function worldContradictionCheckRows(db: DbOrTx, projectIds: string[]) {
+  if (
+    !("worldContradictionCheck" in db) ||
+    !(db as { worldContradictionCheck?: { findMany: unknown } }).worldContradictionCheck
+  ) {
+    return [];
+  }
+  try {
+    return await db.worldContradictionCheck.findMany({
       where: { projectId: { in: projectIds } },
       orderBy: [{ projectId: "asc" }, { id: "asc" }],
     });
@@ -1320,6 +1342,9 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
     worldCategoryDefinitionRows(db, projectIds),
   ]);
   const continuitySuppressions = await continuitySuppressionRows(db, projectIds).catch(() => [] as Awaited<ReturnType<typeof continuitySuppressionRows>>);
+  const worldContradictionChecks = await worldContradictionCheckRows(db, projectIds).catch(
+    () => [] as Awaited<ReturnType<typeof worldContradictionCheckRows>>,
+  );
   const weaveTemplateBeats = await weaveTemplateBeatRows(
     db,
     weaveTemplates.map((t) => t.id),
@@ -1714,10 +1739,44 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
             id: row.id,
             projectId: row.projectId,
             issueKey: row.issueKey,
-            reason: row.reason === "ignored" ? ("ignored" as const) : ("intentional" as const),
+            reason:
+              row.reason === "ignored"
+                ? ("ignored" as const)
+                : row.reason === "resolved"
+                  ? ("resolved" as const)
+                  : ("intentional" as const),
             ...(row.note ? { note: row.note } : {}),
             ...(row.actor ? { actor: row.actor } : {}),
             createdAt: iso(row.createdAt),
+          })),
+        }
+      : {}),
+    ...(worldContradictionChecks.length
+      ? {
+          worldContradictionChecks: worldContradictionChecks.map((row) => ({
+            id: row.id,
+            projectId: row.projectId,
+            issueKey: row.issueKey,
+            dedupeKey: row.dedupeKey,
+            manuscriptRecordId: row.manuscriptRecordId,
+            manuscriptRevision: row.manuscriptRevision,
+            passageStart: row.passageStart,
+            passageEnd: row.passageEnd,
+            passageExcerpt: row.passageExcerpt,
+            passageHash: row.passageHash,
+            worldRecordId: row.worldRecordId,
+            worldRecordRevision: row.worldRecordRevision,
+            fieldPath: row.fieldPath,
+            changeId: row.changeId,
+            storyPointJson: row.storyPointJson || undefined,
+            storyPointLabel: row.storyPointLabel || undefined,
+            verdict: row.verdict === "ambiguous" ? ("ambiguous" as const) : ("conflict" as const),
+            stance: row.stance,
+            explanation: row.explanation,
+            worldFactFormatted: row.worldFactFormatted,
+            needsRecheck: row.needsRecheck,
+            checkedAt: iso(row.checkedAt),
+            updatedAt: iso(row.updatedAt),
           })),
         }
       : {}),
@@ -2274,6 +2333,7 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
       ...(worldKindTemplates.length ? { worldKindTemplates: worldKindTemplates.length } : {}),
       ...(worldCategoryDefinitions.length ? { worldCategoryDefinitions: worldCategoryDefinitions.length } : {}),
       ...(continuitySuppressions.length ? { continuitySuppressions: continuitySuppressions.length } : {}),
+      ...(worldContradictionChecks.length ? { worldContradictionChecks: worldContradictionChecks.length } : {}),
       ...(boards.length ? { boards: boards.length } : {}),
       ...(boardCards.length ? { boardCards: boardCards.length } : {}),
       ...(worldMaps.length ? { worldMaps: worldMaps.length } : {}),
@@ -2367,6 +2427,7 @@ function checkInternalConsistency(b: WorkspaceBackupV1): Issue[] {
     worldKindTemplates: worldKindTemplatesOf(b).length,
     worldCategoryDefinitions: worldCategoryDefinitionsOf(b).length,
     continuitySuppressions: continuitySuppressionsOf(b).length,
+    worldContradictionChecks: worldContradictionChecksOf(b).length,
     boards: boardsOf(b).length,
     boardCards: boardCardsOf(b).length,
     worldMaps: worldMapsOf(b).length,
@@ -2531,6 +2592,7 @@ function checkInternalConsistency(b: WorkspaceBackupV1): Issue[] {
   checkUnique(weaveTemplateBeatsOf(b).map((x) => x.id), "weave template beat", issues);
   checkUnique(establishedFactsOf(b).map((x) => x.id), "established fact", issues);
   checkUnique(factEvidenceOf(b).map((x) => x.id), "fact evidence", issues);
+  checkUnique(worldContradictionChecksOf(b).map((x) => x.id), "world contradiction check", issues);
   checkUnique(assistantConversationsOf(b).map((x) => x.id), "assistant conversation", issues);
   checkUnique(assistantMessagesOf(b).map((x) => x.id), "assistant message", issues);
   checkUnique(assistantContextItemsOf(b).map((x) => x.id), "assistant context item", issues);
@@ -3121,6 +3183,18 @@ function checkInternalConsistency(b: WorkspaceBackupV1): Issue[] {
       issues.push(integrity(`Established fact ${f.id} references missing subject ${f.subjectRecordId}.`));
     }
   });
+  worldContradictionChecksOf(b).forEach((row) => {
+    needProject(row.projectId, `World contradiction check ${row.id}`);
+    if (!recordIds.has(row.manuscriptRecordId) || recordProject.get(row.manuscriptRecordId) !== row.projectId) {
+      issues.push(integrity(`World contradiction check ${row.id} references missing manuscript ${row.manuscriptRecordId}.`));
+    }
+    if (!recordIds.has(row.worldRecordId)) {
+      issues.push(integrity(`World contradiction check ${row.id} references missing world record ${row.worldRecordId}.`));
+    }
+    if (row.passageEnd < row.passageStart) {
+      issues.push(integrity(`World contradiction check ${row.id} has an empty or inverted passage range.`));
+    }
+  });
   factEvidenceOf(b).forEach((e) => {
     needProject(e.projectId, `Fact evidence ${e.id}`);
     if (!establishedFactIds.has(e.factId)) {
@@ -3366,6 +3440,14 @@ async function findCollisions(db: DbOrTx, b: WorkspaceBackupV1): Promise<Issue[]
     await check(
       "continuity suppression",
       db.continuitySuppression.count({ where: { id: { in: continuitySuppressionsOf(b).map((row) => row.id) } } }),
+    );
+  }
+  if (worldContradictionChecksOf(b).length && "worldContradictionCheck" in db) {
+    await check(
+      "world contradiction check",
+      db.worldContradictionCheck.count({
+        where: { id: { in: worldContradictionChecksOf(b).map((row) => row.id) } },
+      }),
     );
   }
   if (boardsOf(b).length) {
@@ -3638,6 +3720,7 @@ export async function restoreWorkspaceBackup(db: Db, input: string | unknown, op
   worldKindTemplatesOf(b).forEach((template) => assign(template.id, "wkt"));
   worldCategoryDefinitionsOf(b).forEach((row) => assign(row.id, "wcat"));
   continuitySuppressionsOf(b).forEach((row) => assign(row.id, "csp"));
+  worldContradictionChecksOf(b).forEach((row) => assign(row.id, "wcc"));
   boardsOf(b).forEach((x) => assign(x.id, "brd"));
   boardCardsOf(b).forEach((c) => assign(c.id, "bcd"));
   worldMapsOf(b).forEach((x) => assign(x.id, "wmp"));
@@ -4039,11 +4122,41 @@ export async function restoreWorkspaceBackup(db: Db, input: string | unknown, op
             data: suppressions.map((row) => ({
               id: m(row.id),
               projectId: m(row.projectId),
-              issueKey: row.issueKey,
+              issueKey: remapOpaque(row.issueKey),
               reason: row.reason,
               note: row.note ?? "",
               actor: row.actor ?? "author",
               createdAt: new Date(row.createdAt),
+            })),
+          });
+        }
+        const contradictionChecks = worldContradictionChecksOf(b);
+        if (contradictionChecks.length && "worldContradictionCheck" in tx) {
+          await tx.worldContradictionCheck.createMany({
+            data: contradictionChecks.map((row) => ({
+              id: m(row.id),
+              projectId: m(row.projectId),
+              issueKey: remapOpaque(row.issueKey),
+              dedupeKey: remapOpaque(row.dedupeKey),
+              manuscriptRecordId: m(row.manuscriptRecordId),
+              manuscriptRevision: row.manuscriptRevision,
+              passageStart: row.passageStart,
+              passageEnd: row.passageEnd,
+              passageExcerpt: row.passageExcerpt,
+              passageHash: row.passageHash,
+              worldRecordId: m(row.worldRecordId),
+              worldRecordRevision: row.worldRecordRevision,
+              fieldPath: row.fieldPath,
+              changeId: row.changeId,
+              storyPointJson: rewriteJson(row.storyPointJson ?? "{}"),
+              storyPointLabel: row.storyPointLabel ?? "",
+              verdict: row.verdict,
+              stance: row.stance,
+              explanation: row.explanation,
+              worldFactFormatted: row.worldFactFormatted,
+              needsRecheck: row.needsRecheck ?? false,
+              checkedAt: new Date(row.checkedAt),
+              updatedAt: new Date(row.updatedAt),
             })),
           });
         }

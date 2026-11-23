@@ -297,10 +297,17 @@ export default async function RecordPage({
         characterCues={characterCues}
         continuityFindings={continuityFindings.map((c) => ({
           key: c.key,
+          kind: c.kind,
           title: c.title,
           detail: c.detail,
           href: c.href,
           severity: c.severity,
+          worldHref: c.worldHref,
+          needsRecheck: c.needsRecheck,
+          evidence: c.evidence,
+          applicableCanon: c.applicableCanon,
+          storyLocation: c.storyLocation,
+          explanation: c.explanation,
         }))}
         manuscriptSplitOptions={manuscriptSplitOptions}
         preferredSplitIds={sources.map((s) => s.toRecordId)}

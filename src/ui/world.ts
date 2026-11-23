@@ -110,6 +110,8 @@ export function worldHref(
     protected?: "yes" | "no" | null;
     sort?: "title" | "updated" | "created" | null;
     view?: "list" | "cards" | null;
+    /** Open World Hub smart collection id (preserved while experimenting with filters). */
+    collection?: string | null;
   } = {},
 ): string {
   const search = new URLSearchParams();
@@ -127,6 +129,7 @@ export function worldHref(
   if (params.protected) search.set("protected", params.protected);
   if (params.sort && params.sort !== "updated") search.set("sort", params.sort);
   if (params.view && params.view !== "list") search.set("view", params.view);
+  if (params.collection?.trim()) search.set("collection", params.collection.trim());
   const qs = search.toString();
   return `/projects/${encodeURIComponent(projectId)}/world${qs ? `?${qs}` : ""}`;
 }

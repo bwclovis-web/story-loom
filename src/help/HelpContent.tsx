@@ -1246,9 +1246,10 @@ export function HelpContent() {
 
         <Sub id="smart-collections">
           <p>
-            <L>{SMART_COLLECTIONS.heading}</L> are saved filters for this project. Open them from project tools on{" "}
-            <L>{SHELL.write}</L>. They never rewrite prose or change book order; they only name a set of predicates such as
-            text query, point of view, word range, or open continuity findings. Collections travel in workspace backups when
+            <L>{SMART_COLLECTIONS.heading}</L> are saved filters for this project. Manuscript collections open from project
+            tools on <L>{SHELL.write}</L>. They never rewrite prose or change book order; they only name a set of predicates
+            such as text query, point of view, word range, or open continuity findings. World Hub collections use the same
+            storage with scope World (see <See anchor="world-collections" />). Collections travel in workspace backups when
             present; older backups without them restore cleanly with none.
           </p>
         </Sub>
@@ -1944,11 +1945,14 @@ export function HelpContent() {
           <L>{SHELL.world}</L> holds the project&apos;s reference documents of these types:{" "}
           {WORLD_TYPES.map((t) => RECORD_TYPE_LABELS[t]).join(", ")}. The World page is a hub: thematic categories
           (see <See anchor="world-taxonomy" />), search, recently opened and recently updated references, list or card
-          discovery, and <L>{WORLD.toolsAndSpaces}</L> for maps, boards, timeline, calendar, relationships, and the name
+          discovery, <L>{SMART_COLLECTIONS.worldHeading}</L> (see <See anchor="world-collections" />), and{" "}
+          <L>{WORLD.toolsAndSpaces}</L> for maps, boards, timeline, calendar, relationships, and the name
           generator. Opening a page does not change records. <L>{WORLD.organizeReferences}</L> opens an author-reviewed
-          bulk classifier (see <See anchor="world-organize" />). <L>{WORLD.newReference}</L> opens one form: title, any
+          bulk classifier (see <See anchor="world-organize" />).           <L>{WORLD.newReference}</L> opens one form: title, any
           World document type, optional Book/Series scope, World Hub classification, an optional Worldbuilding kind,
-          optional starting headings that are added only after you confirm a preview, writing, and optional details.
+          a profile definition when one is available, optional starting headings that are added only after you confirm
+          a preview, writing, and optional details. Info icons beside document type, kind, where this applies, Hub
+          classification, profile definition, starting headings, and canon status explain what each choice changes.
           Document type is how the reference is stored. Hub categories are optional discovery labels and do not change
           that type. Starting headings are an outline in the writing and do not set document type or kind. A Character
           reference stores name, aliases, and role in Details. Choosing a Worldbuilding kind lists that kind&apos;s
@@ -1999,15 +2003,17 @@ export function HelpContent() {
               this board, the selected card, the filter, and Canvas or List. <L>{WORLD.linkScene}</L> assigns a chapter
               or scene you choose. A protected reference asks you to confirm. Manuscript text is not changed. The
               record&apos;s own page still holds sections, images, relationships, and established facts. The rail still
-              collapses, resizes, and overlays on a narrow window. Filter by card kind.{" "}
+              collapses, resizes, and overlays on a narrow window. Filter by card kind and by World Hub category /
+              subcategory (the same primary and secondary memberships as the References hub).{" "}
+              <L>{WORLD.boardTaxonomyFilterHint}</L>{" "}
               <L>{WORLD.boardViewCanvas}</L> and <L>{WORLD.boardViewList}</L> show the same cards, filter, and
               selection. The list count says when the filter is hiding cards, and each row can inspect, open, or edit.{" "}
-              <L>{WORLD.boardCenterSelection}</L> and <L>{WORLD.boardCenterAll}</L> scroll the board so those cards sit
-              in the middle. They do not zoom. Arrow keys move between visible cards.{" "}
-              <L>{WORLD.addCardMenu}</L>, renaming, deleting, and <L>{WORLD.askAboutBoard}</L> stay as explicit actions
-              on that toolbar. Asking does not send the board on its own. The canvas uses the remaining height, and the
-              inspector scrolls on its own. Unsaved note title and body stay when you select another card, switch
-              between Canvas and List, or the board refreshes after another card save.
+              <L>{WORLD.clearFilters}</L> restores every card and its saved position. Arrow keys move between visible
+              cards. <L>{WORLD.addCardMenu}</L> searches references by title and category before placing them; a shared
+              result keeps the original record id. Renaming, deleting, and <L>{WORLD.askAboutBoard}</L> stay as
+              explicit actions on that toolbar. Asking does not send the board on its own. The canvas uses the remaining
+              height, and the inspector scrolls on its own. Unsaved note title and body stay when you select another
+              card, switch between Canvas and List, or the board refreshes after another card save.
             </li>
             <li>
               <L>{WORLD.removeCard}</L> removes the card from that board only; the source record or image is unchanged.
@@ -2101,7 +2107,10 @@ export function HelpContent() {
               presets (walking, horse, wagon, ship, or custom speed) give a read-only estimate such as{" "}
               <L>{WORLD.mapTravelEstimate("~3 h", "walking")}</L>; nothing is saved as canon. Optional{" "}
               <L>{WORLD.mapPinFilter}</L> dims markers that have no story event or scene location in the chosen era,
-              draft, or book.
+              draft, or book, and can also filter by World Hub category / subcategory.{" "}
+              <L>{WORLD.mapPinFilterTaxonomyHint}</L> Marker and place pickers search by title and category; a shared
+              reference stays linked to its original id. <L>{WORLD.clearFilters}</L> restores the full map without
+              moving pins.
             </li>
             <li>
               Each map has author-defined <L>{WORLD.mapLayers}</L>. Older maps open with the former four groups as
@@ -2258,9 +2267,12 @@ export function HelpContent() {
           <p>
             <L>{RELATIONSHIP.modeAllConnections}</L> adds reference links from chapters and scenes, plus manuscript
             mentions computed from saved text (the same rules as <L>{XREF.namedIn}</L> and{" "}
-            <L>{XREF.mentionedBy}</L>). Filter by record type, canon status, draft scope when drafts exist, edge kind, and{" "}
-            <L>{RELATIONSHIP.orphansOnly}</L> (records with no edges after the other filters). Mention and link edges are
-            read-only and never change canon. Open any node to jump to its record page.
+            <L>{XREF.mentionedBy}</L>). Filter by record type, canon status, draft scope when drafts exist, edge kind,
+            World Hub category / subcategory, and <L>{RELATIONSHIP.orphansOnly}</L> (records with no edges after the
+            other filters). When a category is active, choose <L>{WORLD.relationshipMatchingOnly}</L> or{" "}
+            <L>{WORLD.relationshipWithNeighbors}</L>. Book/series edge visibility and endpoint rules are unchanged;
+            disallowed relationships report separately from category filters. Mention and link edges are read-only and
+            never change canon. Open any node to jump to its record page.
           </p>
           <p>
             Graph and tree nodes show the reference&apos;s <L>{IMAGES.profileImage}</L> when you set one on its{" "}
@@ -2396,13 +2408,30 @@ export function HelpContent() {
             book to open.
           </p>
           <p>
-            Optional <L>{WORLD_PROFILE.history}</L> records dated world-fact changes (for example access or climate)
-            anchored to a book, timeline event, chapter, or scene. Undated current values in Details or the profile
-            fields do not establish earlier story time — as-of an earlier point with no dated change shows{" "}
-            <L>{WORLD_PROFILE.unknownAtPoint}</L>. Approved as-of ignores draft, proposed, planned, and superseded
-            entries. You can compare two points, correct a prior change (supersede, recoverable via History/Revisions),
-            and mark a change series-wide or this-book-only. Flat kind fields stay edited in Details for the undated
-            current value; History only dates them.
+            Optional <L>{WORLD_PROFILE.subcategorySections}</L> add Geography details for cities and settlements,
+            regions, or waterways without changing the profile definition. Taxonomy can suggest a section; you can also
+            add any shipped section before tagging. Hiding a section keeps saved values. Qualified quantities (population
+            estimate, land area, length) distinguish a blank unknown from a documented zero, and waterway outlet can
+            reuse an existing Place relationship (<code>flows_into</code>). Changing primary or secondary categories
+            never clears the definition, enabled sections, or saved values — sections with saved data stay under{" "}
+            <L>{WORLD_PROFILE.subcategoryActive}</L>.
+          </p>
+          <p>
+            Optional <L>{WORLD_PROFILE.history}</L> records dated world-fact changes (for example access, climate,
+            population estimate, or length) anchored to a book, timeline event, chapter, or scene. Undated current
+            values in Details or the profile fields do not establish earlier story time — as-of an earlier point with no
+            dated change shows <L>{WORLD_PROFILE.unknownAtPoint}</L>. Approved as-of ignores draft, proposed, planned,
+            and superseded entries. You can compare two points, correct a prior change (supersede, recoverable via
+            History/Revisions), and mark a change series-wide or this-book-only. Flat kind fields stay edited in Details
+            for the undated current value; History only dates them.
+          </p>
+          <p>
+            When you draft with Selection Assist, Beat Draft, or the assistant on a chapter or scene linked to a story
+            event, Story Loom resolves those dated world facts as of that story point (not manuscript order). Settled
+            facts are objective setting state — distinct from what a viewpoint character has learned. Planned future
+            changes, Markdown archives, book-local sibling overrides, and undated current values are omitted from
+            drafting payloads. Series-shared world references from another book in the series can be pinned and sent;
+            book-local world records from a sibling stay out of this book&apos;s scope.
           </p>
         </Sub>
 
@@ -2481,6 +2510,25 @@ export function HelpContent() {
           </p>
         </Sub>
 
+        <Sub id="world-collections">
+          <p>
+            <L>{SMART_COLLECTIONS.worldHeading}</L> on <L>{SHELL.world}</L> save the active Hub filters for this book as a
+            named smart collection (scope World). Opening one restores the filter controls and lists matching references
+            from the current Hub index, including series-shared ones that belong through primary or secondary membership.
+            Matches are always evaluated live and deduplicated by record id; map pins and board cards are not duplicated
+            into the collection.
+          </p>
+          <p>
+            Saved filters use stable identifiers for category, subcategory, tag, custom kind, uncategorized, document type,
+            worldbuilding kind, Book/Series scope, canon status, protection, search text, sort, and list/cards view. The
+            save panel shows a readable summary of what will be stored. After you open a collection you can change filters
+            freely; choose <L>{SMART_COLLECTIONS.worldUpdate}</L> only when you want those changes kept. A collection with
+            zero current matches stays available so you can adjust filters or return to all references. Deleting a
+            collection removes only the saved filter — references and placements stay. Manuscript smart collections are
+            unchanged (see <See anchor="smart-collections" />). Collections travel in workspace backups.
+          </p>
+        </Sub>
+
         <Sub id="world-organize">
           <p>
             <L>{TAXONOMY_ORGANIZE.title}</L> (<code>/projects/&lt;project&gt;/world/organize</code>) lets you classify
@@ -2542,19 +2590,23 @@ export function HelpContent() {
             pending facts as well as facts whose evidence needs a recheck, <L>{CONTINUITY.unresolved}</L>, sections titled{" "}
             <L>{INFOBOX.openQuestions}</L>, draft or unsettled citations in the manuscript, citations with no matching
             record, timeline vs book order, conflicting timeline constraints, Weave setups without a manuscript payoff,{" "}
-            <L>{CONTINUITY.storyEvidence}</L>, <L>{CONTINUITY.comments}</L>, <L>{CONTINUITY.reviews}</L>, and Living Profile
+            <L>{CONTINUITY.storyEvidence}</L>, <L>{CONTINUITY.comments}</L>, <L>{CONTINUITY.reviews}</L>, Living Profile
             findings such as <L>{CONTINUITY.kinds.character_state_conflict}</L>,{" "}
             <L>{CONTINUITY.kinds.character_knowledge}</L>, <L>{CONTINUITY.kinds.character_limitation}</L>,{" "}
-            <L>{CONTINUITY.kinds.forgotten_arc}</L>, and <L>{CONTINUITY.kinds.character_identity}</L>. The timeline
-            check runs when the project has story events. Opening the page changes nothing.
+            <L>{CONTINUITY.kinds.forgotten_arc}</L>, and <L>{CONTINUITY.kinds.character_identity}</L>, and{" "}
+            <L>{CONTINUITY.kinds.world_contradiction}</L> from an explicit world-fact review. The timeline check runs when
+            the project has story events. Opening the page changes nothing.
           </p>
           <p>
             Filter by category or severity. Each row deep-links to the chapter, scene, reference, timeline, or Weave
-            grid, and character items show the applicable canon, story location, evidence, explanation, and suggestion.{" "}
-            <L>{CONTINUITY.markIntentional}</L>, <L>{CONTINUITY.markResolved}</L>, or <L>{CONTINUITY.markIgnored}</L>{" "}
-            hides a finding (audited); <L>{CONTINUITY.restore}</L> puts it back. Character findings resolve against the
-            open chapter or scene when present; they do not treat archetypes as rigid rules, and they never rewrite
-            prose. The Write inspector shows a Continuity count for the open chapter or scene.
+            grid, and character or world-fact items show the applicable canon, story location, evidence, explanation, and
+            suggestion. <L>{CONTINUITY.markIntentional}</L>, <L>{CONTINUITY.markResolved}</L>, or{" "}
+            <L>{CONTINUITY.markIgnored}</L> hides a finding (audited); <L>{CONTINUITY.restore}</L> puts it back. Character
+            findings resolve against the open chapter or scene when present; they do not treat archetypes as rigid rules,
+            and they never rewrite prose. On Write → References, <L>{CONTINUITY.checkWorldFacts}</L> compares the chapter
+            or scene against approved, dated Living World facts at that story point (belief, hope, and dialogue that do
+            not assert objective state stay quiet). Planned changes, undated values, and sibling book-local facts stay
+            out of the review. Findings never rewrite manuscript prose or canon.
           </p>
           <p>
             Characters, canon decisions, and continuity notes can also store <L>{REFERENCE_META.name}</L>,{" "}
@@ -3500,6 +3552,12 @@ export function HelpContent() {
             </li>
             <li>Save when ready, with the protection tick if the record is protected.</li>
           </ol>
+          <p>
+            Pinned Living World Profiles are sent as a point-scoped slice for the open chapter or scene (story-event
+            chronology), not as raw field JSON. Planned reopenings, archive excerpts, and later-book closures stay out
+            of earlier scenes — including flashbacks anchored earlier in story time. See{" "}
+            <See anchor="world-profile" />.
+          </p>
           <p className="warning">
             {SELECTION_ASSIST.privacyNote} Writing assist shares the same assistant connection, hourly limit, monthly cap,
             and usage counters as proofreading and discussion. See <See anchor="assistant-privacy" />.
@@ -3632,7 +3690,9 @@ export function HelpContent() {
             cards, and suggested actions (<L>{ASSISTANT.checkContinuity}</L>, <L>{ASSISTANT.exploreOptions}</L>,{" "}
             <L>{ASSISTANT.prepareChanges}</L>). The composer draft and selected conversation are kept when you expand.
             Unsaved manuscript text stays in the editor; only the optional{" "}
-            <L>{ASSISTANT.includeUnsavedProse}</L> tick sends it.
+            <L>{ASSISTANT.includeUnsavedProse}</L> tick sends it. Included worldbuilding references resolve as of the
+            open scene&apos;s story point when known; chapter-scope drafting omits planning search and planned fact /
+            event excerpts. Series-shared world records from sibling books are discoverable; book-local ones are not.
           </p>
           <p>
             The full assistant page still puts the conversation in the middle, with the question box under the latest
@@ -3934,7 +3994,10 @@ export function HelpContent() {
             When exporting character dossiers, choose <L>{EXPORT.characterModeLabel}</L> (Drafting, Editorial, or
             Planning) and an optional <L>{EXPORT.storyPointLabel}</L> so point-scoped Living Profile slices match that
             chapter or scene. Tick <L>{EXPORT.redactSpoilers}</L> when sharing a spoiler-safe bundle to strip hidden
-            secrets, lived-experience notes, and planned future items from raw dossier fields.
+            secrets, lived-experience notes, and planned future items from raw dossier fields. The same drafting /
+            spoiler tick also deep-redacts Living World Profiles: planned history, Markdown archives, migration holds,
+            source-ref excerpts, and undated or after-point current values are stripped to match what drafting assist
+            would see.
           </p>
           <p>
             An export is not a backup. It leaves out earlier saved versions and unticked records, and it cannot be

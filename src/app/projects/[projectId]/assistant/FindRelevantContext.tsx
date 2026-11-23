@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import type { FindContextCandidate, FindRelevantContextResult } from "@/server/services/findRelevantContextService";
 import { ASSISTANT } from "@/ui/labels";
 import { findRelevantContextAction } from "./actions";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui/Atoms/Button";
 import { Checkbox } from "@/components/ui/Atoms/Checkbox";
 
 export interface FindSelectionApply {

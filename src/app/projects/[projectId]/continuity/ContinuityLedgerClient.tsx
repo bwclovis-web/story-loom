@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
 import { Banner } from "@/components/ui/Banner";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui/Atoms/Button";
 import { Checkbox } from "@/components/ui/Atoms/Checkbox";
 import { EmptyState } from "@/components/ui/EmptyState";
 import type { ContinuityCategory, ContinuityItem, ContinuityKind, ContinuitySeverity } from "@/server/services/continuityService";
@@ -16,6 +16,7 @@ const KIND_ORDER: ContinuityKind[] = [
   "dangling_weave",
   "timeline_order",
   "character_state_conflict",
+  "world_contradiction",
   "missing_ref",
   "fact",
   "story_evidence",
@@ -132,6 +133,11 @@ export function ContinuityLedgerClient({
             {CONTINUITY.characterLead}
           </p>
         ) : null}
+        {items.some((item) => item.kind === "world_contradiction") ? (
+          <p className="small muted" style={{ margin: 0 }}>
+            {CONTINUITY.worldContradictionLead}
+          </p>
+        ) : null}
       </div>
 
       {error ? <Banner tone="error">{error}</Banner> : null}
@@ -150,6 +156,12 @@ export function ContinuityLedgerClient({
                       {CONTINUITY.severityBadge[row.severity]}
                     </span>
                     <Link href={row.href}>{row.title}</Link>
+                    {row.worldHref ? (
+                      <Link className="small" href={row.worldHref}>
+                        {CONTINUITY.worldFactLink}
+                      </Link>
+                    ) : null}
+                    {row.needsRecheck ? <span className="small muted">{CONTINUITY.needsRecheck}</span> : null}
                     {row.suppressed ? (
                       <span className="small muted">
                         (

@@ -16,6 +16,7 @@ import {
   WORLD_PROFILE_KEY,
 } from "@/domain/worldProfile";
 import { redactWorldFieldHistoryForExport } from "@/domain/worldProfileHistory";
+import { redactWorldFieldsForExport } from "@/domain/worldWritingContext";
 import type { DbOrTx } from "../db";
 import { listSections } from "@/writing/sections";
 import {
@@ -240,9 +241,25 @@ export async function exportContextBundle(
       }
     }
 
+    const spoilerMode: WritingContextMode = selection.allowFuturePlans
+      ? "planning"
+      : (selection.characterMode ?? "editorial");
+    const worldPolicy = writingContextPolicy(spoilerMode, selection.allowFuturePlans === true);
+    const deepWorldRedact =
+      selection.redactCharacterSpoilers === true || selection.characterMode === "drafting";
+
     for (const record of records) {
       if (!isWorldProfileRecordType(record.type)) continue;
       if (!(WORLD_PROFILE_KEY in record.fields) || record.fields[WORLD_PROFILE_KEY] == null) continue;
+      if (deepWorldRedact) {
+        record.fields = redactWorldFieldsForExport(record.fields, worldPolicy, {
+          point,
+          edges,
+          books,
+          viewingProjectId: projectId,
+        });
+        continue;
+      }
       const read = readWorldProfile(record.fields);
       if (!read.ok || !read.profile.fieldHistory.length) continue;
       const redacted = redactWorldFieldHistoryForExport(read.profile, point, edges, {

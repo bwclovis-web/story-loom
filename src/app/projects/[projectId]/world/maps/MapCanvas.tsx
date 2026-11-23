@@ -6,16 +6,27 @@ import { StatusBadge } from "@/components/Badges";
 import { IssueList } from "@/components/IssueList";
 import { BoardOverflowMenu } from "@/components/ui/BoardOverflowMenu";
 import { Breadcrumbs } from "@/components/ui/Breadcrumbs";
-import { Button, ButtonLink } from "@/components/ui/Button";
+import { Button, ButtonLink } from "@/components/ui/Atoms/Button";
 import { CanvasToolbar } from "@/components/ui/CanvasToolbar";
 import { SegmentedControl, SegmentedOption } from "@/components/ui/SegmentedControl";
 import { IconButton } from "@/components/ui/IconButton";
 import { CanvasInspectorSection } from "@/components/world/CanvasInspectorSection";
 import { CanvasReferenceSummary } from "@/components/world/CanvasReferenceSummary";
 import { MapToolbarPopover } from "@/components/world/MapToolbarPopover";
+import { ReferenceTaxonomyPicker } from "@/components/world/ReferenceTaxonomyPicker";
+import { TaxonomyFilterSelects } from "@/components/world/TaxonomyFilterSelects";
 import { Checkbox } from "@/components/ui/Atoms/Checkbox";
 import { LabeledSwitch } from "@/components/ui/LabeledSwitch";
 import { LinkSceneForm } from "@/components/world/LinkSceneForm";
+import type { CustomTaxonomyCategoryOption } from "@/world/customCategories";
+import {
+  emptyTaxonomyFilter,
+  recordMatchesTaxonomyFilter,
+  taxonomyFilterActive,
+  taxonomyFilterSummaryLabel,
+  type PlaceableRecord,
+  type TaxonomyFilterValue,
+} from "@/world/taxonomyDiscovery";
 import { ContextRail, ContextRailToggle, useContextRail } from "@/components/shell/ContextRail";
 import { setUnsaved } from "@/components/shell/unsaved";
 import { CloseIcon } from "@/components/shell/icons";
@@ -102,14 +113,10 @@ import { MapGeographyPanel } from "./MapGeographyPanel";
 import { MapShapeEditor } from "./MapShapeEditor";
 import { MarkerScenes } from "./MarkerScenes";
 import { PlaceEvents } from "./PlaceEvents";
+import { Select } from "@/components/ui/Atoms/Select";
+import { TextField } from "@/components/ui/TextField";
 
-export interface PlaceableRecord {
-  id: string;
-  title: string;
-  typeLabel: string;
-  homeLabel?: string | null;
-  worldScope?: string | null;
-}
+export type { PlaceableRecord };
 
 export interface PlaceableMap {
   id: string;
@@ -150,6 +157,7 @@ export function MapCanvas({
   projectId,
   map: initial,
   records,
+  customCategories = [],
   otherMaps,
   geography,
   initialPinId = null,
@@ -157,6 +165,7 @@ export function MapCanvas({
   projectId: string;
   map: WorldMapView;
   records: PlaceableRecord[];
+  customCategories?: readonly CustomTaxonomyCategoryOption[];
   otherMaps: PlaceableMap[];
   geography: readonly MapGeographyNode[];
   initialPinId?: string | null;
@@ -205,7 +214,10 @@ export function MapCanvas({
   const [keepPlacing, setKeepPlacing] = useState(false);
   const [hoverPoint, setHoverPoint] = useState<{ x: number; y: number } | null>(null);
   const [pinFilter, setPinFilter] = useState({ era: "all", draft: "all", book: "all" });
+  const [taxonomyFilter, setTaxonomyFilter] = useState<TaxonomyFilterValue>(emptyTaxonomyFilter());
   const [pinFilterContext, setPinFilterContext] = useState<MapPinFilterContext | null>(null);
+  const taxonomyByRecordId = useRef(new Map(records.map((r) => [r.id, r.taxonomy])));
+  taxonomyByRecordId.current = new Map(records.map((r) => [r.id, r.taxonomy]));
   const [travelPreset, setTravelPreset] = useState<TravelSpeedPreset>("walk");
   const [travelCustomSpeed, setTravelCustomSpeed] = useState("");
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -269,11 +281,23 @@ export function MapCanvas({
 
   const selected = pins.find((p) => p.id === selectedId) ?? null;
   const inspectRecordId = selected?.recordId && !selected.unavailable ? selected.recordId : null;
-  const pinFilterActive = pinFilter.era !== "all" || pinFilter.draft !== "all" || pinFilter.book !== "all";
-  const pinPassesFilter = (pin: WorldMapPinView) =>
-    pinMatchesMapFilter(pin.recordId, pinFilter, pin.recordId ? pinFilterContext?.byRecordId[pin.recordId] : undefined);
+  const storyFilterActive = pinFilter.era !== "all" || pinFilter.draft !== "all" || pinFilter.book !== "all";
+  const categoryFilterOn = taxonomyFilterActive(taxonomyFilter);
+  const pinFilterActive = storyFilterActive || categoryFilterOn;
+  const pinPassesFilter = (pin: WorldMapPinView) => {
+    const storyOk = pinMatchesMapFilter(
+      pin.recordId,
+      pinFilter,
+      pin.recordId ? pinFilterContext?.byRecordId[pin.recordId] : undefined,
+    );
+    if (!storyOk) return false;
+    if (!categoryFilterOn) return true;
+    if (!pin.recordId || pin.unavailable) return false;
+    return recordMatchesTaxonomyFilter(taxonomyByRecordId.current.get(pin.recordId), taxonomyFilter);
+  };
   const pinFilterClass = (pin: WorldMapPinView) =>
     pinFilterActive ? (pinPassesFilter(pin) ? " filter-match" : " filter-dimmed") : "";
+  const taxonomySummary = taxonomyFilterSummaryLabel(taxonomyFilter, customCategories);
   const shown = pins.filter((pin) => {
     const layerId = effectiveLayerId(pin, map.layers);
     return !layerId || !hiddenLayerIds.includes(layerId);
@@ -593,6 +617,8 @@ export function MapCanvas({
   const placePin = (xNorm: number, yNorm: number) => {
     if (!pendingPlaceId && !pendingMapId) {
       setIssues([errorIssue("INVALID_REFERENCE", WORLD.markerNeedsLink)]);
+      setStatus(WORLD.mapPinHint);
+      if (!rail.visible) rail.toggle();
       return;
     }
     startTransition(async () => {
@@ -882,7 +908,33 @@ export function MapCanvas({
           ) : null}
           <MapToolbarPopover label={WORLD.mapPinFilter} className="map-pin-filter-popover" align="start">
             <p className="small muted">{WORLD.mapPinFilterHint}</p>
+            <p className="small muted">{WORLD.mapPinFilterTaxonomyHint}</p>
+            {taxonomySummary ? (
+              <p className="small" role="status">
+                {WORLD.mapTaxonomyFilterActive(taxonomySummary)}
+              </p>
+            ) : null}
+            <TaxonomyFilterSelects
+              idPrefix={`${idPrefix}-map-taxonomy`}
+              value={taxonomyFilter}
+              onChange={setTaxonomyFilter}
+              customCategories={customCategories}
+              showClear
+            />
+            {categoryFilterOn ? <p className="small muted">{WORLD.filterUnmatchedPins}</p> : null}
             <div className="row" style={{ gap: "0.5rem", flexWrap: "wrap" }}>
+              <Select
+                label={WORLD.mapPinFilterEra}
+                value={pinFilter.era}
+                onChange={(event) => setPinFilter((f) => ({ ...f, era: event.target.value }))}
+              >
+                <option value="all">{WORLD.mapPinFilterAllEras}</option>
+                {(pinFilterContext?.choices.eras ?? []).map((era) => (
+                  <option key={era.id} value={era.id}>
+                    {era.label}
+                  </option>
+                ))}
+              </Select>
               <label className="world-toolbar-field">
                 {WORLD.mapPinFilterEra}
                 <select value={pinFilter.era} onChange={(event) => setPinFilter((f) => ({ ...f, era: event.target.value }))}>
@@ -919,6 +971,19 @@ export function MapCanvas({
                 </select>
               </label>
             </div>
+            {pinFilterActive ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                onClick={() => {
+                  setPinFilter({ era: "all", draft: "all", book: "all" });
+                  setTaxonomyFilter(emptyTaxonomyFilter());
+                }}
+              >
+                {WORLD.clearFilters}
+              </Button>
+            ) : null}
           </MapToolbarPopover>
           <MapToolbarPopover label={WORLD.mapLayers} className="map-layers-popover" align="start">
             <fieldset className="map-legend">
@@ -1511,18 +1576,15 @@ export function MapCanvas({
                       ))}
                     </select>
                   </label>
-                  <label>
-                    {WORLD.choosePlace}
-                    <select value={pendingPlaceId} disabled={pending} onChange={(e) => setPendingPlaceId(e.target.value)}>
-                      <option value="">{WORLD.choosePlace}</option>
-                      {records.map((record) => (
-                        <option key={record.id} value={record.id}>
-                          {record.title} ({record.typeLabel}
-                          {record.homeLabel ? ` · ${record.homeLabel}` : ""})
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+                  <ReferenceTaxonomyPicker
+                    records={records}
+                    value={pendingPlaceId}
+                    onChange={setPendingPlaceId}
+                    customCategories={customCategories}
+                    disabled={pending}
+                    label={WORLD.choosePlace}
+                    id={`${idPrefix}-draft-place`}
+                  />
                   <p className="small muted">{WORLD.mapDraftNote}</p>
                 </>
               ) : null}
@@ -1542,12 +1604,24 @@ export function MapCanvas({
                 className="stack"
                 onSubmit={(event) => {
                   event.preventDefault();
+                  if (!pendingPlaceId && !pendingMapId) {
+                    setIssues([errorIssue("INVALID_REFERENCE", WORLD.markerNeedsLink)]);
+                    return;
+                  }
                   placePin(0.5, 0.5);
                 }}
               >
+                <p className="small muted">{WORLD.mapPinHint}</p>
                 <label>
                   {WORLD.markerLabel}
-                  <input value={pendingLabel} maxLength={120} onChange={(e) => setPendingLabel(e.target.value)} />
+                  <input
+                    value={pendingLabel}
+                    maxLength={120}
+                    onChange={(e) => setPendingLabel(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") e.preventDefault();
+                    }}
+                  />
                 </label>
                 <label>
                   {WORLD.mapLayer}
@@ -1559,18 +1633,15 @@ export function MapCanvas({
                     ))}
                   </select>
                 </label>
-                <label>
-                  {WORLD.choosePlace}
-                  <select value={pendingPlaceId} disabled={pending} onChange={(e) => setPendingPlaceId(e.target.value)}>
-                    <option value="">{WORLD.choosePlace}</option>
-                    {records.map((record) => (
-                      <option key={record.id} value={record.id}>
-                        {record.title} ({record.typeLabel}
-                        {record.homeLabel ? ` · ${record.homeLabel}` : ""})
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                <ReferenceTaxonomyPicker
+                  records={records}
+                  value={pendingPlaceId}
+                  onChange={setPendingPlaceId}
+                  customCategories={customCategories}
+                  disabled={pending}
+                  label={WORLD.choosePlace}
+                  id={`${idPrefix}-point-place`}
+                />
                 <label>
                   {WORLD.chooseDetailedMap}
                   <select value={pendingMapId} disabled={pending} onChange={(e) => setPendingMapId(e.target.value)}>
@@ -1603,6 +1674,7 @@ export function MapCanvas({
               pin={selected}
               layers={map.layers}
               records={records}
+              customCategories={customCategories}
               otherMaps={otherMaps}
               mode={mode}
               pending={pending}
@@ -1713,6 +1785,7 @@ function MarkerRail({
   pin,
   layers,
   records,
+  customCategories = [],
   otherMaps,
   mode,
   pending,
@@ -1732,6 +1805,7 @@ function MarkerRail({
   pin: WorldMapPinView;
   layers: WorldMapLayerView[];
   records: PlaceableRecord[];
+  customCategories?: readonly CustomTaxonomyCategoryOption[];
   otherMaps: PlaceableMap[];
   mode: "browse" | "edit";
   pending: boolean;
@@ -1853,47 +1927,45 @@ function MarkerRail({
             });
           }}
         >
-          <label>
-            {WORLD.mapLayer}
-            <select value={layerId} onChange={(e) => setLayerId(e.target.value)}>
-              {layers.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.title}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            {WORLD.choosePlace}
-            <select value={recordId} onChange={(e) => setRecordId(e.target.value)}>
-              <option value="">{WORLD.choosePlace}</option>
-              {records.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.title}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            {WORLD.mapLinkDetailMap}
-            <select value={targetMapId} onChange={(e) => setTargetMapId(e.target.value)}>
-              <option value="">{WORLD.chooseDetailedMap}</option>
-              {otherMaps.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.title}
-                </option>
-              ))}
-            </select>
-          </label>
+          <Select label={WORLD.mapLayer} value={layerId} onChange={(e) => setLayerId(e.target.value)}>
+            {layers.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.title}
+              </option>
+            ))}
+          </Select>
+          <ReferenceTaxonomyPicker
+            records={records}
+            value={recordId}
+            onChange={setRecordId}
+            customCategories={customCategories}
+            disabled={pending}
+            label={WORLD.choosePlace}
+            id={`marker-rail-${pin.id}-place`}
+          />
+          <Select
+            label={WORLD.mapLinkDetailMap}
+            value={targetMapId}
+            onChange={(e) => setTargetMapId(e.target.value)}
+          >
+            <option value="">{WORLD.chooseDetailedMap}</option>
+            {otherMaps.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.title}
+              </option>
+            ))}
+          </Select>
           {targetMapId && otherMaps.some((item) => item.id === targetMapId) ? (
             <Button type="button" variant="primary" size="sm" onClick={() => onOpenMap(targetMapId)}>
               {WORLD.mapDrillIn}
             </Button>
           ) : null}
-          <label>
-            {WORLD.markerLabel}
-            <input value={label} maxLength={120} onChange={(e) => setLabel(e.target.value)} />
-          </label>
+          <TextField
+            label={WORLD.markerLabel}
+            value={label}
+            maxLength={120}
+            onChange={(e) => setLabel(e.target.value)}
+          />
           <Button
             type="submit"
             size="sm"
@@ -1928,14 +2000,24 @@ function MarkerRail({
             });
           }}
         >
-          <label>
-            {WORLD.drawPointX}
-            <input type="number" min={0} max={100} step={0.1} value={xPercent} onChange={(event) => setXPercent(event.target.value)} />
-          </label>
-          <label>
-            {WORLD.drawPointY}
-            <input type="number" min={0} max={100} step={0.1} value={yPercent} onChange={(event) => setYPercent(event.target.value)} />
-          </label>
+          <TextField
+            label={WORLD.drawPointX}
+            type="number"
+            min={0}
+            max={100}
+            step={0.1}
+            value={xPercent}
+            onChange={(event) => setXPercent(event.target.value)}
+          />
+          <TextField
+            label={WORLD.drawPointY}
+            type="number"
+            min={0}
+            max={100}
+            step={0.1}
+            value={yPercent}
+            onChange={(event) => setYPercent(event.target.value)}
+          />
           <Button type="submit" size="sm" variant="secondary" disabled={pending}>
             {WORLD.savePosition}
           </Button>

@@ -4,6 +4,7 @@ import { ProjectOnboarding } from "@/components/shell/ProjectOnboarding";
 import { getDb } from "@/server/db";
 import { NotFoundError } from "@/server/services/errors";
 import { listAvailableReferences } from "@/server/services/seriesBibleService";
+import { listAvailableWorldCategories } from "@/server/services/worldCategoryService";
 import { loadProjectRelationshipGraph } from "@/server/services/relationshipGraphService";
 import { getWorldMap, listWorldMaps } from "@/server/services/worldMapService";
 import { buildMapGeographyTree } from "@/world/mapGeography";
@@ -11,6 +12,7 @@ import { RECORD_TYPE_LABELS } from "@/domain/recordTypes";
 import { SERIES } from "@/ui/labels";
 import { seriesBookLabel } from "@/world/seriesHome";
 import { worldSurfaceCrumbs } from "@/ui/worldDestinations";
+import type { CustomTaxonomyCategoryOption } from "@/world/customCategories";
 import { MapCanvas } from "../MapCanvas";
 
 export const dynamic = "force-dynamic";
@@ -33,7 +35,18 @@ export default async function WorldMapPage({
     throw error;
   }
 
-  const available = await listAvailableReferences(db, projectId, { linkableOnly: true });
+  const [available, availableCategories] = await Promise.all([
+    listAvailableReferences(db, projectId, { linkableOnly: true }),
+    listAvailableWorldCategories(db, projectId),
+  ]);
+  const customCategories: CustomTaxonomyCategoryOption[] = availableCategories.map((row) => ({
+    slug: row.slug,
+    label: row.label,
+    description: row.description,
+    parentCategorySlug: row.parentCategorySlug,
+    shared: Boolean(row.home),
+    homeLabel: row.home ? row.home.bookName?.trim() || row.home.title : null,
+  }));
   const otherMaps = (await listWorldMaps(db, projectId).catch(() => []))
     .filter((item) => item.id !== map.id)
     .map((item) => ({ id: item.id, title: item.title }));
@@ -65,7 +78,9 @@ export default async function WorldMapPage({
           typeLabel: RECORD_TYPE_LABELS[entry.record.type],
           homeLabel: entry.home ? SERIES.homeBadge(seriesBookLabel(entry.home)) : null,
           worldScope: entry.worldScope,
+          taxonomy: entry.taxonomy,
         }))}
+        customCategories={customCategories}
         otherMaps={otherMaps}
         initialPinId={query.pin ?? null}
         geography={geography}

@@ -9,6 +9,7 @@ import { MutationRejectedError } from "./errors";
 import { listLinkedReferences } from "./linkService";
 import { listReadingPins, resolvePinScope } from "./readingPinService";
 import { searchContextReferences } from "./searchService";
+import { resolveAvailableReference } from "./seriesBibleService";
 
 /*
  * Suggests reference context for the assistant without sending anything.
@@ -95,19 +96,22 @@ function textMatchesTerms(haystack: string, terms: readonly string[]): boolean {
 }
 
 async function loadRecord(db: DbOrTx, projectId: string, recordId: string) {
-  return db.record.findFirst({
-    where: { id: recordId, projectId, trashedAt: null },
-    select: {
-      id: true,
-      title: true,
-      type: true,
-      body: true,
-      fields: true,
-      draftId: true,
-      currentRevision: true,
-      authorityStatus: true,
-    },
+  const available = await resolveAvailableReference(db, projectId, recordId);
+  if (!available) return null;
+  const row = await db.record.findFirst({
+    where: { id: available.record.id, trashedAt: null },
+    select: { draftId: true },
   });
+  return {
+    id: available.record.id,
+    title: available.record.title,
+    type: available.record.type,
+    body: available.record.body,
+    fields: JSON.stringify(available.record.fields),
+    draftId: row?.draftId ?? null,
+    currentRevision: available.record.currentRevision,
+    authorityStatus: available.record.authorityStatus,
+  };
 }
 
 /** Discover ranked context candidates; nothing is sent to the provider. */

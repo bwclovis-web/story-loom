@@ -11,10 +11,11 @@ import {
 import {
   listAvailableWorldProfileDefinitions,
   listPlausibleWorldProfileDefinitions,
+  listSubcategorySectionsForTaxonomy,
 } from "@/world/worldProfileRegistry";
 import { resolveRecordTaxonomy } from "@/world/taxonomy";
 import type { SeriesHomeRef } from "@/world/seriesHome";
-import { saveWorldProfileAction } from "./world-upgrade/actions";
+import type { PlaceRelationView } from "@/world/placeRelations";
 
 export async function WorldProfileSection({
   projectId,
@@ -27,6 +28,8 @@ export async function WorldProfileSection({
   seriesHome,
   isProtected,
   homeProjectId,
+  placeRelations = null,
+  placeChoices = [],
 }: {
   projectId: string;
   recordId: string;
@@ -38,6 +41,8 @@ export async function WorldProfileSection({
   seriesHome: SeriesHomeRef | null;
   isProtected: boolean;
   homeProjectId: string;
+  placeRelations?: { outgoing: PlaceRelationView[]; incoming: PlaceRelationView[] } | null;
+  placeChoices?: Array<{ id: string; title: string; typeLabel: string; homeLabel?: string | null }>;
 }) {
   if (!isWorldProfileRecordType(recordType)) return null;
   const db = getDb();
@@ -95,6 +100,10 @@ export async function WorldProfileSection({
     categorySlugs,
   });
   const definitions = listAvailableWorldProfileDefinitions(availableTemplates);
+  const suggestedSections = listSubcategorySectionsForTaxonomy({
+    primary: taxonomy.primary,
+    secondary: taxonomy.secondary,
+  });
 
   return (
     <WorldProfilePanel
@@ -106,11 +115,13 @@ export async function WorldProfileSection({
       definition={definition}
       definitions={definitions}
       plausibleDefinitions={plausible}
+      suggestedSectionIds={suggestedSections.map((section) => section.id)}
+      placeRelations={placeRelations}
+      placeChoices={placeChoices}
       editable={editable}
       seriesHome={seriesHome}
       isProtected={isProtected}
       historyCatalog={historyCatalog}
-      onSave={(input) => saveWorldProfileAction(projectId, recordId, input)}
     />
   );
 }

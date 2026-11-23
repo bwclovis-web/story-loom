@@ -18,7 +18,7 @@ import type { DraftOption } from "@/components/drafts/DraftControls";
 import { ContextRail, ContextRailToggle, useContextRail } from "@/components/shell/ContextRail";
 import { CloseIcon } from "@/components/shell/icons";
 import { BoardOverflowMenu } from "@/components/ui/BoardOverflowMenu";
-import { Button, ButtonLink } from "@/components/ui/Button";
+import { Button, ButtonLink } from "@/components/ui/Atoms/Button";
 import { Checkbox } from "@/components/ui/Atoms/Checkbox";
 import { CanvasToolbar, CanvasToolbarGroup } from "@/components/ui/CanvasToolbar";
 import { IconButton } from "@/components/ui/IconButton";

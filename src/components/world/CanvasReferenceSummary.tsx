@@ -1,5 +1,6 @@
 import { BookMarked, MapPin } from "lucide-react";
 import { BoardProjectImage } from "@/components/world/BoardProjectImage";
+import { TaxonomyBadges } from "@/components/world/TaxonomyBadges";
 import { ButtonLink } from "@/components/ui/Atoms/Button";
 import { REFERENCE_FORM, SERIES, WORLD } from "@/ui/labels";
 import { withCanvasReturn } from "@/world/canvasReturn";
@@ -57,6 +58,7 @@ export function CanvasReferenceSummary({
         </div>
       </div>
       {sourceNote ? <p className="small muted">{sourceNote}</p> : null}
+      <TaxonomyBadges taxonomy={model.taxonomy} compact />
       {model.lead ? <p className="small inspector-lead">{model.lead}</p> : <p className="small muted">{WORLD.emptyDocument}</p>}
       <div className="canvas-reference-actions">
         <ButtonLink href={withCanvasReturn(recordPath, returnPath)} size="sm">

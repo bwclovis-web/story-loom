@@ -33,6 +33,8 @@ World references can carry optional thematic classification in `fields.taxonomy`
 
 Unclassified references remain listed by document type. A record can belong to more than one category without duplicating the record.
 
+Maps, Boards, and the Relationship Explorer reuse the same resolved memberships for pickers and view filters (W6A). Picker payloads carry discovery metadata only; inspecting a pin, card, or node loads the shared Reference Inspector (including taxonomy badges and series home). Note cards, unlinked image cards, and map-to-map pins without a linked record do not match an active category filter; clearing filters restores the full canvas without rewriting placements. Relationship Explorer can show matching nodes only or matching nodes plus immediate neighbors; book/series edge visibility and endpoint rules stay separate from taxonomy.
+
 ### World Hub discovery and organization
 
 The World page (`/projects/<project>/world`) is a category-driven hub:
@@ -83,4 +85,4 @@ Ages and warnings are calculated when the page loads. They are not written onto 
 
 ## Maps
 
-A map needs an image already on a World record (including an image on a series-shared reference available in this book). Pins, routes, areas, and labels sit on layers you define. A pin may target a series-shared sibling reference; the pin stays in this book and shows a home-book badge. **Measure** and a route length use the scale bar you set and say the distance is estimated from that bar. Layer presets show all layers, hide all, or one group. Export SVG and Export PNG download the markers that are currently visible. Measuring and exporting do not save the map.
+A map needs an image already on a World record (including an image on a series-shared reference available in this book). Pins, routes, areas, and labels sit on layers you define. A pin may target a series-shared sibling reference; the pin stays in this book and shows a home-book badge. Record pickers search eligible local and series-shared references by title and narrow by World Hub category and subcategory (primary and secondary memberships, legacy kind fallbacks, custom categories, home-book labels). Selecting a shared result links the pin to the original `Record.id`. Highlight filters combine category with era, draft, book, and layer controls. Unlinked map-to-map pins are dimmed while a category filter is active; matching pins (including multiple pins of the same record) stay highlighted. Clearing filters restores the full canvas without changing saved positions. **Measure** and a route length use the scale bar you set and say the distance is estimated from that bar. Layer presets show all layers, hide all, or one group. Export SVG and Export PNG download the markers that are currently visible. Measuring and exporting do not save the map.

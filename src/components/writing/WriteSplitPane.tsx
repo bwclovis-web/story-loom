@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useMemo, useState } from "react";
-import { ButtonLink } from "@/components/ui/Button";
+import { ButtonLink } from "@/components/ui/Atoms/Button";
 import { Checkbox } from "@/components/ui/Atoms/Checkbox";
 import { fetchManuscriptSnapshotAction, type ManuscriptSnapshot } from "@/app/projects/[projectId]/records/[recordId]/split-actions";
 import { hasTextChange, textDiff } from "@/changePackage/diff";

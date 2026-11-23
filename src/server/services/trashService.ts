@@ -305,6 +305,7 @@ async function deleteProjectRowsInTx(tx: Tx, projectId: string) {
   await tx.worldCategoryDefinition.deleteMany({ where: { projectId } }).catch(() => undefined);
   await tx.compileProfile.deleteMany({ where: { projectId } }).catch(() => undefined);
   await tx.continuitySuppression.deleteMany({ where: { projectId } }).catch(() => undefined);
+  await tx.worldContradictionCheck.deleteMany({ where: { projectId } }).catch(() => undefined);
   await tx.smartCollection.deleteMany({ where: { projectId } }).catch(() => undefined);
   await tx.writingGoal.deleteMany({ where: { projectId } }).catch(() => undefined);
   await tx.assistantPromptPreset.deleteMany({ where: { projectId } }).catch(() => undefined);

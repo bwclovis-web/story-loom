@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/Atoms/Button";
+import { HelpPopover } from "@/components/ui/HelpPopover";
 import { cn } from "@/ui/cn";
 import type { JsonObject } from "@/domain/json";
 import type { RecordType } from "@/domain/recordTypes";
@@ -51,12 +52,13 @@ export function ReferenceMetaFields({
   };
 
   return (
-    <fieldset className={cn("stack reference-meta-fields", className)} disabled={disabled || !draft.ok}>
+    <fieldset className={cn("stack reference-meta-fields", className)}>
       {bare ? null : <legend>{REFERENCE_META.legend}</legend>}
       {bare ? null : <p className="small muted">{REFERENCE_META.hint}</p>}
       {!draft.ok ? <p className="small">{REFERENCE_META.hint}</p> : null}
       <label>
         {REFERENCE_META.name}
+        <HelpPopover label={REFERENCE_META.nameExplain}>{REFERENCE_META.nameHelp}</HelpPopover>
         <input
           type="text"
           value={meta?.name ?? ""}
@@ -68,7 +70,10 @@ export function ReferenceMetaFields({
         />
       </label>
       <div className="stack">
-        <span>{REFERENCE_META.aliases}</span>
+        <span className="field-caption">
+          {REFERENCE_META.aliases}
+          <HelpPopover label={REFERENCE_META.aliasesExplain}>{REFERENCE_META.aliasesHelp}</HelpPopover>
+        </span>
         {meta && meta.aliases.length ? (
           <ul className="row" style={{ flexWrap: "wrap", gap: "0.35rem", listStyle: "none", padding: 0, margin: 0 }}>
             {meta.aliases.map((alias) => (
@@ -116,6 +121,7 @@ export function ReferenceMetaFields({
       {showRole ? (
         <label>
           {REFERENCE_META.role}
+          <HelpPopover label={REFERENCE_META.roleExplain}>{REFERENCE_META.roleHelp}</HelpPopover>
           <input
             type="text"
             value={meta?.role ?? ""}
@@ -130,6 +136,7 @@ export function ReferenceMetaFields({
       {showSummary ? (
         <label>
           {REFERENCE_META.summary}
+          <HelpPopover label={REFERENCE_META.summaryExplain}>{REFERENCE_META.summaryHelp}</HelpPopover>
           <textarea
             rows={3}
             value={meta?.summary ?? ""}

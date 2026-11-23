@@ -1,5 +1,73 @@
 # Progress
 
+## W7B — Manuscript vs Approved World-Fact Contradiction Review (Nov 23, 2026)
+
+Author-triggered, story-point-scoped comparison of manuscript passages against approved Living World Profile facts:
+
+- **Domain:** `src/domain/worldContradiction.ts` — claim stance (`narration` / `dialogue` / `belief` / `uncertainty`), entity and sub-scope guards, quantity/unit comparison (documented zero, `about` ±10%/35% bands, length/area conversion), AI candidate quote validation via `resolveQuotation`.
+- **Persistence:** `WorldContradictionCheck` (issueKey + revision-pinned dedupeKey, `needsRecheck`); mutation hooks; trash delete; optional backup `worldContradictionChecks`; ContinuitySuppression `resolved` in backup format.
+- **Service:** `reviewManuscriptContradictions` reuses W5C/W7A eligible facts only (no undated / planned / sibling-local); persist upserts by dedupeKey and retires obsolete rows without editing prose or canon.
+- **UI:** Continuity Ledger kind `world_contradiction`; Write → References ContinuityStrip **Check world facts** + suppress actions.
+- **Tests:** `tests/unit/worldContradiction.test.ts`, `tests/acceptance/world-contradiction.test.ts` (Saltmarsh, Population, Waterway, Scope). Wiki / world-bible formatting remains W7C.
+
+### Rollback
+
+Revert domain/service/Prisma migration/backup/continuity/Write/Help/PROGRESS for this milestone. Drop `WorldContradictionCheck` only after confirming no needed review rows in backups.
+
+## W5D — Optional Subcategory Sections (Geography) (Nov 23, 2026)
+
+Optional Living World Profile subcategory sections for Geography, without changing `definitionId`:
+
+- **Domain:** `enabledSections` on `worldProfile` (version 1, additive); `WorldProfileQuantity` + `quantity` field type with qualifiers (`exact` / `about` / `at_least` / `at_most`) and optional units; documented `amount: 0` vs blank unknown.
+- **Registry:** `WORLD_SUBCATEGORY_SECTIONS` for `geography:cities_and_settlements`, `geography:regions`, `geography:waterways`; shared `POPULATION_ESTIMATE_FIELD`; waterway `waterwaySource` (avoids magic-system `source` collision); outlet reuses PlaceRelation `flows_into` with profile fallback.
+- **UI:** WorldProfilePanel optional sections (taxonomy suggestions + picker); quantity editors; sticky enabled sections / saved-value discoverability; History picker includes quantity and section fields.
+- **W5C/W7A:** Undated estimates stay unknown / omitted when drafting earlier scenes; heading overlap map covers new fields; dated `fieldHistory` resolves with qualifier + unit.
+- **Tests:** `tests/unit/worldSubcategorySections.test.ts`, `tests/acceptance/world-subcategory-sections.test.ts`.
+
+Revert domain/registry/panel/history/heading-map/Help/PROGRESS changes for this milestone. Existing profiles without `enabledSections` read as `[]`.
+
+## W7A — Story-Point & Book-Scoped World Facts for AI (Nov 23, 2026)
+
+Point-scoped Living World Profile facts for drafting, retrieval, and spoiler-redacted context export:
+
+- **Domain:** `src/domain/worldWritingContext.ts` — `renderWorldContextSlice` / `redactWorldFieldsForExport` reuse W5C `resolveWorldFieldsAtPoint` + history visibility; drafting never promotes undated current values, planned changes, archives, or conflicted chronology; objective-setting framing distinct from character knowledge.
+- **Services:** series-aware pins / selectable refs / `loadDocuments` via `resolveAvailableReference`; world refs render through `renderWorldReferenceForAssistant` (not raw `JSON.stringify(fields)`); retrieval tools filter book-local siblings, planned facts/planning search at chapter scope, and series-shared `events_at_place`; context export deep-redacts world fields when drafting/spoiler tick is on.
+- **Verify:** `tests/unit/worldWritingContext.test.ts`, `tests/acceptance/world-writing-context.test.ts` (Saltmarsh Station matrix + mock provider). World-fact contradiction review is W7B; wiki formatting remains W7C.
+
+### Rollback
+
+Revert `worldWritingContext` + `worldWritingContextService`, assistant/retrieval/pin/find/export wiring, Help/PROGRESS notes. W5C history and series visibility stay.
+
+## World Hub — Saved World Collections (Nov 23, 2026)
+
+World-scoped `SmartCollection` rows store Hub filter definitions for the book where they were created:
+
+- **Bridge:** `src/world/worldHubCollections.ts` maps `WorldHubQuery` ↔ `SmartCollectionFilter` (stable category / subcategory / tag / type / kind / scope / status / protection / query / sort / view). Evaluation reuses `filterWorldHubRecords` / `discoverWorldHubRecords` against the viewing book’s Hub index (dedupe by `Record.id`, secondary membership included).
+- **UX:** `WorldHubCollections` on `/world` — save (with summary), open (restores controls via `?collection=` + filter params), rename, update from current filters, delete. Experimenting does not write until Update. Empty matches keep the collection available.
+- **Compat:** Manuscript collections and older `filterJson` still parse; backups already round-trip `smartCollections`.
+
+### Rollback
+
+Revert worldHubCollections + WorldHubCollections wiring, worldHref `collection` param, Help/outline/labels/PROGRESS notes. Existing `SmartCollection` rows remain; delete world-scope rows if unwanted.
+
+## New reference field explanations (Nov 23, 2026)
+
+Info icons on New reference (and the same labels when editing) explain document type, kind, where this applies, Hub classification, also belongs to, profile definition, starting headings, canon status, and the short character details. No schema change.
+
+### Rollback
+
+Revert the new label strings, the `HelpPopover` placements, the `.field-caption` rule, the Help sentence, and this note.
+
+## World Hub — Category Discovery on Maps, Boards, Relationships (W6A) (Nov 23, 2026)
+
+Bring World Hub category/subcategory discovery into Maps, Boards, and the Relationship Explorer without copying records or rewriting placements:
+
+- **Shared helpers:** `src/world/taxonomyDiscovery.ts` (`filterPlaceableRecords`, canvas filter helpers) plus `TaxonomyFilterSelects`, `ReferenceTaxonomyPicker`, and `TaxonomyBadges`.
+- **Pickers:** Map and Board record pickers search local + series-shared references by title and taxonomy; one result per `Record.id`; selecting a shared result links the original id.
+- **Canvas filters:** Maps combine taxonomy with era/draft/book/layer; Boards combine taxonomy with card-kind. Unlinked notes/images and map-to-map pins do not match an active category filter; clearing restores the full canvas.
+- **Relationships:** graph nodes carry taxonomy; filter with matching-only or matching+neighbors; series-shared nodes included in all-connections; endpoint/series eligibility reported separately.
+- **Inspector:** discovery metadata in pickers; detailed profile (including taxonomy badges and series home) loads on inspect.
+
 ## World Hub — Living World Profile History (W5C) (Nov 23, 2026)
 
 Optional dated `worldProfile.fieldHistory` on the existing overlay (no SQLite migration):

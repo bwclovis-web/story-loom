@@ -11,6 +11,7 @@ import { WorldRecordTableRow } from "@/components/ui/RecordRow";
 import { SearchPanel } from "@/components/ui/SearchPanel";
 import { WorldCategoryNav } from "@/components/world/WorldCategoryNav";
 import { WorldDirectory } from "@/components/world/WorldDirectory";
+import { WorldHubCollections } from "@/components/world/WorldHubCollections";
 import { WorldHubFilters } from "@/components/world/WorldHubFilters";
 import { WorldRecentAccessed } from "@/components/world/WorldRecentAccessed";
 import { WorldRecordIcon } from "@/components/world/WorldDestinationIcon";
@@ -22,8 +23,15 @@ import { listProjectCoverHashes } from "@/server/services/coverService";
 import { findProject } from "@/server/services/projectService";
 import { listWorldIndex } from "@/server/services/recordService";
 import { searchProjectRecords, type SearchHit } from "@/server/services/searchService";
+import {
+  getSmartCollection,
+  listSmartCollections,
+  type SmartCollectionView,
+} from "@/server/services/smartCollectionService";
 import { listAvailableWorldCategories } from "@/server/services/worldCategoryService";
-import { GROUP_PAGES, SERIES, SHELL, WORLD } from "@/ui/labels";
+import { NotFoundError } from "@/server/services/errors";
+import { GROUP_PAGES, SERIES, SHELL, SMART_COLLECTIONS, WORLD } from "@/ui/labels";
+import { worldHubQueryFromCollectionFilter } from "@/world/worldHubCollections";
 import { seriesBookLabel, seriesRecordHref } from "@/world/seriesHome";
 import { manuscriptEyebrow } from "@/ui/library";
 import { isWorldKindKey } from "@/world/referenceTemplates";
@@ -124,10 +132,11 @@ export default async function WorldPage({
   for (const [key, value] of Object.entries(raw)) {
     flat[key] = Array.isArray(value) ? value[0] : value;
   }
-  const query = parseWorldHubQuery(flat);
+  let query = parseWorldHubQuery(flat);
+  const collectionId = flat.collection?.trim() || null;
   const db = getDb();
   const base = `/projects/${encodeURIComponent(projectId)}`;
-  const [project, worldRecords, hits, coverHashes, availableCategories] = await Promise.all([
+  const [project, worldRecords, hits, coverHashes, availableCategories, worldCollections] = await Promise.all([
     findProject(db, projectId),
     listWorldIndex(db, projectId),
     query.q
@@ -141,8 +150,24 @@ export default async function WorldPage({
       : null,
     listProjectCoverHashes(db, [projectId]),
     listAvailableWorldCategories(db, projectId),
+    listSmartCollections(db, projectId, "world").catch(() => [] as SmartCollectionView[]),
   ]);
   if (!project) notFound();
+
+  let activeCollection: SmartCollectionView | null = null;
+  if (collectionId) {
+    try {
+      const loaded = await getSmartCollection(db, projectId, collectionId);
+      if (loaded.scope === "world") activeCollection = loaded;
+    } catch (error) {
+      if (!(error instanceof NotFoundError)) throw error;
+    }
+  }
+  // Bare ?collection=id (or list-only) restores saved controls when no discovery filters are present.
+  const discoveryActive = hubHasActiveFilters({ ...query, list: false });
+  if (activeCollection && !discoveryActive && !query.q) {
+    query = worldHubQueryFromCollectionFilter(activeCollection.filter);
+  }
 
   const customCategories: CustomTaxonomyCategoryOption[] = availableCategories.map((row) => ({
     slug: row.slug,
@@ -171,7 +196,7 @@ export default async function WorldPage({
   const browse = categoryBrowseCounts(hubRecords, customCategories);
   const tags = listHubTags(hubRecords);
   const discovered = discoverWorldHubRecords(hubRecords, query);
-  const showHub = !hubHasActiveFilters(query);
+  const showHub = !hubHasActiveFilters(query) && !activeCollection;
   const recentUpdated = [...hubRecords]
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt) || a.title.localeCompare(b.title))
     .slice(0, 8);
@@ -230,8 +255,25 @@ export default async function WorldPage({
       unclassifiedSelected={query.unclassified}
       allSelected={query.list && !query.category && !query.unclassified && !query.customKind && !query.tag && !query.type}
       customCategories={customCategories}
+      collectionId={activeCollection?.id ?? null}
     />
   );
+
+  const collectionsPanel = (
+    <WorldHubCollections
+      key={activeCollection?.id ?? "world-collections"}
+      projectId={projectId}
+      query={query}
+      collections={worldCollections}
+      activeCollection={activeCollection}
+      matchCount={discovered.length}
+      customCategories={customCategories}
+    />
+  );
+
+  const searchHiddenCollection = activeCollection ? (
+    <input type="hidden" name="collection" value={activeCollection.id} />
+  ) : null;
 
   const renderRecordTable = (rows: WorldHubRecord[]) => (
     <table className="record-table world-table">
@@ -319,19 +361,38 @@ export default async function WorldPage({
       </EmptyState>
     ) : (
       <EmptyState as="div">
-        {emptyMessage(query, hubRecords.length)}
+        {activeCollection ? SMART_COLLECTIONS.worldEmptyMatches : emptyMessage(query, hubRecords.length)}
         <div className="row" style={{ flexWrap: "wrap", gap: "0.5rem", marginTop: "0.65rem" }}>
-          {categoryForCreate ? (
+          {activeCollection ? (
+            <>
+              <ButtonLink
+                href={worldHubHref(projectId, {
+                  ...worldHubQueryFromCollectionFilter(activeCollection.filter),
+                  list: true,
+                  collection: activeCollection.id,
+                })}
+              >
+                {SMART_COLLECTIONS.worldOpen}
+              </ButtonLink>
+              <ButtonLink variant="secondary" href={worldHref(projectId, { list: true })}>
+                {SMART_COLLECTIONS.worldAllReferences}
+              </ButtonLink>
+            </>
+          ) : categoryForCreate ? (
             <ButtonLink href={newHref}>{WORLD.newInCategory(categoryForCreate.label)}</ButtonLink>
           ) : (
             <ButtonLink href={`${base}/world/new`}>{WORLD.newReference}</ButtonLink>
           )}
-          <ButtonLink variant="secondary" href={worldHref(projectId)}>
-            {WORLD.clearFilters}
-          </ButtonLink>
-          <ButtonLink variant="secondary" href={`${base}/world/organize`}>
-            {WORLD.organizeReferences}
-          </ButtonLink>
+          {!activeCollection ? (
+            <>
+              <ButtonLink variant="secondary" href={worldHref(projectId)}>
+                {WORLD.clearFilters}
+              </ButtonLink>
+              <ButtonLink variant="secondary" href={`${base}/world/organize`}>
+                {WORLD.organizeReferences}
+              </ButtonLink>
+            </>
+          ) : null}
         </div>
       </EmptyState>
     );
@@ -372,7 +433,9 @@ export default async function WorldPage({
               hint={WORLD.hubSearchHint}
               defaultValue={query.q}
               className="world-hub-search"
-            />
+            >
+              {searchHiddenCollection}
+            </SearchPanel>
             <div className="row" style={{ flexWrap: "wrap", gap: "0.5rem" }}>
               <ButtonLink href={`${base}/world/organize`} variant="secondary">
                 {WORLD.organizeReferences}
@@ -381,6 +444,7 @@ export default async function WorldPage({
                 {WORLD.viewAllReferences}
               </ButtonLink>
             </div>
+            {collectionsPanel}
             <WorldCategoryManager projectId={projectId} categories={customCategories} />
             <WorldRecentAccessed projectId={projectId} knownIds={knownIds} />
             <section aria-labelledby="world-updated-heading">
@@ -450,8 +514,16 @@ export default async function WorldPage({
               hint={WORLD.hubSearchHint}
               defaultValue={query.q}
               className="world-hub-search"
+            >
+              {searchHiddenCollection}
+            </SearchPanel>
+            <WorldHubFilters
+              projectId={projectId}
+              query={query}
+              tags={tags}
+              collectionId={activeCollection?.id ?? null}
             />
-            <WorldHubFilters projectId={projectId} query={query} tags={tags} />
+            {collectionsPanel}
             {query.type === "worldbuilding" || query.kind ? (
               <WorldKindBrowse
                 projectId={projectId}
@@ -531,7 +603,13 @@ export default async function WorldPage({
               <section className="panel" aria-labelledby="world-list-heading">
                 <div className="world-section-head">
                   <h2 id="world-list-heading">{listTitle}</h2>
-                  <Link href={worldHubHref(projectId, { ...query, view: query.view === "cards" ? "list" : "cards" })}>
+                  <Link
+                    href={worldHubHref(projectId, {
+                      ...query,
+                      view: query.view === "cards" ? "list" : "cards",
+                      collection: activeCollection?.id ?? null,
+                    })}
+                  >
                     {query.view === "cards" ? WORLD.viewList : WORLD.viewCards}
                   </Link>
                 </div>

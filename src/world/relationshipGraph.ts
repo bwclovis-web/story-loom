@@ -1,3 +1,13 @@
+import type { TaxonomyNavSummary } from "@/world/taxonomy";
+import {
+  recordMatchesTaxonomyFilter,
+  taxonomyFilterActive,
+  type TaxonomyFilterValue,
+} from "@/world/taxonomyDiscovery";
+import { isRecordRelationEndpoint } from "@/world/recordRelations";
+import type { RecordType } from "@/domain/recordTypes";
+import type { WorldScope } from "@/domain/assignments";
+
 const PLACE_RELATION_KINDS = ["part_of", "flows_into", "governed_by"] as const;
 const PLACE_RELATION_LABELS: Record<(typeof PLACE_RELATION_KINDS)[number], string> = {
   part_of: "Part of",
@@ -63,6 +73,118 @@ export interface RelationshipNode {
   draftId?: string | null;
   /** Home book project id when this node is a series-shared sibling reference. */
   homeProjectId?: string | null;
+  homeLabel?: string | null;
+  worldScope?: WorldScope | string | null;
+  taxonomy?: TaxonomyNavSummary | null;
+}
+
+export type RelationshipNeighborMode = "matching_only" | "with_neighbors";
+
+export interface TaxonomyGraphFilterResult {
+  nodes: RelationshipNode[];
+  edges: RelationshipEdge[];
+  matchingIds: Set<string>;
+  neighborIds: Set<string>;
+}
+
+/**
+ * Filter graph nodes by taxonomy. `with_neighbors` keeps 1-hop neighbors of
+ * matching nodes; `matching_only` keeps only matching nodes and edges between them.
+ */
+export function filterGraphByTaxonomy(
+  nodes: readonly RelationshipNode[],
+  edges: readonly RelationshipEdge[],
+  filter: TaxonomyFilterValue,
+  neighborMode: RelationshipNeighborMode = "with_neighbors",
+  allowedKinds?: Set<string>,
+): TaxonomyGraphFilterResult {
+  if (!taxonomyFilterActive(filter)) {
+    return {
+      nodes: [...nodes],
+      edges: [...edges],
+      matchingIds: new Set(),
+      neighborIds: new Set(),
+    };
+  }
+  const matchingIds = new Set(
+    nodes.filter((n) => recordMatchesTaxonomyFilter(n.taxonomy, filter)).map((n) => n.id),
+  );
+  const kindOk = (edge: RelationshipEdge) =>
+    !allowedKinds || allowedKinds.has(edgeKindKey(edge.family, edge.kind));
+  const visibleEdges = edges.filter(kindOk);
+
+  if (neighborMode === "matching_only") {
+    const edgeOut = visibleEdges.filter(
+      (e) => matchingIds.has(e.fromRecordId) && matchingIds.has(e.toRecordId),
+    );
+    return {
+      nodes: nodes.filter((n) => matchingIds.has(n.id)),
+      edges: edgeOut,
+      matchingIds,
+      neighborIds: new Set(),
+    };
+  }
+
+  const neighborIds = new Set<string>();
+  for (const e of visibleEdges) {
+    if (matchingIds.has(e.fromRecordId) && !matchingIds.has(e.toRecordId)) neighborIds.add(e.toRecordId);
+    if (matchingIds.has(e.toRecordId) && !matchingIds.has(e.fromRecordId)) neighborIds.add(e.fromRecordId);
+  }
+  const keep = new Set([...matchingIds, ...neighborIds]);
+  const edgeOut = visibleEdges.filter((e) => keep.has(e.fromRecordId) && keep.has(e.toRecordId));
+  return {
+    nodes: nodes.filter((n) => keep.has(n.id)),
+    edges: edgeOut,
+    matchingIds,
+    neighborIds,
+  };
+}
+
+export type RelationshipEligibilityProblem =
+  | { code: "endpoint_type"; message: string }
+  | { code: "series_scope"; message: string }
+  | { code: "self"; message: string };
+
+/** Pure eligibility check for creating a place/record relationship (client-safe). */
+export function checkRelationshipEligibility(input: {
+  from: { id: string; recordType?: string | null; worldScope?: string | null; fields?: unknown };
+  to: { id: string; recordType?: string | null; worldScope?: string | null; fields?: unknown };
+  family: "place" | "record";
+  scope: "book" | "series";
+  seriesNamed: boolean;
+}): RelationshipEligibilityProblem | null {
+  if (input.from.id === input.to.id) {
+    return { code: "self", message: "A record cannot relate to itself." };
+  }
+  if (input.family === "record") {
+    const fromOk =
+      input.from.recordType &&
+      isRecordRelationEndpoint(input.from.recordType as RecordType, input.from.fields ?? {});
+    const toOk =
+      input.to.recordType &&
+      isRecordRelationEndpoint(input.to.recordType as RecordType, input.to.fields ?? {});
+    if (!fromOk || !toOk) {
+      return {
+        code: "endpoint_type",
+        message: "Record relationships need character, organization, or place endpoints.",
+      };
+    }
+  }
+  if (input.scope === "series") {
+    if (!input.seriesNamed) {
+      return {
+        code: "series_scope",
+        message: "Series-scoped relationships need a named series on this book.",
+      };
+    }
+    if (input.from.worldScope !== "series" || input.to.worldScope !== "series") {
+      return {
+        code: "series_scope",
+        message: "Series-scoped relationships need both ends shared with the whole series.",
+      };
+    }
+  }
+  return null;
 }
 
 export type GraphKindOption = { id: string; label: string; family: RelationshipEdgeFamily };

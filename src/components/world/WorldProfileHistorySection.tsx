@@ -11,7 +11,14 @@ import {
   type NarrativePoint,
 } from "@/domain/characterDevelopment";
 import { AUTHORITY_STATUSES, type AuthorityStatus } from "@/domain/statuses";
-import type { WorldFieldHistoryChange, WorldProfile } from "@/domain/worldProfile";
+import type {
+  WorldFieldHistoryChange,
+  WorldProfile,
+  WorldProfileFieldValue,
+  WorldProfileQuantity,
+  WorldQuantityQualifier,
+} from "@/domain/worldProfile";
+import { WORLD_QUANTITY_QUALIFIERS } from "@/domain/worldProfile";
 import {
   appendWorldFieldChange,
   compareWorldFieldsAtPoints,
@@ -21,7 +28,8 @@ import {
 } from "@/domain/worldProfileHistory";
 import { WORLD_PROFILE } from "@/ui/labels";
 import type { OrderEdge } from "@/world/storyOrder";
-import type { WorldProfileDefinition } from "@/world/worldProfileRegistry";
+import type { WorldProfileDefinition, WorldProfileFieldDef } from "@/world/worldProfileRegistry";
+import { getSubcategorySection } from "@/world/worldProfileRegistry";
 
 export interface WorldHistoryCatalog {
   books: Array<{ id: string; label: string; narrativeIndex: number }>;
@@ -30,6 +38,14 @@ export interface WorldHistoryCatalog {
   scenes: Array<{ id: string; label: string; projectId: string }>;
   eventOrders: OrderEdge[];
 }
+
+const HISTORY_FIELD_TYPES = new Set([
+  "short_text",
+  "long_text",
+  "quantity",
+  "ordered_list",
+  "number",
+]);
 
 function newHistoryId(): string {
   return `wfh_${globalThis.crypto.randomUUID().replace(/-/g, "").slice(0, 20)}`;
@@ -52,19 +68,123 @@ function pointFromControls(input: {
   };
 }
 
+/** Parse free-text quantity history values such as "about 12,000" or "at least 500 km²". */
+function parseHistoryQuantity(raw: string): WorldProfileQuantity | null {
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  const match = trimmed.match(/^(about|at\s+least|at\s+most|exact|approx\.?)?\s*(-?\d[\d,]*(?:\.\d+)?)\s*(.*)$/i);
+  if (!match) return null;
+  const qualifierRaw = (match[1] ?? "").toLowerCase().replace(/\s+/g, "_").replace(/\.$/, "");
+  const qualifierMap: Record<string, WorldQuantityQualifier> = {
+    about: "about",
+    approx: "about",
+    at_least: "at_least",
+    at_most: "at_most",
+    exact: "exact",
+  };
+  const amount = Number((match[2] ?? "").replace(/,/g, ""));
+  if (!Number.isFinite(amount)) return null;
+  const unit = (match[3] ?? "").trim().slice(0, 40);
+  const quantity: WorldProfileQuantity = { amount };
+  const qualifier = qualifierMap[qualifierRaw];
+  if (qualifier && (WORLD_QUANTITY_QUALIFIERS as readonly string[]).includes(qualifier) && qualifier !== "exact") {
+    quantity.qualifier = qualifier;
+  }
+  if (unit) quantity.unit = unit;
+  return quantity;
+}
+
+function parseHistoryValue(field: WorldProfileFieldDef | null, raw: string): WorldProfileFieldValue {
+  if (!field) return raw;
+  if (field.type === "quantity") {
+    return parseHistoryQuantity(raw) ?? (raw.trim() ? raw : null);
+  }
+  if (field.type === "ordered_list") {
+    return raw
+      .split(/\r?\n|,/)
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .slice(0, 64);
+  }
+  if (field.type === "number") {
+    const trimmed = raw.trim();
+    if (!trimmed) return null;
+    const amount = Number(trimmed.replace(/,/g, ""));
+    return Number.isFinite(amount) ? amount : raw;
+  }
+  return raw;
+}
+
+function findFieldDef(
+  definition: WorldProfileDefinition | null,
+  enabledSectionIds: readonly string[],
+  fieldPath: string,
+): WorldProfileFieldDef | null {
+  const key = fieldPath.startsWith("values.")
+    ? fieldPath.slice("values.".length)
+    : fieldPath.startsWith("fields.")
+      ? fieldPath.slice("fields.".length)
+      : fieldPath;
+  if (definition) {
+    const found = definition.fields.find((field) => field.key === key);
+    if (found) return found;
+  }
+  for (const sectionId of enabledSectionIds) {
+    const section = getSubcategorySection(sectionId);
+    const found = section?.fields.find((field) => field.key === key);
+    if (found) return found;
+  }
+  return null;
+}
+
+function pushHistoryField(
+  options: Array<{ path: string; label: string; storage: WorldFieldHistoryChange["storage"] }>,
+  seen: Set<string>,
+  field: WorldProfileFieldDef,
+  labelPrefix = "",
+) {
+  if (!HISTORY_FIELD_TYPES.has(field.type)) return;
+  if (field.storage === "flat") {
+    const path = `fields.${field.key}`;
+    if (seen.has(path)) return;
+    seen.add(path);
+    options.push({
+      path,
+      label: `${labelPrefix}${field.label} (Details)`,
+      storage: "flat",
+    });
+    return;
+  }
+  if (field.storage === "profile") {
+    const path = `values.${field.key}`;
+    if (seen.has(path)) return;
+    seen.add(path);
+    options.push({
+      path,
+      label: `${labelPrefix}${field.label}`,
+      storage: "profile",
+    });
+  }
+}
+
 function historyFieldOptions(
   definition: WorldProfileDefinition | null,
+  enabledSectionIds: readonly string[] = [],
 ): Array<{ path: string; label: string; storage: WorldFieldHistoryChange["storage"] }> {
   const options: Array<{ path: string; label: string; storage: WorldFieldHistoryChange["storage"] }> = [
     { path: "summary", label: "Summary", storage: "summary" },
   ];
-  if (!definition) return options;
-  for (const field of definition.fields) {
-    if (field.type !== "short_text" && field.type !== "long_text") continue;
-    if (field.storage === "flat") {
-      options.push({ path: `fields.${field.key}`, label: `${field.label} (Details)`, storage: "flat" });
-    } else if (field.storage === "profile") {
-      options.push({ path: `values.${field.key}`, label: field.label, storage: "profile" });
+  const seen = new Set<string>(["summary"]);
+  if (definition) {
+    for (const field of definition.fields) {
+      pushHistoryField(options, seen, field);
+    }
+  }
+  for (const sectionId of enabledSectionIds) {
+    const section = getSubcategorySection(sectionId);
+    if (!section) continue;
+    for (const field of section.fields) {
+      pushHistoryField(options, seen, field, `${section.label}: `);
     }
   }
   return options;
@@ -73,6 +193,7 @@ function historyFieldOptions(
 export function WorldProfileHistorySection({
   profile,
   definition,
+  enabledSectionIds = [],
   catalog,
   projectId,
   editable,
@@ -81,6 +202,7 @@ export function WorldProfileHistorySection({
 }: {
   profile: WorldProfile;
   definition: WorldProfileDefinition | null;
+  enabledSectionIds?: readonly string[];
   catalog: WorldHistoryCatalog;
   projectId: string;
   editable: boolean;
@@ -96,7 +218,10 @@ export function WorldProfileHistorySection({
   const [compareBookId, setCompareBookId] = useState(projectId);
   const [showCompare, setShowCompare] = useState(false);
 
-  const fieldOptions = useMemo(() => historyFieldOptions(definition), [definition]);
+  const fieldOptions = useMemo(
+    () => historyFieldOptions(definition, enabledSectionIds),
+    [definition, enabledSectionIds],
+  );
   const [fieldPath, setFieldPath] = useState(fieldOptions[0]?.path ?? "values.access");
   const [presence, setPresence] = useState<"set" | "unknown">("set");
   const [valueText, setValueText] = useState("");
@@ -138,6 +263,7 @@ export function WorldProfileHistorySection({
     : null;
 
   const selectedOption = fieldOptions.find((item) => item.path === fieldPath) ?? fieldOptions[0];
+  const selectedFieldDef = findFieldDef(definition, enabledSectionIds, selectedOption?.path ?? fieldPath);
 
   const addChange = () => {
     setLocalError(null);
@@ -151,7 +277,7 @@ export function WorldProfileHistorySection({
       definitionId: profile.definitionId,
       storage: selectedOption.storage,
       presence,
-      value: presence === "unknown" ? null : valueText,
+      value: presence === "unknown" ? null : parseHistoryValue(selectedFieldDef, valueText),
       approval,
       planned,
       provenance: { origin: "author", note: "" },

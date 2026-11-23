@@ -6,12 +6,14 @@ import {
 } from "@/domain/characterDevelopment";
 import { withSeriesBookOrderFallback } from "@/domain/characterWritingContext";
 import { parseJsonObject, type JsonObject } from "@/domain/json";
+import { isWorldProfileRecordType } from "@/domain/worldProfile";
 import { contentClassOf, isManuscriptType, isRecordType, RECORD_TYPE_LABELS, type RecordType } from "@/domain/recordTypes";
 import { isAuthorityStatus } from "@/domain/statuses";
 import type { ContextDocument, ContextKind } from "@/assistant/prompt";
 import type { RetrievalContextState, RetrievalMeta, RetrievalOmission } from "@/assistant/retrievalMeta";
 import { isAssistantToolName, type RetrievalScope } from "@/assistant/tools";
 import type { OrderEdge } from "@/world/storyOrder";
+import type { SeriesHomeRef } from "@/world/seriesHome";
 import { aliasesOf } from "@/writing/crossRefs";
 import { hasSectionStatus, listSections, sectionPath } from "@/writing/sections";
 import { buildManuscriptTree } from "@/ui/manuscriptTree";
@@ -20,6 +22,7 @@ import { loadFocusManuscript, narrativePointForManuscript } from "./characterWri
 import { listEstablishedFactsForSubject } from "./establishedFactService";
 import { listSeriesBookProjects } from "./projectService";
 import { searchContextReferences, searchManuscript, searchProjectRecords } from "./searchService";
+import { listAvailableReferences, resolveAvailableReference } from "./seriesBibleService";
 import {
   chapterEventSequence,
   eventReveals,
@@ -29,6 +32,7 @@ import {
   type TimelineSource,
 } from "./storyTimelineQuery";
 import { LIVE_PROJECT } from "./trashFilters";
+import { draftingModeFromScope, renderWorldReferenceForAssistant } from "./worldWritingContextService";
 
 /*
  * Read-only tool handlers for the assistant discussion loop. Reuses search,
@@ -56,9 +60,11 @@ function referenceText(
   opts?: {
     scope?: RetrievalScope;
     projectId?: string;
+    recordId?: string;
     point?: NarrativePoint | null;
     edges?: readonly OrderEdge[];
     bookIds?: readonly string[];
+    home?: SeriesHomeRef | null;
   },
 ): string {
   try {
@@ -81,18 +87,41 @@ function referenceText(
         });
       }
     }
+    const world = renderWorldReferenceForAssistant({
+      title,
+      recordId: opts?.recordId ?? "",
+      type: recordType ?? "",
+      body,
+      fields,
+      mode: draftingModeFromScope(opts?.scope),
+      point: opts?.point,
+      edges: opts?.edges,
+      bookIds: opts?.bookIds,
+      viewingProjectId: opts?.projectId ?? opts?.point?.bookProjectId ?? null,
+      home: opts?.home,
+    });
+    if (world) return world.text;
     return Object.keys(fields).length ? `${body}\n\nStructured fields (JSON): ${JSON.stringify(fields)}` : body;
   } catch {
     return body;
   }
 }
 
+/** Manuscript / planning may look across series books; references use resolveAvailableReference. */
 async function projectIdsForScope(db: DbOrTx, ctx: RetrievalContext): Promise<string[]> {
   if (ctx.scope === "series") {
     const siblings = await listSeriesBookProjects(db, ctx.projectId);
     if (siblings.length) return siblings.map((s) => s.id);
   }
   return [ctx.projectId];
+}
+
+function isDraftingRetrieval(ctx: RetrievalContext): boolean {
+  return ctx.scope === "chapter";
+}
+
+async function resolveToolReference(db: DbOrTx, ctx: RetrievalContext, recordId: string) {
+  return resolveAvailableReference(db, ctx.projectId, recordId);
 }
 
 async function chapterTreeIds(db: DbOrTx, projectId: string, focusRecordId: string | null, draftId: string | null): Promise<string[] | null> {
@@ -136,35 +165,58 @@ async function searchProjectTool(db: DbOrTx, ctx: RetrievalContext, args: Record
   const includeManuscript = Boolean(args.includeManuscript);
   const includeReferences = Boolean(args.includeReferences);
   const includeFacts = Boolean(args.includeFacts);
-  const includePlanning = Boolean(args.includePlanning);
+  let includePlanning = Boolean(args.includePlanning);
+  const drafting = isDraftingRetrieval(ctx);
+  if (drafting && includePlanning) {
+    omit(ctx.meta, {
+      label: "Planning search",
+      reason: "Planning (Weave) results are omitted while drafting at chapter scope.",
+    });
+    includePlanning = false;
+  }
   const projectIds = await projectIdsForScope(db, ctx);
   const chapterIds = ctx.scope === "chapter" ? await chapterTreeIds(db, ctx.projectId, ctx.focusRecordId, ctx.draftId) : null;
 
   const hits: object[] = [];
   const omitted: RetrievalOmission[] = [];
+  const seenRefIds = new Set<string>();
+
+  if (includeReferences) {
+    // Search viewing project only — searchContextReferences already includes series-shared.
+    const refHits = await searchContextReferences(db, { projectId: ctx.projectId, query, limit: 24 });
+    for (const h of refHits) {
+      if (seenRefIds.has(h.id)) continue;
+      seenRefIds.add(h.id);
+      if (ctx.excludeRecordIds.has(h.id)) {
+        omitted.push({ label: h.title, recordId: h.id, reason: "Excluded by the author for this question." });
+        continue;
+      }
+      const available = await resolveToolReference(db, ctx, h.id);
+      if (!available) {
+        omitted.push({
+          label: h.title,
+          recordId: h.id,
+          reason: "Book-local or unavailable reference omitted from this book's scope.",
+        });
+        continue;
+      }
+      hits.push({
+        corpus: "reference",
+        projectId: available.home?.projectId ?? ctx.projectId,
+        recordId: h.id,
+        title: h.title,
+        type: h.type,
+        revision: h.currentRevision,
+        matchedIn: h.matchedIn,
+        excerpt: h.excerpt,
+        sectionId: h.sectionId,
+        sectionTitle: h.sectionTitle,
+        seriesHome: available.home,
+      });
+    }
+  }
 
   for (const projectId of projectIds) {
-    if (includeReferences) {
-      const refHits = await searchContextReferences(db, { projectId, query, limit: 16 });
-      for (const h of refHits) {
-        if (ctx.excludeRecordIds.has(h.id)) {
-          omitted.push({ label: h.title, recordId: h.id, reason: "Excluded by the author for this question." });
-          continue;
-        }
-        hits.push({
-          corpus: "reference",
-          projectId,
-          recordId: h.id,
-          title: h.title,
-          type: h.type,
-          revision: h.currentRevision,
-          matchedIn: h.matchedIn,
-          excerpt: h.excerpt,
-          sectionId: h.sectionId,
-          sectionTitle: h.sectionTitle,
-        });
-      }
-    }
     if (includeManuscript) {
       const ms = await searchManuscript(db, {
         projectId,
@@ -209,6 +261,23 @@ async function searchProjectTool(db: DbOrTx, ctx: RetrievalContext, args: Record
       });
       for (const f of facts) {
         if (ctx.excludeRecordIds.has(f.subjectRecordId)) continue;
+        const available = await resolveToolReference(db, ctx, f.subjectRecordId);
+        if (!available) {
+          omitted.push({
+            label: f.subject.title,
+            recordId: f.subjectRecordId,
+            reason: "Accepted fact subject is not available from this book.",
+          });
+          continue;
+        }
+        if (drafting && f.evidenceKind === "planned") {
+          omitted.push({
+            label: f.statement.slice(0, 80),
+            recordId: f.subjectRecordId,
+            reason: "Planned fact evidence omitted from drafting context.",
+          });
+          continue;
+        }
         hits.push({
           corpus: "accepted_fact",
           projectId,
@@ -313,10 +382,23 @@ async function readPassageTool(db: DbOrTx, ctx: RetrievalContext, args: Record<s
     return { output: JSON.stringify({ error: "excluded", recordId }), documents: [] };
   }
 
-  const projectIds = await projectIdsForScope(db, ctx);
-  const record = await db.record.findFirst({
-    where: { id: recordId, projectId: { in: projectIds }, trashedAt: null },
-  });
+  const available = await resolveToolReference(db, ctx, recordId);
+  if (!available) {
+    // Manuscript chapters remain local-only (and series-scope siblings via projectIds).
+    const projectIds = await projectIdsForScope(db, ctx);
+    const localMs = await db.record.findFirst({
+      where: { id: recordId, projectId: { in: projectIds }, trashedAt: null },
+    });
+    if (!localMs || contentClassOf(localMs.type as RecordType) !== "manuscript") {
+      return { output: JSON.stringify({ error: "not_found", recordId }), documents: [] };
+    }
+  }
+  const record =
+    available != null
+      ? await db.record.findFirst({ where: { id: available.record.id, trashedAt: null } })
+      : await db.record.findFirst({
+          where: { id: recordId, projectId: { in: await projectIdsForScope(db, ctx) }, trashedAt: null },
+        });
   if (!record || !isRecordType(record.type) || !isAuthorityStatus(record.authorityStatus)) {
     return { output: JSON.stringify({ error: "not_found", recordId }), documents: [] };
   }
@@ -335,14 +417,17 @@ async function readPassageTool(db: DbOrTx, ctx: RetrievalContext, args: Record<s
 
   const focus = await loadFocusManuscript(db, ctx.projectId, ctx.focusRecordId);
   const { point, edges, bookIds } = await narrativePointForManuscript(db, ctx.projectId, focus);
+  const drafting = isDraftingRetrieval(ctx);
   let text =
     contentClassOf(record.type) === "reference"
       ? referenceText(record.title, record.body, record.fields, record.type, {
           scope: ctx.scope,
-          projectId: record.projectId,
+          projectId: ctx.projectId,
+          recordId: record.id,
           point,
           edges,
           bookIds,
+          home: available?.home ?? null,
         })
       : record.body;
   let kind: ContextKind = contentClassOf(record.type) === "reference" ? "reference" : "manuscript";
@@ -353,17 +438,65 @@ async function readPassageTool(db: DbOrTx, ctx: RetrievalContext, args: Record<s
     const sections = listSections(record.body);
     const match = sections.find((s) => s.id === sectionId);
     if (!match) return { output: JSON.stringify({ error: "section_not_found", sectionId }), documents: [] };
-    text = record.body.slice(match.start, match.end);
-    kind = "section";
-    passage = { start: match.start, end: match.end };
-    section = { path: sectionPath(sections, match.id).map((h) => h.title), statusTag: match.statusTag };
+    if (drafting && match.statusTag) {
+      const upper = match.statusTag.toUpperCase();
+      if (
+        upper.includes("PROPOSED") ||
+        upper.includes("WORKING") ||
+        upper.includes("OPEN") ||
+        upper.includes("SELECTED")
+      ) {
+        omit(ctx.meta, {
+          label: match.title,
+          recordId,
+          reason: "Unsettled section omitted from drafting read.",
+        });
+        return { output: JSON.stringify({ error: "section_omitted", sectionId, reason: "unsettled" }), documents: [] };
+      }
+    }
+    if (drafting && isWorldProfileRecordType(record.type)) {
+      // Prefer point-scoped slice over raw section body for world profiles.
+      text = referenceText(record.title, record.body, record.fields, record.type, {
+        scope: ctx.scope,
+        projectId: ctx.projectId,
+        recordId: record.id,
+        point,
+        edges,
+        bookIds,
+        home: available?.home ?? null,
+      });
+      kind = "reference";
+    } else {
+      text = record.body.slice(match.start, match.end);
+      kind = "section";
+      passage = { start: match.start, end: match.end };
+      section = { path: sectionPath(sections, match.id).map((h) => h.title), statusTag: match.statusTag };
+    }
   } else if (start != null && end != null) {
     if (!Number.isInteger(start) || !Number.isInteger(end) || start < 0 || end <= start || end > record.body.length) {
       return { output: JSON.stringify({ error: "invalid_passage_bounds" }), documents: [] };
     }
-    text = record.body.slice(start, end);
-    kind = "passage";
-    passage = { start, end };
+    if (drafting && isWorldProfileRecordType(record.type)) {
+      omit(ctx.meta, {
+        label: record.title,
+        recordId,
+        reason: "Raw body passage reads of world profiles are omitted while drafting; use the point-scoped slice.",
+      });
+      text = referenceText(record.title, record.body, record.fields, record.type, {
+        scope: ctx.scope,
+        projectId: ctx.projectId,
+        recordId: record.id,
+        point,
+        edges,
+        bookIds,
+        home: available?.home ?? null,
+      });
+      kind = "reference";
+    } else {
+      text = record.body.slice(start, end);
+      kind = "passage";
+      passage = { start, end };
+    }
   }
 
   if (text.length > ctx.maxResultChars) {
@@ -436,19 +569,46 @@ async function listSectionsTool(db: DbOrTx, ctx: RetrievalContext, args: Record<
   if (ctx.excludeRecordIds.has(recordId)) {
     return { output: JSON.stringify({ error: "excluded", recordId }), documents: [] };
   }
-  const projectIds = await projectIdsForScope(db, ctx);
-  const record = await db.record.findFirst({ where: { id: recordId, projectId: { in: projectIds }, trashedAt: null } });
+  const available = await resolveToolReference(db, ctx, recordId);
+  let record = available
+    ? await db.record.findFirst({ where: { id: available.record.id, trashedAt: null } })
+    : null;
+  if (!record) {
+    const projectIds = await projectIdsForScope(db, ctx);
+    record = await db.record.findFirst({ where: { id: recordId, projectId: { in: projectIds }, trashedAt: null } });
+  }
   if (!record || !isRecordType(record.type)) return { output: JSON.stringify({ error: "not_found" }), documents: [] };
-  const sections = listSections(record.body).map((s) => ({
-    id: s.id,
-    parentId: s.parentId,
-    level: s.level,
-    title: s.title,
-    statusTag: s.statusTag,
-    chars: s.end - s.start,
-    start: s.start,
-    end: s.end,
-  }));
+  const drafting = isDraftingRetrieval(ctx);
+  const sections = listSections(record.body).flatMap((s) => {
+    if (drafting && s.statusTag) {
+      const upper = s.statusTag.toUpperCase();
+      if (
+        upper.includes("PROPOSED") ||
+        upper.includes("WORKING") ||
+        upper.includes("OPEN") ||
+        upper.includes("SELECTED")
+      ) {
+        omit(ctx.meta, {
+          label: s.title,
+          recordId,
+          reason: "Unsettled section omitted from drafting section list.",
+        });
+        return [];
+      }
+    }
+    return [
+      {
+        id: s.id,
+        parentId: s.parentId,
+        level: s.level,
+        title: s.title,
+        statusTag: s.statusTag,
+        chars: s.end - s.start,
+        start: s.start,
+        end: s.end,
+      },
+    ];
+  });
   return {
     output: JSON.stringify({
       recordId,
@@ -465,14 +625,8 @@ async function resolveNameTool(db: DbOrTx, ctx: RetrievalContext, args: Record<s
   const name = String(args.name ?? "").trim();
   if (!name) return { output: JSON.stringify({ error: "name_required" }), documents: [] };
   const needle = normName(name);
-  const projectIds = await projectIdsForScope(db, ctx);
-  const rows = await db.record.findMany({
-    where: {
-      projectId: { in: projectIds },
-      trashedAt: null,
-      type: { in: ["character_dossier", "worldbuilding"] },
-    },
-    select: { id: true, title: true, type: true, fields: true, currentRevision: true, projectId: true, authorityStatus: true },
+  const available = await listAvailableReferences(db, ctx.projectId, {
+    types: ["character_dossier", "worldbuilding"],
   });
 
   const matches: Array<{
@@ -484,14 +638,10 @@ async function resolveNameTool(db: DbOrTx, ctx: RetrievalContext, args: Record<s
     matchedAs: string;
   }> = [];
 
-  for (const row of rows) {
-    if (!isRecordType(row.type) || ctx.excludeRecordIds.has(row.id)) continue;
-    let fields: Record<string, unknown> = {};
-    try {
-      fields = parseJsonObject(row.fields);
-    } catch {
-      fields = {};
-    }
+  for (const entry of available) {
+    const row = entry.record;
+    if (ctx.excludeRecordIds.has(row.id)) continue;
+    const fields = row.fields;
     const candidates = [
       row.title,
       typeof fields.name === "string" ? fields.name : "",
@@ -504,7 +654,7 @@ async function resolveNameTool(db: DbOrTx, ctx: RetrievalContext, args: Record<s
         title: row.title,
         type: row.type,
         revision: row.currentRevision,
-        projectId: row.projectId,
+        projectId: entry.home?.projectId ?? ctx.projectId,
         matchedAs: hit,
       });
     }
@@ -534,34 +684,76 @@ async function listAcceptedFactsTool(db: DbOrTx, ctx: RetrievalContext, args: Re
   if (ctx.excludeRecordIds.has(subjectRecordId)) {
     return { output: JSON.stringify({ error: "excluded" }), documents: [] };
   }
-  const facts = await listEstablishedFactsForSubject(db, ctx.projectId, subjectRecordId);
+  const available = await resolveToolReference(db, ctx, subjectRecordId);
+  if (!available) {
+    omit(ctx.meta, {
+      label: subjectRecordId,
+      recordId: subjectRecordId,
+      reason: "Fact subject is not available from this book.",
+    });
+    return { output: JSON.stringify({ error: "not_found", subjectRecordId }), documents: [] };
+  }
+  const homeProjectId = available.home?.projectId ?? ctx.projectId;
+  const facts = await listEstablishedFactsForSubject(db, homeProjectId, subjectRecordId);
+  const drafting = isDraftingRetrieval(ctx);
+  const focus = drafting ? await loadFocusManuscript(db, ctx.projectId, ctx.focusRecordId) : null;
+  const narrative = drafting ? await narrativePointForManuscript(db, ctx.projectId, focus) : null;
   const accepted = facts.filter((f) => f.status === "accepted");
-  return {
-    output: JSON.stringify({
-      subjectRecordId,
-      facts: accepted.map((f) => {
-        const evidence = f.evidence.map((e) => ({
+  const filtered = accepted.flatMap((f) => {
+    if (drafting && f.evidenceKind === "planned") {
+      omit(ctx.meta, {
+        label: f.statement.slice(0, 80),
+        recordId: subjectRecordId,
+        reason: "Planned fact omitted from drafting context.",
+      });
+      return [];
+    }
+    const evidence = f.evidence.flatMap((e) => {
+      if (drafting && e.evidenceKind === "planned") {
+        omit(ctx.meta, {
+          label: e.sourceTitle,
+          recordId: e.sourceRecordId,
+          reason: "Planned fact evidence excerpt omitted from drafting context.",
+        });
+        return [];
+      }
+      return [
+        {
           sourceRecordId: e.sourceRecordId,
           sourceTitle: e.sourceTitle,
           revisionNumber: e.revisionNumber,
           passageStart: e.passageStart,
           passageEnd: e.passageEnd,
-          excerpt: e.passageExcerpt,
+          excerpt: drafting && e.evidenceKind === "planned" ? "" : e.passageExcerpt,
           evidenceKind: e.evidenceKind,
           evidenceKindLabel: e.evidenceKindLabel,
           needsRecheck: e.needsRecheck,
           staleNotice: e.needsRecheck ? "Source revised after this evidence was linked." : null,
-        }));
-        return {
-          id: f.id,
-          statement: f.statement,
-          evidenceKind: f.evidenceKind,
-          evidenceKindLabel: f.evidenceKindLabel,
-          passageEvidenceCount: evidence.length,
-          missingPassageEvidence: evidence.length === 0,
-          evidence,
-        };
-      }),
+        },
+      ];
+    });
+    // When anchored, drop facts whose evidence sources are scenes after the point (best-effort).
+    if (drafting && narrative?.point.storyEventId) {
+      // Keep facts; world chronology is handled by world slice. Manuscript after-point filtering
+      // is limited to planned evidence above.
+      void narrative;
+    }
+    return [
+      {
+        id: f.id,
+        statement: f.statement,
+        evidenceKind: f.evidenceKind,
+        evidenceKindLabel: f.evidenceKindLabel,
+        passageEvidenceCount: evidence.length,
+        missingPassageEvidence: evidence.length === 0,
+        evidence,
+      },
+    ];
+  });
+  return {
+    output: JSON.stringify({
+      subjectRecordId,
+      facts: filtered,
       note: "Zero-draft and planned evidence are labeled; do not treat them as author-manuscript canon. missingPassageEvidence means no passage is pinned. Acceptance alone is not evidence.",
     }),
     documents: [],
@@ -571,6 +763,20 @@ async function listAcceptedFactsTool(db: DbOrTx, ctx: RetrievalContext, args: Re
 async function searchPlanningTool(db: DbOrTx, ctx: RetrievalContext, args: Record<string, unknown>): Promise<ToolExecution> {
   const query = String(args.query ?? "").trim();
   if (!query) return { output: JSON.stringify({ error: "query_required" }), documents: [] };
+  if (isDraftingRetrieval(ctx)) {
+    omit(ctx.meta, {
+      label: "Planning search",
+      reason: "Planning (Weave) search is omitted while drafting at chapter scope.",
+    });
+    return {
+      output: JSON.stringify({
+        hits: [],
+        omitted: true,
+        note: "Planning search is not available while drafting.",
+      }),
+      documents: [],
+    };
+  }
   const projectIds = await projectIdsForScope(db, ctx);
   const hits: object[] = [];
   for (const projectId of projectIds) {
@@ -716,10 +922,17 @@ async function eventsAtPlaceTool(db: DbOrTx, ctx: RetrievalContext, args: Record
     omit(ctx.meta, { label: locationRecordId, recordId: locationRecordId, reason: "Excluded by the author for this question." });
     return { output: JSON.stringify({ error: "excluded", locationRecordId }), documents: [] };
   }
-  const projectIds = await projectIdsForScope(db, ctx);
-  const projectId = await ownerProject(db, projectIds, locationRecordId);
-  if (!projectId) return { output: JSON.stringify({ error: "not_found", locationRecordId }), documents: [] };
-  const result = await eventsAtPlace(db, projectId, locationRecordId, await draftForTools(ctx), await chapterLimit(db, ctx));
+  const available = await resolveToolReference(db, ctx, locationRecordId);
+  if (!available) return { output: JSON.stringify({ error: "not_found", locationRecordId }), documents: [] };
+  const drafting = isDraftingRetrieval(ctx);
+  const focus = drafting ? await loadFocusManuscript(db, ctx.projectId, ctx.focusRecordId) : null;
+  const narrative = drafting ? await narrativePointForManuscript(db, ctx.projectId, focus) : null;
+  const result = await eventsAtPlace(db, ctx.projectId, locationRecordId, await draftForTools(ctx), await chapterLimit(db, ctx), {
+    allowSeriesShared: true,
+    omitPlanned: drafting,
+    point: narrative?.point ?? null,
+    edges: narrative?.edges ?? [],
+  });
   if ("error" in result) return { output: JSON.stringify({ error: result.error, locationRecordId }), documents: [] };
   return answerOf(ctx, result);
 }

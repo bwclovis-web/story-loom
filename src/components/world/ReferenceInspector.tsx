@@ -11,6 +11,7 @@ import {
   type EvidenceSourceChoice,
   type SceneChoice,
 } from "@/app/projects/[projectId]/records/[recordId]/EstablishedInRail";
+import { TaxonomyBadges } from "@/components/world/TaxonomyBadges";
 import type { EstablishedFactView } from "@/world/establishedFacts";
 import { CHARACTER_DEVELOPMENT, IMAGES, REFERENCE_FORM, SERIES, WORLD, WORLD_KIND, WORLD_PROFILE } from "@/ui/labels";
 import { placementHref, type ReferenceInspectorModel } from "@/world/inspectorModel";
@@ -166,6 +167,7 @@ export function ReferenceInspector({
                     </ButtonLink>
                   ) : null}
                 </p>
+                <TaxonomyBadges taxonomy={model.taxonomy} />
               </div>
               {editing ? <p className="small muted">{WORLD.inspectorSavedNote}</p> : null}
               {model.lead ? <p className="small inspector-lead">{model.lead}</p> : <p className="small muted">{WORLD.emptyDocument}</p>}

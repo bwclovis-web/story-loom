@@ -16,7 +16,7 @@ import {
 import { MANUSCRIPT_REPLACE, WRITING } from "@/ui/labels";
 import { ProtectionTick } from "./ProtectionTick";
 import { applyTextareaEdit, selectRange } from "./textareaEdit";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui/Atoms/Button";
 import { Checkbox } from "@/components/ui/Atoms/Checkbox";
 
 interface DirectUndo {

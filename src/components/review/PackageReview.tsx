@@ -7,7 +7,7 @@ import { CANON_REASON_TEXT, canonChanges } from "@/assistant/canon";
 import { IssueList } from "@/components/IssueList";
 import { ResultSummary } from "@/components/PackagePreview";
 import { Banner } from "@/components/ui/Banner";
-import { Button, ButtonLink } from "@/components/ui/Button";
+import { Button, ButtonLink } from "@/components/ui/Atoms/Button";
 import { Checkbox } from "@/components/ui/Atoms/Checkbox";
 import { RECORD_TYPE_LABELS } from "@/domain/recordTypes";
 import type { PackagePreview } from "@/server/services/changePackageService";

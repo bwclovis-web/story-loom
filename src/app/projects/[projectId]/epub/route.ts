@@ -1,10 +1,13 @@
-import { isManuscriptType, isRecordType } from "@/domain/recordTypes";
 import { getDb } from "@/server/db";
 import { resolveExportDraftId } from "@/server/draftSelection";
 import { getDraftDefaults, listManuscriptDrafts } from "@/server/services/draftService";
 import { NotFoundError } from "@/server/services/errors";
 import { buildManuscriptEpub } from "@/server/services/epubExportService";
 import { buildReferencesEpub } from "@/server/services/worldBibleExport";
+import {
+  parseWorldBibleExportQuery,
+  worldBibleSelectionHasScope,
+} from "@/server/services/worldBibleExportQuery";
 
 export const dynamic = "force-dynamic";
 
@@ -15,14 +18,13 @@ export async function GET(request: Request, { params }: { params: Promise<{ proj
   const db = getDb();
   try {
     if (query.get("kind") === "references") {
-      const types = query.getAll("type").filter((type) => isRecordType(type) && !isManuscriptType(type));
-      const ids = new Set(query.getAll("record"));
-      if (types.length) {
-        const rows = await db.record.findMany({ where: { projectId, type: { in: types }, trashedAt: null }, select: { id: true } });
-        rows.forEach((row) => ids.add(row.id));
+      const { selection, policy } = parseWorldBibleExportQuery(query);
+      if (!worldBibleSelectionHasScope(selection)) {
+        return new Response("Choose at least one document, type, taxonomy filter, or collection.", {
+          status: 400,
+        });
       }
-      if (!ids.size) return new Response("Choose at least one document.", { status: 400 });
-      const file = await buildReferencesEpub(db, projectId, [...ids]);
+      const file = await buildReferencesEpub(db, projectId, selection, policy);
       return new Response(new Uint8Array(file.bytes), {
         headers: {
           "Content-Type": file.contentType,

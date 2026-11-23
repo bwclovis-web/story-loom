@@ -63,7 +63,8 @@ export type IdPrefix =
   | "pas" // project assistant settings
   | "car" // chapter analysis run
   | "carc" // character analysis run (evidence-based living profile review)
-  | "csp"; // continuity suppression (ledger ignore / intentional)
+  | "csp" // continuity suppression (ledger ignore / intentional)
+  | "wcc"; // world contradiction check (passage vs approved world fact)
 
 export function newId(prefix: IdPrefix): string {
   return `${prefix}_${ulid()}`;

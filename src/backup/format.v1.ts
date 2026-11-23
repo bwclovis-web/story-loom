@@ -446,7 +446,7 @@ export const workspaceBackupV1Schema = z
           .strict(),
       )
       .optional(),
-  /** Continuity Ledger suppressions (intentional / ignored). Omitted in older backups → none. */
+  /** Continuity Ledger suppressions (intentional / resolved / ignored). Omitted in older backups → none. */
     continuitySuppressions: z
       .array(
         z
@@ -454,10 +454,42 @@ export const workspaceBackupV1Schema = z
             id,
             projectId: id,
             issueKey: z.string().min(1).max(500),
-            reason: z.enum(["intentional", "ignored"]),
+            reason: z.enum(["intentional", "resolved", "ignored"]),
             note: z.string().max(2000).optional(),
             actor: z.string().min(1).max(120).optional(),
             createdAt: timestamp,
+          })
+          .strict(),
+      )
+      .optional(),
+    /** W7B manuscript vs approved world-fact checks. Omitted in older backups → none. */
+    worldContradictionChecks: z
+      .array(
+        z
+          .object({
+            id,
+            projectId: id,
+            issueKey: z.string().min(1).max(500),
+            dedupeKey: z.string().min(1).max(800),
+            manuscriptRecordId: id,
+            manuscriptRevision: z.number().int().min(0),
+            passageStart: z.number().int().min(0),
+            passageEnd: z.number().int().min(0),
+            passageExcerpt: z.string().max(10_000),
+            passageHash: z.string().min(1).max(128),
+            worldRecordId: id,
+            worldRecordRevision: z.number().int().min(0),
+            fieldPath: z.string().min(1).max(200),
+            changeId: z.string().min(1).max(120),
+            storyPointJson: z.string().max(20_000).optional(),
+            storyPointLabel: z.string().max(500).optional(),
+            verdict: z.enum(["conflict", "ambiguous"]),
+            stance: z.string().min(1).max(40),
+            explanation: z.string().max(2000),
+            worldFactFormatted: z.string().max(2000),
+            needsRecheck: z.boolean().optional(),
+            checkedAt: timestamp,
+            updatedAt: timestamp,
           })
           .strict(),
       )
@@ -1141,6 +1173,7 @@ export const workspaceBackupV1Schema = z
         worldKindTemplates: z.number().int().optional(),
         worldCategoryDefinitions: z.number().int().optional(),
         continuitySuppressions: z.number().int().optional(),
+        worldContradictionChecks: z.number().int().optional(),
         boards: z.number().int().optional(),
         boardCards: z.number().int().optional(),
         worldMaps: z.number().int().optional(),

@@ -36,12 +36,15 @@ import { parseJsonObject } from "@/domain/json";
 import { contentClassOf, isRecordType, type ContentClass, type RecordType } from "@/domain/recordTypes";
 import { isAuthorityStatus, type AuthorityStatus } from "@/domain/statuses";
 import { hasSectionStatus, listSections, outermostSections, sectionPath, type DocSection } from "@/writing/sections";
+import type { SeriesHomeRef } from "@/world/seriesHome";
 import type { Db, DbOrTx } from "../db";
 import { withSeriesBookOrderFallback } from "@/domain/characterWritingContext";
 import { writeAudit } from "./auditService";
 import { loadFocusManuscript, narrativePointForManuscript } from "./characterWritingContextService";
+import { listAvailableReferences, resolveAvailableReference } from "./seriesBibleService";
 import { LIVE_PROJECT } from "./trashFilters";
 import { applyAuthorInstructionLens, getPromptPreset, normalizeAuthorInstructionText } from "./promptPresetService";
+import { renderWorldReferenceForAssistant } from "./worldWritingContextService";
 
 import { clampRecentBudget, DEFAULT_RECENT_BUDGET } from "@/assistant/recentBudget";
 
@@ -221,6 +224,8 @@ export interface SelectableRecord {
   chars: number;
   /** Reference documents only: sections by heading, for sending part of a long document. */
   sections: SelectableSection[];
+  /** Set when the record lives in another book of this series. */
+  seriesHome?: SeriesHomeRef | null;
 }
 
 export interface SelectableSection {
@@ -248,6 +253,7 @@ function sha256(text: string): string {
 export interface CharacterReferenceOptions {
   title?: string;
   type?: string;
+  recordId?: string;
   /** Drafting keeps reader-only and spoiler knowledge out; editorial is the default. */
   mode?: "drafting" | "editorial" | "planning";
   allowFuturePlans?: boolean;
@@ -255,9 +261,10 @@ export interface CharacterReferenceOptions {
   point?: import("@/domain/characterDevelopment").NarrativePoint | null;
   edges?: import("@/world/storyOrder").OrderEdge[];
   bookIds?: readonly string[];
+  home?: SeriesHomeRef | null;
 }
 
-/** What a selected reference contributes: its body and a task-specific character slice or raw fields. */
+/** What a selected reference contributes: its body and a task-specific character/world slice. */
 export function referenceText(body: string, fieldsJson: string, opts?: CharacterReferenceOptions): string {
   const fields = parseJsonObject(fieldsJson);
   if (opts?.type === "character_dossier") {
@@ -284,6 +291,21 @@ export function referenceText(body: string, fieldsJson: string, opts?: Character
       });
     }
   }
+  const world = renderWorldReferenceForAssistant({
+    title: opts?.title ?? "",
+    recordId: opts?.recordId ?? "",
+    type: opts?.type ?? "",
+    body,
+    fields,
+    mode: opts?.mode,
+    allowFuturePlans: opts?.allowFuturePlans,
+    point: opts?.point,
+    edges: opts?.edges,
+    bookIds: opts?.bookIds,
+    viewingProjectId: opts?.bookProjectId ?? opts?.point?.bookProjectId ?? null,
+    home: opts?.home,
+  });
+  if (world) return world.text;
   return Object.keys(fields).length ? `${body}\n\nStructured fields (JSON): ${JSON.stringify(fields)}` : body;
 }
 
@@ -476,8 +498,11 @@ export async function getConversationView(
 /* ---------- selection ---------- */
 
 export async function listSelectableRecords(db: Db, projectId: string): Promise<SelectableRecord[]> {
-  const rows = await db.record.findMany({ where: { projectId, trashedAt: null }, orderBy: [{ type: "asc" }, { title: "asc" }] });
-  return rows.flatMap((r) => {
+  const localRows = await db.record.findMany({
+    where: { projectId, trashedAt: null },
+    orderBy: [{ type: "asc" }, { title: "asc" }],
+  });
+  const local = localRows.flatMap((r) => {
     if (!isRecordType(r.type) || !isAuthorityStatus(r.authorityStatus)) return [];
     const contentClass = contentClassOf(r.type);
     return [
@@ -491,7 +516,7 @@ export async function listSelectableRecords(db: Db, projectId: string): Promise<
         draftId: r.draftId,
         chars:
           contentClass === "reference"
-            ? referenceText(r.body, r.fields, { title: r.title, type: r.type }).length
+            ? referenceText(r.body, r.fields, { title: r.title, type: r.type, recordId: r.id }).length
             : r.body.length,
         sections:
           contentClass === "reference"
@@ -504,9 +529,46 @@ export async function listSelectableRecords(db: Db, projectId: string): Promise<
                 chars: s.end - s.start,
               }))
             : [],
-      },
+        seriesHome: null,
+      } satisfies SelectableRecord,
     ];
   });
+  const seen = new Set(local.map((row) => row.id));
+  const shared = await listAvailableReferences(db, projectId, { linkableOnly: true });
+  const fromSeries = shared.flatMap((entry) => {
+    if (!entry.isShared || seen.has(entry.record.id)) return [];
+    if (!isAuthorityStatus(entry.record.authorityStatus)) return [];
+    const contentClass = contentClassOf(entry.record.type);
+    if (contentClass !== "reference") return [];
+    const fieldsJson = JSON.stringify(entry.record.fields);
+    return [
+      {
+        id: entry.record.id,
+        title: entry.record.title,
+        type: entry.record.type,
+        contentClass,
+        authorityStatus: entry.record.authorityStatus,
+        currentRevision: entry.record.currentRevision,
+        draftId: null,
+        chars: referenceText(entry.record.body, fieldsJson, {
+          title: entry.record.title,
+          type: entry.record.type,
+          recordId: entry.record.id,
+          home: entry.home,
+        }).length,
+        sections: listSections(entry.record.body).map((s) => ({
+          id: s.id,
+          parentId: s.parentId,
+          level: s.level,
+          title: s.title,
+          statusTag: s.statusTag,
+          chars: s.end - s.start,
+        })),
+        seriesHome: entry.home,
+      } satisfies SelectableRecord,
+    ];
+  });
+  return [...local, ...fromSeries];
 }
 
 export async function getManuscriptText(db: Db, projectId: string, recordId: string) {
@@ -580,64 +642,161 @@ async function loadDocuments(
   if (new Set(whole).size !== whole.length || whole.some((id) => sectioned.has(id))) {
     throw new AssistantError("INVALID_REQUEST", "Each record can be included only once: whole, or as chosen sections.");
   }
-  const ids = [...new Set(refs.map((r) => r.recordId))];
-  const records = await db.record.findMany({ where: { id: { in: ids }, projectId, trashedAt: null } });
-  const byId = new Map(records.map((r) => [r.id, r]));
   const focus = await loadFocusManuscript(db, projectId, options.focusRecordId);
   const { point, edges, bookIds } = await narrativePointForManuscript(db, projectId, focus);
 
   const docs: ContextDocument[] = [];
   for (const ref of refs) {
-    const record = byId.get(ref.recordId);
-    if (!record || !isRecordType(record.type)) {
-      throw new AssistantError("INVALID_REQUEST", `Record ${ref.recordId} is not in this project.`);
-    }
     const expected: ContentClass = ref.kind === "reference" || ref.kind === "section" ? "reference" : "manuscript";
-    if (contentClassOf(record.type) !== expected) {
+    let recordRow: {
+      id: string;
+      title: string;
+      type: string;
+      authorityStatus: string;
+      currentRevision: number;
+      body: string;
+      fields: string;
+      projectId: string;
+    } | null = null;
+    let home: SeriesHomeRef | null = null;
+
+    if (expected === "manuscript") {
+      const local = await db.record.findFirst({ where: { id: ref.recordId, projectId, trashedAt: null } });
+      if (local) {
+        recordRow = {
+          id: local.id,
+          title: local.title,
+          type: local.type,
+          authorityStatus: local.authorityStatus,
+          currentRevision: local.currentRevision,
+          body: local.body,
+          fields: local.fields,
+          projectId: local.projectId,
+        };
+      }
+    } else {
+      const available = await resolveAvailableReference(db, projectId, ref.recordId);
+      if (available) {
+        home = available.home;
+        const raw = await db.record.findFirst({
+          where: { id: available.record.id, trashedAt: null },
+        });
+        if (raw) {
+          recordRow = {
+            id: raw.id,
+            title: raw.title,
+            type: raw.type,
+            authorityStatus: raw.authorityStatus,
+            currentRevision: raw.currentRevision,
+            body: raw.body,
+            fields: raw.fields,
+            projectId: raw.projectId,
+          };
+        }
+      }
+    }
+
+    if (!recordRow || !isRecordType(recordRow.type)) {
       throw new AssistantError(
         "INVALID_REQUEST",
         expected === "reference"
-          ? `"${record.title}" is a manuscript chapter. Choose it under Manuscript instead.`
-          : `"${record.title}" is not a manuscript chapter.`,
+          ? `Record ${ref.recordId} is not available in this project.`
+          : `Record ${ref.recordId} is not in this project.`,
       );
     }
-    if (requireCurrent && record.currentRevision !== ref.revision) {
+    if (contentClassOf(recordRow.type) !== expected) {
+      throw new AssistantError(
+        "INVALID_REQUEST",
+        expected === "reference"
+          ? `"${recordRow.title}" is a manuscript chapter. Choose it under Manuscript instead.`
+          : `"${recordRow.title}" is not a manuscript chapter.`,
+      );
+    }
+    if (requireCurrent && recordRow.currentRevision !== ref.revision) {
       throw new AssistantError(
         "STALE_SELECTION",
-        `"${record.title}" changed since you selected it (revision ${ref.revision} is now ${record.currentRevision}). Review the selection and send again.`,
+        `"${recordRow.title}" changed since you selected it (revision ${ref.revision} is now ${recordRow.currentRevision}). Review the selection and send again.`,
       );
     }
     const revision = await db.revision.findUnique({
-      where: { recordId_revisionNumber: { recordId: record.id, revisionNumber: ref.revision } },
+      where: { recordId_revisionNumber: { recordId: recordRow.id, revisionNumber: ref.revision } },
     });
     if (!revision || !isAuthorityStatus(revision.authorityStatus)) {
-      throw new AssistantError("INVALID_REQUEST", `Revision ${ref.revision} of "${record.title}" does not exist.`);
+      throw new AssistantError("INVALID_REQUEST", `Revision ${ref.revision} of "${recordRow.title}" does not exist.`);
     }
 
     const statusMarkedInText = expected === "reference" && hasSectionStatus(revision.body) ? true : undefined;
     if (ref.kind === "section") {
+      const mode = options.mode ?? "editorial";
+      const drafting = mode === "drafting";
+      const all = listSections(revision.body);
+      let chosenSectionIds = ref.sectionIds;
+      if (drafting && chosenSectionIds) {
+        const filtered = chosenSectionIds.filter((id) => {
+          const section = all.find((s) => s.id === id);
+          if (!section?.statusTag) return true;
+          const upper = section.statusTag.toUpperCase();
+          return !(
+            upper.includes("PROPOSED") ||
+            upper.includes("WORKING") ||
+            upper.includes("OPEN") ||
+            upper.includes("SELECTED")
+          );
+        });
+        if (filtered.length !== chosenSectionIds.length) {
+          // Omitted unsettled sections; if none remain, fall through to slice render of whole body.
+          chosenSectionIds = filtered;
+        }
+      }
+      if (!chosenSectionIds?.length && drafting) {
+        const text = referenceText(revision.body, revision.fields, {
+          title: revision.title,
+          type: recordRow.type,
+          recordId: recordRow.id,
+          mode,
+          allowFuturePlans: options.allowFuturePlans,
+          bookProjectId: point.bookProjectId ?? projectId,
+          point,
+          edges,
+          bookIds,
+          home,
+        });
+        docs.push({
+          recordId: recordRow.id,
+          title: revision.title,
+          type: recordRow.type,
+          authorityStatus: revision.authorityStatus,
+          revision: revision.revisionNumber,
+          kind: "reference",
+          text,
+          statusMarkedInText,
+        });
+        continue;
+      }
       const base = {
-        recordId: record.id,
+        recordId: recordRow.id,
         title: revision.title,
-        type: record.type,
+        type: recordRow.type,
         authorityStatus: revision.authorityStatus,
         revision: revision.revisionNumber,
         statusMarkedInText,
       };
-      docs.push(...sectionDocuments(base, ref, revision.body));
+      docs.push(...sectionDocuments(base, { ...ref, sectionIds: chosenSectionIds }, revision.body));
       continue;
     }
     let text =
       ref.kind === "reference"
         ? referenceText(revision.body, revision.fields, {
             title: revision.title,
-            type: record.type,
+            type: recordRow.type,
+            recordId: recordRow.id,
             mode: options.mode ?? "editorial",
             allowFuturePlans: options.allowFuturePlans,
             bookProjectId: point.bookProjectId ?? projectId,
             point,
             edges,
             bookIds,
+            home,
           })
         : revision.body;
     if (ref.kind === "passage") {
@@ -648,9 +807,9 @@ async function loadDocuments(
       text = revision.body.slice(p.start, p.end);
     }
     docs.push({
-      recordId: record.id,
+      recordId: recordRow.id,
       title: revision.title,
-      type: record.type,
+      type: recordRow.type,
       authorityStatus: revision.authorityStatus,
       revision: revision.revisionNumber,
       kind: ref.kind,

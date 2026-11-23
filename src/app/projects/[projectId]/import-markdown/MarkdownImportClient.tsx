@@ -6,7 +6,7 @@ import { ProtectionBadge, StatusBadge } from "@/components/Badges";
 import { HelpHint } from "@/components/HelpHint";
 import { IssueList } from "@/components/IssueList";
 import { Banner } from "@/components/ui/Banner";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui/Atoms/Button";
 import { Checkbox } from "@/components/ui/Atoms/Checkbox";
 import { FileInput } from "@/components/ui/FileInput";
 import { RECORD_TYPE_LABELS, type RecordType } from "@/domain/recordTypes";

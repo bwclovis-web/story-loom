@@ -14,6 +14,9 @@ import { primaryRecordImagesByRecordId, recordImagePublicPath } from "./imageSer
 import { relationVisibilityWhere } from "./relationScope";
 import { listAvailableReferences, resolveAvailableReference } from "./seriesBibleService";
 import type { RelationshipEdge, RelationshipNode } from "@/world/relationshipGraph";
+import { isWorldType } from "@/ui/world";
+import { resolveRecordTaxonomy, taxonomyNavSummary } from "@/world/taxonomy";
+import { seriesBookLabel } from "@/world/seriesHome";
 
 export interface ProjectRelationshipGraph {
   nodes: RelationshipNode[];
@@ -48,10 +51,19 @@ export async function loadProjectRelationshipGraph(db: DbOrTx, projectId: string
         title: entry.record.title,
         typeLabel: RECORD_TYPE_LABELS[entry.record.type],
         homeProjectId: entry.home?.projectId ?? null,
+        homeLabel: entry.home ? seriesBookLabel(entry.home) : null,
+        worldScope: entry.worldScope,
+        taxonomy: entry.taxonomy,
       },
     ];
   });
   return { nodes, edges, focusChoices };
+}
+
+function taxonomyForType(type: string, fields: unknown) {
+  if (!isRecordType(type) || !isWorldType(type)) return null;
+  const parsed = typeof fields === "string" ? parseJsonObject(fields) : (fields as Record<string, unknown>);
+  return taxonomyNavSummary(resolveRecordTaxonomy({ type, fields: parsed ?? {} }));
 }
 
 async function resolveGraphNodes(
@@ -74,6 +86,11 @@ async function resolveGraphNodes(
       title: available.record.title,
       typeLabel: RECORD_TYPE_LABELS[available.record.type],
       homeProjectId: available.home?.projectId ?? null,
+      homeLabel: available.home ? seriesBookLabel(available.home) : null,
+      worldScope: available.worldScope,
+      taxonomy: available.taxonomy ?? taxonomyForType(available.record.type, available.record.fields),
+      recordType: available.record.type,
+      authorityStatus: available.record.authorityStatus,
     });
   }
   for (const [homeId, ids] of byHome) {
@@ -100,11 +117,22 @@ export async function loadProjectAllConnectionsGraph(
   const mentionRows = buildMentionEdges(crossRefs);
   const edges = [...placeRows, ...recordRows, ...linkRows, ...mentionRows];
 
-  const records = await db.record.findMany({
-    where: { projectId, trashedAt: null },
-    select: { id: true, title: true, type: true, fields: true, authorityStatus: true, draftId: true },
-    orderBy: [{ title: "asc" }, { id: "asc" }],
-  });
+  const [records, available] = await Promise.all([
+    db.record.findMany({
+      where: { projectId, trashedAt: null },
+      select: {
+        id: true,
+        title: true,
+        type: true,
+        fields: true,
+        authorityStatus: true,
+        draftId: true,
+        worldScope: true,
+      },
+      orderBy: [{ title: "asc" }, { id: "asc" }],
+    }),
+    listAvailableReferences(db, projectId),
+  ]);
 
   const primaryByRecord = await primaryRecordImagesByRecordId(
     db,
@@ -112,23 +140,47 @@ export async function loadProjectAllConnectionsGraph(
     records.map((r) => r.id),
   );
 
-  const allNodes: RelationshipNode[] = records.flatMap((r) =>
-    isRecordType(r.type)
-      ? [
-          {
-            id: r.id,
-            title: r.title,
-            typeLabel: RECORD_TYPE_LABELS[r.type],
-            recordType: r.type,
-            authorityStatus: isAuthorityStatus(r.authorityStatus) ? r.authorityStatus : null,
-            draftId: r.draftId,
-            profileImageUrl: primaryByRecord.has(r.id)
-              ? recordImagePublicPath(projectId, primaryByRecord.get(r.id)!)
-              : null,
-          },
-        ]
-      : [],
-  );
+  const byId = new Map<string, RelationshipNode>();
+  for (const r of records) {
+    if (!isRecordType(r.type)) continue;
+    byId.set(r.id, {
+      id: r.id,
+      title: r.title,
+      typeLabel: RECORD_TYPE_LABELS[r.type],
+      recordType: r.type,
+      authorityStatus: isAuthorityStatus(r.authorityStatus) ? r.authorityStatus : null,
+      draftId: r.draftId,
+      worldScope: r.worldScope === "series" || r.worldScope === "book" ? r.worldScope : null,
+      taxonomy: taxonomyForType(r.type, r.fields),
+      profileImageUrl: primaryByRecord.has(r.id)
+        ? recordImagePublicPath(projectId, primaryByRecord.get(r.id)!)
+        : null,
+    });
+  }
+  for (const entry of available) {
+    if (byId.has(entry.record.id)) {
+      const existing = byId.get(entry.record.id)!;
+      existing.homeProjectId = entry.home?.projectId ?? null;
+      existing.homeLabel = entry.home ? seriesBookLabel(entry.home) : null;
+      existing.worldScope = entry.worldScope;
+      existing.taxonomy = entry.taxonomy ?? existing.taxonomy;
+      continue;
+    }
+    byId.set(entry.record.id, {
+      id: entry.record.id,
+      title: entry.record.title,
+      typeLabel: RECORD_TYPE_LABELS[entry.record.type],
+      recordType: entry.record.type,
+      authorityStatus: entry.record.authorityStatus,
+      draftId: null,
+      homeProjectId: entry.home?.projectId ?? null,
+      homeLabel: entry.home ? seriesBookLabel(entry.home) : null,
+      worldScope: entry.worldScope,
+      taxonomy: entry.taxonomy ?? taxonomyForType(entry.record.type, entry.record.fields),
+    });
+  }
+
+  const allNodes = [...byId.values()].sort((a, b) => a.title.localeCompare(b.title) || a.id.localeCompare(b.id));
 
   const connectedIds = new Set<string>();
   for (const e of edges) {

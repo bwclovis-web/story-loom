@@ -1,6 +1,7 @@
 import { isRecordType, type RecordType } from "@/domain/recordTypes";
 import { isAuthorityStatus, type AuthorityStatus } from "@/domain/statuses";
 import { isManuscriptSceneStatus, type ManuscriptSceneStatus } from "@/writing/manuscriptStructure";
+import { isWorldbuildingKindFilter, type WorldbuildingKindFilter } from "@/world/worldKinds";
 
 export const SMART_COLLECTION_SCOPES = ["manuscript", "world"] as const;
 export type SmartCollectionScope = (typeof SMART_COLLECTION_SCOPES)[number];
@@ -8,6 +9,10 @@ export type SmartCollectionScope = (typeof SMART_COLLECTION_SCOPES)[number];
 export function isSmartCollectionScope(value: unknown): value is SmartCollectionScope {
   return typeof value === "string" && (SMART_COLLECTION_SCOPES as readonly string[]).includes(value);
 }
+
+export type SmartCollectionHubScope = "book" | "series" | "unset";
+export type SmartCollectionHubSort = "title" | "updated" | "created";
+export type SmartCollectionHubView = "list" | "cards";
 
 /** Composable read-only predicates for a smart collection. */
 export interface SmartCollectionFilter {
@@ -22,6 +27,20 @@ export interface SmartCollectionFilter {
   hasUnresolvedContinuity?: boolean;
   linkedRecordId?: string;
   query?: string;
+  /** World Hub thematic category (stable id / custom slug). */
+  category?: string;
+  subcategory?: string;
+  tag?: string;
+  customKind?: string;
+  unclassified?: boolean;
+  /** Hub book/series/unset filter — not the collection's manuscript|world scope. */
+  hubScope?: SmartCollectionHubScope;
+  /** Legacy worldbuilding kind filter (`place`, `__none`, …). */
+  kind?: WorldbuildingKindFilter;
+  /** Presentation restored when opening a world collection. */
+  sort?: SmartCollectionHubSort;
+  view?: SmartCollectionHubView;
+  list?: boolean;
 }
 
 export interface SmartCollectionRecordLike {
@@ -62,6 +81,22 @@ export function parseSmartCollectionFilter(raw: unknown): SmartCollectionFilter 
   if (typeof obj.hasUnresolvedContinuity === "boolean") filter.hasUnresolvedContinuity = obj.hasUnresolvedContinuity;
   if (typeof obj.linkedRecordId === "string") filter.linkedRecordId = obj.linkedRecordId;
   if (typeof obj.query === "string") filter.query = obj.query.trim().slice(0, 200);
+  if (typeof obj.category === "string" && obj.category.trim()) filter.category = obj.category.trim().slice(0, 120);
+  if (typeof obj.subcategory === "string" && obj.subcategory.trim()) {
+    filter.subcategory = obj.subcategory.trim().slice(0, 120);
+  }
+  if (typeof obj.tag === "string" && obj.tag.trim()) filter.tag = obj.tag.trim().slice(0, 120);
+  if (typeof obj.customKind === "string" && obj.customKind.trim()) {
+    filter.customKind = obj.customKind.trim().slice(0, 120);
+  }
+  if (obj.unclassified === true) filter.unclassified = true;
+  if (obj.hubScope === "book" || obj.hubScope === "series" || obj.hubScope === "unset") {
+    filter.hubScope = obj.hubScope;
+  }
+  if (typeof obj.kind === "string" && isWorldbuildingKindFilter(obj.kind)) filter.kind = obj.kind;
+  if (obj.sort === "title" || obj.sort === "updated" || obj.sort === "created") filter.sort = obj.sort;
+  if (obj.view === "list" || obj.view === "cards") filter.view = obj.view;
+  if (typeof obj.list === "boolean") filter.list = obj.list;
   return filter;
 }
 

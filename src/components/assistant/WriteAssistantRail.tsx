@@ -20,7 +20,7 @@ import {
   SparkleIcon,
 } from "@/components/shell/icons";
 import { ActionChip } from "@/components/ui/ActionChip";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui/Atoms/Button";
 import { Checkbox } from "@/components/ui/Atoms/Checkbox";
 import { IconButton, iconButtonVariants } from "@/components/ui/IconButton";
 import { cn } from "@/ui/cn";

@@ -30,6 +30,9 @@ interface ProjectInfo {
 
 const COLUMN_ID = "project-column";
 
+/** Bring in / Read & export / Maintain start closed so the column stays short. */
+const DEFAULT_COLLAPSED_SECTIONS = new Set(["tools:bring-in", "tools:read-export", "tools:maintain"]);
+
 export function ProjectNav({
   project,
   records,
@@ -45,7 +48,7 @@ export function ProjectNav({
 }) {
   const pathname = usePathname();
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set());
+  const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set(DEFAULT_COLLAPSED_SECTIONS));
   const toggleSection = (key: string) =>
     setCollapsed((prev) => {
       const next = new Set(prev);
@@ -350,6 +353,7 @@ function ProjectNavContent({
       </p>
       {toolGroups.map((group) => {
         const headingId = `${idPrefix}-tools-${group.id}`;
+        const onThisGroup = group.items.some((item) => pathname === item.href);
         return (
           <CollapsibleNavSection
             key={group.id}
@@ -358,6 +362,7 @@ function ProjectNavContent({
             onToggle={onToggleSection}
             headingId={headingId}
             heading={group.heading}
+            forceOpen={onThisGroup}
           >
             <ul className="nav-list" aria-labelledby={headingId}>
               {group.items.map((t) => (

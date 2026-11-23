@@ -1,10 +1,14 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
+import { createRequire } from "node:module";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+
+const require = createRequire(import.meta.url);
+const TSX_CLI = require.resolve("tsx/cli");
 import { memoryGrantSource, type LocalGrant } from "@/mcp/grant";
 import { createWordlyMcpServer } from "@/mcp/server";
 import { applyChangePackage } from "@/server/services/changePackageService";
@@ -393,53 +397,73 @@ describe("read-only MCP adapter", () => {
 
 describe("stdio protocol output", () => {
   it("writes only JSON-RPC on stdout and does not start when disabled or revoked", async () => {
-    const t = await createTestDb();
-    const dir = mkdtempSync(path.join(tmpdir(), "wordly-stdio-"));
+    const diag = createStdioDiag("stdio-protocol");
     try {
-      await seedProject(t.db);
-      const grantPath = path.join(dir, "grant.json");
-      writeFileSync(grantPath, JSON.stringify(grantFor([IDS.project])));
-      const baseEnv = {
-        ...process.env,
-        DATABASE_URL: `file:${t.file.replace(/\\/g, "/")}`,
-        WORDLY_MCP_GRANT_FILE: grantPath,
-        WORDLY_MCP_DISABLED: "",
-      };
-      const lines = await speak(baseEnv, [
-        request(1, "initialize", {
-          protocolVersion: "2025-11-25",
-          capabilities: {},
-          clientInfo: { name: "wordly-test", version: "0.0.0" },
-        }),
-        notify("notifications/initialized"),
-        request(2, "tools/list"),
-        request(3, "tools/call", { name: "list_projects", arguments: {} }),
-      ]);
-      expect(lines.map((line) => JSON.parse(line) as { id?: number })).toEqual(
-        expect.arrayContaining([expect.objectContaining({ id: 1 }), expect.objectContaining({ id: 2 }), expect.objectContaining({ id: 3 })]),
-      );
-      const listed = JSON.parse(lines.find((line) => JSON.parse(line).id === 3) ?? "{}") as {
-        result?: { isError?: boolean; content?: { text: string }[] };
-      };
-      expect(listed.result?.isError).toBeFalsy();
-      expect(listed.result?.content?.[0]?.text).toContain("Test novel");
-      expect(lines.join("\n")).not.toContain(CHAPTER_PROSE);
-      for (const name of ["WORDLY_OPENAI_API_KEY", "OPENAI_API_KEY"]) {
-        const secret = process.env[name];
-        if (secret) expect(lines.join("\n")).not.toContain(secret);
+      diag.phase("createTestDb:start");
+      const t = await createTestDb();
+      diag.phase("createTestDb:done");
+      const dir = mkdtempSync(path.join(tmpdir(), "wordly-stdio-"));
+      try {
+        diag.phase("seedProject:start");
+        await seedProject(t.db);
+        diag.phase("seedProject:done");
+        const grantPath = path.join(dir, "grant.json");
+        writeFileSync(grantPath, JSON.stringify(grantFor([IDS.project])));
+        const baseEnv = {
+          ...process.env,
+          DATABASE_URL: `file:${t.file.replace(/\\/g, "/")}`,
+          WORDLY_MCP_GRANT_FILE: grantPath,
+          WORDLY_MCP_DISABLED: "",
+        };
+        diag.phase("speak:start");
+        const lines = await speak(baseEnv, [
+          request(1, "initialize", {
+            protocolVersion: "2025-11-25",
+            capabilities: {},
+            clientInfo: { name: "wordly-test", version: "0.0.0" },
+          }),
+          notify("notifications/initialized"),
+          request(2, "tools/list"),
+          request(3, "tools/call", { name: "list_projects", arguments: {} }),
+        ], diag);
+        diag.phase("speak:done");
+        expect(lines.map((line) => JSON.parse(line) as { id?: number })).toEqual(
+          expect.arrayContaining([expect.objectContaining({ id: 1 }), expect.objectContaining({ id: 2 }), expect.objectContaining({ id: 3 })]),
+        );
+        const listed = JSON.parse(lines.find((line) => JSON.parse(line).id === 3) ?? "{}") as {
+          result?: { isError?: boolean; content?: { text: string }[] };
+        };
+        expect(listed.result?.isError).toBeFalsy();
+        expect(listed.result?.content?.[0]?.text).toContain("Test novel");
+        expect(lines.join("\n")).not.toContain(CHAPTER_PROSE);
+        for (const name of ["WORDLY_OPENAI_API_KEY", "OPENAI_API_KEY"]) {
+          const secret = process.env[name];
+          if (secret) expect(lines.join("\n")).not.toContain(secret);
+        }
+
+        diag.phase("disabled:start");
+        const disabled = await exitOf({ ...baseEnv, WORDLY_MCP_DISABLED: "1" }, diag, "disabled");
+        diag.phase("disabled:done");
+        expect(disabled.code).not.toBe(0);
+        expect(disabled.stdout).toBe("");
+
+        writeFileSync(grantPath, JSON.stringify(grantFor([IDS.project], { status: "revoked" })));
+        diag.phase("revoked:start");
+        const revoked = await exitOf({ ...baseEnv, WORDLY_MCP_DISABLED: "" }, diag, "revoked");
+        diag.phase("revoked:done");
+        expect(revoked.code).not.toBe(0);
+        expect(revoked.stdout).toBe("");
+      } finally {
+        diag.phase("cleanup:start");
+        await t.cleanup();
+        rmSync(dir, { recursive: true, force: true });
+        diag.phase("cleanup:done");
       }
-
-      const disabled = await exitOf({ ...baseEnv, WORDLY_MCP_DISABLED: "1" });
-      expect(disabled.code).not.toBe(0);
-      expect(disabled.stdout).toBe("");
-
-      writeFileSync(grantPath, JSON.stringify(grantFor([IDS.project], { status: "revoked" })));
-      const revoked = await exitOf({ ...baseEnv, WORDLY_MCP_DISABLED: "" });
-      expect(revoked.code).not.toBe(0);
-      expect(revoked.stdout).toBe("");
+    } catch (error) {
+      diag.note(`failure: ${error instanceof Error ? error.message : String(error)}`);
+      throw error;
     } finally {
-      await t.cleanup();
-      rmSync(dir, { recursive: true, force: true });
+      diag.flush();
     }
   }, 45_000);
 });
@@ -452,11 +476,48 @@ function notify(method: string): string {
   return `${JSON.stringify({ jsonrpc: "2.0", method })}\n`;
 }
 
-function speak(env: NodeJS.ProcessEnv, messages: string[]): Promise<string[]> {
+interface StdioDiag {
+  phase: (name: string) => void;
+  note: (message: string) => void;
+  flush: () => void;
+  snapshot: () => string;
+}
+
+function createStdioDiag(label: string): StdioDiag {
+  const started = Date.now();
+  const phases: { name: string; ms: number }[] = [];
+  const notes: string[] = [];
+  return {
+    phase(name) {
+      phases.push({ name, ms: Date.now() - started });
+      process.stderr.write(`[mcp-stdio-diag ${label}] ${name} +${Date.now() - started}ms\n`);
+    },
+    note(message) {
+      notes.push(message);
+      process.stderr.write(`[mcp-stdio-diag ${label}] ${message}\n`);
+    },
+    flush() {
+      const last = phases[phases.length - 1];
+      process.stderr.write(
+        `[mcp-stdio-diag ${label}] summary last=${last?.name ?? "(none)"} elapsed=${Date.now() - started}ms phases=${phases.map((p) => `${p.name}@${p.ms}`).join(",")}${notes.length ? ` notes=${notes.join(" | ")}` : ""}\n`,
+      );
+    },
+    snapshot() {
+      const last = phases[phases.length - 1];
+      return `last=${last?.name ?? "(none)"} elapsed=${Date.now() - started}ms phases=${phases.map((p) => `${p.name}@${p.ms}`).join(",")}`;
+    },
+  };
+}
+
+function speak(env: NodeJS.ProcessEnv, messages: string[], diag?: StdioDiag): Promise<string[]> {
+  diag?.phase("speak:spawn");
   const child = start(env);
   const lines: string[] = [];
   let buffer = "";
   let stderr = "";
+  let settled = false;
+  let exitCode: number | null | undefined;
+  let exitSignal: NodeJS.Signals | null | undefined;
   child.stdout.setEncoding("utf8");
   child.stderr.setEncoding("utf8");
   child.stdout.on("data", (chunk: string) => {
@@ -469,11 +530,25 @@ function speak(env: NodeJS.ProcessEnv, messages: string[]): Promise<string[]> {
     stderr += chunk;
   });
   return new Promise((resolve, reject) => {
+    const detail = () =>
+      `${diag?.snapshot() ?? ""}\nexitCode=${String(exitCode)} signal=${String(exitSignal)}\nstderr: ${stderr}\nstdout lines: ${lines.join(" | ")}`;
     const fail = (message: string) => {
+      if (settled) return;
+      settled = true;
       clearInterval(poll);
       clearTimeout(timer);
-      child.kill();
-      reject(new Error(`${message}\nstderr: ${stderr}\nstdout lines: ${lines.join(" | ")}`));
+      diag?.phase("speak:fail");
+      stopChild(child);
+      reject(new Error(`${message}\n${detail()}`));
+    };
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      clearInterval(poll);
+      clearTimeout(timer);
+      diag?.phase("speak:responses-ready");
+      stopChild(child);
+      resolve(lines);
     };
     const timer = setTimeout(() => fail(`stdio timed out. buffer=${buffer}`), 40_000);
     const poll = setInterval(() => {
@@ -484,37 +559,75 @@ function speak(env: NodeJS.ProcessEnv, messages: string[]): Promise<string[]> {
         fail(error instanceof Error ? error.message : "stdout was not JSON");
         return;
       }
-      if (ids.has(1) && ids.has(2) && ids.has(3)) {
-        clearInterval(poll);
-        clearTimeout(timer);
-        child.kill();
-        child.on("exit", () => resolve(lines));
-      }
+      if (ids.has(1) && ids.has(2) && ids.has(3)) finish();
     }, 50);
-    child.on("exit", (code) => {
+    child.on("exit", (code, signal) => {
+      exitCode = code;
+      exitSignal = signal;
+      diag?.phase(`speak:child-exit code=${String(code)} signal=${String(signal)}`);
       if (!lines.some((line) => { try { return (JSON.parse(line) as { id?: number }).id === 3; } catch { return false; } })) {
         fail(`stdio exited ${code} before tools/call`);
       }
     });
+    diag?.phase("speak:stdin-write");
     for (const message of messages) child.stdin.write(message);
   });
 }
 
-function exitOf(env: NodeJS.ProcessEnv): Promise<{ code: number | null; stdout: string }> {
+function exitOf(
+  env: NodeJS.ProcessEnv,
+  diag?: StdioDiag,
+  label = "exitOf",
+): Promise<{ code: number | null; stdout: string }> {
+  diag?.phase(`${label}:spawn`);
   const child = start(env);
   let stdout = "";
+  let stderr = "";
   child.stdout.setEncoding("utf8");
+  child.stderr.setEncoding("utf8");
   child.stdout.on("data", (chunk: string) => {
     stdout += chunk;
   });
+  child.stderr.on("data", (chunk: string) => {
+    stderr += chunk;
+  });
   child.stdin.end();
-  return new Promise((resolve) => child.on("exit", (code) => resolve({ code, stdout })));
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      diag?.phase(`${label}:timeout`);
+      stopChild(child);
+      reject(
+        new Error(
+          `${label} child did not exit within 12s\n${diag?.snapshot() ?? ""}\nstderr: ${stderr}\nstdout: ${stdout}`,
+        ),
+      );
+    }, 12_000);
+    child.on("exit", (code, signal) => {
+      clearTimeout(timer);
+      diag?.phase(`${label}:exit code=${String(code)} signal=${String(signal)}`);
+      if (stderr.trim()) diag?.note(`${label} stderr: ${stderr.trim().slice(0, 400)}`);
+      resolve({ code, stdout });
+    });
+  });
+}
+
+/** Kill without waiting — shell/pnpm trees can ignore a single kill under load. */
+function stopChild(child: ChildProcessWithoutNullStreams): void {
+  try {
+    child.stdin.end();
+  } catch {
+    /* ignore */
+  }
+  child.kill();
 }
 
 function start(env: NodeJS.ProcessEnv): ChildProcessWithoutNullStreams {
-  return spawn("pnpm", ["exec", "tsx", "scripts/mcp-stdio.ts"], {
+  // Spawn node+tsx directly (no shell/pnpm). Under suite load, `pnpm exec` with
+  // shell:true often left a live grandchild after kill, so speak() waited forever
+  // on exit and hit the Vitest 45s timeout without the speak 40s error.
+  return spawn(process.execPath, [TSX_CLI, "scripts/mcp-stdio.ts"], {
     cwd: path.resolve(__dirname, "../.."),
-    shell: true,
+    shell: false,
     env,
     stdio: ["pipe", "pipe", "pipe"],
   }) as ChildProcessWithoutNullStreams;

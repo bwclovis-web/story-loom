@@ -1,8 +1,10 @@
+import type { NarrativePoint } from "@/domain/characterDevelopment";
 import { chronologicalIds, orderGraphHasCycle, orderRelation, type OrderEdge } from "@/world/storyOrder";
 import { buildManuscriptTree } from "@/ui/manuscriptTree";
 import type { DbOrTx } from "../db";
 import { EVIDENCE_KIND_LABELS, type EvidenceKind } from "./establishedFactService";
 import { listScenesForLocation } from "./sceneLocationService";
+import { resolveAvailableReference } from "./seriesBibleService";
 
 /*
  * Read-only answers about story events, scene locations, and map markers.
@@ -274,7 +276,13 @@ function pushEvent(sources: TimelineSource[], event: EventRow) {
   });
 }
 
-function addEventSources(sources: TimelineSource[], graph: Graph, event: EventRow, manuscriptIds: ReadonlySet<string> | null) {
+function addEventSources(
+  sources: TimelineSource[],
+  graph: Graph,
+  event: EventRow,
+  manuscriptIds: ReadonlySet<string> | null,
+  options: { omitPlannedEvidence?: boolean } = {},
+) {
   pushEvent(sources, event);
   for (const reveal of revealsOf(graph, event.id, manuscriptIds).kept) {
     sources.push({
@@ -308,6 +316,7 @@ function addEventSources(sources: TimelineSource[], graph: Graph, event: EventRo
     }
   }
   for (const row of graph.evidence.filter((item) => item.eventId === event.id)) {
+    if (options.omitPlannedEvidence && row.evidenceKind === "planned") continue;
     sources.push({
       title: `${event.title} · ${row.sourceTitle}`,
       recordId: row.sourceRecordId,
@@ -337,17 +346,57 @@ export async function eventsAtPlace(
   locationRecordId: string,
   draft: string,
   manuscriptIds: ReadonlySet<string> | null = null,
+  options: {
+    allowSeriesShared?: boolean;
+    omitPlanned?: boolean;
+    point?: NarrativePoint | null;
+    edges?: readonly OrderEdge[];
+  } = {},
 ): Promise<TimelineAnswer | { error: "not_found" }> {
-  const location = await db.record.findFirst({
-    where: { id: locationRecordId, projectId, trashedAt: null },
-    select: { id: true, title: true, currentRevision: true },
-  });
+  let location: { id: string; title: string; currentRevision: number } | null = null;
+  if (options.allowSeriesShared) {
+    const available = await resolveAvailableReference(db, projectId, locationRecordId);
+    if (available) {
+      location = {
+        id: available.record.id,
+        title: available.record.title,
+        currentRevision: available.record.currentRevision,
+      };
+    }
+  } else {
+    const row = await db.record.findFirst({
+      where: { id: locationRecordId, projectId, trashedAt: null },
+      select: { id: true, title: true, currentRevision: true },
+    });
+    location = row;
+  }
   if (!location) return { error: "not_found" };
   const graph = await loadGraph(db, projectId, draft);
   const linked = new Set(graph.places.filter((row) => row.recordId === location.id).map((row) => row.eventId));
-  const events = graph.visible.filter((event) => linked.has(event.id));
+  let events = graph.visible.filter((event) => linked.has(event.id));
+  const omittedPlanned: string[] = [];
+  const omittedAfterPoint: string[] = [];
+  if (options.omitPlanned) {
+    events = events.filter((event) => {
+      if (!event.planned) return true;
+      omittedPlanned.push(event.title);
+      return false;
+    });
+  }
+  const pointEventId = options.point?.storyEventId ?? null;
+  const edges = options.edges ?? [];
+  if (pointEventId && edges.length) {
+    events = events.filter((event) => {
+      const rel = orderRelation(edges, event.id, pointEventId);
+      if (rel === "after") {
+        omittedAfterPoint.push(event.title);
+        return false;
+      }
+      return true;
+    });
+  }
   const catalog = await listScenesForLocation(db, projectId, location.id, { draft, book: "all" });
-  const omittedManuscript: string[] = [];
+  const omittedManuscript: string[] = [...omittedPlanned, ...omittedAfterPoint];
   const sceneLocations = catalog.scenes.flatMap((scene) => {
     if (!allowed(scene.recordId, manuscriptIds)) {
       omittedManuscript.push(scene.title);
@@ -377,10 +426,14 @@ export async function eventsAtPlace(
     });
   }
   const describedEvents = events.map((event) => {
-    addEventSources(sources, graph, event, manuscriptIds);
+    addEventSources(sources, graph, event, manuscriptIds, { omitPlannedEvidence: options.omitPlanned === true });
     const card = described(graph, event, manuscriptIds);
     omittedManuscript.push(...card.omittedReveals);
-    return card;
+    if (!options.omitPlanned) return card;
+    return {
+      ...card,
+      evidence: card.evidence.filter((row: { evidenceKind: string }) => row.evidenceKind !== "planned"),
+    };
   });
   const unresolvedPairs = pairs(events, graph.edges, "unresolved");
   return {
@@ -401,6 +454,14 @@ export async function eventsAtPlace(
       unknownTime: events.filter((event) => event.timeLabel.trim() === "").map((event) => event.title),
       coverage: coverage(events, graph, unresolvedPairs.length),
       notes: [KNOWLEDGE, TIME, PLANNED, "Scene locations are settings. Events linked to the place are a separate list, in constraint order."],
+      ...(omittedPlanned.length || omittedAfterPoint.length
+        ? {
+            draftingOmissions: {
+              planned: omittedPlanned,
+              afterStoryPoint: omittedAfterPoint,
+            },
+          }
+        : {}),
     },
     sources,
     omittedManuscript,

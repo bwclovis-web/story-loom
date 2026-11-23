@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { CharacterAnalysisWorkspace } from "@/components/world/CharacterDevelopment";
 import { WorldToolHeader } from "@/components/world/WorldToolHeader";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui/Atoms/Button";
 import { Checkbox } from "@/components/ui/Atoms/Checkbox";
 import { DataTable, type DataTableColumn, type DataTableRow } from "@/components/ui/DataTable";
 import { EmptyState } from "@/components/ui/EmptyState";

@@ -1,23 +1,41 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useState, useTransition, type ReactNode } from "react";
 import { Banner } from "@/components/ui/Banner";
+import { HelpPopover } from "@/components/ui/HelpPopover";
 import { Button, ButtonLink } from "@/components/ui/Atoms/Button";
 import { TextField } from "@/components/ui/TextField";
-import type { WorldProfile, WorldProfileFieldValue } from "@/domain/worldProfile";
+import type {
+  WorldProfile,
+  WorldProfileFieldValue,
+  WorldProfileQuantity,
+  WorldQuantityQualifier,
+} from "@/domain/worldProfile";
 import {
   emptyWorldProfile,
   formatWorldProfileFieldValue,
+  WORLD_QUANTITY_QUALIFIERS,
   worldFieldMetaOf,
 } from "@/domain/worldProfile";
 import { SERIES, WORLD_PROFILE } from "@/ui/labels";
-import type { WorldProfileDefinition, WorldProfileFieldDef } from "@/world/worldProfileRegistry";
+import type {
+  WorldProfileDefinition,
+  WorldProfileFieldDef,
+  WorldSubcategorySectionDef,
+} from "@/world/worldProfileRegistry";
+import {
+  getSubcategorySection,
+  listAllSubcategorySections,
+  listSubcategorySectionsWithStoredValues,
+} from "@/world/worldProfileRegistry";
+import type { PlaceRelationView } from "@/world/placeRelations";
 import { seriesBookLabel, type SeriesHomeRef } from "@/world/seriesHome";
 import {
   WorldProfileHistorySection,
   type WorldHistoryCatalog,
 } from "@/components/world/WorldProfileHistorySection";
+import { saveWorldProfileAction } from "@/app/projects/[projectId]/records/[recordId]/world-upgrade/actions";
 
 function listTextValue(value: WorldProfileFieldValue): string {
   if (Array.isArray(value)) return value.join("\n");
@@ -32,6 +50,14 @@ function parseListText(raw: string): string[] {
     .slice(0, 64);
 }
 
+function asQuantity(value: WorldProfileFieldValue): WorldProfileQuantity | null {
+  if (value && typeof value === "object" && !Array.isArray(value) && "amount" in value) {
+    const amount = (value as WorldProfileQuantity).amount;
+    if (typeof amount === "number" && Number.isFinite(amount)) return value as WorldProfileQuantity;
+  }
+  return null;
+}
+
 function fieldEditorValue(field: WorldProfileFieldDef, value: WorldProfileFieldValue): string {
   if (field.type === "calendar_date") {
     if (value && typeof value === "object" && !Array.isArray(value) && "freeText" in value) {
@@ -40,6 +66,7 @@ function fieldEditorValue(field: WorldProfileFieldDef, value: WorldProfileFieldV
     return formatWorldProfileFieldValue(value);
   }
   if (field.type === "record_ref") {
+    if (typeof value === "string") return value;
     if (value && typeof value === "object" && !Array.isArray(value) && "recordId" in value) {
       return value.recordId;
     }
@@ -55,6 +82,10 @@ function fieldEditorValue(field: WorldProfileFieldDef, value: WorldProfileFieldV
   }
   if (field.type === "number") {
     return typeof value === "number" ? String(value) : "";
+  }
+  if (field.type === "quantity") {
+    const quantity = asQuantity(value);
+    return quantity ? String(quantity.amount) : "";
   }
   return typeof value === "string" ? value : formatWorldProfileFieldValue(value);
 }
@@ -77,9 +108,201 @@ function parseFieldEditorValue(field: WorldProfileFieldDef, raw: string): WorldP
     case "multi_select":
     case "record_refs":
       return parseListText(raw);
+    case "quantity":
+      if (trimmed === "") return null;
+      {
+        const amount = Number(raw);
+        if (!Number.isFinite(amount)) return null;
+        return { amount };
+      }
     default:
       return raw;
   }
+}
+
+function QuantityFieldEditor({
+  field,
+  value,
+  disabled,
+  onChange,
+}: {
+  field: WorldProfileFieldDef;
+  value: WorldProfileFieldValue;
+  disabled: boolean;
+  onChange: (next: WorldProfileFieldValue) => void;
+}) {
+  const quantity = asQuantity(value);
+  const amountText = quantity ? String(quantity.amount) : "";
+  const qualifier = quantity?.qualifier ?? "exact";
+  const unit = quantity?.unit ?? "";
+  const allowUnit = field.quantityConfig?.allowUnit === true;
+  const allowQualifiers = field.quantityConfig?.allowQualifiers !== false;
+  const listId = `quantity-units-${field.key}`;
+
+  const patch = (partial: Partial<WorldProfileQuantity> | null, clear = false) => {
+    if (clear || (partial && "amount" in partial && partial.amount === undefined)) {
+      onChange(null);
+      return;
+    }
+    if (!quantity && partial?.amount === undefined && amountText === "") {
+      onChange(null);
+      return;
+    }
+    const nextAmount =
+      partial && "amount" in partial
+        ? partial.amount
+        : quantity
+          ? quantity.amount
+          : undefined;
+    if (nextAmount === undefined || (typeof nextAmount === "number" && !Number.isFinite(nextAmount))) {
+      onChange(null);
+      return;
+    }
+    const next: WorldProfileQuantity = { amount: nextAmount as number };
+    const nextQualifier = partial?.qualifier !== undefined ? partial.qualifier : quantity?.qualifier;
+    const nextUnit = partial?.unit !== undefined ? partial.unit : quantity?.unit;
+    if (nextQualifier && nextQualifier !== "exact") next.qualifier = nextQualifier;
+    if (nextUnit?.trim()) next.unit = nextUnit.trim().slice(0, 40);
+    onChange(next);
+  };
+
+  return (
+    <div className="stack" style={{ gap: "0.35rem" }}>
+      <div className="row" style={{ flexWrap: "wrap", gap: "0.5rem", alignItems: "end" }}>
+        {allowQualifiers ? (
+          <label className="small">
+            {WORLD_PROFILE.quantityQualifier}
+            <select
+              value={qualifier}
+              disabled={disabled}
+              onChange={(event) =>
+                patch({
+                  qualifier: event.target.value as WorldQuantityQualifier,
+                  amount: quantity?.amount,
+                })
+              }
+            >
+              {WORLD_QUANTITY_QUALIFIERS.map((id) => (
+                <option key={id} value={id}>
+                  {WORLD_PROFILE.quantityQualifiers[id]}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
+        <label className="small">
+          {WORLD_PROFILE.quantityAmount}
+          <input
+            type="number"
+            step={field.quantityConfig?.integerOnly ? 1 : "any"}
+            value={amountText}
+            disabled={disabled}
+            onChange={(event) => {
+              const raw = event.target.value.trim();
+              if (raw === "") {
+                onChange(null);
+                return;
+              }
+              const amount = Number(event.target.value);
+              if (!Number.isFinite(amount)) return;
+              patch({ amount, qualifier: quantity?.qualifier, unit: quantity?.unit });
+            }}
+          />
+        </label>
+        {allowUnit ? (
+          <label className="small">
+            {WORLD_PROFILE.quantityUnit}
+            <input
+              type="text"
+              list={listId}
+              value={unit}
+              disabled={disabled || !quantity}
+              onChange={(event) => patch({ unit: event.target.value, amount: quantity?.amount })}
+            />
+            {field.quantityConfig?.unitSuggestions?.length ? (
+              <datalist id={listId}>
+                {field.quantityConfig.unitSuggestions.map((suggestion) => (
+                  <option key={suggestion} value={suggestion} />
+                ))}
+              </datalist>
+            ) : null}
+          </label>
+        ) : null}
+      </div>
+      <span className="small muted">{WORLD_PROFILE.quantityUnknownHint}</span>
+    </div>
+  );
+}
+
+function ProfileFieldRow({
+  field,
+  value,
+  editable,
+  pending,
+  onValueChange,
+  extra,
+}: {
+  field: WorldProfileFieldDef;
+  value: WorldProfileFieldValue;
+  editable: boolean;
+  pending: boolean;
+  onValueChange: (next: WorldProfileFieldValue) => void;
+  extra?: ReactNode;
+}) {
+  const editorValue = fieldEditorValue(field, value);
+  const listLike =
+    field.type === "long_text" ||
+    field.multiline ||
+    field.type === "ordered_list" ||
+    field.type === "multi_select" ||
+    field.type === "record_refs";
+
+  return (
+    <label>
+      {field.label}
+      {field.description ? <span className="small muted"> — {field.description}</span> : null}
+      {field.type === "quantity" ? (
+        <QuantityFieldEditor
+          field={field}
+          value={value}
+          disabled={!editable || pending}
+          onChange={onValueChange}
+        />
+      ) : listLike ? (
+        <textarea
+          rows={field.type === "long_text" || field.multiline ? 3 : 2}
+          value={editorValue}
+          disabled={!editable || pending}
+          placeholder={
+            field.placeholder ??
+            (field.type === "ordered_list" || field.type === "record_refs" || field.type === "multi_select"
+              ? "One item per line"
+              : undefined)
+          }
+          onChange={(event) => onValueChange(parseFieldEditorValue(field, event.target.value))}
+        />
+      ) : field.type === "boolean" ? (
+        <select
+          value={editorValue}
+          disabled={!editable || pending}
+          onChange={(event) => onValueChange(parseFieldEditorValue(field, event.target.value))}
+        >
+          <option value="">—</option>
+          <option value="true">Yes</option>
+          <option value="false">No</option>
+        </select>
+      ) : (
+        <input
+          type={field.type === "number" ? "number" : "text"}
+          value={editorValue}
+          disabled={!editable || pending}
+          placeholder={field.placeholder}
+          onChange={(event) => onValueChange(parseFieldEditorValue(field, event.target.value))}
+        />
+      )}
+      {extra}
+    </label>
+  );
 }
 
 export function WorldProfilePanel({
@@ -91,11 +314,13 @@ export function WorldProfilePanel({
   definition,
   definitions,
   plausibleDefinitions = [],
+  suggestedSectionIds = [],
+  placeRelations = null,
+  placeChoices = [],
   editable,
   seriesHome,
   isProtected,
   historyCatalog,
-  onSave,
 }: {
   projectId: string;
   recordId: string;
@@ -105,15 +330,13 @@ export function WorldProfilePanel({
   definition: WorldProfileDefinition | null;
   definitions: readonly WorldProfileDefinition[];
   plausibleDefinitions?: readonly WorldProfileDefinition[];
+  suggestedSectionIds?: readonly string[];
+  placeRelations?: { outgoing: PlaceRelationView[]; incoming: PlaceRelationView[] } | null;
+  placeChoices?: Array<{ id: string; title: string; typeLabel: string; homeLabel?: string | null }>;
   editable: boolean;
   seriesHome: SeriesHomeRef | null;
   isProtected: boolean;
   historyCatalog: WorldHistoryCatalog;
-  onSave: (input: {
-    expectedRevision: number;
-    profile: WorldProfile;
-    unlockProtected: boolean;
-  }) => Promise<{ ok: true; revision: number } | { ok: false; message: string }>;
 }) {
   const [profile, setProfile] = useState<WorldProfile>(initialProfile ?? emptyWorldProfile());
   const [unlockProtected, setUnlockProtected] = useState(false);
@@ -121,6 +344,7 @@ export function WorldProfilePanel({
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [bodyOpen, setBodyOpen] = useState(false);
+  const [addSectionId, setAddSectionId] = useState("");
 
   const activeDefinition = useMemo(() => {
     if (profile.definitionId) {
@@ -152,16 +376,73 @@ export function WorldProfilePanel({
     [definitions, plausibleIds],
   );
 
+  const enabledSet = useMemo(() => new Set(profile.enabledSections), [profile.enabledSections]);
+  const suggestedSet = useMemo(() => new Set(suggestedSectionIds), [suggestedSectionIds]);
+  const activeSections = useMemo(() => {
+    const fromStored = listSubcategorySectionsWithStoredValues(profile);
+    const fromEnabled = profile.enabledSections
+      .map((id) => getSubcategorySection(id))
+      .filter((section): section is WorldSubcategorySectionDef => Boolean(section));
+    const byId = new Map<string, WorldSubcategorySectionDef>();
+    for (const section of [...fromEnabled, ...fromStored]) byId.set(section.id, section);
+    return [...byId.values()];
+  }, [profile]);
+  const suggestedToAdd = useMemo(
+    () =>
+      suggestedSectionIds
+        .map((id) => getSubcategorySection(id))
+        .filter((section): section is WorldSubcategorySectionDef => Boolean(section) && !enabledSet.has(section!.id)),
+    [suggestedSectionIds, enabledSet],
+  );
+  const addableSections = useMemo(
+    () => listAllSubcategorySections().filter((section) => !enabledSet.has(section.id)),
+    [enabledSet],
+  );
+
+  const flowsIntoOutgoing = useMemo(
+    () => (placeRelations?.outgoing ?? []).filter((rel) => rel.kind === "flows_into"),
+    [placeRelations],
+  );
+
   const upgradeHref = `/projects/${encodeURIComponent(projectId)}/records/${encodeURIComponent(recordId)}/world-upgrade`;
+  const placeRelationsHref = `/projects/${encodeURIComponent(projectId)}/records/${encodeURIComponent(recordId)}#place-relations`;
   const homeHref = seriesHome
     ? `/projects/${encodeURIComponent(seriesHome.projectId)}/records/${encodeURIComponent(recordId)}`
     : null;
+
+  const setFieldValue = (key: string, next: WorldProfileFieldValue) => {
+    setProfile((current) => ({
+      ...current,
+      values: {
+        ...current.values,
+        [key]: next,
+      },
+    }));
+  };
+
+  const enableSection = (sectionId: string) => {
+    setProfile((current) => {
+      if (current.enabledSections.includes(sectionId)) return current;
+      return { ...current, enabledSections: [...current.enabledSections, sectionId] };
+    });
+  };
+
+  const hideSection = (sectionId: string) => {
+    setProfile((current) => ({
+      ...current,
+      enabledSections: current.enabledSections.filter((id) => id !== sectionId),
+    }));
+  };
+
+  const useFlowsIntoOutlet = (rel: PlaceRelationView) => {
+    setFieldValue("outlet", { recordId: rel.toRecordId });
+  };
 
   const save = () =>
     startTransition(async () => {
       setError(null);
       setMessage(null);
-      const result = await onSave({
+      const result = await saveWorldProfileAction(projectId, recordId, {
         expectedRevision: revision,
         profile,
         unlockProtected,
@@ -172,6 +453,95 @@ export function WorldProfilePanel({
       }
       setMessage(WORLD_PROFILE.saved);
     });
+
+  const renderFieldMeta = (fieldKey: string) => {
+    const meta = worldFieldMetaOf(profile, `values.${fieldKey}`);
+    return (
+      <span className="small muted">
+        {WORLD_PROFILE.approval}: {meta.approval} · {WORLD_PROFILE.provenance}: {meta.provenance.origin}
+      </span>
+    );
+  };
+
+  const renderSectionField = (field: WorldProfileFieldDef) => {
+    const raw = profile.values[field.key] ?? null;
+    const isOutlet = field.key === "outlet";
+    const outletText =
+      isOutlet && raw && typeof raw === "object" && !Array.isArray(raw) && "recordId" in raw
+        ? String((raw as { recordId: string }).recordId)
+        : raw;
+    return (
+      <div key={field.key} className="stack" style={{ gap: "0.25rem" }}>
+        <ProfileFieldRow
+          field={{
+            ...field,
+            placeholder: isOutlet ? WORLD_PROFILE.outletTextFallback : field.placeholder,
+          }}
+          value={isOutlet ? ((typeof outletText === "string" ? outletText : null) as WorldProfileFieldValue) : raw}
+          editable={editable}
+          pending={pending}
+          onValueChange={(next) => {
+            if (isOutlet) {
+              const trimmed =
+                typeof next === "string" ? next.trim() : formatWorldProfileFieldValue(next).trim();
+              setFieldValue(field.key, trimmed ? trimmed.slice(0, 200) : null);
+              return;
+            }
+            setFieldValue(field.key, next);
+          }}
+          extra={renderFieldMeta(field.key)}
+        />
+        {isOutlet ? (
+          <div className="stack" style={{ gap: "0.25rem" }}>
+            {flowsIntoOutgoing.length ? (
+              flowsIntoOutgoing.map((rel) => (
+                <div key={rel.id} className="row" style={{ flexWrap: "wrap", gap: "0.5rem", alignItems: "center" }}>
+                  <span className="small muted">{WORLD_PROFILE.outletFromFlowsInto(rel.toTitle)}</span>
+                  {editable ? (
+                    <Button type="button" variant="secondary" disabled={pending} onClick={() => useFlowsIntoOutlet(rel)}>
+                      {WORLD_PROFILE.useFlowsInto}
+                    </Button>
+                  ) : null}
+                </div>
+              ))
+            ) : (
+              <p className="small muted">
+                No <code>flows_into</code> place relationship yet.{" "}
+                <Link href={placeRelationsHref}>{WORLD_PROFILE.editPlaceRelations}</Link>
+                {placeChoices.length && editable ? " or pick a known place below." : "."}
+              </p>
+            )}
+            {editable && placeChoices.length ? (
+              <label className="small">
+                Add outlet via place record
+                <select
+                  defaultValue=""
+                  disabled={pending}
+                  onChange={(event) => {
+                    const id = event.target.value;
+                    if (!id) return;
+                    setFieldValue("outlet", { recordId: id });
+                    event.target.value = "";
+                  }}
+                >
+                  <option value="">—</option>
+                  {placeChoices.map((choice) => (
+                    <option key={choice.id} value={choice.id}>
+                      {choice.title}
+                      {choice.homeLabel ? ` (${choice.homeLabel})` : ""}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
+            <p className="small">
+              <Link href={placeRelationsHref}>{WORLD_PROFILE.editPlaceRelations}</Link>
+            </p>
+          </div>
+        ) : null}
+      </div>
+    );
+  };
 
   return (
     <section className="panel stack" id="world-profile" aria-labelledby="world-profile-heading">
@@ -212,6 +582,7 @@ export function WorldProfilePanel({
 
       <label>
         {WORLD_PROFILE.definition}
+        <HelpPopover label={WORLD_PROFILE.definitionExplain}>{WORLD_PROFILE.definitionHelp}</HelpPopover>
         <select
           value={profile.definitionId ?? ""}
           disabled={!editable || pending}
@@ -271,86 +642,118 @@ export function WorldProfilePanel({
       {profileFields.length ? (
         <div className="stack">
           <h3 className="small">{WORLD_PROFILE.values}</h3>
-          {profileFields.map((field) => {
-            const raw = profile.values[field.key] ?? null;
-            const value = fieldEditorValue(field, raw);
-            const meta = worldFieldMetaOf(profile, `values.${field.key}`);
-            const listLike =
-              field.type === "long_text" ||
-              field.multiline ||
-              field.type === "ordered_list" ||
-              field.type === "multi_select" ||
-              field.type === "record_refs";
-            return (
-              <label key={field.key}>
-                {field.label}
-                {field.description ? <span className="small muted"> — {field.description}</span> : null}
-                {listLike ? (
-                  <textarea
-                    rows={field.type === "long_text" || field.multiline ? 3 : 2}
-                    value={value}
-                    disabled={!editable || pending}
-                    placeholder={
-                      field.placeholder ??
-                      (field.type === "ordered_list" || field.type === "record_refs" || field.type === "multi_select"
-                        ? "One item per line"
-                        : undefined)
-                    }
-                    onChange={(event) =>
-                      setProfile((current) => ({
-                        ...current,
-                        values: {
-                          ...current.values,
-                          [field.key]: parseFieldEditorValue(field, event.target.value),
-                        },
-                      }))
-                    }
-                  />
-                ) : field.type === "boolean" ? (
-                  <select
-                    value={value}
-                    disabled={!editable || pending}
-                    onChange={(event) =>
-                      setProfile((current) => ({
-                        ...current,
-                        values: {
-                          ...current.values,
-                          [field.key]: parseFieldEditorValue(field, event.target.value),
-                        },
-                      }))
-                    }
-                  >
-                    <option value="">—</option>
-                    <option value="true">Yes</option>
-                    <option value="false">No</option>
-                  </select>
-                ) : (
-                  <input
-                    type={field.type === "number" ? "number" : "text"}
-                    value={value}
-                    disabled={!editable || pending}
-                    placeholder={field.placeholder}
-                    onChange={(event) =>
-                      setProfile((current) => ({
-                        ...current,
-                        values: {
-                          ...current.values,
-                          [field.key]: parseFieldEditorValue(field, event.target.value),
-                        },
-                      }))
-                    }
-                  />
-                )}
-                <span className="small muted">
-                  {WORLD_PROFILE.approval}: {meta.approval} · {WORLD_PROFILE.provenance}: {meta.provenance.origin}
-                </span>
-              </label>
-            );
-          })}
+          {profileFields.map((field) => (
+            <div key={field.key} className="stack" style={{ gap: "0.25rem" }}>
+              <ProfileFieldRow
+                field={field}
+                value={profile.values[field.key] ?? null}
+                editable={editable}
+                pending={pending}
+                onValueChange={(next) => setFieldValue(field.key, next)}
+                extra={renderFieldMeta(field.key)}
+              />
+            </div>
+          ))}
         </div>
       ) : (
         <p className="small muted">{WORLD_PROFILE.empty}</p>
       )}
+
+      <div className="stack" id="world-profile-subcategory-sections">
+        <h3 className="small">{WORLD_PROFILE.subcategorySections}</h3>
+        <p className="small muted">{WORLD_PROFILE.subcategorySectionsLead}</p>
+
+        {suggestedToAdd.length ? (
+          <div className="row" style={{ flexWrap: "wrap", gap: "0.5rem" }}>
+            <span className="small muted">{WORLD_PROFILE.subcategorySuggested}:</span>
+            {suggestedToAdd.map((section) => (
+              <Button
+                key={section.id}
+                type="button"
+                variant="secondary"
+                disabled={!editable || pending}
+                onClick={() => enableSection(section.id)}
+              >
+                {WORLD_PROFILE.subcategoryEnable(section.label)}
+              </Button>
+            ))}
+          </div>
+        ) : null}
+
+        {editable && addableSections.length ? (
+          <div className="row" style={{ flexWrap: "wrap", gap: "0.5rem", alignItems: "end" }}>
+            <label className="small">
+              {WORLD_PROFILE.subcategoryAdd}
+              <select
+                value={addSectionId}
+                disabled={pending}
+                onChange={(event) => setAddSectionId(event.target.value)}
+              >
+                <option value="">—</option>
+                {addableSections.map((section) => (
+                  <option key={section.id} value={section.id}>
+                    {section.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={pending || !addSectionId}
+              onClick={() => {
+                if (!addSectionId) return;
+                enableSection(addSectionId);
+                setAddSectionId("");
+              }}
+            >
+              Enable
+            </Button>
+          </div>
+        ) : null}
+
+        {activeSections.length ? (
+          <div className="stack">
+            <h4 className="small">{WORLD_PROFILE.subcategoryActive}</h4>
+            {activeSections.map((section) => {
+              const enabled = enabledSet.has(section.id);
+              const taxonomyMatch = suggestedSet.has(section.id);
+              return (
+                <div key={section.id} className="panel stack" style={{ gap: "0.5rem" }}>
+                  <div className="row" style={{ justifyContent: "space-between", flexWrap: "wrap", gap: "0.5rem" }}>
+                    <div>
+                      <strong>{section.label}</strong>
+                      {!taxonomyMatch ? (
+                        <span className="small muted"> · {WORLD_PROFILE.subcategorySavedBadge}</span>
+                      ) : null}
+                      <p className="small muted" style={{ margin: 0 }}>
+                        {section.description}
+                      </p>
+                    </div>
+                    {editable ? (
+                      enabled ? (
+                        <Button type="button" variant="secondary" disabled={pending} onClick={() => hideSection(section.id)}>
+                          {WORLD_PROFILE.subcategoryHide}
+                        </Button>
+                      ) : (
+                        <Button type="button" variant="secondary" disabled={pending} onClick={() => enableSection(section.id)}>
+                          {WORLD_PROFILE.subcategoryEnable(section.label)}
+                        </Button>
+                      )
+                    ) : null}
+                  </div>
+                  {enabled || listSubcategorySectionsWithStoredValues(profile).some((s) => s.id === section.id) ? (
+                    <div className="stack">{section.fields.map((field) => renderSectionField(field))}</div>
+                  ) : null}
+                  {editable && enabled ? (
+                    <p className="small muted">{WORLD_PROFILE.subcategoryHideNote}</p>
+                  ) : null}
+                </div>
+              );
+            })}
+          </div>
+        ) : null}
+      </div>
 
       {activeDefinition?.collections.length ? (
         <div className="stack">
@@ -398,6 +801,7 @@ export function WorldProfilePanel({
       <WorldProfileHistorySection
         profile={profile}
         definition={activeDefinition}
+        enabledSectionIds={profile.enabledSections}
         catalog={historyCatalog}
         projectId={projectId}
         editable={editable}

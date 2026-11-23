@@ -5,7 +5,8 @@ import { HelpHint } from "@/components/HelpHint";
 import { IssueList } from "@/components/IssueList";
 import { submitWithoutReset } from "@/components/submitWithoutReset";
 import { Banner } from "@/components/ui/Banner";
-import { Button, ButtonLink } from "@/components/ui/Button";
+import { HelpPopover } from "@/components/ui/HelpPopover";
+import { Button, ButtonLink } from "@/components/ui/Atoms/Button";
 import { Checkbox } from "@/components/ui/Atoms/Checkbox";
 import { FindReplace, type DirectUndo } from "@/components/writing/FindReplace";
 import { Proofreader, type ProofreadConfig } from "@/components/writing/Proofreader";
@@ -315,6 +316,7 @@ export function RecordEditor(props: {
           <div className="reference-headings stack">
             <label>
               {REFERENCE_FORM.headings}
+              <HelpPopover label={REFERENCE_FORM.headingsExplain}>{REFERENCE_FORM.headingsHelp}</HelpPopover>
               <select value={templateKey} disabled={!editable} onChange={(event) => setTemplateKey(event.target.value)}>
                 <option value="">{REFERENCE_FORM.headingsNone}</option>
                 {REFERENCE_TEMPLATES.map((template) => (
@@ -394,6 +396,7 @@ export function RecordEditor(props: {
         <div className="reference-save-row">
           <label>
             {REFERENCE_FORM.canonStatus}
+            <HelpPopover label={REFERENCE_FORM.canonExplain}>{REFERENCE_FORM.canonHelp}</HelpPopover>
             <select name="authorityStatus" defaultValue={props.authorityStatus} disabled={!editable}>
               {AUTHORITY_STATUSES.map((status) => (
                 <option key={status} value={status}>

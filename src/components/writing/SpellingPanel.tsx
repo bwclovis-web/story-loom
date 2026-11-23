@@ -11,7 +11,7 @@ import { SPELL_CHECKERS, spellCheckerCookie, type SpellChecker } from "@/writing
 import { ProtectionTick } from "./ProtectionTick";
 import { applyTextareaEdit, selectRange } from "./textareaEdit";
 import type { Spellcheck } from "./useSpellcheck";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui/Atoms/Button";
 import { Checkbox } from "@/components/ui/Atoms/Checkbox";
 
 /** The flagged word the selection is in, if any. */

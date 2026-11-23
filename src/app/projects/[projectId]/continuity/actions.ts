@@ -7,6 +7,7 @@ import {
   suppressContinuityIssue,
   type ContinuitySuppressReason,
 } from "@/server/services/continuityService";
+import { reviewManuscriptContradictions } from "@/server/services/worldContradictionService";
 
 export async function suppressContinuityAction(
   projectId: string,
@@ -35,5 +36,20 @@ export async function clearContinuitySuppressionAction(
     return { ok: true };
   } catch (err) {
     return { ok: false, message: err instanceof Error ? err.message : "Could not restore the issue." };
+  }
+}
+
+export async function reviewWorldContradictionsAction(
+  projectId: string,
+  recordId: string,
+): Promise<{ ok: boolean; message?: string; count?: number }> {
+  try {
+    const result = await reviewManuscriptContradictions(getDb(), projectId, recordId, { persist: true });
+    revalidatePath(`/projects/${projectId}/continuity`);
+    revalidatePath(`/projects/${projectId}/records/${recordId}`);
+    revalidatePath(`/projects/${projectId}`, "layout");
+    return { ok: true, count: result.persisted.length };
+  } catch (err) {
+    return { ok: false, message: err instanceof Error ? err.message : "Could not review world facts." };
   }
 }

@@ -1018,6 +1018,27 @@ export const SMART_COLLECTIONS = {
   continuityOpen: "Has open continuity findings",
   created: "Collection saved.",
   deleted: "Collection deleted.",
+  updated: "Collection updated.",
+  renamed: "Collection renamed.",
+  worldHeading: "Saved World collections",
+  worldLead:
+    "Save the Hub filters for this book. Opening a collection restores those controls and lists matching references from the current index, including series-shared ones.",
+  worldEmpty: "No World collections in this book yet.",
+  worldSave: "Save as collection",
+  worldSaveName: "Collection name",
+  worldWillSave: "Will save",
+  worldOpen: "Open",
+  worldRename: "Rename",
+  worldUpdate: "Update collection",
+  worldUpdateHint: "Replace this collection’s filters with the filters currently shown.",
+  worldOpened: (title: string) => `Opened “${title}”. Change filters freely; choose Update collection to keep them.`,
+  worldEmptyMatches: "No references match this collection right now.",
+  worldEmptyMatchesHint: "Adjust the filters, update the collection, or return to all references. The collection itself stays saved.",
+  worldUnsupported: "These active filters cannot be saved yet",
+  worldNeedFilters: "Choose at least one Hub filter before saving a collection.",
+  worldDeleteConfirm: (title: string) =>
+    `Delete “${title}”? References, map pins, and board cards are unchanged.`,
+  worldAllReferences: "All references",
 } as const;
 
 /** Full-text search on the Write page. */
@@ -1094,6 +1115,9 @@ export const REFERENCE_FORM = {
   createStep: "01 — Create reference",
   title: "Title",
   documentType: "Document type",
+  documentTypeExplain: "Explain document type",
+  documentTypeHelp:
+    "How this reference is stored: Character, Worldbuilding, Rules & glossary, and the rest. Hub categories, kind, and starting headings do not change it. The type stays as you set it here.",
   documentTypeHint: "The category this reference is stored as. It is separate from starting headings.",
   typeCharacter: "Character",
   typeWorldbuilding: "Worldbuilding",
@@ -1103,6 +1127,9 @@ export const REFERENCE_FORM = {
   typeContinuity: "Continuity note",
   typeReferenceNote: "Reference note",
   worldScopeLegend: "Where this applies",
+  worldScopeExplain: "Explain where this applies",
+  worldScopeHelp:
+    "Optional. This book keeps the reference in this book. Whole series lets other books in the same series open it; saves stay in this book. Unassigned stays in this book the way older references do.",
   worldScopeHint: "Optional. Unassigned references open as they always have.",
   worldScopeUnassigned: "Unassigned",
   worldScopeBook: "This book",
@@ -1113,6 +1140,9 @@ export const REFERENCE_FORM = {
   suggestionNote:
     "Optional. These buttons only fill the form; the classification stays discovery only.",
   kindLabel: "Worldbuilding kind (optional)",
+  kindExplain: "Explain kind",
+  kindHelp:
+    "Optional, and only on a Worldbuilding reference. Place, religion, culture, organization, species, magic system, object, and language are stored as structured fields and can list extra details. A custom name is free text. Kind is not the document type, and a starting outline does not set it.",
   kindHint: "Choose a kind, or leave it unclassified.",
   kindFieldsEmpty:
     "Choose a kind to list its fields here. Place adds parent place and climate. These fields do not change the writing.",
@@ -1122,6 +1152,9 @@ export const REFERENCE_FORM = {
   otherSavedHint: "These values stay saved when the kind changes. Nothing here is deleted.",
   otherKept: "Kept in Advanced fields. This control does not rewrite it.",
   headings: "Starting headings (optional)",
+  headingsExplain: "Explain starting headings",
+  headingsHelp:
+    "An optional outline added to the writing after you preview it. Choosing Place here does not make the document a place, and it does not set the worldbuilding kind.",
   headingsHint:
     "An optional outline added to the writing after you preview it. Choosing Place here does not make the document type Place, and it does not set the worldbuilding kind.",
   headingsNone: "None",
@@ -1136,6 +1169,8 @@ export const REFERENCE_FORM = {
   jsonInvalid: "Advanced fields are not valid JSON. Saving stays off until this is fixed.",
   showJsonError: "Show the JSON error",
   canonStatus: "Canon status",
+  canonExplain: "Explain canon status",
+  canonHelp: "Your choice. Draft is not approved canon. Only Approved marks this reference as canon.",
   draftHint: "Draft is not approved canon.",
   create: "Create reference",
   save: "Save changes",
@@ -1167,6 +1202,8 @@ export const WORLD_KIND = {
   kindNone: "None",
   kindCustomOption: "Custom…",
   customLabel: "Custom kind name",
+  customExplain: "Explain custom kind",
+  customHelp: "A name you choose, stored as the kind. You can remember fields for that name so later references of the same kind show them.",
   customPlaceholder: "e.g. River trade pact",
   note: "Stored in structured fields as kind. Built-in kinds can show extra fields. Custom names are free text. Outlines in the body are separate.",
   fieldKind: "Kind",
@@ -1194,23 +1231,42 @@ export const SERIES = {
 export const REFERENCE_META = {
   legend: "Reference details",
   name: "Name",
+  nameExplain: "Explain name",
+  nameHelp: "The name other tools use for this character. It is stored with the reference details and does not rewrite the writing.",
   aliases: "Aliases",
+  aliasesExplain: "Explain aliases",
+  aliasesHelp: "Other names for the same person or thing, such as a nickname or a title. Each one is saved with the reference details.",
   aliasPlaceholder: "Add an alias",
   addAlias: "Add alias",
   removeAlias: "Remove",
   role: "Role",
+  roleExplain: "Explain role",
+  roleHelp: "A short part this character plays, such as protagonist or mentor. It is a detail for browsing and does not change the writing.",
   summary: "Summary",
+  summaryExplain: "Explain summary",
+  summaryHelp: "A short note of what this decision or continuity item is about. It is stored with the details and does not rewrite the writing.",
   hint: "Saved in structured fields with anything else already there.",
 } as const;
 
 export const TAXONOMY_FIELDS = {
   legend: "World Hub classification",
+  legendExplain: "Explain World Hub classification",
+  legendHelp:
+    "Optional shelves and tags so you can find this reference in the World Hub. They do not change document type, kind, relationships, or canon status.",
   hint: "Discovery only. It helps you browse the World Hub. The document type and the structured kind stay separate.",
   primary: "Primary category",
+  primaryExplain: "Explain primary category",
+  primaryHelp:
+    "The main World Hub shelf, such as Characters, Geography, or Locations. Optional. It helps you find the reference and does not change how it is stored.",
   primaryNone: "Not classified",
   subcategory: "Subcategory",
+  subcategoryExplain: "Explain subcategory",
+  subcategoryHelp: "A narrower shelf under the primary category. Optional. Leave it unset when the category is enough.",
   subcategoryNone: "No subcategory",
   secondary: "Also belongs to",
+  secondaryExplain: "Explain also belongs to",
+  secondaryHelp:
+    "Extra World Hub categories when this reference fits more than one shelf. The primary category stays the main one. These memberships only help you browse; they do not change document type, kind, or canon.",
   secondaryCategory: "Add category",
   secondarySubcategory: "Add subcategory",
   addSecondary: "Add membership",
@@ -1219,6 +1275,8 @@ export const TAXONOMY_FIELDS = {
   secondaryNeedsCategory: "Choose a category first.",
   secondaryDuplicate: "That placement is already used.",
   tags: "Tags",
+  tagsExplain: "Explain tags",
+  tagsHelp: "Free labels for search and filters. They do not change document type, kind, or canon.",
   tagPlaceholder: "Add a tag",
   addTag: "Add tag",
   removeTag: "Remove",
@@ -1299,6 +1357,9 @@ export const WORLD_PROFILE = {
     "Optional structured fields for this World reference. Flat kind details stay where they are. Markdown body is never discarded. Nothing here is required.",
   empty: "No Living World Profile yet. Add fields below, or upgrade from Markdown.",
   definition: "Profile definition",
+  definitionExplain: "Explain profile definition",
+  definitionHelp:
+    "An optional set of structured fields for this reference, such as a built-in kind or a Hub category. Leave it unset if you only want the writing. The document body is kept either way. Characters use their own profile and do not pick one here.",
   definitionNone: "No definition selected",
   summary: "Summary",
   values: "Profile fields",
@@ -1362,6 +1423,30 @@ export const WORLD_PROFILE = {
   },
   flatHistoryNote:
     "Flat kind fields (for example climate) are dated here for history only. Edit the undated current value in Details.",
+  subcategorySections: "Optional subcategory sections",
+  subcategorySectionsLead:
+    "Add Geography details for cities, regions, or waterways without changing the profile definition. Hiding a section keeps saved values.",
+  subcategoryActive: "Active & saved subcategory sections",
+  subcategorySuggested: "Suggested from taxonomy",
+  subcategoryAdd: "Add section…",
+  subcategoryEnable: (label: string) => `Add ${label} section`,
+  subcategoryHide: "Hide section",
+  subcategoryHideNote: "Saved values are kept when you hide a section.",
+  subcategorySavedBadge: "Saved values",
+  quantityUnknownHint: "Leave blank for unknown; enter 0 for a documented zero.",
+  quantityQualifier: "Qualifier",
+  quantityAmount: "Amount",
+  quantityUnit: "Unit",
+  quantityQualifiers: {
+    exact: "Exact",
+    about: "About",
+    at_least: "At least",
+    at_most: "At most",
+  },
+  outletFromFlowsInto: (target: string) => `From Place relationships: Flows into ${target}`,
+  useFlowsInto: "Use flows_into relationship",
+  editPlaceRelations: "Edit place relationships",
+  outletTextFallback: "Outlet (text or record id)",
 } as const;
 
 export const WORLD_PROFILE_UPGRADE = {
@@ -1428,7 +1513,7 @@ export const WORLD_CATEGORY = {
 
 export const CONTINUITY = {
   title: "Continuity Ledger",
-  lead: "Read-only audit of unsettled continuity notes, pending facts, open questions, draft-in-canon citations, timeline vs book order, dangling Weave setups, and stale evidence. Opening this page changes nothing.",
+  lead: "Read-only audit of unsettled continuity notes, pending facts, open questions, draft-in-canon citations, manuscript vs approved world facts, timeline vs book order, dangling Weave setups, and stale evidence. Opening this page changes nothing.",
   none: "Nothing is waiting.",
   noneSuppressed: "No suppressed findings.",
   unresolved: "Unresolved records",
@@ -1466,6 +1551,12 @@ export const CONTINUITY = {
   writeBadge: "Continuity",
   writeBadgeHint: "Open Continuity Ledger findings that touch this chapter or scene.",
   writeNone: "No open continuity findings for this chapter or scene.",
+  checkWorldFacts: "Check world facts",
+  checkWorldFactsBusy: "Checking…",
+  checkWorldFactsDone: "World-fact review finished.",
+  checkWorldFactsNone: "No contradictions with approved world facts at this story point.",
+  needsRecheck: "Needs recheck",
+  worldFactLink: "World fact",
   kinds: {
     unresolved: "Unresolved records",
     continuity_note: "Unsettled continuity notes",
@@ -1484,9 +1575,12 @@ export const CONTINUITY = {
     character_limitation: "Unplaced character state changes",
     forgotten_arc: "Quiet or forgotten character arcs",
     character_identity: "Variant identity notes",
+    world_contradiction: "Manuscript vs approved world facts",
   },
   characterLead:
     "Character findings come from Living Profiles at the current story point. Mark intentional when a contradiction is deliberate. Archetypes are writing aids, not rules.",
+  worldContradictionLead:
+    "World-fact findings come from an explicit Check world facts review. Only approved, dated facts at the scene story point are compared. Mark intentional, resolved, or ignored without editing prose or canon.",
 } as const;
 
 export const MENTIONED_BY = {
@@ -1811,6 +1905,10 @@ export const WORLD = {
   filterImages: "Images",
   filterNotes: "Notes",
   filterEmptyBoard: "No cards match this filter.",
+  boardTaxonomyFilter: "Category",
+  boardTaxonomyFilterHint:
+    "Category filters hide note cards and images with no linked reference. Card positions stay saved; clear filters to show the full board.",
+  boardTaxonomyFilterActive: (label: string) => `Showing ${label}`,
   fitSelection: "Fit selection",
   fitAll: "Fit all",
   boardToolSelect: "Select",
@@ -1907,7 +2005,7 @@ export const WORLD = {
   mapAllHidden: "All markers are hidden by layers.",
   mapLayerHidden: "Hidden",
   mapSelectHint: "Select a marker. Drag it to move it. A click does not save.",
-  mapPinHint: "Click the map to place one pin.",
+  mapPinHint: "Choose a reference or detailed map, then click the map to place the pin.",
   mapMarkerCount: (visible: Count, total: Count) =>
     Number(visible) === Number(total)
       ? `${total} marker${Number(total) === 1 ? "" : "s"}`
@@ -2023,8 +2121,13 @@ export const WORLD = {
   mapPinFilter: "Highlight pins",
   mapPinFilterHint:
     "Dim markers that have no linked story event or scene location in the chosen era, draft, or book.",
+  mapPinFilterTaxonomyHint:
+    "Category filters dim map-to-map pins and markers with no linked reference. Matching pins stay highlighted; positions and layers are unchanged.",
   mapPinFilterEra: "Era",
   mapPinFilterAllEras: "Any era",
+  mapTaxonomyFilter: "Category",
+  mapTaxonomyFilterActive: (label: string) => `Highlighting ${label}`,
+  filterUnmatchedPins: "Pins without a matching reference stay dimmed while a category filter is on.",
   mapExportPng: "Export PNG",
   mapExportSvg: "Export SVG",
   mapExportPngFailed: "The map image could not be copied into the PNG. Use Export SVG instead.",
@@ -2097,6 +2200,16 @@ export const WORLD = {
   relationshipFocusAll: "Whole graph",
   relationshipSteps: "Steps",
   relationshipKindFilters: "Kinds to show",
+  relationshipTaxonomyFilter: "Category",
+  relationshipNeighborMode: "When a category is active",
+  relationshipMatchingOnly: "Matching only",
+  relationshipWithNeighbors: "Matching and neighbors",
+  relationshipNeighborHint:
+    "Matching only shows records in the chosen category. Matching and neighbors also keeps each match’s immediate connections.",
+  relationshipClearTaxonomy: "Clear category filter",
+  relationshipEligibilityNote: "Relationship rules",
+  relationshipEligibilitySeries:
+    "Series-scoped links need a named series and both ends shared with the whole series. Endpoint type rules are separate from category filters.",
   relationshipNoData:
     "No relationships yet. Add place relationships on World places, and character or organization relationships on eligible reference pages.",
   relationshipSubgraphEmpty: "Nothing matches this focus, step count, and kind filters.",

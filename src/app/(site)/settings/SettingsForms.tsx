@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useState, useTransition } from "react";
 import { IssueList } from "@/components/IssueList";
 import { Banner } from "@/components/ui/Banner";
-import { Button, ButtonLink } from "@/components/ui/Atoms/Buttons";
+import { Button, ButtonLink } from "@/components/ui/Atoms/Button";
 import type { Issue } from "@/domain/issues";
 import { ASSISTANT_PROVIDERS, type AssistantProviderId } from "@/assistant/config";
 import type { AssistantKeySource } from "@/server/assistantSecrets";

@@ -35,8 +35,26 @@ import type { BoardCardView, BoardView } from "@/server/services/boardService";
 import type { LoadedInspector } from "@/server/services/referenceInspectorService";
 import { SERIES, SHELL, WORLD, WRITE } from "@/ui/labels";
 import { seriesBookLabel } from "@/world/seriesHome";
-import { readBoardFilter, readBoardView, writeBoardFilter, writeBoardView } from "@/world/boardViewState";
+import {
+  readBoardFilter,
+  readBoardTaxonomyFilter,
+  readBoardView,
+  writeBoardFilter,
+  writeBoardTaxonomyFilter,
+  writeBoardView,
+} from "@/world/boardViewState";
 import { canvasReturnPath, withCanvasReturn } from "@/world/canvasReturn";
+import type { CustomTaxonomyCategoryOption } from "@/world/customCategories";
+import {
+  emptyTaxonomyFilter,
+  filterBoardCardsByTaxonomy,
+  taxonomyFilterActive,
+  taxonomyFilterSummaryLabel,
+  type PlaceableRecord,
+  type TaxonomyFilterValue,
+} from "@/world/taxonomyDiscovery";
+import { ReferenceTaxonomyPickerOnce } from "@/components/world/ReferenceTaxonomyPicker";
+import { TaxonomyFilterSelects } from "@/components/world/TaxonomyFilterSelects";
 import {
   centerScroll,
   dragExceeded,
@@ -62,13 +80,7 @@ import {
   updateNoteCardAction,
 } from "./actions";
 
-export interface PlaceableRecord {
-  id: string;
-  title: string;
-  typeLabel: string;
-  homeLabel?: string | null;
-  worldScope?: string | null;
-}
+export type { PlaceableRecord };
 
 export interface PlaceableImage {
   id: string;
@@ -83,12 +95,14 @@ export function BoardCanvas({
   projectId,
   board: initial,
   records,
+  customCategories = [],
   images,
   initialCardId = null,
 }: {
   projectId: string;
   board: BoardView;
   records: PlaceableRecord[];
+  customCategories?: readonly CustomTaxonomyCategoryOption[];
   images: PlaceableImage[];
   initialCardId?: string | null;
 }) {
@@ -140,6 +154,7 @@ export function BoardCanvas({
   const suppressClick = useRef(false);
 
   const [kindFilter, setKindFilter] = useState<"all" | "record" | "image" | "note">("all");
+  const [taxonomyFilter, setTaxonomyFilter] = useState<TaxonomyFilterValue>(emptyTaxonomyFilter());
 
   useEffect(() => {
     setBoard(initial);
@@ -154,6 +169,7 @@ export function BoardCanvas({
   useEffect(() => {
     setView(readBoardView(initial.id));
     setKindFilter(readBoardFilter(initial.id));
+    setTaxonomyFilter(readBoardTaxonomyFilter(initial.id));
   }, [initial.id]);
 
   useEffect(() => {
@@ -164,11 +180,17 @@ export function BoardCanvas({
   cardsRef.current = cards;
   const selected = cards.find((c) => c.id === selectedId) ?? null;
 
-  const visibleCards = useMemo(() => {
-    if (kindFilter === "all") return cards;
-    return cards.filter((c) => c.kind === kindFilter);
-  }, [cards, kindFilter]);
+  const taxonomyByRecordId = useMemo(
+    () => new Map(records.map((record) => [record.id, record.taxonomy])),
+    [records],
+  );
+  const visibleCards = useMemo(
+    () => filterBoardCardsByTaxonomy(cards, taxonomyFilter, taxonomyByRecordId, kindFilter),
+    [cards, taxonomyFilter, taxonomyByRecordId, kindFilter],
+  );
   const visibleIds = useMemo(() => new Set(visibleCards.map((c) => c.id)), [visibleCards]);
+  const categoryFilterOn = taxonomyFilterActive(taxonomyFilter);
+  const taxonomySummary = taxonomyFilterSummaryLabel(taxonomyFilter, customCategories);
 
   const inspectRecordId = selected && selected.kind !== "note" ? selected.recordId : null;
 
@@ -525,26 +547,13 @@ export function BoardCanvas({
 
         <CanvasToolbar label={WORLD.boardCanvas} className="visual-canvas-toolbar">
           <BoardOverflowMenu summary={`+ ${WORLD.addCardMenu}`} className="canvas-add-card" showChevron>
-            <label>
-              <span className="sr-only">{WORLD.addRecordCard}</span>
-              <select
-                defaultValue=""
-                disabled={pending || records.length === 0}
-                onChange={(e) => {
-                  const recordId = e.target.value;
-                  e.target.value = "";
-                  placeRecord(recordId);
-                }}
-              >
-                <option value="">{WORLD.chooseRecord}</option>
-                {records.map((r) => (
-                  <option key={r.id} value={r.id}>
-                    {r.title} ({r.typeLabel}
-                    {r.homeLabel ? ` · ${r.homeLabel}` : ""})
-                  </option>
-                ))}
-              </select>
-            </label>
+            <ReferenceTaxonomyPickerOnce
+              records={records}
+              customCategories={customCategories}
+              disabled={pending || records.length === 0}
+              label={WORLD.chooseRecord}
+              onSelect={placeRecord}
+            />
             <Button type="button" disabled={pending} onClick={placeNote} size="sm">
               {WORLD.writeNote}
             </Button>
@@ -590,6 +599,39 @@ export function BoardCanvas({
                 </SegmentedOption>
               ))}
             </SegmentedControl>
+            <BoardOverflowMenu summary={WORLD.boardTaxonomyFilter} className="board-taxonomy-filter" showChevron>
+              <p className="small muted">{WORLD.boardTaxonomyFilterHint}</p>
+              {taxonomySummary ? (
+                <p className="small" role="status">
+                  {WORLD.boardTaxonomyFilterActive(taxonomySummary)}
+                </p>
+              ) : null}
+              <TaxonomyFilterSelects
+                idPrefix={`${idPrefix}-board-taxonomy`}
+                value={taxonomyFilter}
+                onChange={(next) => {
+                  setTaxonomyFilter(next);
+                  writeBoardTaxonomyFilter(board.id, next);
+                }}
+                customCategories={customCategories}
+                showClear
+              />
+              {categoryFilterOn || kindFilter !== "all" ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => {
+                    setKindFilter("all");
+                    writeBoardFilter(board.id, "all");
+                    setTaxonomyFilter(emptyTaxonomyFilter());
+                    writeBoardTaxonomyFilter(board.id, emptyTaxonomyFilter());
+                  }}
+                >
+                  {WORLD.clearFilters}
+                </Button>
+              ) : null}
+            </BoardOverflowMenu>
             <Button
               type="button"
               disabled={view !== "canvas" || !selected}
@@ -743,27 +785,13 @@ export function BoardCanvas({
               <div className="board-first-actions-card" onClick={(event) => event.stopPropagation()}>
                 <strong>{WORLD.emptyBoard}</strong>
                 <p className="small muted">{WORLD.emptyBoardHint}</p>
-                <label>
-                  {WORLD.addRecordCard}
-                  <select
-                    defaultValue=""
-                    disabled={pending || records.length === 0}
-                    aria-describedby={records.length === 0 ? `${idPrefix}-no-references` : undefined}
-                    onChange={(event) => {
-                      const recordId = event.target.value;
-                      event.target.value = "";
-                      placeRecord(recordId);
-                    }}
-                  >
-                    <option value="">{WORLD.chooseRecord}</option>
-                    {records.map((record) => (
-                      <option key={record.id} value={record.id}>
-                        {record.title} ({record.typeLabel}
-                        {record.homeLabel ? ` · ${record.homeLabel}` : ""})
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                <ReferenceTaxonomyPickerOnce
+                  records={records}
+                  customCategories={customCategories}
+                  disabled={pending || records.length === 0}
+                  label={WORLD.addRecordCard}
+                  onSelect={placeRecord}
+                />
                 {records.length === 0 ? (
                   <p id={`${idPrefix}-no-references`} className="small muted">
                     {WORLD.boardNoReferences}

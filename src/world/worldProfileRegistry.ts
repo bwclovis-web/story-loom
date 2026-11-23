@@ -32,6 +32,7 @@ export const WORLD_PROFILE_FIELD_TYPES = [
   "record_ref",
   "record_refs",
   "ordered_list",
+  "quantity",
 ] as const;
 export type WorldProfileFieldType = (typeof WORLD_PROFILE_FIELD_TYPES)[number];
 
@@ -40,6 +41,13 @@ export type WorldProfileFieldStorage = "flat" | "profile";
 export interface WorldProfileFieldOption {
   id: string;
   label: string;
+}
+
+export interface WorldProfileQuantityConfig {
+  allowUnit?: boolean;
+  unitSuggestions?: readonly string[];
+  integerOnly?: boolean;
+  allowQualifiers?: boolean;
 }
 
 export interface WorldProfileFieldDef {
@@ -53,6 +61,16 @@ export interface WorldProfileFieldDef {
   optional?: boolean;
   options?: readonly WorldProfileFieldOption[];
   placeholder?: string;
+  quantityConfig?: WorldProfileQuantityConfig;
+}
+
+export interface WorldSubcategorySectionDef {
+  id: string;
+  categoryId: string;
+  subcategoryId: string;
+  label: string;
+  description: string;
+  fields: readonly WorldProfileFieldDef[];
 }
 
 export interface WorldProfileCollectionDef {
@@ -537,6 +555,267 @@ function calendarLooksValid(value: WorldProfileCalendarDate): boolean {
   return value.year != null || value.monthPosition != null || value.day != null || value.eraId != null;
 }
 
+/** Shared across cities_and_settlements and regions; each record stores its own value. */
+export const POPULATION_ESTIMATE_FIELD: WorldProfileFieldDef = {
+  key: "populationEstimate",
+  label: "Population estimate",
+  description: "Qualified headcount. Leave blank for unknown; enter 0 for a documented zero.",
+  type: "quantity",
+  storage: "profile",
+  optional: true,
+  quantityConfig: {
+    allowUnit: false,
+    integerOnly: true,
+    allowQualifiers: true,
+  },
+};
+
+const AREA_UNIT_SUGGESTIONS = ["sq mi", "km²", "acres", "hectares", "leagues²"] as const;
+const LENGTH_UNIT_SUGGESTIONS = ["miles", "km", "leagues"] as const;
+
+export const WORLD_SUBCATEGORY_SECTIONS: readonly WorldSubcategorySectionDef[] = [
+  {
+    id: "geography:cities_and_settlements",
+    categoryId: "geography",
+    subcategoryId: "cities_and_settlements",
+    label: "Cities and settlements",
+    description: "Population and industries for towns, cities, and villages.",
+    fields: [
+      POPULATION_ESTIMATE_FIELD,
+      profileField(
+        "principalIndustries",
+        "Principal industries",
+        "ordered_list",
+        "Main trades and industries, one per line.",
+      ),
+    ],
+  },
+  {
+    id: "geography:regions",
+    categoryId: "geography",
+    subcategoryId: "regions",
+    label: "Regions",
+    description: "Population and land area for provinces, biomes, and named areas.",
+    fields: [
+      POPULATION_ESTIMATE_FIELD,
+      {
+        key: "landArea",
+        label: "Land area",
+        description: "Qualified area with a unit. Leave blank for unknown; enter 0 for a documented zero.",
+        type: "quantity",
+        storage: "profile",
+        optional: true,
+        quantityConfig: {
+          allowUnit: true,
+          unitSuggestions: AREA_UNIT_SUGGESTIONS,
+          allowQualifiers: true,
+        },
+      },
+    ],
+  },
+  {
+    id: "geography:waterways",
+    categoryId: "geography",
+    subcategoryId: "waterways",
+    label: "Waterways",
+    description: "Length, source, outlet, and navigable stretches for rivers, seas, and coasts.",
+    fields: [
+      {
+        key: "length",
+        label: "Length",
+        description: "Qualified length with a unit. Leave blank for unknown; enter 0 for a documented zero.",
+        type: "quantity",
+        storage: "profile",
+        optional: true,
+        quantityConfig: {
+          allowUnit: true,
+          unitSuggestions: LENGTH_UNIT_SUGGESTIONS,
+          allowQualifiers: true,
+        },
+      },
+      profileField(
+        "waterwaySource",
+        "Source",
+        "short_text",
+        "Headwaters or origin (text). Distinct from magic-system Source.",
+      ),
+      {
+        key: "outlet",
+        label: "Outlet",
+        description:
+          "Where the waterway flows. Prefer a Place relationship (flows into) when the outlet is a known record.",
+        type: "short_text",
+        storage: "profile",
+        optional: true,
+        placeholder: "Free text, or use Flows into for a known place",
+      },
+      profileField(
+        "navigableStretches",
+        "Navigable stretches",
+        "long_text",
+        "Which reaches are navigable and under what conditions.",
+      ),
+    ],
+  },
+];
+
+const SUBCATEGORY_SECTION_BY_ID = new Map(WORLD_SUBCATEGORY_SECTIONS.map((section) => [section.id, section]));
+
+export function getSubcategorySection(id: string): WorldSubcategorySectionDef | null {
+  return SUBCATEGORY_SECTION_BY_ID.get(id) ?? null;
+}
+
+export function listAllSubcategorySections(): readonly WorldSubcategorySectionDef[] {
+  return WORLD_SUBCATEGORY_SECTIONS;
+}
+
+/** Sections suggested by primary/secondary taxonomy placements (read-only suggestions). */
+export function listSubcategorySectionsForTaxonomy(input: {
+  primary?: { category: string; subcategory?: string | null } | null;
+  secondary?: readonly { category: string; subcategory?: string | null }[];
+}): WorldSubcategorySectionDef[] {
+  const keys = new Set<string>();
+  const placements = [
+    ...(input.primary ? [input.primary] : []),
+    ...(input.secondary ?? []),
+  ];
+  for (const placement of placements) {
+    if (!placement.subcategory) continue;
+    keys.add(`${placement.category}:${placement.subcategory}`);
+  }
+  return WORLD_SUBCATEGORY_SECTIONS.filter((section) => keys.has(section.id));
+}
+
+function sectionHasStoredValues(section: WorldSubcategorySectionDef, profile: WorldProfile): boolean {
+  for (const field of section.fields) {
+    const value = profile.values[field.key];
+    if (value !== undefined && value !== null && value !== "") return true;
+    const historyHit = profile.fieldHistory.some(
+      (change) =>
+        change.fieldPath === `values.${field.key}` ||
+        change.fieldPath === field.key ||
+        change.fieldPath.endsWith(`.${field.key}`),
+    );
+    if (historyHit) return true;
+  }
+  return false;
+}
+
+/**
+ * Sections that stay discoverable: enabled on the profile, or carrying saved
+ * values / fieldHistory even after taxonomy no longer matches.
+ */
+export function listSubcategorySectionsWithStoredValues(profile: WorldProfile): WorldSubcategorySectionDef[] {
+  const enabled = new Set(profile.enabledSections);
+  const out: WorldSubcategorySectionDef[] = [];
+  const seen = new Set<string>();
+  for (const section of WORLD_SUBCATEGORY_SECTIONS) {
+    if (seen.has(section.id)) continue;
+    if (enabled.has(section.id) || sectionHasStoredValues(section, profile)) {
+      seen.add(section.id);
+      out.push(section);
+    }
+  }
+  return out;
+}
+
+function validateFieldValue(
+  field: WorldProfileFieldDef,
+  raw: unknown,
+  path: string,
+  problems: WorldProfileProblem[],
+): void {
+  if (raw === undefined || raw === null || raw === "") {
+    if (field.optional === false) {
+      problems.push({ path, message: `${field.label} is required.` });
+    }
+    return;
+  }
+  const value = readWorldProfileFieldValue(raw);
+  if (value === null && raw !== null) {
+    problems.push({ path, message: `${field.label} has an unsupported value shape.` });
+    return;
+  }
+  switch (field.type) {
+    case "short_text":
+    case "long_text":
+    case "select":
+      // Outlet may store a Place record ref from flows_into reuse, or free text.
+      if (
+        field.key === "outlet" &&
+        value &&
+        typeof value === "object" &&
+        !Array.isArray(value) &&
+        "recordId" in value
+      ) {
+        break;
+      }
+      if (typeof value !== "string") {
+        problems.push({ path, message: `${field.label} must be text.` });
+      } else if (field.type === "select" && field.options?.length && !field.options.some((o) => o.id === value)) {
+        problems.push({ path, message: `${field.label} must be one of the allowed options.` });
+      }
+      break;
+    case "number":
+      if (typeof value !== "number") problems.push({ path, message: `${field.label} must be a number.` });
+      break;
+    case "boolean":
+      if (typeof value !== "boolean") problems.push({ path, message: `${field.label} must be true or false.` });
+      break;
+    case "multi_select":
+    case "ordered_list":
+    case "record_refs":
+      if (!Array.isArray(value) || value.some((item) => typeof item !== "string")) {
+        problems.push({ path, message: `${field.label} must be a list of strings.` });
+      } else if (
+        field.type === "multi_select" &&
+        field.options?.length &&
+        value.some((item) => !field.options!.some((o) => o.id === item))
+      ) {
+        problems.push({ path, message: `${field.label} contains an unknown option.` });
+      }
+      break;
+    case "record_ref":
+      if (typeof value === "string") break;
+      if (!value || typeof value !== "object" || Array.isArray(value) || !("recordId" in value)) {
+        problems.push({ path, message: `${field.label} must reference a record.` });
+      }
+      break;
+    case "calendar_date":
+      if (
+        !value ||
+        typeof value !== "object" ||
+        Array.isArray(value) ||
+        "recordId" in value ||
+        "amount" in value
+      ) {
+        problems.push({ path, message: `${field.label} must be a calendar date.` });
+      } else if (!calendarLooksValid(value as WorldProfileCalendarDate)) {
+        problems.push({ path, message: `${field.label} needs a date or free-text date.` });
+      }
+      break;
+    case "quantity":
+      if (
+        !value ||
+        typeof value !== "object" ||
+        Array.isArray(value) ||
+        !("amount" in value) ||
+        typeof (value as { amount: unknown }).amount !== "number" ||
+        !Number.isFinite((value as { amount: number }).amount)
+      ) {
+        problems.push({ path, message: `${field.label} must be a quantity with a finite amount.` });
+      } else if (
+        field.quantityConfig?.integerOnly &&
+        !Number.isInteger((value as { amount: number }).amount)
+      ) {
+        problems.push({ path, message: `${field.label} must be a whole number.` });
+      }
+      break;
+    default:
+      break;
+  }
+}
+
 export function validateProfileValuesAgainstDefinition(
   definition: WorldProfileDefinition,
   profile: WorldProfile,
@@ -544,63 +823,8 @@ export function validateProfileValuesAgainstDefinition(
 ): WorldProfileProblem[] {
   const problems: WorldProfileProblem[] = [];
   for (const field of definition.fields) {
-    const raw =
-      field.storage === "flat" ? flatFields[field.key] : profile.values[field.key];
-    if (raw === undefined || raw === null || raw === "") {
-      if (field.optional === false) {
-        problems.push({ path: field.key, message: `${field.label} is required.` });
-      }
-      continue;
-    }
-    const value = readWorldProfileFieldValue(raw);
-    if (value === null && raw !== null) {
-      problems.push({ path: field.key, message: `${field.label} has an unsupported value shape.` });
-      continue;
-    }
-    switch (field.type) {
-      case "short_text":
-      case "long_text":
-      case "select":
-        if (typeof value !== "string") {
-          problems.push({ path: field.key, message: `${field.label} must be text.` });
-        } else if (field.type === "select" && field.options?.length && !field.options.some((o) => o.id === value)) {
-          problems.push({ path: field.key, message: `${field.label} must be one of the allowed options.` });
-        }
-        break;
-      case "number":
-        if (typeof value !== "number") problems.push({ path: field.key, message: `${field.label} must be a number.` });
-        break;
-      case "boolean":
-        if (typeof value !== "boolean") problems.push({ path: field.key, message: `${field.label} must be true or false.` });
-        break;
-      case "multi_select":
-      case "ordered_list":
-      case "record_refs":
-        if (!Array.isArray(value) || value.some((item) => typeof item !== "string")) {
-          problems.push({ path: field.key, message: `${field.label} must be a list of strings.` });
-        } else if (
-          field.type === "multi_select" &&
-          field.options?.length &&
-          value.some((item) => !field.options!.some((o) => o.id === item))
-        ) {
-          problems.push({ path: field.key, message: `${field.label} contains an unknown option.` });
-        }
-        break;
-      case "record_ref":
-        if (!value || typeof value !== "object" || Array.isArray(value) || !("recordId" in value)) {
-          problems.push({ path: field.key, message: `${field.label} must reference a record.` });
-        }
-        break;
-      case "calendar_date":
-        if (!value || typeof value !== "object" || Array.isArray(value) || "recordId" in value) {
-          problems.push({ path: field.key, message: `${field.label} must be a calendar date.` });
-        } else if (!calendarLooksValid(value as WorldProfileCalendarDate)) {
-          problems.push({ path: field.key, message: `${field.label} needs a date or free-text date.` });
-        }
-        break;
-      default:
-        break;
-    }
+    const raw = field.storage === "flat" ? flatFields[field.key] : profile.values[field.key];
+    validateFieldValue(field, raw, field.key, problems);
   }
   for (const collection of definition.collections) {
     const items = profile.collections[collection.key] ?? [];
@@ -617,6 +841,21 @@ export function validateProfileValuesAgainstDefinition(
           });
         }
       }
+    }
+  }
+  return problems;
+}
+
+export function validateSubcategorySectionValues(
+  profile: WorldProfile,
+  sectionIds: readonly string[] = profile.enabledSections,
+): WorldProfileProblem[] {
+  const problems: WorldProfileProblem[] = [];
+  for (const id of sectionIds) {
+    const section = getSubcategorySection(id);
+    if (!section) continue;
+    for (const field of section.fields) {
+      validateFieldValue(field, profile.values[field.key], `values.${field.key}`, problems);
     }
   }
   return problems;

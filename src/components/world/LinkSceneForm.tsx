@@ -2,8 +2,9 @@
 
 import { useEffect, useId, useState, useTransition } from "react";
 import { IssueList } from "@/components/IssueList";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui/Atoms/Button";
 import { Checkbox } from "@/components/ui/Atoms/Checkbox";
+import { Select } from "@/components/ui/Atoms/Select";
 import type { Issue } from "@/domain/issues";
 import type { LinkableManuscript } from "@/server/services/sceneLocationService";
 import { WORLD } from "@/ui/labels";
@@ -76,21 +77,19 @@ export function LinkSceneForm({
     >
       <h3 id={`${idPrefix}-link`}>{WORLD.linkScene}</h3>
       <p className="small muted">{WORLD.linkSceneNote}</p>
-      <label>
-        {WORLD.linkSceneChoose}
-        <select
-          value={choice}
-          onChange={(event) => setChoice(event.target.value)}
-          disabled={pending || !manuscripts || manuscripts.length === 0}
-        >
-          <option value="">{WORLD.linkSceneChoose}</option>
-          {(manuscripts ?? []).map((item) => (
-            <option key={item.id} value={item.id}>
-              {item.chapterTitle ? `${item.chapterTitle} — ${item.title}` : item.title}
-            </option>
-          ))}
-        </select>
-      </label>
+      <Select
+        label={WORLD.linkSceneChoose}
+        value={choice}
+        onChange={(event) => setChoice(event.target.value)}
+        disabled={pending || !manuscripts || manuscripts.length === 0}
+      >
+        <option value="">{WORLD.linkSceneChoose}</option>
+        {(manuscripts ?? []).map((item) => (
+          <option key={item.id} value={item.id}>
+            {item.chapterTitle ? `${item.chapterTitle} — ${item.title}` : item.title}
+          </option>
+        ))}
+      </Select>
       {manuscripts && manuscripts.length === 0 ? <p className="small muted">{WORLD.linkSceneNone}</p> : null}
       <Checkbox
         className="scene-location-check"

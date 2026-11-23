@@ -6,10 +6,12 @@ import { getBoard } from "@/server/services/boardService";
 import { NotFoundError } from "@/server/services/errors";
 import { listRecordImages } from "@/server/services/imageService";
 import { listAvailableReferences } from "@/server/services/seriesBibleService";
+import { listAvailableWorldCategories } from "@/server/services/worldCategoryService";
 import { RECORD_TYPE_LABELS } from "@/domain/recordTypes";
 import { SERIES } from "@/ui/labels";
 import { seriesBookLabel } from "@/world/seriesHome";
 import { worldSurfaceCrumbs } from "@/ui/worldDestinations";
+import type { CustomTaxonomyCategoryOption } from "@/world/customCategories";
 import { BoardCanvas } from "../BoardCanvas";
 
 export const dynamic = "force-dynamic";
@@ -32,7 +34,18 @@ export default async function WorldBoardPage({
     throw error;
   }
 
-  const available = await listAvailableReferences(db, projectId, { linkableOnly: true });
+  const [available, availableCategories] = await Promise.all([
+    listAvailableReferences(db, projectId, { linkableOnly: true }),
+    listAvailableWorldCategories(db, projectId),
+  ]);
+  const customCategories: CustomTaxonomyCategoryOption[] = availableCategories.map((row) => ({
+    slug: row.slug,
+    label: row.label,
+    description: row.description,
+    parentCategorySlug: row.parentCategorySlug,
+    shared: Boolean(row.home),
+    homeLabel: row.home ? row.home.bookName?.trim() || row.home.title : null,
+  }));
   const images: Array<{
     id: string;
     recordId: string;
@@ -74,7 +87,9 @@ export default async function WorldBoardPage({
           typeLabel: RECORD_TYPE_LABELS[entry.record.type],
           homeLabel: entry.home ? SERIES.homeBadge(seriesBookLabel(entry.home)) : null,
           worldScope: entry.worldScope,
+          taxonomy: entry.taxonomy,
         }))}
+        customCategories={customCategories}
         images={images}
         initialCardId={query.card ?? null}
       />

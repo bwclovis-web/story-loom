@@ -28,6 +28,7 @@ export function WorldCategoryNav({
   unclassifiedSelected,
   allSelected,
   customCategories = [],
+  collectionId = null,
 }: {
   projectId: string;
   counts: Record<string, number>;
@@ -42,16 +43,20 @@ export function WorldCategoryNav({
   unclassifiedSelected: boolean;
   allSelected: boolean;
   customCategories?: readonly CustomTaxonomyCategoryOption[];
+  /** Keep an open World collection while browsing categories. */
+  collectionId?: string | null;
 }) {
   const customEntries = Object.entries(customKinds).sort(([a], [b]) => a.localeCompare(b));
   const tagEntries = Object.entries(tagCounts).sort(([a], [b]) => a.localeCompare(b));
   const topLevelCustoms = topLevelCustomCategories(customCategories);
+  const withCollection = (params: Parameters<typeof worldHref>[1] = {}) =>
+    worldHref(projectId, { ...params, collection: collectionId });
 
   return (
     <nav className="world-category-nav" aria-label={WORLD.browseCategories}>
       <ul className="world-filter-list">
         <li>
-          <Link href={worldHref(projectId, { list: true })} aria-current={allSelected ? "page" : undefined}>
+          <Link href={withCollection({ list: true })} aria-current={allSelected ? "page" : undefined}>
             {WORLD.allReferences}
           </Link>
         </li>
@@ -67,7 +72,7 @@ export function WorldCategoryNav({
               <details open={selected || undefined}>
                 <summary className="world-category-summary">
                   <Link
-                    href={worldHref(projectId, { category: category.id })}
+                    href={withCollection({ category: category.id })}
                     className="world-category-link"
                     aria-current={selected && !currentSubcategory ? "page" : undefined}
                     title={category.description}
@@ -81,7 +86,7 @@ export function WorldCategoryNav({
                   {category.subcategories.map((sub) => (
                     <li key={sub.id}>
                       <Link
-                        href={worldHref(projectId, { category: category.id, subcategory: sub.id })}
+                        href={withCollection({ category: category.id, subcategory: sub.id })}
                         aria-current={selected && currentSubcategory === sub.id ? "page" : undefined}
                         title={sub.description}
                       >
@@ -93,7 +98,7 @@ export function WorldCategoryNav({
                   {customSubs.map((sub) => (
                     <li key={sub.slug}>
                       <Link
-                        href={worldHref(projectId, { category: category.id, subcategory: sub.slug })}
+                        href={withCollection({ category: category.id, subcategory: sub.slug })}
                         aria-current={selected && currentSubcategory === sub.slug ? "page" : undefined}
                         title={sub.description}
                       >
@@ -125,7 +130,7 @@ export function WorldCategoryNav({
               <details open={selected || undefined}>
                 <summary className="world-category-summary">
                   <Link
-                    href={worldHref(projectId, { category: category.slug })}
+                    href={withCollection({ category: category.slug })}
                     className="world-category-link"
                     aria-current={selected && !currentSubcategory ? "page" : undefined}
                     title={category.description}
@@ -138,7 +143,7 @@ export function WorldCategoryNav({
                   {children.map((sub) => (
                     <li key={sub.slug}>
                       <Link
-                        href={worldHref(projectId, { category: category.slug, subcategory: sub.slug })}
+                        href={withCollection({ category: category.slug, subcategory: sub.slug })}
                         aria-current={selected && currentSubcategory === sub.slug ? "page" : undefined}
                         title={sub.description}
                       >
@@ -168,7 +173,10 @@ export function WorldCategoryNav({
       <h3 className="world-category-aside-heading">{WORLD.uncategorized}</h3>
       <ul className="world-filter-list">
         <li>
-          <Link href={worldHref(projectId, { unclassified: true })} aria-current={unclassifiedSelected ? "page" : undefined}>
+          <Link
+            href={withCollection({ unclassified: true })}
+            aria-current={unclassifiedSelected ? "page" : undefined}
+          >
             {WORLD.uncategorized}
             <span className="nav-count">{unclassified}</span>
           </Link>
@@ -181,7 +189,7 @@ export function WorldCategoryNav({
             {customEntries.map(([kind, count]) => (
               <li key={kind}>
                 <Link
-                  href={worldHref(projectId, { customKind: kind })}
+                  href={withCollection({ customKind: kind })}
                   aria-current={currentCustomKind === kind ? "page" : undefined}
                 >
                   {kind}
@@ -198,7 +206,10 @@ export function WorldCategoryNav({
           <ul className="world-filter-list world-tag-list">
             {tagEntries.map(([tag, count]) => (
               <li key={tag}>
-                <Link href={worldHref(projectId, { tag })} aria-current={currentTag === tag ? "page" : undefined}>
+                <Link
+                  href={withCollection({ tag })}
+                  aria-current={currentTag === tag ? "page" : undefined}
+                >
                   {tag}
                   <span className="nav-count">{count}</span>
                 </Link>

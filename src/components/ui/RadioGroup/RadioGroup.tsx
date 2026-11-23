@@ -18,7 +18,7 @@ export function RadioGroup({
   layout,
   className,
 }: RadioGroupVariantProps & {
-  legend: string;
+  legend: ReactNode;
   name: string;
   value: string;
   onValueChange: (value: string) => void;
@@ -28,7 +28,9 @@ export function RadioGroup({
 }) {
   return (
     <fieldset className={cn(radioGroupVariants({ layout }), className)}>
-      <legend>{legend}</legend>
+      <legend>
+        <span className="field-caption">{legend}</span>
+      </legend>
       <div className="radio-group-options">
         {options.map((option) => (
           <label key={option.value} className="radio-option">

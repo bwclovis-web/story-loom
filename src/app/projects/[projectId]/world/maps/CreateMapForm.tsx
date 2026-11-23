@@ -2,9 +2,11 @@
 
 import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui/Atoms/Button";
 import { Checkbox } from "@/components/ui/Atoms/Checkbox";
+import { Select } from "@/components/ui/Atoms/Select";
 import { FileInput } from "@/components/ui/FileInput";
+import { HelpPopover } from "@/components/ui/HelpPopover";
 import { RadioGroup } from "@/components/ui/RadioGroup";
 import { IssueList } from "@/components/IssueList";
 import { errorIssue, type Issue } from "@/domain/issues";
@@ -12,6 +14,7 @@ import { AUTHORITY_STATUSES, isAuthorityStatus, type AuthorityStatus } from "@/d
 import { REFERENCE_FORM, WORLD } from "@/ui/labels";
 import { isMapReferenceType, MAP_REFERENCE_TYPES, type MapReferenceType } from "@/world/mapReference";
 import { createWorldMapAction, createWorldMapUploadAction, createWorldMapWithNewReferenceAction } from "./actions";
+import { TextField } from "@/components/ui/TextField";
 
 const TYPE_LABEL: Record<MapReferenceType, string> = {
   character_dossier: REFERENCE_FORM.typeCharacter,
@@ -134,10 +137,14 @@ export function CreateMapForm({
         });
       }}
     >
-      <label className="world-create-field">
-        {WORLD.mapTitle}
-        <input value={title} onChange={(e) => setTitle(e.target.value)} required maxLength={200} />
-      </label>
+      <TextField
+        label={WORLD.mapTitle}
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        required
+        maxLength={200}
+        className="py-4"
+      />
       <RadioGroup
         layout="stack"
         legend={WORLD.mapImage}
@@ -153,17 +160,19 @@ export function CreateMapForm({
       />
       {source === "existing" ? (
         <>
-          <label>
-            {WORLD.mapImage}
-            <select value={imageId} onChange={(e) => setImageId(e.target.value)} required>
-              <option value="">{WORLD.chooseMapImage}</option>
-              {images.map((img) => (
-                <option key={img.id} value={img.id}>
-                  {img.label}
-                </option>
-              ))}
-            </select>
-          </label>
+          <Select
+            label={WORLD.mapImage}
+            value={imageId}
+            onChange={(e) => setImageId(e.target.value)}
+            required
+          >
+            <option value="">{WORLD.chooseMapImage}</option>
+            {images.map((img) => (
+              <option key={img.id} value={img.id}>
+                {img.label}
+              </option>
+            ))}
+          </Select>
           <p className="small muted">{WORLD.mapExistingImageStays}</p>
         </>
       ) : (
@@ -192,24 +201,22 @@ export function CreateMapForm({
           <p className="small muted">{WORLD.mapReferenceStoresImage}</p>
           {hostMode === "existing" ? (
             <>
-              <label>
-                {WORLD.mapHostRecord}
-                <select
-                  value={hostId}
-                  onChange={(e) => {
-                    setHostId(e.target.value);
-                    setConfirmProtected(false);
-                  }}
-                  required
-                >
-                  <option value="">{WORLD.chooseMapHost}</option>
-                  {hosts.map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.title}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <Select
+                label={WORLD.mapHostRecord}
+                value={hostId}
+                onChange={(e) => {
+                  setHostId(e.target.value);
+                  setConfirmProtected(false);
+                }}
+                required
+              >
+                <option value="">{WORLD.chooseMapHost}</option>
+                {hosts.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.title}
+                  </option>
+                ))}
+              </Select>
               {host?.isProtected ? (
                 <Checkbox
                   checked={confirmProtected}
@@ -231,7 +238,12 @@ export function CreateMapForm({
               </label>
               <RadioGroup
                 layout="row"
-                legend={REFERENCE_FORM.documentType}
+                legend={
+                  <>
+                    {REFERENCE_FORM.documentType}
+                    <HelpPopover label={REFERENCE_FORM.documentTypeExplain}>{REFERENCE_FORM.documentTypeHelp}</HelpPopover>
+                  </>
+                }
                 name="map-reference-type"
                 value={referenceType}
                 onValueChange={(value) => {
@@ -239,21 +251,24 @@ export function CreateMapForm({
                 }}
                 options={MAP_REFERENCE_TYPES.map((type) => ({ value: type, label: TYPE_LABEL[type] }))}
               />
-              <label>
-                {REFERENCE_FORM.canonStatus}
-                <select
-                  value={authorityStatus}
-                  onChange={(e) => {
-                    if (isAuthorityStatus(e.target.value)) setAuthorityStatus(e.target.value);
-                  }}
-                >
-                  {AUTHORITY_STATUSES.map((status) => (
-                    <option key={status} value={status}>
-                      {status.charAt(0).toUpperCase() + status.slice(1)}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <Select
+                label={
+                  <>
+                    {REFERENCE_FORM.canonStatus}
+                    <HelpPopover label={REFERENCE_FORM.canonExplain}>{REFERENCE_FORM.canonHelp}</HelpPopover>
+                  </>
+                }
+                value={authorityStatus}
+                onChange={(e) => {
+                  if (isAuthorityStatus(e.target.value)) setAuthorityStatus(e.target.value);
+                }}
+              >
+                {AUTHORITY_STATUSES.map((status) => (
+                  <option key={status} value={status}>
+                    {status.charAt(0).toUpperCase() + status.slice(1)}
+                  </option>
+                ))}
+              </Select>
               <p className="small muted">{REFERENCE_FORM.draftHint}</p>
             </>
           )}

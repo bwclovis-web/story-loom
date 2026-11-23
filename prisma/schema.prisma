@@ -93,6 +93,7 @@ model Project {
   worldKindTemplates       WorldKindTemplate[]
   worldCategoryDefinitions WorldCategoryDefinition[]
   continuitySuppressions   ContinuitySuppression[]
+  worldContradictionChecks WorldContradictionCheck[]
   smartCollections         SmartCollection[]
   assistantPromptPresets   AssistantPromptPreset[]
 
@@ -139,7 +140,7 @@ model ContinuitySuppression {
   project   Project  @relation(fields: [projectId], references: [id])
   /// Stable ContinuityLedgerItem.key
   issueKey  String
-  /// intentional | ignored
+  /// intentional | resolved | ignored
   reason    String
   note      String   @default("")
   actor     String   @default("author")
@@ -147,6 +148,44 @@ model ContinuitySuppression {
 
   @@unique([projectId, issueKey])
   @@index([projectId])
+}
+
+/// Passage vs approved world-fact contradiction from an explicit author review (W7B).
+/// Not revisioned content. needsRecheck is set when manuscript or world source advances.
+model WorldContradictionCheck {
+  id                   String   @id
+  projectId            String
+  project              Project  @relation(fields: [projectId], references: [id])
+  /// Stable ContinuityLedger issueKey (survives rechecks).
+  issueKey             String
+  /// Revision-pinned dedupe key for the same review inputs.
+  dedupeKey            String
+  manuscriptRecordId   String
+  manuscriptRevision   Int
+  passageStart         Int
+  passageEnd           Int
+  passageExcerpt       String
+  passageHash          String
+  worldRecordId        String
+  worldRecordRevision  Int
+  fieldPath            String
+  changeId             String
+  storyPointJson       String   @default("{}")
+  storyPointLabel      String   @default("")
+  /// conflict | ambiguous
+  verdict              String
+  /// narration | dialogue | belief | uncertainty
+  stance               String
+  explanation          String
+  worldFactFormatted   String
+  needsRecheck         Boolean  @default(false)
+  checkedAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  @@unique([projectId, dedupeKey])
+  @@index([projectId, manuscriptRecordId])
+  @@index([worldRecordId, needsRecheck])
+  @@index([projectId, issueKey])
 }
 
 /// A Zero draft or Author manuscript tree within a project. Not revisioned content.

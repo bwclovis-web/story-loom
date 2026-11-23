@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useId, useMemo, useState } from "react";
 import { profileGraphNode } from "@/components/world/ProfileGraphNode";
+import { TaxonomyFilterSelects } from "@/components/world/TaxonomyFilterSelects";
 import { Banner } from "@/components/ui/Banner";
 import { Button } from "@/components/ui/Atoms/Button";
 import { RadioGroup } from "@/components/ui/RadioGroup";
@@ -14,6 +15,12 @@ import { RECORD_TYPES, RECORD_TYPE_LABELS } from "@/domain/recordTypes";
 import type { ManuscriptDraftView } from "@/server/services/draftService";
 import type { ProjectAllConnectionsGraph, ProjectRelationshipGraph } from "@/server/services/relationshipGraphService";
 import { RELATIONSHIP, WORLD } from "@/ui/labels";
+import type { CustomTaxonomyCategoryOption } from "@/world/customCategories";
+import {
+  emptyTaxonomyFilter,
+  taxonomyFilterActive,
+  type TaxonomyFilterValue,
+} from "@/world/taxonomyDiscovery";
 import {
   ALL_CONNECTION_KIND_OPTIONS,
   buildFamilyForest,
@@ -22,11 +29,13 @@ import {
   DEFAULT_ALL_CONNECTION_KINDS,
   DEFAULT_GRAPH_KINDS,
   filterConnectionGraph,
+  filterGraphByTaxonomy,
   GRAPH_KIND_OPTIONS,
   edgeKindKey,
   layoutRadial,
   subgraphByHops,
   type RelationshipEdge,
+  type RelationshipNeighborMode,
   type RelationshipNode,
   type RelationshipTreeNode,
 } from "@/world/relationshipGraph";
@@ -40,6 +49,8 @@ export function RelationshipExplorer({
   graph,
   allConnections,
   drafts,
+  customCategories = [],
+  seriesNamed = false,
   initialFocus,
   initialSteps,
   initialConnectionMode,
@@ -48,6 +59,8 @@ export function RelationshipExplorer({
   graph: ProjectRelationshipGraph;
   allConnections: ProjectAllConnectionsGraph;
   drafts: ManuscriptDraftView[];
+  customCategories?: readonly CustomTaxonomyCategoryOption[];
+  seriesNamed?: boolean;
   initialFocus: string;
   initialSteps: number;
   initialConnectionMode: ConnectionMode;
@@ -65,12 +78,16 @@ export function RelationshipExplorer({
   const [authorityFilter, setAuthorityFilter] = useState("");
   const [draftFilter, setDraftFilter] = useState<string | null>(null);
   const [orphansOnly, setOrphansOnly] = useState(false);
+  const [taxonomyFilter, setTaxonomyFilter] = useState<TaxonomyFilterValue>(emptyTaxonomyFilter());
+  const [neighborMode, setNeighborMode] = useState<RelationshipNeighborMode>("with_neighbors");
   const controlsId = useId();
   const inspectorId = useId();
   const modeGroupId = useId();
+  const taxonomyId = useId();
 
   const allowedKinds = kinds;
   const kindOptions = connectionMode === "all" ? ALL_CONNECTION_KIND_OPTIONS : GRAPH_KIND_OPTIONS;
+  const categoryFilterOn = taxonomyFilterActive(taxonomyFilter);
 
   const filteredAll = useMemo(() => {
     if (connectionMode !== "all") return null;
@@ -92,12 +109,22 @@ export function RelationshipExplorer({
   ]);
 
   const baseGraph = connectionMode === "all" && filteredAll ? filteredAll : { nodes: graph.nodes, edges: graph.edges };
+  const taxonomyScoped = useMemo(
+    () => filterGraphByTaxonomy(baseGraph.nodes, baseGraph.edges, taxonomyFilter, neighborMode, allowedKinds),
+    [allowedKinds, baseGraph, neighborMode, taxonomyFilter],
+  );
   const subgraph = useMemo(
     () =>
       orphansOnly && connectionMode === "all"
         ? { nodes: filteredAll?.nodes ?? [], edges: [] }
-        : subgraphByHops(baseGraph.nodes, baseGraph.edges, focusId || null, steps, allowedKinds),
-    [allowedKinds, baseGraph, connectionMode, filteredAll, focusId, orphansOnly, steps],
+        : subgraphByHops(
+            taxonomyScoped.nodes,
+            taxonomyScoped.edges,
+            focusId || null,
+            steps,
+            allowedKinds,
+          ),
+    [allowedKinds, connectionMode, filteredAll, focusId, orphansOnly, steps, taxonomyScoped],
   );
   const positions = useMemo(
     () => (presentation === "diagram" && view === "graph" ? layoutRadial(subgraph.nodes, subgraph.edges, focusId || null, 720, 420) : new Map()),
@@ -291,6 +318,50 @@ export function RelationshipExplorer({
           ))}
         </SegmentedControl>
       ) : null}
+
+      <div className="relationship-taxonomy-filters stack" style={{ gap: "0.5rem" }}>
+        <h3 className="small" style={{ margin: 0 }}>
+          {WORLD.relationshipTaxonomyFilter}
+        </h3>
+        <TaxonomyFilterSelects
+          idPrefix={taxonomyId}
+          value={taxonomyFilter}
+          onChange={setTaxonomyFilter}
+          customCategories={customCategories}
+          showClear
+        />
+        {categoryFilterOn ? (
+          <>
+            <SegmentedControl label={WORLD.relationshipNeighborMode} size="sm">
+              <SegmentedOption
+                selected={neighborMode === "matching_only"}
+                onClick={() => setNeighborMode("matching_only")}
+              >
+                {WORLD.relationshipMatchingOnly}
+              </SegmentedOption>
+              <SegmentedOption
+                selected={neighborMode === "with_neighbors"}
+                onClick={() => setNeighborMode("with_neighbors")}
+              >
+                {WORLD.relationshipWithNeighbors}
+              </SegmentedOption>
+            </SegmentedControl>
+            <p className="small muted">{WORLD.relationshipNeighborHint}</p>
+            <p className="small" role="status">
+              {neighborMode === "with_neighbors"
+                ? `${taxonomyScoped.matchingIds.size} matching · ${taxonomyScoped.neighborIds.size} neighbors`
+                : `${taxonomyScoped.matchingIds.size} matching`}
+            </p>
+          </>
+        ) : null}
+        <details>
+          <summary className="small">{WORLD.relationshipEligibilityNote}</summary>
+          <p className="small muted">{WORLD.relationshipEligibilitySeries}</p>
+          {!seriesNamed ? (
+            <p className="small muted">This book has no named series, so series-scoped links cannot be created here.</p>
+          ) : null}
+        </details>
+      </div>
       </div>
 
       {(connectionMode === "explicit" ? graph.edges.length === 0 : allConnections.edges.length === 0) ? (

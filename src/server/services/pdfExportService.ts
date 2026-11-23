@@ -138,80 +138,132 @@ async function loadImages(db: DbOrTx, projectId: string, recordIds: string[]) {
  * then by title. Manuscript chapters and scenes in `recordIds` are skipped,
  * as are IDs from other projects. Throws when nothing remains.
  */
-export async function buildReferencesPdf(db: DbOrTx, projectId: string, recordIds: readonly string[], now = new Date()): Promise<PdfFile> {
-  const project = await projectTitle(db, projectId);
-  const rows = await db.record.findMany({ where: { projectId, id: { in: [...new Set(recordIds)] }, trashedAt: null } });
-  const records = rows
-    .map(toRecordView)
-    .filter((r) => !isManuscriptType(r.type))
-    .sort((a, b) => RECORD_TYPES.indexOf(a.type) - RECORD_TYPES.indexOf(b.type) || a.title.localeCompare(b.title) || a.id.localeCompare(b.id));
-  if (!records.length) throw new NotFoundError("No reference documents were selected.");
+export async function buildReferencesPdf(
+  db: DbOrTx,
+  projectId: string,
+  recordIdsOrSelection: readonly string[] | import("./worldBibleModel").WorldBibleSelection,
+  policy: import("./worldBibleModel").WorldBiblePolicy = { mode: "full" },
+  now = new Date(),
+): Promise<PdfFile> {
+  const { buildWorldBibleExportModel } = await import("./worldBibleModel");
+  const {
+    renderWorldBibleGroupHeading,
+    renderWorldBibleProfilePlainLines,
+    worldBibleLegacyBodyNote,
+  } = await import("./worldBibleProfileRender");
 
-  const images = await loadImages(
-    db,
-    projectId,
-    records.map((r) => r.id),
+  const selection = Array.isArray(recordIdsOrSelection)
+    ? { recordIds: [...recordIdsOrSelection] }
+    : recordIdsOrSelection;
+  const model = await buildWorldBibleExportModel(db, projectId, selection, policy);
+  const project = model.projectTitle;
+
+  const homeIds = [...new Set(model.entries.map((e) => e.record.projectId))];
+  const imageMaps = await Promise.all(
+    homeIds.map((homeId) =>
+      loadImages(
+        db,
+        homeId,
+        model.entries.filter((e) => e.record.projectId === homeId).map((e) => e.record.id),
+      ),
+    ),
   );
-  const single = records.length === 1 ? records[0] : null;
+  const images = new Map<string, Map<string, PdfImage>>();
+  for (const map of imageMaps) {
+    for (const [id, value] of map) images.set(id, value);
+  }
+
+  const single = model.entries.length === 1 ? model.entries[0]!.record : null;
   const title = single ? `${single.title} (${project})` : `${project}: references`;
   const doc = createPdf({ title, subject: "Reference documents exported from Story Loom" });
   const generated = `Saved versions as of ${now.toLocaleString("en-GB", { dateStyle: "long", timeStyle: "short" })}`;
   const ctx: RenderContext = { images: EMPTY_IMAGES, embedded: 0 };
 
   if (!single) {
-    const contents = RECORD_TYPES.flatMap((type) => {
-      const items = records.filter((r) => r.type === type).map((r) => r.title);
-      return items.length ? [{ heading: RECORD_TYPE_LABELS[type], items }] : [];
-    });
-    drawTitlePage(doc, project, `References (${records.length} documents)`, generated, contents);
+    const contents = model.groups.map((group) => ({
+      heading: renderWorldBibleGroupHeading(group),
+      items: [
+        ...group.entries.map((e) => e.record.title),
+        ...group.seeAlso.map((s) => `See also: ${s.title}`),
+      ],
+    }));
+    drawTitlePage(doc, project, `References (${model.entries.length} documents)`, generated, contents);
+    if (model.spoilerNote) {
+      const x = contentLeft(doc);
+      const width = contentWidth(doc);
+      drawMeta(doc, model.spoilerNote, x, width, 8);
+    }
   }
 
-  records.forEach((record, index) => {
-    if (!single || index > 0) doc.addPage();
-    const x = contentLeft(doc);
-    const width = contentWidth(doc);
-    doc.outline.addItem(record.title);
-    doc.font("sansBold").fontSize(20).fillColor(COLORS.text).text(record.title, x, doc.y, { width });
-    doc.y += 4;
-    const facts = [
-      RECORD_TYPE_LABELS[record.type],
-      statusText(record.authorityStatus),
-      `Revision ${record.currentRevision}`,
-      record.protected ? "Protected" : "Not protected",
-    ];
-    drawMeta(doc, facts.join("  ·  "), x, width, 2);
-    if (single) drawMeta(doc, `${project}. ${generated}.`, x, width, 2);
-    drawRule(doc, x, width);
+  let first = true;
+  for (const group of model.groups) {
+    for (const entry of group.entries) {
+      if (!single || !first) doc.addPage();
+      first = false;
+      const x = contentLeft(doc);
+      const width = contentWidth(doc);
+      doc.outline.addItem(entry.record.title);
+      doc.font("sansBold").fontSize(20).fillColor(COLORS.text).text(entry.record.title, x, doc.y, { width });
+      doc.y += 4;
+      const facts = [
+        entry.categoryLabel + (entry.subcategoryLabel ? ` · ${entry.subcategoryLabel}` : ""),
+        statusText(entry.record.authorityStatus),
+        `Revision ${entry.record.currentRevision}`,
+        entry.record.protected ? "Protected" : "Not protected",
+        ...(entry.homeLabel ? [`Home: ${entry.homeLabel}`] : []),
+      ];
+      drawMeta(doc, facts.join("  ·  "), x, width, 2);
+      if (single) drawMeta(doc, `${project}. ${generated}.`, x, width, 2);
+      if (model.spoilerNote && single) drawMeta(doc, model.spoilerNote, x, width, 2);
+      drawRule(doc, x, width);
 
-    ctx.images = images.get(record.id) ?? EMPTY_IMAGES;
-    const parsed = parseMarkdown(record.body);
-    if (parsed.blocks.length) drawBlocks(doc, parsed.blocks, ctx, x, width);
-    else drawMeta(doc, "This document has no text.", x, width, 8);
+      const profileLines = renderWorldBibleProfilePlainLines(entry);
+      if (profileLines.length) {
+        drawHeading(doc, "Profile", 3, x, width);
+        drawKeyValueTable(
+          doc,
+          profileLines.map((line) => {
+            const idx = line.indexOf(": ");
+            return idx >= 0 ? [line.slice(0, idx), line.slice(idx + 2)] : [line, ""];
+          }),
+          x,
+          width,
+        );
+      }
 
-    const fields = Object.entries(record.fields);
-    if (fields.length) {
-      drawHeading(doc, "Structured fields", 3, x, width);
-      drawKeyValueTable(
-        doc,
-        fields.map(([key, value]) => [key, fieldText(value)]),
-        x,
-        width,
-      );
+      ctx.images = images.get(entry.record.id) ?? EMPTY_IMAGES;
+      const body = worldBibleLegacyBodyNote(entry.body, model.mode);
+      const parsed = parseMarkdown(body);
+      if (parsed.blocks.length) drawBlocks(doc, parsed.blocks, ctx, x, width);
+      else if (!profileLines.length) drawMeta(doc, "This document has no text.", x, width, 8);
+
+      if (entry.characterSlice?.trim()) {
+        drawHeading(doc, "Character", 3, x, width);
+        drawMeta(doc, entry.characterSlice.trim(), x, width, 8);
+      }
+
+      const inText = new Set(imageNamesInText(entry.body));
+      const others = [...ctx.images.values()].filter((img) => !inText.has(img.name));
+      if (others.length) {
+        drawHeading(doc, "Images", 3, x, width);
+        for (const img of others) drawImage(doc, ctx, img.name, "", x, width);
+      }
     }
-
-    const inText = new Set(imageNamesInText(record.body));
-    const others = [...ctx.images.values()].filter((img) => !inText.has(img.name));
-    if (others.length) {
-      drawHeading(doc, "Images", 3, x, width);
-      for (const img of others) drawImage(doc, ctx, img.name, "", x, width);
-    }
-  });
+  }
 
   drawFooters(doc, title);
   const pageCount = doc.bufferedPageRange().count;
   const bytes = await pdfToBuffer(doc);
-  const name = single ? `${exportSlug(project)}-${exportSlug(single.title)}` : `${exportSlug(project)}-references`;
-  return { filename: `${name}-${exportDateStamp(now)}.pdf`, bytes, pageCount, documentCount: records.length, imagesEmbedded: ctx.embedded };
+  const name = single
+    ? `${exportSlug(project)}-${exportSlug(single.title)}`
+    : `${exportSlug(project)}-references`;
+  return {
+    filename: `${name}-${exportDateStamp(now)}.pdf`,
+    bytes,
+    pageCount,
+    documentCount: model.entries.length,
+    imagesEmbedded: ctx.embedded,
+  };
 }
 
 /**

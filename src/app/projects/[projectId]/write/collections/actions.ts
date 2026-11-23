@@ -28,6 +28,7 @@ function failure(error: unknown): CollectionActionResult {
 function revalidateCollections(projectId: string) {
   revalidatePath(`/projects/${projectId}/write/collections`);
   revalidatePath(`/projects/${projectId}/write`);
+  revalidatePath(`/projects/${projectId}/world`);
   revalidatePath(`/projects/${projectId}`, "layout");
 }
 

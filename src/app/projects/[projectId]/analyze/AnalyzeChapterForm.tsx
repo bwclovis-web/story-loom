@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { ANALYSIS_KINDS, type AnalysisKind } from "@/analyze/chapterAnalysisOutput";
 import { CATEGORY_BOUNDARY } from "@/analyze/chapterAnalysisReview";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui/Atoms/Button";
 import { Checkbox } from "@/components/ui/Atoms/Checkbox";
 import { ANALYZE } from "@/ui/labels";
 import { previewChapterAnalysisAction } from "./actions";

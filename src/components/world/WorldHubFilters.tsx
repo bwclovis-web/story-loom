@@ -11,16 +11,20 @@ export function WorldHubFilters({
   projectId,
   query,
   tags,
+  collectionId = null,
 }: {
   projectId: string;
   query: WorldHubQuery;
   tags: readonly string[];
+  /** When set, filter changes keep the open World collection for Update. */
+  collectionId?: string | null;
 }) {
   const category = query.category ? getTaxonomyCategory(query.category) : null;
   const withBase = (patch: Partial<WorldHubQuery>) =>
     worldHubHref(projectId, {
       ...query,
       list: true,
+      collection: collectionId,
       ...patch,
     });
 
@@ -28,6 +32,7 @@ export function WorldHubFilters({
     <form className="world-hub-filters panel" method="get" action={worldHref(projectId)}>
       <input type="hidden" name="list" value="1" />
       {query.q ? <input type="hidden" name="q" value={query.q} /> : null}
+      {collectionId ? <input type="hidden" name="collection" value={collectionId} /> : null}
       <div className="world-hub-filter-grid">
         <label>
           {WORLD.filterCategory}

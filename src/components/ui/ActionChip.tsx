@@ -1,5 +1,5 @@
 import type { ButtonHTMLAttributes, ReactNode } from "react";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui/Atoms/Button";
 import { cn } from "@/ui/cn";
 
 /** Compact pill action — thin wrapper over `Button` chip + outline. */

@@ -1,23 +1,26 @@
 import "server-only";
-import { Document, Packer, Paragraph, TextRun } from "docx";
+import { Bookmark, Document, HeadingLevel, Packer, Paragraph, TextRun } from "docx";
 import JSZip from "jszip";
-import { toRecordView } from "@/domain/records";
-import { isManuscriptType, isRecordType, RECORD_TYPES } from "@/domain/recordTypes";
 import type { DbOrTx } from "../db";
-import { listEstablishedFactsForSubject, type EstablishedFactView } from "./establishedFactService";
-import { imageDataByIds, imagesByRecord } from "./imageService";
-import { listAvailableWorldKindTemplates } from "./worldKindTemplateService";
-import { NotFoundError } from "./errors";
-import type { RecordImageView } from "./imageService";
+import { imageDataByIds, imagesByRecord, type RecordImageView } from "./imageService";
 import { bodyToEpubSectionHtml, escapeHtml } from "./manuscriptExportMarkdown";
 import { exportDateStamp, exportSlug } from "./manuscriptExportModel";
-import { LIVE_PROJECT } from "./trashFilters";
-import { manuscriptIdsInBookOrder } from "@/ui/manuscriptTree";
-import { PDF } from "@/ui/labels";
 import {
-  buildWikiIndexHtml,
-  buildWikiLinkIndex,
-  buildWikiPageHtml,
+  buildWorldBibleExportModel,
+  type WorldBibleEntry,
+  type WorldBibleExportModel,
+  type WorldBiblePolicy,
+  type WorldBibleSelection,
+} from "./worldBibleModel";
+import {
+  renderWorldBibleGroupHeading,
+  renderWorldBibleIndexMarkdown,
+  renderWorldBibleProfileMarkdown,
+  renderWorldBibleProfilePlainLines,
+  worldBibleLegacyBodyNote,
+} from "./worldBibleProfileRender";
+import {
+  bodyToWikiSectionHtml,
   isEmbeddableWikiImage,
   WIKI_SCRIPT,
   WIKI_STYLES,
@@ -33,179 +36,251 @@ export interface WorldBibleFile {
   contentType: string;
 }
 
-async function selectedReferences(db: DbOrTx, projectId: string, recordIds: readonly string[]) {
-  const project = await db.project.findFirst({ where: { id: projectId, ...LIVE_PROJECT }, select: { title: true } });
-  if (!project) throw new NotFoundError(`Project ${projectId} not found`);
-  const { resolveAvailableReference } = await import("./seriesBibleService");
-  const uniqueIds = [...new Set(recordIds)];
-  const resolved = await Promise.all(uniqueIds.map((id) => resolveAvailableReference(db, projectId, id)));
-  const records = resolved
-    .flatMap((entry) => (entry ? [entry.record] : []))
-    .filter((record) => !isManuscriptType(record.type))
-    .sort((a, b) => RECORD_TYPES.indexOf(a.type) - RECORD_TYPES.indexOf(b.type) || a.title.localeCompare(b.title) || a.id.localeCompare(b.id));
-  if (!records.length) throw new NotFoundError("No reference documents were selected.");
-  return { projectTitle: project.title, records };
-}
-
+/** @deprecated Prefer WorldBiblePolicy; kept for older wiki callers. */
 export interface WikiSpoilerCeiling {
-  /** Drop non-approved records from the export (among the ids the author selected). */
   approvedOnly?: boolean;
-  /** Manuscript chapter or scene id: established facts need evidence at or before this point in book order. */
   spoilerBeforeRecordId?: string | null;
 }
 
-function filterFactsBySpoiler(
-  facts: readonly EstablishedFactView[],
-  bookRank: Map<string, number>,
-  ceilingRank: number,
-): EstablishedFactView[] {
-  return facts.filter((fact) => {
-    const manuscriptEvidence = fact.evidence.filter((e) => {
-      const label = e.sourceTypeLabel;
-      return label === "Manuscript chapter" || label === "Manuscript scene";
-    });
-    if (!manuscriptEvidence.length) return false;
-    return manuscriptEvidence.some((e) => (bookRank.get(e.sourceRecordId) ?? Number.MAX_SAFE_INTEGER) <= ceilingRank);
+function selectionFromRecordIds(recordIds: readonly string[]): WorldBibleSelection {
+  return { recordIds: [...recordIds] };
+}
+
+function policyFromCeiling(ceiling: WikiSpoilerCeiling = {}): WorldBiblePolicy {
+  if (ceiling.spoilerBeforeRecordId) {
+    return {
+      mode: "point",
+      storyPointRecordId: ceiling.spoilerBeforeRecordId,
+      approvedOnly: ceiling.approvedOnly ?? true,
+    };
+  }
+  return {
+    mode: "full",
+    approvedOnly: ceiling.approvedOnly ?? false,
+  };
+}
+
+function stripUnresolvedWikiLinks(body: string, linkTerms: Map<string, string>): string {
+  return body.replace(/\[\[([^\]]+)\]\]/g, (whole, inner: string) => {
+    const raw = String(inner).trim();
+    const pipe = raw.indexOf("|");
+    const target = (pipe >= 0 ? raw.slice(0, pipe) : raw).trim();
+    const label = (pipe >= 0 ? raw.slice(pipe + 1) : raw).trim() || target;
+    if (linkTerms.has(target.toLocaleLowerCase())) return whole;
+    return label;
   });
 }
 
-async function bookRankForProject(db: DbOrTx, projectId: string): Promise<Map<string, number>> {
-  const rows = await db.record.findMany({
-    where: { projectId, trashedAt: null, type: { in: ["manuscript_chapter", "manuscript_scene"] } },
-    select: { id: true, title: true, type: true, parentRecordId: true, position: true, createdAt: true, draftId: true },
-  });
-  const nav = rows.flatMap((row) => {
-    if (!isRecordType(row.type)) return [];
-    return [
-      {
-        id: row.id,
-        title: row.title,
-        type: row.type,
-        parentRecordId: row.parentRecordId,
-        position: row.position,
-        createdAt: row.createdAt.toISOString(),
-        draftId: row.draftId,
-      },
-    ];
-  });
-  const order = manuscriptIdsInBookOrder(nav);
-  return new Map(order.map((id, index) => [id, index]));
-}
-
-export async function buildReferencesWikiZip(
+async function loadWikiImages(
   db: DbOrTx,
-  projectId: string,
-  recordIds: readonly string[],
-  ceiling: WikiSpoilerCeiling = {},
-  now = new Date(),
-): Promise<WorldBibleFile> {
-  let { projectTitle, records } = await selectedReferences(db, projectId, recordIds);
-  const skipped = ceiling.approvedOnly ? records.filter((r) => r.authorityStatus !== "approved") : [];
-  if (ceiling.approvedOnly) records = records.filter((r) => r.authorityStatus === "approved");
-  if (!records.length) throw new NotFoundError("No reference documents remain after the spoiler ceiling.");
-
-  const homeIds = [...new Set(records.map((r) => r.projectId))];
-  const [kindTemplates, bookRank, ...imageMaps] = await Promise.all([
-    listAvailableWorldKindTemplates(db, projectId),
-    bookRankForProject(db, projectId),
-    ...homeIds.map((homeId) =>
+  model: WorldBibleExportModel,
+): Promise<{
+  imagesMeta: Map<string, RecordImageView[]>;
+  wikiImagesByRecord: Map<string, Map<string, WikiImageRef>>;
+  imageBytes: Map<string, Uint8Array>;
+}> {
+  const homeIds = [...new Set(model.entries.map((e) => e.record.projectId))];
+  const imageMaps = await Promise.all(
+    homeIds.map((homeId) =>
       imagesByRecord(
         db,
         homeId,
-        records.filter((r) => r.projectId === homeId).map((r) => r.id),
+        model.entries.filter((e) => e.record.projectId === homeId).map((e) => e.record.id),
       ),
     ),
-  ]);
+  );
   const imagesMeta = new Map<string, RecordImageView[]>();
   for (const map of imageMaps) {
     for (const [id, value] of map) imagesMeta.set(id, value);
   }
 
-  const ceilingRank =
-    ceiling.spoilerBeforeRecordId && bookRank.has(ceiling.spoilerBeforeRecordId)
-      ? bookRank.get(ceiling.spoilerBeforeRecordId)!
-      : null;
-
-  const factsByRecord = new Map<string, EstablishedFactView[]>();
-  await Promise.all(
-    records.map(async (record) => {
-      const all = await listEstablishedFactsForSubject(db, projectId, record.id);
-      const filtered =
-        ceilingRank === null ? all : filterFactsBySpoiler(all, bookRank, ceilingRank);
-      factsByRecord.set(record.id, filtered);
-    }),
-  );
-
-  const embeddableIds = [...imagesMeta.values()]
-    .flat()
-    .filter((img) => isEmbeddableWikiImage(img.mimeType))
-    .map((img) => img.id);
-  const imageBytes = new Map<string, Uint8Array>();
-  for (const homeId of homeIds) {
-    const homeEmbeds = embeddableIds.filter((id) =>
-      [...imagesMeta.values()].flat().some((img) => img.id === id && records.some((r) => r.projectId === homeId && r.id === img.recordId)),
-    );
-    const chunk = await imageDataByIds(db, homeId, homeEmbeds);
-    for (const [id, data] of chunk) imageBytes.set(id, data);
-  }
-
   const wikiImagesByRecord = new Map<string, Map<string, WikiImageRef>>();
   for (const [recordId, images] of imagesMeta) {
+    if (!model.allowedRecordIds.has(recordId)) continue;
     const byName = new Map<string, WikiImageRef>();
     for (const img of images) {
       if (!isEmbeddableWikiImage(img.mimeType)) continue;
-      const zipPath = wikiImageZipPath(recordId, img.name, img.mimeType);
-      byName.set(img.name, { zipPath, mimeType: img.mimeType });
+      byName.set(img.name, {
+        zipPath: wikiImageZipPath(recordId, img.name, img.mimeType),
+        mimeType: img.mimeType,
+      });
     }
     if (byName.size) wikiImagesByRecord.set(recordId, byName);
   }
 
-  const { linkTerms, pageById } = buildWikiLinkIndex(records);
-  const generated = `Exported ${now.toLocaleString("en-GB", { dateStyle: "long", timeStyle: "short" })}`;
-  const spoilerParts: string[] = [];
-  if (ceiling.approvedOnly) {
-    spoilerParts.push(
-      skipped.length
-        ? `Only approved references are included; ${skipped.length} selected document${skipped.length === 1 ? "" : "s"} with another canon status were omitted.`
-        : "Only approved references are included.",
-    );
-  }
-  if (ceilingRank !== null && ceiling.spoilerBeforeRecordId) {
-    const anchor = await db.record.findFirst({
-      where: { id: ceiling.spoilerBeforeRecordId, projectId },
-      select: { title: true },
+  const embeddableIds = [...wikiImagesByRecord.values()]
+    .flatMap((m) => [...m.keys()])
+    .flatMap((name) => {
+      for (const [recordId, images] of imagesMeta) {
+        const img = images.find((i) => i.name === name);
+        if (img && isEmbeddableWikiImage(img.mimeType)) return [img.id];
+      }
+      return [];
     });
-    spoilerParts.push(
-      `Established facts in infoboxes are limited to those with manuscript evidence at or before “${anchor?.title ?? ceiling.spoilerBeforeRecordId}” in book order. Facts without manuscript evidence, body text, relationships, and map pins are not spoiler-filtered.`,
+  // Resolve bytes by known image ids from meta.
+  const allIds = [...imagesMeta.values()]
+    .flat()
+    .filter((img) => isEmbeddableWikiImage(img.mimeType) && model.allowedRecordIds.has(img.recordId))
+    .map((img) => img.id);
+  void embeddableIds;
+  const imageBytes = new Map<string, Uint8Array>();
+  for (const homeId of homeIds) {
+    const homeIdsForFetch = allIds.filter((id) =>
+      [...imagesMeta.values()].flat().some((img) => img.id === id && img.recordId && model.entries.some((e) => e.record.projectId === homeId && e.record.id === img.recordId)),
     );
-  } else if (ceiling.spoilerBeforeRecordId) {
-    spoilerParts.push(PDF.wikiSpoilerLimitUnknownChapter);
+    const chunk = await imageDataByIds(db, homeId, homeIdsForFetch);
+    for (const [id, data] of chunk) imageBytes.set(id, data);
   }
-  const spoilerNote = spoilerParts.length ? spoilerParts.join(" ") : null;
 
+  return { imagesMeta, wikiImagesByRecord, imageBytes };
+}
+
+function wikiProfileInfobox(entry: WorldBibleEntry, pageById: Map<string, string>): string {
+  if (!entry.fields.length && !entry.relations.length && !entry.facts.length) return "";
+  const rows = [
+    ...entry.fields.map((field) => {
+      let value = escapeHtml(field.value);
+      if (field.hrefRecordId) {
+        const page = pageById.get(field.hrefRecordId);
+        if (page) value = `<a class="wiki-link" href="pages/${escapeHtml(page)}.html">${value}</a>`;
+      }
+      return `<dt>${escapeHtml(field.label)}</dt><dd>${value}</dd>`;
+    }),
+    ...entry.relations.map((rel) => {
+      const page = pageById.get(rel.targetRecordId);
+      const value = page
+        ? `<a class="wiki-link" href="pages/${escapeHtml(page)}.html">${escapeHtml(rel.targetTitle)}</a>`
+        : escapeHtml(rel.targetTitle);
+      return `<dt>${escapeHtml(rel.label)}</dt><dd>${value}</dd>`;
+    }),
+  ].join("");
+  const facts = entry.facts.length
+    ? `<h3 class="wiki-infobox-sub">Established facts</h3><ul class="wiki-facts">${entry.facts
+        .map((f) => `<li>${escapeHtml(f)}</li>`)
+        .join("")}</ul>`
+    : "";
+  return `<aside class="wiki-infobox" aria-label="At a glance"><h2 class="wiki-infobox-title">At a glance</h2><dl class="wiki-infobox-grid">${rows}</dl>${facts}</aside>`;
+}
+
+function buildWikiPageFromEntry(entry: WorldBibleEntry, ctx: WikiExportContext, model: WorldBibleExportModel): string {
+  const bodySource = stripUnresolvedWikiLinks(
+    worldBibleLegacyBodyNote(entry.body, model.mode),
+    ctx.linkTerms,
+  );
+  const character = entry.characterSlice?.trim()
+    ? `<h2>Character</h2><pre class="character-slice">${escapeHtml(entry.characterSlice.trim())}</pre>`
+    : "";
+  const body = bodyToWikiSectionHtml(bodySource, entry.record.id, ctx);
+  const status =
+    entry.record.authorityStatus === "approved"
+      ? "Approved (canon)"
+      : `${entry.record.authorityStatus} (not canon)`;
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>${escapeHtml(entry.record.title)} — ${escapeHtml(ctx.projectTitle)}</title>
+  <link rel="stylesheet" href="../assets/wiki.css"/>
+</head>
+<body class="wiki-page">
+  <header class="wiki-top">
+    <a class="wiki-home" href="../index.html">${escapeHtml(ctx.projectTitle)}</a>
+    <p class="wiki-meta">${escapeHtml(entry.categoryLabel)}${
+      entry.subcategoryLabel ? ` · ${escapeHtml(entry.subcategoryLabel)}` : ""
+    } · ${escapeHtml(status)}${entry.homeLabel ? ` · Home: ${escapeHtml(entry.homeLabel)}` : ""}</p>
+  </header>
+  <main class="wiki-main">
+    <h1>${escapeHtml(entry.record.title)}</h1>
+    ${wikiProfileInfobox(entry, ctx.pageById)}
+    ${character}
+    <article class="wiki-body">${body || `<p class="wiki-empty">This document has no text.</p>`}</article>
+  </main>
+  <footer class="wiki-foot"><p class="wiki-generated">${escapeHtml(ctx.generated)}</p></footer>
+</body>
+</html>`;
+}
+
+function buildWikiIndexFromModel(model: WorldBibleExportModel, ctx: WikiExportContext): string {
+  const groups = model.groups
+    .map((group) => {
+      const heading = renderWorldBibleGroupHeading(group);
+      const items = [
+        ...group.entries.map((entry) => {
+          const search = `${entry.record.title} ${entry.categoryLabel}`.toLocaleLowerCase();
+          return `<li data-search="${escapeHtml(search)}"><a href="pages/${escapeHtml(entry.pageId)}.html">${escapeHtml(entry.record.title)}</a></li>`;
+        }),
+        ...group.seeAlso.map((see) => {
+          const search = `see ${see.title}`.toLocaleLowerCase();
+          return `<li data-search="${escapeHtml(search)}" class="wiki-see">See also: <a href="pages/${escapeHtml(see.pageId)}.html">${escapeHtml(see.title)}</a></li>`;
+        }),
+      ].join("\n");
+      return `<section class="wiki-group"><h2>${escapeHtml(heading)}</h2><ul class="wiki-index">${items}</ul></section>`;
+    })
+    .join("\n");
+  const note = ctx.spoilerNote
+    ? `<aside class="wiki-ceiling" role="note"><h2>Spoiler ceiling</h2><p>${escapeHtml(ctx.spoilerNote)}</p></aside>`
+    : "";
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>${escapeHtml(ctx.projectTitle)} — reference wiki</title>
+  <link rel="stylesheet" href="assets/wiki.css"/>
+</head>
+<body class="wiki-index-page">
+  <header class="wiki-top">
+    <h1>${escapeHtml(ctx.projectTitle)}</h1>
+    <p class="wiki-meta">Reference wiki · ${model.entries.length} documents</p>
+    <label class="wiki-filter">Filter <input type="search" id="wiki-filter" placeholder="Search titles…"/></label>
+  </header>
+  ${note}
+  <main class="wiki-main">${groups}</main>
+  <footer class="wiki-foot"><p class="wiki-generated">${escapeHtml(ctx.generated)}</p></footer>
+  <script src="assets/wiki.js"></script>
+</body>
+</html>`;
+}
+
+export async function buildReferencesWikiZip(
+  db: DbOrTx,
+  projectId: string,
+  recordIdsOrSelection: readonly string[] | WorldBibleSelection,
+  ceilingOrPolicy: WikiSpoilerCeiling | WorldBiblePolicy = {},
+  now = new Date(),
+): Promise<WorldBibleFile> {
+  const selection = Array.isArray(recordIdsOrSelection)
+    ? selectionFromRecordIds(recordIdsOrSelection)
+    : recordIdsOrSelection;
+  const policy =
+    "mode" in ceilingOrPolicy
+      ? (ceilingOrPolicy as WorldBiblePolicy)
+      : policyFromCeiling(ceilingOrPolicy as WikiSpoilerCeiling);
+
+  const model = await buildWorldBibleExportModel(db, projectId, selection, policy);
+  const { imagesMeta, wikiImagesByRecord, imageBytes } = await loadWikiImages(db, model);
+  const generated = `Exported ${now.toLocaleString("en-GB", { dateStyle: "long", timeStyle: "short" })}`;
   const ctx: WikiExportContext = {
-    projectTitle,
+    projectTitle: model.projectTitle,
     generated,
-    linkTerms,
-    pageById,
+    linkTerms: model.linkTerms,
+    pageById: model.pageById,
     imagesByRecord: wikiImagesByRecord,
-    spoilerNote,
+    spoilerNote: model.spoilerNote,
   };
 
   const zip = new JSZip();
   zip.file("assets/wiki.css", WIKI_STYLES);
   zip.file("assets/wiki.js", WIKI_SCRIPT);
-  zip.file("index.html", buildWikiIndexHtml(records, ctx));
+  zip.file("index.html", buildWikiIndexFromModel(model, ctx));
 
-  for (const record of records) {
-    const html = buildWikiPageHtml(
-      { record, facts: factsByRecord.get(record.id) ?? [], kindTemplates },
-      ctx,
-    );
-    zip.file(`pages/${pageById.get(record.id)!}.html`, html);
+  for (const entry of model.entries) {
+    zip.file(`pages/${entry.pageId}.html`, buildWikiPageFromEntry(entry, ctx, model));
   }
 
   for (const [recordId, images] of imagesMeta) {
+    if (!model.allowedRecordIds.has(recordId)) continue;
     for (const img of images) {
       if (!isEmbeddableWikiImage(img.mimeType)) continue;
       const bytes = imageBytes.get(img.id);
@@ -216,18 +291,18 @@ export async function buildReferencesWikiZip(
     }
   }
 
-  if (spoilerNote) {
+  if (model.spoilerNote) {
     zip.file(
       "SPOILER-CEILING.txt",
-      `${spoilerNote}\n\nThis static wiki does not run Story Loom continuity rules. Treat it as a read-only snapshot.`,
+      `${model.spoilerNote}\n\nThis static wiki does not run Story Loom continuity rules. Treat it as a read-only snapshot.`,
     );
   }
 
   const bytes = Buffer.from(await zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" }));
   return {
-    filename: `${exportSlug(projectTitle)}-wiki-${exportDateStamp(now)}.zip`,
+    filename: `${exportSlug(model.projectTitle)}-wiki-${exportDateStamp(now)}.zip`,
     bytes,
-    documentCount: records.length,
+    documentCount: model.entries.length,
     contentType: "application/zip",
   };
 }
@@ -235,21 +310,25 @@ export async function buildReferencesWikiZip(
 export async function buildReferencesMarkdownBundle(
   db: DbOrTx,
   projectId: string,
-  recordIds: readonly string[],
+  recordIdsOrSelection: readonly string[] | WorldBibleSelection,
+  policy: WorldBiblePolicy = { mode: "full" },
   now = new Date(),
 ): Promise<WorldBibleFile> {
-  const { projectTitle, records } = await selectedReferences(db, projectId, recordIds);
+  const selection = Array.isArray(recordIdsOrSelection)
+    ? selectionFromRecordIds(recordIdsOrSelection)
+    : recordIdsOrSelection;
+  const model = await buildWorldBibleExportModel(db, projectId, selection, policy);
   const zip = new JSZip();
-  const index = records.map((record) => `- [${record.title}](${exportSlug(record.title)}-${record.id}.md)`).join("\n");
-  zip.file("README.md", `# ${projectTitle}\n\n${index}\n`);
-  for (const record of records) {
-    zip.file(`${exportSlug(record.title)}-${record.id}.md`, `# ${record.title}\n\n${record.body}\n`);
+  zip.file("README.md", renderWorldBibleIndexMarkdown(model));
+  for (const entry of model.entries) {
+    const md = renderWorldBibleProfileMarkdown(entry, model);
+    zip.file(`${entry.pageId}.md`, stripUnresolvedWikiLinks(md, model.linkTerms));
   }
   const bytes = Buffer.from(await zip.generateAsync({ type: "nodebuffer" }));
   return {
-    filename: `${exportSlug(projectTitle)}-world-bible-${exportDateStamp(now)}.zip`,
+    filename: `${exportSlug(model.projectTitle)}-world-bible-${exportDateStamp(now)}.zip`,
     bytes,
-    documentCount: records.length,
+    documentCount: model.entries.length,
     contentType: "application/zip",
   };
 }
@@ -257,20 +336,71 @@ export async function buildReferencesMarkdownBundle(
 export async function buildReferencesDocx(
   db: DbOrTx,
   projectId: string,
-  recordIds: readonly string[],
+  recordIdsOrSelection: readonly string[] | WorldBibleSelection,
+  policy: WorldBiblePolicy = { mode: "full" },
   now = new Date(),
 ): Promise<WorldBibleFile> {
-  const { projectTitle, records } = await selectedReferences(db, projectId, recordIds);
-  const children = records.flatMap((record) => [
-    new Paragraph({ children: [new TextRun({ text: record.title, bold: true, size: 32 })] }),
-    new Paragraph({ children: [new TextRun(record.body || "")] }),
-    new Paragraph({ children: [new TextRun("")] }),
-  ]);
-  const bytes = Buffer.from(await Packer.toBuffer(new Document({ title: `${projectTitle} world bible`, sections: [{ children }] })));
+  const selection = Array.isArray(recordIdsOrSelection)
+    ? selectionFromRecordIds(recordIdsOrSelection)
+    : recordIdsOrSelection;
+  const model = await buildWorldBibleExportModel(db, projectId, selection, policy);
+  const children: Paragraph[] = [
+    new Paragraph({
+      text: model.projectTitle,
+      heading: HeadingLevel.TITLE,
+    }),
+  ];
+  if (model.spoilerNote) {
+    children.push(new Paragraph({ children: [new TextRun({ text: model.spoilerNote, italics: true })] }));
+  }
+
+  for (const group of model.groups) {
+    children.push(
+      new Paragraph({
+        text: renderWorldBibleGroupHeading(group),
+        heading: HeadingLevel.HEADING_1,
+      }),
+    );
+    for (const entry of group.entries) {
+      children.push(
+        new Paragraph({
+          heading: HeadingLevel.HEADING_2,
+          children: [
+            new Bookmark({
+              id: `rec-${entry.pageId}`,
+              children: [new TextRun(entry.record.title)],
+            }),
+          ],
+        }),
+      );
+      for (const line of renderWorldBibleProfilePlainLines(entry)) {
+        children.push(new Paragraph({ children: [new TextRun(line)] }));
+      }
+      const body = worldBibleLegacyBodyNote(entry.body, model.mode).trim();
+      if (body) children.push(new Paragraph({ children: [new TextRun(body)] }));
+      children.push(new Paragraph({ children: [new TextRun("")] }));
+    }
+    for (const see of group.seeAlso) {
+      children.push(
+        new Paragraph({
+          children: [new TextRun({ text: `See also: ${see.title}`, italics: true })],
+        }),
+      );
+    }
+  }
+
+  const bytes = Buffer.from(
+    await Packer.toBuffer(
+      new Document({
+        title: `${model.projectTitle} world bible`,
+        sections: [{ children }],
+      }),
+    ),
+  );
   return {
-    filename: `${exportSlug(projectTitle)}-world-bible-${exportDateStamp(now)}.docx`,
+    filename: `${exportSlug(model.projectTitle)}-world-bible-${exportDateStamp(now)}.docx`,
     bytes,
-    documentCount: records.length,
+    documentCount: model.entries.length,
     contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   };
 }
@@ -278,12 +408,16 @@ export async function buildReferencesDocx(
 export async function buildReferencesEpub(
   db: DbOrTx,
   projectId: string,
-  recordIds: readonly string[],
+  recordIdsOrSelection: readonly string[] | WorldBibleSelection,
+  policy: WorldBiblePolicy = { mode: "full" },
   now = new Date(),
 ): Promise<WorldBibleFile> {
-  const { projectTitle, records } = await selectedReferences(db, projectId, recordIds);
+  const selection = Array.isArray(recordIdsOrSelection)
+    ? selectionFromRecordIds(recordIdsOrSelection)
+    : recordIdsOrSelection;
+  const model = await buildWorldBibleExportModel(db, projectId, selection, policy);
   const zip = new JSZip();
-  const uid = `story-loom-world-${exportSlug(projectTitle)}-${now.getTime()}`;
+  const uid = `story-loom-world-${exportSlug(model.projectTitle)}-${now.getTime()}`;
   zip.file("mimetype", "application/epub+zip", { compression: "STORE" });
   zip.file(
     "META-INF/container.xml",
@@ -292,26 +426,46 @@ export async function buildReferencesEpub(
   <rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles>
 </container>`,
   );
-  const manifest = records
-    .map((record, index) => `<item id="doc-${index + 1}" href="doc-${index + 1}.xhtml" media-type="application/xhtml+xml"/>`)
+
+  const docs = model.entries.map((entry) => ({
+    id: `doc-${entry.pageId}`,
+    href: `${entry.pageId}.xhtml`,
+    entry,
+  }));
+
+  const manifest = [
+    `<item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>`,
+    ...docs.map((doc) => `<item id="${doc.id}" href="${doc.href}" media-type="application/xhtml+xml"/>`),
+  ].join("");
+  const spine = docs.map((doc) => `<itemref idref="${doc.id}"/>`).join("");
+
+  const navGroups = model.groups
+    .map((group) => {
+      const heading = escapeHtml(renderWorldBibleGroupHeading(group));
+      const items = [
+        ...group.entries.map(
+          (entry) =>
+            `<li><a href="${escapeHtml(entry.pageId)}.xhtml">${escapeHtml(entry.record.title)}</a></li>`,
+        ),
+        ...group.seeAlso.map(
+          (see) =>
+            `<li>See also: <a href="${escapeHtml(see.pageId)}.xhtml">${escapeHtml(see.title)}</a></li>`,
+        ),
+      ].join("");
+      return `<li><span>${heading}</span><ol>${items}</ol></li>`;
+    })
     .join("");
-  const spine = records.map((_, index) => `<itemref idref="doc-${index + 1}"/>`).join("");
-  const nav = records
-    .map((record, index) => `<li><a href="doc-${index + 1}.xhtml">${escapeHtml(record.title)}</a></li>`)
-    .join("");
+
   zip.file(
     "OEBPS/content.opf",
     `<?xml version="1.0" encoding="utf-8"?>
 <package xmlns="http://www.idpf.org/2007/opf" unique-identifier="uid" version="3.0">
   <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
     <dc:identifier id="uid">${escapeHtml(uid)}</dc:identifier>
-    <dc:title>${escapeHtml(projectTitle)}</dc:title>
+    <dc:title>${escapeHtml(model.projectTitle)}</dc:title>
     <dc:language>en</dc:language>
   </metadata>
-  <manifest>
-    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
-    ${manifest}
-  </manifest>
+  <manifest>${manifest}</manifest>
   <spine>${spine}</spine>
 </package>`,
   );
@@ -319,24 +473,51 @@ export async function buildReferencesEpub(
     "OEBPS/nav.xhtml",
     `<?xml version="1.0" encoding="utf-8"?>
 <html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
-  <body><nav epub:type="toc"><ol>${nav}</ol></nav></body>
+  <body><nav epub:type="toc"><ol>${navGroups}</ol></nav></body>
 </html>`,
   );
-  records.forEach((record, index) => {
+
+  for (const doc of docs) {
+    const entry = doc.entry;
+    const profileLines = renderWorldBibleProfilePlainLines(entry)
+      .map((line) => `<p>${escapeHtml(line)}</p>`)
+      .join("\n");
+    const body = bodyToEpubSectionHtml(
+      stripUnresolvedWikiLinks(worldBibleLegacyBodyNote(entry.body, model.mode), model.linkTerms),
+    );
+    const relations = entry.relations
+      .map((rel) => {
+        const page = model.pageById.get(rel.targetRecordId);
+        const target = page
+          ? `<a href="${escapeHtml(page)}.xhtml">${escapeHtml(rel.targetTitle)}</a>`
+          : escapeHtml(rel.targetTitle);
+        return `<li><strong>${escapeHtml(rel.label)}:</strong> ${target}</li>`;
+      })
+      .join("");
     zip.file(
-      `OEBPS/doc-${index + 1}.xhtml`,
+      `OEBPS/${doc.href}`,
       `<?xml version="1.0" encoding="utf-8"?>
-<html xmlns="http://www.w3.org/1999/xhtml"><head><title>${escapeHtml(record.title)}</title></head><body>
-<h1>${escapeHtml(record.title)}</h1>
-${bodyToEpubSectionHtml(record.body)}
+<html xmlns="http://www.w3.org/1999/xhtml"><head><title>${escapeHtml(entry.record.title)}</title></head><body>
+<h1 id="rec-${escapeHtml(entry.pageId)}">${escapeHtml(entry.record.title)}</h1>
+<p><em>${escapeHtml(entry.categoryLabel)}${
+        entry.subcategoryLabel ? ` · ${escapeHtml(entry.subcategoryLabel)}` : ""
+      }</em></p>
+${profileLines}
+${relations ? `<h2>Relationships</h2><ul>${relations}</ul>` : ""}
+${entry.characterSlice?.trim() ? `<h2>Character</h2><pre>${escapeHtml(entry.characterSlice.trim())}</pre>` : ""}
+${body}
 </body></html>`,
     );
-  });
+  }
+
   const bytes = Buffer.from(await zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" }));
   return {
-    filename: `${exportSlug(projectTitle)}-world-bible-${exportDateStamp(now)}.epub`,
+    filename: `${exportSlug(model.projectTitle)}-world-bible-${exportDateStamp(now)}.epub`,
     bytes,
-    documentCount: records.length,
+    documentCount: model.entries.length,
     contentType: "application/epub+zip",
   };
 }
+
+export { buildWorldBibleExportModel };
+export type { WorldBibleExportModel, WorldBiblePolicy, WorldBibleSelection };

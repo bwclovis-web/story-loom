@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { ProjectPageHeader } from "@/components/library/ProjectPageHeader";
 import { VisitDraftSwitcher } from "@/components/drafts/DraftControls";
 import { HelpHint } from "@/components/HelpHint";
-import { Button, ButtonLink } from "@/components/ui/Button";
+import { Button, ButtonLink } from "@/components/ui/Atoms/Button";
 import { Checkbox } from "@/components/ui/Atoms/Checkbox";
 import { DRAFT } from "@/ui/labels";
 import { getDb } from "@/server/db";

@@ -2,10 +2,12 @@ import { newId } from "@/domain/ids";
 import { errorIssue } from "@/domain/issues";
 import { isLinkableReferenceType, isRecordType, RECORD_TYPE_LABELS, type RecordType } from "@/domain/recordTypes";
 import { isAuthorityStatus, type AuthorityStatus } from "@/domain/statuses";
+import type { SeriesHomeRef } from "@/world/seriesHome";
 import type { Db, DbOrTx, Tx } from "../db";
 import { writeAudit } from "./auditService";
 import { listManuscriptDrafts } from "./draftService";
 import { MutationRejectedError, NotFoundError } from "./errors";
+import { resolveAvailableReference } from "./seriesBibleService";
 
 /*
  * Ordered reading pins: references kept open beside prose. Scoped by project and
@@ -28,6 +30,8 @@ export interface ReadingPinView {
   position: number;
   currentRevision: number;
   pinnedAt: Date;
+  /** Set when the pinned reference lives in another book of this series. */
+  seriesHome?: SeriesHomeRef | null;
 }
 
 function rejected(message: string, recordId?: string): MutationRejectedError {
@@ -54,30 +58,33 @@ export async function listReadingPins(
   scopeDraftId: string,
 ): Promise<ReadingPinView[]> {
   const rows = await db.readingPin.findMany({
-    where: { projectId, scopeDraftId, record: { trashedAt: null } },
+    where: { projectId, scopeDraftId },
     orderBy: [{ position: "asc" }, { createdAt: "asc" }, { id: "asc" }],
     include: {
       record: {
-        select: { id: true, title: true, type: true, authorityStatus: true, currentRevision: true },
+        select: { id: true, title: true, type: true, authorityStatus: true, currentRevision: true, trashedAt: true },
       },
     },
   });
-  return rows.flatMap((r) =>
-    isRecordType(r.record.type) && isAuthorityStatus(r.record.authorityStatus)
-      ? [
-          {
-            pinId: r.id,
-            recordId: r.record.id,
-            title: r.record.title,
-            type: r.record.type,
-            authorityStatus: r.record.authorityStatus,
-            position: r.position,
-            currentRevision: r.record.currentRevision,
-            pinnedAt: r.createdAt,
-          },
-        ]
-      : [],
-  );
+  const out: ReadingPinView[] = [];
+  for (const r of rows) {
+    if (r.record.trashedAt) continue;
+    const available = await resolveAvailableReference(db, projectId, r.recordId);
+    if (!available) continue;
+    if (!isRecordType(available.record.type) || !isAuthorityStatus(available.record.authorityStatus)) continue;
+    out.push({
+      pinId: r.id,
+      recordId: available.record.id,
+      title: available.record.title,
+      type: available.record.type,
+      authorityStatus: available.record.authorityStatus,
+      position: r.position,
+      currentRevision: available.record.currentRevision,
+      pinnedAt: r.createdAt,
+      seriesHome: available.home,
+    });
+  }
+  return out;
 }
 
 export async function addReadingPin(
@@ -93,17 +100,15 @@ export async function addReadingPin(
       const draft = await tx.manuscriptDraft.findFirst({ where: { id: scopeDraftId, projectId } });
       if (!draft) throw rejected(`Draft ${scopeDraftId} does not exist in this project.`);
     }
-    const record = await tx.record.findFirst({
-      where: { id: recordId, projectId, trashedAt: null },
-      select: { id: true, title: true, type: true, authorityStatus: true, currentRevision: true },
-    });
-    if (!record) throw rejected(`Record ${recordId} does not exist in this project.`, recordId);
-    if (!isRecordType(record.type) || !isLinkableReferenceType(record.type)) {
+    const available = await resolveAvailableReference(tx, projectId, recordId);
+    if (!available) throw rejected(`Record ${recordId} does not exist in this project.`, recordId);
+    const record = available.record;
+    if (!isLinkableReferenceType(record.type)) {
       const label = isRecordType(record.type) ? RECORD_TYPE_LABELS[record.type] : record.type;
       throw rejected(`A ${label} cannot be pinned as reading context.`, recordId);
     }
     const existing = await tx.readingPin.findUnique({
-      where: { projectId_scopeDraftId_recordId: { projectId, scopeDraftId, recordId } },
+      where: { projectId_scopeDraftId_recordId: { projectId, scopeDraftId, recordId: record.id } },
     });
     if (existing) throw rejected("That reference is already pinned here.", recordId);
 
@@ -114,14 +119,26 @@ export async function addReadingPin(
     const id = newId("pin");
     const position = (maxPos._max.position ?? -1) + 1;
     await tx.readingPin.create({
-      data: { id, projectId, scopeDraftId, recordId, position },
+      data: { id, projectId, scopeDraftId, recordId: record.id, position },
     });
     await writeAudit(tx, {
       projectId,
       action: "reading_pin.add",
       actor: UI_ACTOR,
       summary: `Pinned "${record.title}" for reading`,
-      details: { pinId: id, recordId, scopeDraftId, position },
+      details: {
+        pinId: id,
+        recordId: record.id,
+        scopeDraftId,
+        position,
+        seriesHome: available.home
+          ? {
+              projectId: available.home.projectId,
+              title: available.home.title,
+              bookName: available.home.bookName,
+            }
+          : null,
+      },
     });
     return {
       pinId: id,
@@ -132,6 +149,7 @@ export async function addReadingPin(
       position,
       currentRevision: record.currentRevision,
       pinnedAt: new Date(),
+      seriesHome: available.home,
     };
   });
 }

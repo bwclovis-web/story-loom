@@ -103,7 +103,7 @@ export function parseWorldHubQuery(input: Record<string, string | undefined>): W
 
 export function worldHubHref(
   projectId: string,
-  params: Partial<WorldHubQuery> & { list?: boolean } = {},
+  params: Partial<WorldHubQuery> & { list?: boolean; collection?: string | null } = {},
 ): string {
   const search = new URLSearchParams();
   if (params.type) search.set("type", params.type);
@@ -120,6 +120,7 @@ export function worldHubHref(
   if (params.protected) search.set("protected", params.protected);
   if (params.sort && params.sort !== "updated") search.set("sort", params.sort);
   if (params.view && params.view !== "list") search.set("view", params.view);
+  if (params.collection?.trim()) search.set("collection", params.collection.trim());
   const qs = search.toString();
   return `/projects/${encodeURIComponent(projectId)}/world${qs ? `?${qs}` : ""}`;
 }

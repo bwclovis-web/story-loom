@@ -7,7 +7,7 @@ import { SectionTagBadge, StatusBadge } from "@/components/Badges";
 import type { DraftOption } from "@/components/drafts/DraftControls";
 import { ContextRail, ContextRailToggle, useContextRail } from "@/components/shell/ContextRail";
 import { Banner } from "@/components/ui/Banner";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui/Atoms/Button";
 import { Checkbox } from "@/components/ui/Atoms/Checkbox";
 import { ASSISTANT_INSTRUCTIONS } from "@/assistant/prompt";
 import type { RetrievalScope } from "@/assistant/tools";

@@ -4,7 +4,7 @@ import { useMemo, useState, useTransition } from "react";
 import type { WorldProfileUpgradePreview, ApplyWorldProfileUpgradeResult } from "@/server/services/worldProfileUpgradeService";
 import type { WorldUpgradeDecision, WorldUpgradeDecisionInput } from "@/domain/worldProfileUpgrade";
 import { Banner } from "@/components/ui/Banner";
-import { Button, ButtonLink } from "@/components/ui/Button";
+import { Button, ButtonLink } from "@/components/ui/Atoms/Button";
 import { Checkbox } from "@/components/ui/Atoms/Checkbox";
 import { WORLD_PROFILE_UPGRADE as LABELS } from "@/ui/labels";
 

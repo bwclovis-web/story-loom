@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/Atoms/Button";
 import { Select } from "@/components/ui/Atoms/Select";
+import { HelpPopover } from "@/components/ui/HelpPopover";
 import type { JsonObject } from "@/domain/json";
 import { cn } from "@/ui/cn";
 import { TAXONOMY_FIELDS } from "@/ui/labels";
@@ -153,15 +154,25 @@ export function TaxonomyFields({
   ];
 
   return (
-    <fieldset className={cn("stack taxonomy-fields", className)} disabled={disabled}>
-      <legend>{TAXONOMY_FIELDS.legend}</legend>
+    <fieldset className={cn("stack taxonomy-fields", className)}>
+      <legend>
+        <span className="field-caption">
+          {TAXONOMY_FIELDS.legend}
+          <HelpPopover label={TAXONOMY_FIELDS.legendExplain}>{TAXONOMY_FIELDS.legendHelp}</HelpPopover>
+        </span>
+      </legend>
       <p className="small muted">{TAXONOMY_FIELDS.hint}</p>
       {!draft.ok ? <p className="small">{TAXONOMY_FIELDS.invalidJson}</p> : null}
       {draft.ok && read && !read.ok ? <p className="small">{TAXONOMY_FIELDS.unreadable}</p> : null}
 
       <div className="row" style={{ flexWrap: "wrap", gap: "0.75rem" }}>
         <Select
-          label={TAXONOMY_FIELDS.primary}
+          label={
+            <>
+              {TAXONOMY_FIELDS.primary}
+              <HelpPopover label={TAXONOMY_FIELDS.primaryExplain}>{TAXONOMY_FIELDS.primaryHelp}</HelpPopover>
+            </>
+          }
           value={primary?.category ?? ""}
           disabled={locked}
           onChange={(event) => changePrimary(event.target.value, "")}
@@ -174,7 +185,12 @@ export function TaxonomyFields({
           ))}
         </Select>
         <Select
-          label={TAXONOMY_FIELDS.subcategory}
+          label={
+            <>
+              {TAXONOMY_FIELDS.subcategory}
+              <HelpPopover label={TAXONOMY_FIELDS.subcategoryExplain}>{TAXONOMY_FIELDS.subcategoryHelp}</HelpPopover>
+            </>
+          }
           value={primary?.subcategory ?? ""}
           disabled={locked || !primary}
           onChange={(event) => primary && changePrimary(primary.category, event.target.value)}
@@ -189,7 +205,10 @@ export function TaxonomyFields({
       </div>
 
       <div className="stack">
-        <span>{TAXONOMY_FIELDS.secondary}</span>
+        <span className="field-caption">
+          {TAXONOMY_FIELDS.secondary}
+          <HelpPopover label={TAXONOMY_FIELDS.secondaryExplain}>{TAXONOMY_FIELDS.secondaryHelp}</HelpPopover>
+        </span>
         {secondary.length ? (
           <ul className="row" style={{ flexWrap: "wrap", gap: "0.35rem", listStyle: "none", padding: 0, margin: 0 }}>
             {secondary.map((item) => (
@@ -268,7 +287,10 @@ export function TaxonomyFields({
       </div>
 
       <div className="stack">
-        <span>{TAXONOMY_FIELDS.tags}</span>
+        <span className="field-caption">
+          {TAXONOMY_FIELDS.tags}
+          <HelpPopover label={TAXONOMY_FIELDS.tagsExplain}>{TAXONOMY_FIELDS.tagsHelp}</HelpPopover>
+        </span>
         {tags.length ? (
           <ul className="row" style={{ flexWrap: "wrap", gap: "0.35rem", listStyle: "none", padding: 0, margin: 0 }}>
             {tags.map((tag) => (

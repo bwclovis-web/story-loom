@@ -1,5 +1,5 @@
 import { ProjectPageHeader } from "@/components/library/ProjectPageHeader";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui/Atoms/Button";
 import Link from "next/link";
 import { VisitDraftSwitcher, type DraftOption } from "@/components/drafts/DraftControls";
 import { HelpHint } from "@/components/HelpHint";

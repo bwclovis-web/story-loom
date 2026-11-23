@@ -30,7 +30,8 @@ export type ContinuityKind =
   | "character_knowledge"
   | "character_limitation"
   | "forgotten_arc"
-  | "character_identity";
+  | "character_identity"
+  | "world_contradiction";
 
 export type ContinuityCategory = "bible" | "manuscript" | "timeline" | "weave" | "stale";
 export type ContinuitySeverity = "info" | "warn" | "error";
@@ -52,6 +53,9 @@ export interface ContinuityItem {
   storyLocation?: string;
   explanation?: string;
   suggestion?: string;
+  /** Secondary link to the world record when kind is world_contradiction. */
+  worldHref?: string;
+  needsRecheck?: boolean;
 }
 
 function recordHref(projectId: string, recordId: string, find?: string): string {
@@ -78,6 +82,7 @@ function categoryOf(kind: ContinuityKind): ContinuityCategory {
     case "character_limitation":
     case "forgotten_arc":
     case "character_identity":
+    case "world_contradiction":
       return "bible";
     case "continuity_note":
       return "bible";
@@ -95,6 +100,7 @@ function severityOf(kind: ContinuityKind): ContinuitySeverity {
     case "fact":
     case "story_evidence":
     case "character_state_conflict":
+    case "world_contradiction":
       return "warn";
     default:
       return "info";
@@ -104,13 +110,14 @@ function severityOf(kind: ContinuityKind): ContinuitySeverity {
 function item(
   partial: Omit<ContinuityItem, "category" | "severity" | "suppressed" | "suppressReason" | "recordId"> & {
     recordId?: string | null;
+    severity?: ContinuitySeverity;
   },
 ): ContinuityItem {
   return {
     ...partial,
     recordId: partial.recordId ?? null,
     category: categoryOf(partial.kind),
-    severity: severityOf(partial.kind),
+    severity: partial.severity ?? severityOf(partial.kind),
     suppressed: false,
     suppressReason: null,
   };
@@ -141,6 +148,7 @@ export async function listContinuityLedger(
     setups,
     suppressions,
     xrefIndex,
+    worldContradictions,
   ] = await Promise.all([
     db.record.findMany({
       where: { projectId, trashedAt: null, authorityStatus: "unresolved" },
@@ -232,7 +240,27 @@ export async function listContinuityLedger(
       select: { issueKey: true, reason: true },
     }),
     loadCrossRefIndex(db, projectId),
+    "worldContradictionCheck" in db
+      ? db.worldContradictionCheck.findMany({
+          where: {
+            projectId,
+            ...(options.recordId ? { manuscriptRecordId: options.recordId } : {}),
+          },
+          orderBy: [{ checkedAt: "desc" }, { id: "asc" }],
+        })
+      : Promise.resolve([]),
   ]);
+
+  const worldRecordIds = [...new Set(worldContradictions.map((row) => row.worldRecordId))];
+  const manuscriptIds = [...new Set(worldContradictions.map((row) => row.manuscriptRecordId))];
+  const titleRows =
+    worldRecordIds.length || manuscriptIds.length
+      ? await db.record.findMany({
+          where: { id: { in: [...worldRecordIds, ...manuscriptIds] } },
+          select: { id: true, title: true },
+        })
+      : [];
+  const titleById = new Map(titleRows.map((row) => [row.id, row.title]));
 
   const items: ContinuityItem[] = [];
 
@@ -449,6 +477,30 @@ export async function listContinuityLedger(
         detail: `Setup “${edge.fromBeat.title}” → payoff “${edge.toBeat.title}” on ${edge.fromBeat.grid.title} has no linked manuscript scene.${edge.note ? ` ${edge.note}` : ""}`,
         href: `/projects/${encodeURIComponent(projectId)}/plan/weave/${encodeURIComponent(edge.fromBeat.gridId)}`,
         recordId: edge.fromBeat.manuscriptRecordId,
+      }),
+    );
+  }
+
+  // W7B: manuscript passage vs approved world fact (read-only load of prior review rows).
+  for (const check of worldContradictions) {
+    const manuscriptTitle = titleById.get(check.manuscriptRecordId) ?? "Manuscript";
+    const worldTitle = titleById.get(check.worldRecordId) ?? "World record";
+    const recheckNote = check.needsRecheck ? " Needs recheck after a source revision." : "";
+    items.push(
+      item({
+        key: check.issueKey,
+        kind: "world_contradiction",
+        title: manuscriptTitle,
+        detail: `${check.verdict === "ambiguous" ? "Possible mismatch" : "Conflict"} with ${worldTitle} (${check.fieldPath}).${recheckNote}`,
+        href: recordHref(projectId, check.manuscriptRecordId, check.passageExcerpt),
+        worldHref: recordHref(projectId, check.worldRecordId),
+        recordId: check.manuscriptRecordId,
+        severity: check.verdict === "ambiguous" ? "info" : "warn",
+        evidence: `“${check.passageExcerpt}” (rev ${check.manuscriptRevision})`,
+        applicableCanon: `${check.worldFactFormatted} · ${check.fieldPath} · world rev ${check.worldRecordRevision}`,
+        storyLocation: check.storyPointLabel || undefined,
+        explanation: check.explanation,
+        needsRecheck: check.needsRecheck,
       }),
     );
   }

@@ -20,7 +20,7 @@ import { StatusBadge } from "@/components/Badges";
 import { IssueList } from "@/components/IssueList";
 import { BookOpen, FileText, Shield, Sparkles, StickyNote, Waypoints, X } from "lucide-react";
 import { Banner } from "@/components/ui/Banner";
-import { Button, ButtonLink } from "@/components/ui/Button";
+import { Button, ButtonLink } from "@/components/ui/Atoms/Button";
 import { Checkbox } from "@/components/ui/Atoms/Checkbox";
 import { readAssistantJobStream } from "@/assistant/jobStream";
 import { applyTextareaEdit } from "@/components/writing/textareaEdit";
@@ -35,6 +35,11 @@ import { DevelopmentCues } from "@/components/world/CharacterDevelopment";
 import type { DevelopmentCue } from "@/domain/characterDevelopment";
 import { ASSISTANT, CHARACTER_DEVELOPMENT, CONTINUITY, DRAFT, RECORD, SERIES, WEAVE, WRITE } from "@/ui/labels";
 import { seriesBookLabel, seriesRecordHref } from "@/world/seriesHome";
+import {
+  clearContinuitySuppressionAction,
+  reviewWorldContradictionsAction,
+  suppressContinuityAction,
+} from "../../continuity/actions";
 import {
   attachRewriteSourceAction,
   detachRewriteSourceAction,
@@ -59,6 +64,21 @@ import {
 import type { ContextSearchHit } from "@/server/services/searchService";
 import type { ReadingPinView } from "@/server/services/readingPinService";
 import type { SceneLocationSet } from "@/server/services/sceneLocationService";
+
+export interface ContinuityFindingItem {
+  key: string;
+  kind?: string;
+  title: string;
+  detail: string;
+  href: string;
+  severity: string;
+  worldHref?: string;
+  needsRecheck?: boolean;
+  evidence?: string;
+  applicableCanon?: string;
+  storyLocation?: string;
+  explanation?: string;
+}
 
 export interface NoteItem {
   id: string;
@@ -180,7 +200,7 @@ export function WriteContext({
   plotBeats: PlotBeatItem[];
   beatPresets?: import("@/server/services/promptPresetService").PromptPresetView[];
   /** Open Continuity Ledger findings that touch this chapter or scene. */
-  continuityFindings?: Array<{ key: string; title: string; detail: string; href: string; severity: string }>;
+  continuityFindings?: ContinuityFindingItem[];
   characterCues?: DevelopmentCue[];
   /** Current editor text (may be unsaved). */
   editorText: string;
@@ -288,7 +308,7 @@ export function WriteContext({
         <Sources projectId={projectId} recordId={recordId} sources={sources} attachable={attachableSources} />
       </div>
       <div role="tabpanel" id={`${idPrefix}-panel-references`} aria-labelledby={`${idPrefix}-tab-references`} hidden={tab !== "references"} className="context-body">
-        <ContinuityStrip projectId={projectId} findings={continuityFindings} />
+        <ContinuityStrip projectId={projectId} recordId={recordId} findings={continuityFindings} />
         {characterCues.length ? <DevelopmentCues title={CHARACTER_DEVELOPMENT.cues} cues={characterCues} /> : null}
         <References
           projectId={projectId}
@@ -328,34 +348,120 @@ export function WriteContext({
 
 function ContinuityStrip({
   projectId,
+  recordId,
   findings,
 }: {
   projectId: string;
-  findings: Array<{ key: string; title: string; detail: string; href: string; severity: string }>;
+  recordId: string;
+  findings: ContinuityFindingItem[];
 }) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
   const ledgerHref = `/projects/${encodeURIComponent(projectId)}/continuity`;
+  const worldFindings = findings.filter((f) => f.kind === "world_contradiction");
+  const otherFindings = findings.filter((f) => f.kind !== "world_contradiction");
+
+  const onReview = () =>
+    startTransition(async () => {
+      setError(null);
+      setMessage(null);
+      const result = await reviewWorldContradictionsAction(projectId, recordId);
+      if (!result.ok) {
+        setError(result.message ?? CONTINUITY.actionFailed);
+        return;
+      }
+      setMessage(
+        result.count
+          ? `${CONTINUITY.checkWorldFactsDone} ${result.count} finding${result.count === 1 ? "" : "s"}.`
+          : CONTINUITY.checkWorldFactsNone,
+      );
+      router.refresh();
+    });
+
+  const onSuppress = (issueKey: string, reason: "intentional" | "resolved" | "ignored") =>
+    startTransition(async () => {
+      setError(null);
+      const result = await suppressContinuityAction(projectId, issueKey, reason);
+      if (!result.ok) setError(result.message ?? CONTINUITY.actionFailed);
+      else router.refresh();
+    });
+
+  const onClear = (issueKey: string) =>
+    startTransition(async () => {
+      setError(null);
+      const result = await clearContinuitySuppressionAction(projectId, issueKey);
+      if (!result.ok) setError(result.message ?? CONTINUITY.actionFailed);
+      else router.refresh();
+    });
+
   return (
     <div className="stack" style={{ gap: "0.35rem", marginBottom: "0.75rem" }}>
-      <div className="row" style={{ justifyContent: "space-between", alignItems: "baseline" }}>
+      <div className="row" style={{ justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: "0.35rem" }}>
         <strong className="small">{CONTINUITY.writeBadge}</strong>
-        <Link className="small" href={ledgerHref}>
-          {CONTINUITY.nav}
-        </Link>
+        <div className="row" style={{ gap: "0.35rem", flexWrap: "wrap" }}>
+          <Button type="button" size="sm" variant="secondary" disabled={pending} onClick={onReview}>
+            {pending ? CONTINUITY.checkWorldFactsBusy : CONTINUITY.checkWorldFacts}
+          </Button>
+          <Link className="small" href={ledgerHref}>
+            {CONTINUITY.nav}
+          </Link>
+        </div>
       </div>
-      {findings.length === 0 ? (
+      {error ? <Banner tone="error">{error}</Banner> : null}
+      {message ? <Banner tone="ok">{message}</Banner> : null}
+      {worldFindings.length ? (
+        <ul className="stack" style={{ listStyle: "none", margin: 0, padding: 0, gap: "0.5rem" }}>
+          {worldFindings.slice(0, 8).map((f) => (
+            <li key={f.key} className="stack" style={{ gap: "0.2rem" }}>
+              <div className="row" style={{ gap: "0.35rem", flexWrap: "wrap", alignItems: "baseline" }}>
+                <Link className="small" href={f.href}>
+                  {f.title}
+                </Link>
+                {f.worldHref ? (
+                  <Link className="small" href={f.worldHref}>
+                    {CONTINUITY.worldFactLink}
+                  </Link>
+                ) : null}
+                {f.needsRecheck ? <span className="small muted">{CONTINUITY.needsRecheck}</span> : null}
+              </div>
+              {f.evidence ? <p className="small muted" style={{ margin: 0 }}>{f.evidence}</p> : null}
+              {f.applicableCanon ? <p className="small muted" style={{ margin: 0 }}>{f.applicableCanon}</p> : null}
+              {f.storyLocation ? <p className="small muted" style={{ margin: 0 }}>{f.storyLocation}</p> : null}
+              {f.explanation ? <p className="small" style={{ margin: 0 }}>{f.explanation}</p> : null}
+              <div className="row" style={{ gap: "0.25rem", flexWrap: "wrap" }}>
+                <Button type="button" size="sm" variant="ghost" disabled={pending} onClick={() => onSuppress(f.key, "intentional")}>
+                  {CONTINUITY.markIntentional}
+                </Button>
+                <Button type="button" size="sm" variant="ghost" disabled={pending} onClick={() => onSuppress(f.key, "resolved")}>
+                  {CONTINUITY.markResolved}
+                </Button>
+                <Button type="button" size="sm" variant="ghost" disabled={pending} onClick={() => onSuppress(f.key, "ignored")}>
+                  {CONTINUITY.markIgnored}
+                </Button>
+                <Button type="button" size="sm" variant="ghost" disabled={pending} onClick={() => onClear(f.key)}>
+                  {CONTINUITY.restore}
+                </Button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {otherFindings.length === 0 && worldFindings.length === 0 ? (
         <p className="small muted" style={{ margin: 0 }}>
           {CONTINUITY.writeNone}
         </p>
-      ) : (
+      ) : otherFindings.length ? (
         <ul className="small" style={{ margin: 0, paddingLeft: "1.1rem" }}>
-          {findings.slice(0, 5).map((f) => (
+          {otherFindings.slice(0, 5).map((f) => (
             <li key={f.key}>
               <Link href={f.href}>{f.title}</Link>
               {f.detail ? <span className="muted"> — {f.detail.slice(0, 120)}</span> : null}
             </li>
           ))}
         </ul>
-      )}
+      ) : null}
       <p className="small muted" style={{ margin: 0 }}>
         {CONTINUITY.writeBadgeHint}
       </p>
@@ -1366,7 +1472,7 @@ function NoteEditor({ projectId, note, onDone }: { projectId: string; note: Note
   }, [key, dirty]);
 
   return (
-    <form className="stack" onSubmit={submitWithoutReset(action)} onInput={() => setDirty(true)}>
+    <form className="stack pt-4" onSubmit={submitWithoutReset(action)} onInput={() => setDirty(true)}>
       <input type="hidden" name="expectedRevision" value={note.revision} />
       <input type="hidden" name="authorityStatus" value={note.authorityStatus} />
       <input type="hidden" name="fields" value={note.fieldsJson} />

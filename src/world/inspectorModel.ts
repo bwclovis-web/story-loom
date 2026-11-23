@@ -12,8 +12,10 @@ import {
 } from "@/domain/worldProfile";
 import { WORLD_PROFILE } from "@/ui/labels";
 import type { SeriesHomeRef } from "@/world/seriesHome";
+import { resolveRecordTaxonomy, taxonomyNavSummary, type TaxonomyNavSummary } from "@/world/taxonomy";
 import { worldbuildingKindFromFields, worldKindDisplayFromFields } from "@/world/worldKinds";
 import { listSections } from "@/writing/sections";
+import { isWorldType } from "@/ui/world";
 
 export interface InspectorSection {
   id: string;
@@ -80,6 +82,8 @@ export interface ReferenceInspectorModel {
   /** Home book when this inspector is viewing a series-shared sibling record. */
   seriesHome: SeriesHomeRef | null;
   worldScope: WorldScope | null;
+  /** Discovery taxonomy summary for badges (null when not a World type). */
+  taxonomy: TaxonomyNavSummary | null;
 }
 
 const MAX_PROFILE_VALUE_LINES = 3;
@@ -191,5 +195,8 @@ export function buildReferenceInspectorModel(input: {
     worldProfileLines,
     seriesHome: input.seriesHome ?? null,
     worldScope: input.worldScope ?? null,
+    taxonomy: isWorldType(input.type)
+      ? taxonomyNavSummary(resolveRecordTaxonomy({ type: input.type, fields: input.fields ?? {} }))
+      : null,
   };
 }

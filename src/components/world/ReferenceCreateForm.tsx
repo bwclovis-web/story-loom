@@ -5,6 +5,7 @@ import { HeadingReviewDialog } from "@/components/world/HeadingReviewDialog";
 import { TaxonomyFields } from "@/components/world/TaxonomyFields";
 import { WorldKindFields } from "@/components/world/WorldKindFields";
 import { HelpHint } from "@/components/HelpHint";
+import { HelpPopover } from "@/components/ui/HelpPopover";
 import { IssueList } from "@/components/IssueList";
 import { ReferenceMetaFields } from "@/components/world/ReferenceMetaFields";
 import { Banner } from "@/components/ui/Banner";
@@ -148,7 +149,7 @@ export function ReferenceCreateForm({
 
   return (
     <form
-      className="reference-composer"
+      className="reference-composer pt-4"
       onSubmit={(event) => {
         if (!fieldsValid) {
           event.preventDefault();
@@ -164,7 +165,12 @@ export function ReferenceCreateForm({
         </label>
         <RadioGroup
           className="reference-type-field"
-          legend={REFERENCE_FORM.documentType}
+          legend={
+            <>
+              {REFERENCE_FORM.documentType}
+              <HelpPopover label={REFERENCE_FORM.documentTypeExplain}>{REFERENCE_FORM.documentTypeHelp}</HelpPopover>
+            </>
+          }
           name="type"
           value={recordType}
           hint={REFERENCE_FORM.documentTypeHint}
@@ -199,7 +205,12 @@ export function ReferenceCreateForm({
         />
         <RadioGroup
           className="reference-type-field"
-          legend={REFERENCE_FORM.worldScopeLegend}
+          legend={
+            <>
+              {REFERENCE_FORM.worldScopeLegend}
+              <HelpPopover label={REFERENCE_FORM.worldScopeExplain}>{REFERENCE_FORM.worldScopeHelp}</HelpPopover>
+            </>
+          }
           name="worldScopeChoice"
           value={worldScope}
           hint={REFERENCE_FORM.worldScopeHint}
@@ -215,7 +226,12 @@ export function ReferenceCreateForm({
         {showProfileDefinition ? (
           <Select
             className="reference-taxonomy-slot"
-            label={WORLD_PROFILE.definition}
+            label={
+              <>
+                {WORLD_PROFILE.definition}
+                <HelpPopover label={WORLD_PROFILE.definitionExplain}>{WORLD_PROFILE.definitionHelp}</HelpPopover>
+              </>
+            }
             hint={WORLD_PROFILE.optionalNote}
             value={profileDefinitionId}
             onChange={(event) => chooseProfileDefinition(event.target.value)}
@@ -255,6 +271,7 @@ export function ReferenceCreateForm({
         <div className="reference-headings">
           <label>
             {REFERENCE_FORM.headings}
+            <HelpPopover label={REFERENCE_FORM.headingsExplain}>{REFERENCE_FORM.headingsHelp}</HelpPopover>
             <select value={templateKey} onChange={(event) => setTemplateKey(event.target.value)}>
               <option value="">{REFERENCE_FORM.headingsNone}</option>
               {REFERENCE_TEMPLATES.map((template) => (
@@ -306,6 +323,7 @@ export function ReferenceCreateForm({
       <div className="reference-save-row">
         <label className="reference-canon">
           {REFERENCE_FORM.canonStatus}
+          <HelpPopover label={REFERENCE_FORM.canonExplain}>{REFERENCE_FORM.canonHelp}</HelpPopover>
           <select name="authorityStatus" defaultValue="draft">
             {AUTHORITY_STATUSES.map((status) => (
               <option key={status} value={status}>

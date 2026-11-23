@@ -82,7 +82,6 @@ export function TextAppearanceMenu({
     <div className="menu-wrap" ref={wrapRef}>
       {presentation === "toolbar" ? (
         <Button
-          type="button"
           variant="toolbar"
           size="toolbar"
           className="tool-labeled"

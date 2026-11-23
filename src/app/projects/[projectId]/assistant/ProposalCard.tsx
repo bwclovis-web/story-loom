@@ -1,4 +1,4 @@
-import { ButtonLink } from "@/components/ui/Button";
+import { ButtonLink } from "@/components/ui/Atoms/Button";
 import Link from "next/link";
 import { CopyButton } from "@/components/CopyButton";
 import { ResultSummary } from "@/components/PackagePreview";

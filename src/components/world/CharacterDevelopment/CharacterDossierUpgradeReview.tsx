@@ -7,8 +7,8 @@ import type {
 } from "@/server/services/characterDossierUpgradeService";
 import type { DossierUpgradeDecisionInput, UpgradeDecision } from "@/domain/characterDossierUpgrade";
 import { Banner } from "@/components/ui/Banner";
-import { Button } from "@/components/ui/Button";
-import { ButtonLink } from "@/components/ui/Button";
+import { Button } from "@/components/ui/Atoms/Button";
+import { ButtonLink } from "@/components/ui/Atoms/Button";
 import { Checkbox } from "@/components/ui/Atoms/Checkbox";
 import { CHARACTER_DOSSIER_UPGRADE as LABELS } from "@/ui/labels";
 

@@ -11,7 +11,7 @@ import type {
 } from "@/analyze/chapterAnalysisOutput";
 import { ANALYSIS_ASSESSMENTS } from "@/analyze/chapterAnalysisOutput";
 import { actionExplanation, CATEGORY_BOUNDARY, describeWrites, effectOf, passageContext, summarizeRun } from "@/analyze/chapterAnalysisReview";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui/Atoms/Button";
 import { HelpPopover } from "@/components/ui/HelpPopover";
 import { ANALYZE } from "@/ui/labels";
 import { applyChapterAnalysisAction, saveChapterAnalysisAssessmentsAction, saveChapterAnalysisDecisionsAction } from "./actions";
