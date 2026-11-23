@@ -2493,14 +2493,27 @@ export const PDF = {
   downloadReferencesEpub: (n: Count) => `Download EPUB (${n})`,
   downloadReferencesMarkdown: (n: Count) => `Download Markdown (${n})`,
   downloadReferencesWiki: (n: Count) => `Download HTML wiki (${n})`,
-  wikiSpoilerApproved: "Spoiler ceiling: approved references only",
-  wikiSpoilerBefore: "Limit established facts through",
-  wikiSpoilerBeforeNone: "No fact filter",
+  wikiSpoilerApproved: "Approved references only",
+  wikiSpoilerBefore: "Story point (chapter or scene)",
+  wikiSpoilerBeforeNone: "Unanchored (no linked chapter)",
   wikiSpoilerLimitUnknownChapter:
     "The spoiler-before chapter was not found in book order, so established-fact filtering was not applied.",
   wikiOptionsHeading: "HTML wiki options",
   wikiFormatsNote:
     "The HTML wiki is a self-contained zip with a searchable index, one page per document, infoboxes, cross-links, and embedded PNG or JPEG images.",
+  exportScopeHeading: "Export scope & spoiler policy",
+  exportModeLegend: "Export mode",
+  exportModeFull: "Full author export (all selected material you can see)",
+  exportModePoint:
+    "Point-scoped export (omit planned changes, archives, and later story facts across every format)",
+  exportViewingBook: "Viewing book (series chronology)",
+  exportScopeSummary: (summary: string) => `Active scope: ${summary}`,
+  exportScopeNote:
+    "These controls apply to PDF, DOCX, EPUB, Markdown, and HTML wiki downloads. Point-scoped redaction runs before any format is written.",
+  collectionBanner: (title: string, n: Count) =>
+    `World Hub collection “${title}” — ${n} live match${n === 1 ? "" : "es"} at export time.`,
+  collectionEmpty: (title: string) =>
+    `World Hub collection “${title}” currently matches 0 references. Downloads will report that nothing matched under current visibility rules.`,
   noManuscript: "This project has no chapters yet.",
   referencesHeading: "References",
   referencesNote:

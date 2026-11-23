@@ -1,7 +1,5 @@
 import "server-only";
-import type { JsonValue } from "@/domain/json";
-import { toRecordView, type RecordView } from "@/domain/records";
-import { isManuscriptType, RECORD_TYPE_LABELS, RECORD_TYPES } from "@/domain/recordTypes";
+import type { RecordView } from "@/domain/records";
 import { PDF_IMAGE_TYPES, imageNamesInText } from "@/images/imageFormat";
 import {
   COLORS,
@@ -25,7 +23,6 @@ import { marginPoints, spacingMetrics, TRIM_SIZES } from "@/writing/compileLayou
 import { exportTypography } from "@/writing/bookThemes";
 import { parseMarkdown } from "@/writing/markdownParse";
 import type { DbOrTx } from "../db";
-import { NotFoundError } from "./errors";
 import { imageDataByIds, imagesByRecord } from "./imageService";
 import { isStandardManuscriptProfile, shortTitleForHeader } from "@/writing/exportPresets";
 import {
@@ -42,7 +39,6 @@ import {
   usesCustomTitlePage,
 } from "./manuscriptExportCompile";
 import { exportDateStamp, exportSlug } from "./manuscriptExportModel";
-import { LIVE_PROJECT } from "./trashFilters";
 
 /*
  * PDFs of saved record versions. Nothing is stored: each request reads the
@@ -66,20 +62,6 @@ function dropCapBody(body: string): string {
   if (!match) return body;
   const letter = match[2]!;
   return `# ${letter}\n\n${body.slice(match[0].length)}`;
-}
-
-async function projectTitle(db: DbOrTx, projectId: string): Promise<string> {
-  const project = await db.project.findFirst({ where: { id: projectId, ...LIVE_PROJECT }, select: { title: true } });
-  if (!project) throw new NotFoundError(`Project ${projectId} not found`);
-  return project.title;
-}
-
-function fieldText(value: JsonValue): string {
-  if (value === null) return "null";
-  if (typeof value === "string") return value === "" ? "(empty)" : value;
-  if (typeof value === "number" || typeof value === "boolean") return String(value);
-  if (Array.isArray(value) && value.every((v) => typeof v === "string" || typeof v === "number")) return value.join(", ");
-  return JSON.stringify(value);
 }
 
 function statusText(status: RecordView["authorityStatus"]): string {
@@ -142,8 +124,8 @@ export async function buildReferencesPdf(
   db: DbOrTx,
   projectId: string,
   recordIdsOrSelection: readonly string[] | import("./worldBibleModel").WorldBibleSelection,
-  policy: import("./worldBibleModel").WorldBiblePolicy = { mode: "full" },
-  now = new Date(),
+  policyOrNow?: import("./worldBibleModel").WorldBiblePolicy | Date,
+  nowArg?: Date,
 ): Promise<PdfFile> {
   const { buildWorldBibleExportModel } = await import("./worldBibleModel");
   const {
@@ -152,9 +134,14 @@ export async function buildReferencesPdf(
     worldBibleLegacyBodyNote,
   } = await import("./worldBibleProfileRender");
 
-  const selection = Array.isArray(recordIdsOrSelection)
-    ? { recordIds: [...recordIdsOrSelection] }
-    : recordIdsOrSelection;
+  const selection: import("./worldBibleModel").WorldBibleSelection = Array.isArray(recordIdsOrSelection)
+    ? { recordIds: [...(recordIdsOrSelection as readonly string[])] }
+    : (recordIdsOrSelection as import("./worldBibleModel").WorldBibleSelection);
+  const policy =
+    policyOrNow instanceof Date || policyOrNow === undefined
+      ? { mode: "full" as const }
+      : policyOrNow;
+  const now = policyOrNow instanceof Date ? policyOrNow : (nowArg ?? new Date());
   const model = await buildWorldBibleExportModel(db, projectId, selection, policy);
   const project = model.projectTitle;
 

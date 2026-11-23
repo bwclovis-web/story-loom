@@ -1,5 +1,19 @@
 # Progress
 
+## W7C — Taxonomy-Organized, Point-Scoped World Bible & Wiki Exports (Nov 23, 2026)
+
+Shared world-bible model for HTML wiki, Markdown, DOCX, EPUB, and PDF:
+
+- **Model:** `worldBibleModel` — live SmartCollection / taxonomy / type / record selection via `resolveAvailableReference`; primary taxonomy grouping with secondary “See …” cross-refs; stable `slug-id` page targets; home-book category/template labels.
+- **Spoiler policy:** `mode: full | point` with story point + optional viewing book + approved-only; whole-artifact redaction via `redactWorldFieldsForExport` / `redactCharacterFieldsForExport` / `stripUnsettledAndOverlappingBody` before any writer runs; ambiguous title/alias wiki links omitted; excluded-record `[[…]]` targets stripped to plain text.
+- **Profiles:** `worldBibleProfileRender` — human-readable Living World Profile fields (units/qualifiers, documented zero), relationships, character dossier slice path preserved.
+- **UI / routes:** World Hub hands collection or active taxonomy filters to Export PDF; shared Export scope & spoiler controls on all five download buttons; query parser for `mode` / `book` / `spoilerBefore` / `ceiling` / `collection` / taxonomy params.
+- **Verify:** `tests/acceptance/world-bible-export-w7c.test.ts` (Saltmarsh Annals two-book fixture, `FUTURE_PHRASE_W7C` absence, live + empty collections) plus existing `world-bible-export.test.ts`.
+
+### Rollback
+
+Revert `worldBibleModel` / `worldBibleProfileRender` / `worldBibleExportQuery`, writer/route/UI/Help/PROGRESS changes for this milestone. Full-author exports without point params remain the previous default path.
+
 ## W7B — Manuscript vs Approved World-Fact Contradiction Review (Nov 23, 2026)
 
 Author-triggered, story-point-scoped comparison of manuscript passages against approved Living World Profile facts:
@@ -8,7 +22,7 @@ Author-triggered, story-point-scoped comparison of manuscript passages against a
 - **Persistence:** `WorldContradictionCheck` (issueKey + revision-pinned dedupeKey, `needsRecheck`); mutation hooks; trash delete; optional backup `worldContradictionChecks`; ContinuitySuppression `resolved` in backup format.
 - **Service:** `reviewManuscriptContradictions` reuses W5C/W7A eligible facts only (no undated / planned / sibling-local); persist upserts by dedupeKey and retires obsolete rows without editing prose or canon.
 - **UI:** Continuity Ledger kind `world_contradiction`; Write → References ContinuityStrip **Check world facts** + suppress actions.
-- **Tests:** `tests/unit/worldContradiction.test.ts`, `tests/acceptance/world-contradiction.test.ts` (Saltmarsh, Population, Waterway, Scope). Wiki / world-bible formatting remains W7C.
+- **Tests:** `tests/unit/worldContradiction.test.ts`, `tests/acceptance/world-contradiction.test.ts` (Saltmarsh, Population, Waterway, Scope). Wiki / world-bible formatting is W7C.
 
 ### Rollback
 

@@ -46,6 +46,15 @@ function selectionFromRecordIds(recordIds: readonly string[]): WorldBibleSelecti
   return { recordIds: [...recordIds] };
 }
 
+function normalizeSelection(
+  recordIdsOrSelection: readonly string[] | WorldBibleSelection,
+): WorldBibleSelection {
+  if (Array.isArray(recordIdsOrSelection)) {
+    return selectionFromRecordIds(recordIdsOrSelection as readonly string[]);
+  }
+  return recordIdsOrSelection as WorldBibleSelection;
+}
+
 function policyFromCeiling(ceiling: WikiSpoilerCeiling = {}): WorldBiblePolicy {
   if (ceiling.spoilerBeforeRecordId) {
     return {
@@ -58,6 +67,14 @@ function policyFromCeiling(ceiling: WikiSpoilerCeiling = {}): WorldBiblePolicy {
     mode: "full",
     approvedOnly: ceiling.approvedOnly ?? false,
   };
+}
+
+function resolvePolicyAndNow(
+  policyOrNow?: WorldBiblePolicy | Date,
+  now?: Date,
+): { policy: WorldBiblePolicy; now: Date } {
+  if (policyOrNow instanceof Date) return { policy: { mode: "full" }, now: policyOrNow };
+  return { policy: policyOrNow ?? { mode: "full" }, now: now ?? new Date() };
 }
 
 function stripUnresolvedWikiLinks(body: string, linkTerms: Map<string, string>): string {
@@ -250,11 +267,9 @@ export async function buildReferencesWikiZip(
   ceilingOrPolicy: WikiSpoilerCeiling | WorldBiblePolicy = {},
   now = new Date(),
 ): Promise<WorldBibleFile> {
-  const selection = Array.isArray(recordIdsOrSelection)
-    ? selectionFromRecordIds(recordIdsOrSelection)
-    : recordIdsOrSelection;
+  const selection = normalizeSelection(recordIdsOrSelection);
   const policy =
-    "mode" in ceilingOrPolicy
+    ceilingOrPolicy && typeof ceilingOrPolicy === "object" && "mode" in ceilingOrPolicy
       ? (ceilingOrPolicy as WorldBiblePolicy)
       : policyFromCeiling(ceilingOrPolicy as WikiSpoilerCeiling);
 
@@ -311,12 +326,11 @@ export async function buildReferencesMarkdownBundle(
   db: DbOrTx,
   projectId: string,
   recordIdsOrSelection: readonly string[] | WorldBibleSelection,
-  policy: WorldBiblePolicy = { mode: "full" },
-  now = new Date(),
+  policyOrNow?: WorldBiblePolicy | Date,
+  nowArg?: Date,
 ): Promise<WorldBibleFile> {
-  const selection = Array.isArray(recordIdsOrSelection)
-    ? selectionFromRecordIds(recordIdsOrSelection)
-    : recordIdsOrSelection;
+  const selection = normalizeSelection(recordIdsOrSelection);
+  const { policy, now } = resolvePolicyAndNow(policyOrNow, nowArg);
   const model = await buildWorldBibleExportModel(db, projectId, selection, policy);
   const zip = new JSZip();
   zip.file("README.md", renderWorldBibleIndexMarkdown(model));
@@ -337,12 +351,11 @@ export async function buildReferencesDocx(
   db: DbOrTx,
   projectId: string,
   recordIdsOrSelection: readonly string[] | WorldBibleSelection,
-  policy: WorldBiblePolicy = { mode: "full" },
-  now = new Date(),
+  policyOrNow?: WorldBiblePolicy | Date,
+  nowArg?: Date,
 ): Promise<WorldBibleFile> {
-  const selection = Array.isArray(recordIdsOrSelection)
-    ? selectionFromRecordIds(recordIdsOrSelection)
-    : recordIdsOrSelection;
+  const selection = normalizeSelection(recordIdsOrSelection);
+  const { policy, now } = resolvePolicyAndNow(policyOrNow, nowArg);
   const model = await buildWorldBibleExportModel(db, projectId, selection, policy);
   const children: Paragraph[] = [
     new Paragraph({
@@ -409,12 +422,11 @@ export async function buildReferencesEpub(
   db: DbOrTx,
   projectId: string,
   recordIdsOrSelection: readonly string[] | WorldBibleSelection,
-  policy: WorldBiblePolicy = { mode: "full" },
-  now = new Date(),
+  policyOrNow?: WorldBiblePolicy | Date,
+  nowArg?: Date,
 ): Promise<WorldBibleFile> {
-  const selection = Array.isArray(recordIdsOrSelection)
-    ? selectionFromRecordIds(recordIdsOrSelection)
-    : recordIdsOrSelection;
+  const selection = normalizeSelection(recordIdsOrSelection);
+  const { policy, now } = resolvePolicyAndNow(policyOrNow, nowArg);
   const model = await buildWorldBibleExportModel(db, projectId, selection, policy);
   const zip = new JSZip();
   const uid = `story-loom-world-${exportSlug(model.projectTitle)}-${now.getTime()}`;

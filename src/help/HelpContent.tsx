@@ -1971,9 +1971,10 @@ export function HelpContent() {
           <See anchor="chatgpt" />.
         </p>
         <p>
-          <L>{WORLD.exportPdf}</L> on the World page opens <L>{NAV.exportPdf}</L> with that category, or every World
-          document, ticked. <L>{WORLD.downloadPdf}</L> on a document&apos;s page downloads a PDF of that document straight
-          away. See <See anchor="pdf-export" />.
+          <L>{WORLD.exportPdf}</L> on the World page opens <L>{NAV.exportPdf}</L> with the active World Hub collection or
+          taxonomy filters (category, subcategory, tag, custom kind, unclassified), or every World document when none are
+          set. <L>{WORLD.downloadPdf}</L> on a document&apos;s page downloads a PDF of that document straight away. See{" "}
+          <See anchor="pdf-export" />.
         </p>
 
         <Sub id="world-boards">
@@ -3077,15 +3078,26 @@ export function HelpContent() {
           <li>
             Choose <L>{PDF.downloadReferences("N")}</L>, <L>{PDF.downloadReferencesDocx("N")}</L>,{" "}
             <L>{PDF.downloadReferencesEpub("N")}</L>, <L>{PDF.downloadReferencesMarkdown("N")}</L>, or{" "}
-            <L>{PDF.downloadReferencesWiki("N")}</L>. DOCX, EPUB, and the Markdown zip use the same ticked references.
-            The HTML wiki zip is searchable offline with one page per document, infoboxes, cross-links, and embedded PNG
-            or JPEG images. Optional spoiler ceilings on that download can limit the export to approved references or trim
-            established facts in infoboxes; body text and relationships are not fully spoiler-filtered.
+            <L>{PDF.downloadReferencesWiki("N")}</L>. All five formats use the same ticked references (and the same World
+            Hub collection or taxonomy scope when you arrived from World).
           </li>
         </ol>
         <p>
-          The PDF starts with a list of the documents by type. Each document starts on a new page, ordered by type and
-          then title. The PDF&apos;s bookmarks list every document.
+          References are grouped by World Hub taxonomy. A record has one full entry under its primary category; secondary
+          memberships appear as “See also” links that keep distinct page ids when two records share a title. Living World
+          Profile fields render with human labels and units (for example “about 90 miles”), not raw JSON.
+        </p>
+        <p>
+          Under <L>{PDF.exportScopeHeading}</L>, choose a full author export or a point-scoped export (viewing book,
+          chapter/scene story point, and approved-only). Point-scoped redaction runs once for the whole artifact before
+          any format is written: planned changes, Markdown archives, sibling book-local facts, unsettled status-tagged
+          sections, and links to excluded records are omitted from the index, articles, captions, and filenames. Legacy
+          prose whose chronology cannot be established is labeled as uncertain background when it is retained.
+        </p>
+        <p>
+          The HTML wiki zip remains searchable offline with one page per document, profile infoboxes, cross-links, and
+          embedded PNG or JPEG images. The PDF starts with a taxonomy index; each document starts on a new page. Bookmarks
+          list every document.
         </p>
         <h4>The manuscript</h4>
         <ol>

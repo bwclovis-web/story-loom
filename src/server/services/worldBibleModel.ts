@@ -13,8 +13,8 @@ import {
 import { renderCharacterContextSlice } from "@/domain/characterDevelopment";
 import { readCharacterDevelopment, developmentIsEmpty } from "@/domain/characterDevelopment";
 import type { JsonObject } from "@/domain/json";
-import { toRecordView, type RecordView } from "@/domain/records";
-import { isManuscriptType, isRecordType, RECORD_TYPE_LABELS, type RecordType } from "@/domain/recordTypes";
+import type { RecordView } from "@/domain/records";
+import { isManuscriptType, RECORD_TYPE_LABELS, type RecordType } from "@/domain/recordTypes";
 import {
   formatWorldProfileFieldValue,
   isWorldProfileRecordType,

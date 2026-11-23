@@ -34,7 +34,9 @@ describe("world bible export", () => {
     expect(await docxZip.file("word/document.xml")?.async("string")).toContain("The Salt Guild");
     const epubZip = await JSZip.loadAsync(epub.bytes);
     expect(epubZip.file("mimetype")).toBeTruthy();
-    expect(await epubZip.file("OEBPS/doc-1.xhtml")?.async("string")).toContain("The Salt Guild");
+    const epubPage = Object.keys(epubZip.files).find((name) => name.startsWith("OEBPS/") && name.endsWith(".xhtml") && name !== "OEBPS/nav.xhtml");
+    expect(epubPage).toBeTruthy();
+    expect(await epubZip.file(epubPage!)?.async("string")).toContain("The Salt Guild");
     const markdownZip = await JSZip.loadAsync(markdown.bytes);
     const names = Object.keys(markdownZip.files);
     expect(names.some((name) => name.endsWith(".md") && name !== "README.md")).toBe(true);

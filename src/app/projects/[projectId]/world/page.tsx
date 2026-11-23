@@ -219,7 +219,19 @@ export default async function WorldPage({
     return !source.normalize("NFC").startsWith(hit.excerpt);
   };
 
-  const selection = query.type ? `type=${query.type}` : "group=world";
+  const exportParams = new URLSearchParams();
+  if (activeCollection?.id) {
+    exportParams.set("collection", activeCollection.id);
+  } else {
+    if (query.type) exportParams.set("type", query.type);
+    else exportParams.set("group", "world");
+    if (query.category) exportParams.set("category", query.category);
+    if (query.subcategory) exportParams.set("subcategory", query.subcategory);
+    if (query.tag) exportParams.set("tag", query.tag);
+    if (query.customKind) exportParams.set("customKind", query.customKind);
+    if (query.unclassified) exportParams.set("unclassified", "1");
+  }
+  const selection = exportParams.toString();
   const exportHref = `${base}/export?${selection}`;
   const pdfHref = `${base}/export-pdf?${selection}`;
   const listTitle = listHeading(query);
