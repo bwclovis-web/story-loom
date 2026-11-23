@@ -33,6 +33,7 @@ export const WORLD_PROFILE_FIELD_TYPES = [
   "record_refs",
   "ordered_list",
   "quantity",
+  "glossed_lines",
 ] as const;
 export type WorldProfileFieldType = (typeof WORLD_PROFILE_FIELD_TYPES)[number];
 
@@ -62,6 +63,11 @@ export interface WorldProfileFieldDef {
   options?: readonly WorldProfileFieldOption[];
   placeholder?: string;
   quantityConfig?: WorldProfileQuantityConfig;
+  /**
+   * descriptive = prose or a sample utterance. Continuity may show it, but it
+   * is not an assertable contradiction rule.
+   */
+  continuity?: "descriptive";
 }
 
 export interface WorldSubcategorySectionDef {
@@ -657,9 +663,147 @@ export const WORLD_SUBCATEGORY_SECTIONS: readonly WorldSubcategorySectionDef[] =
       ),
     ],
   },
+  {
+    id: "organizations:guilds",
+    categoryId: "organizations",
+    subcategoryId: "guilds",
+    label: "Guilds",
+    description: "Admission, apprenticeship, and credentials. Membership stays on the Organizations profile.",
+    fields: [
+      {
+        ...profileField(
+          "admissionRequirements",
+          "Admission requirements",
+          "long_text",
+          "What a person must do or bring to be admitted. Distinct from Membership.",
+        ),
+        continuity: "descriptive",
+      },
+      {
+        ...profileField(
+          "apprenticeshipStages",
+          "Apprenticeship stages",
+          "ordered_list",
+          "Stages in the order an apprentice proceeds. One stage per line.",
+        ),
+        continuity: "descriptive",
+      },
+      {
+        ...profileField(
+          "credentialsIssued",
+          "Credentials issued",
+          "ordered_list",
+          "Credentials the guild grants. One credential per line.",
+        ),
+        continuity: "descriptive",
+      },
+    ],
+  },
+  {
+    id: "religion:rituals",
+    categoryId: "religion",
+    subcategoryId: "rituals",
+    label: "Rituals",
+    description: "Occasion, roles, ordered steps, and variations for one rite. General rite notes stay on Rituals in the Religion profile.",
+    fields: [
+      {
+        ...profileField(
+          "ritualOccasion",
+          "Ritual occasion",
+          "short_text",
+          "When this rite is held.",
+        ),
+        continuity: "descriptive",
+      },
+      {
+        ...profileField(
+          "participantRoles",
+          "Participant roles",
+          "ordered_list",
+          "Roles people take in the rite. One role per line.",
+        ),
+        continuity: "descriptive",
+      },
+      {
+        ...profileField(
+          "ritualSteps",
+          "Ritual steps",
+          "ordered_list",
+          "Steps in the order they are performed. One step per line.",
+        ),
+        continuity: "descriptive",
+      },
+      {
+        ...profileField(
+          "ritualVariations",
+          "Ritual variations",
+          "long_text",
+          "Accepted differences in how the rite is performed.",
+        ),
+        continuity: "descriptive",
+      },
+    ],
+  },
+  {
+    id: "languages:dialects",
+    categoryId: "languages",
+    subcategoryId: "dialects",
+    label: "Dialects",
+    description: "Parent language, sound changes, expressions, and glossed examples.",
+    fields: [
+      {
+        key: "parentLanguage",
+        label: "Parent language",
+        description:
+          "Language this dialect comes from. Stored as a Living World Profile record reference. Language records are not Place or Record relationship endpoints.",
+        type: "record_ref",
+        storage: "profile",
+        optional: true,
+        placeholder: "Record id of the parent language",
+      },
+      {
+        ...profileField(
+          "regionalSoundChanges",
+          "Regional sound changes",
+          "long_text",
+          "Sound changes that mark this dialect.",
+        ),
+        continuity: "descriptive",
+      },
+      {
+        ...profileField(
+          "distinctiveExpressions",
+          "Distinctive expressions",
+          "ordered_list",
+          "Phrases that mark the dialect. One expression per line.",
+        ),
+        continuity: "descriptive",
+      },
+      {
+        ...profileField(
+          "exampleLines",
+          "Example lines",
+          "glossed_lines",
+          "Sample lines, each kept with its gloss.",
+        ),
+        continuity: "descriptive",
+      },
+    ],
+  },
 ];
 
 const SUBCATEGORY_SECTION_BY_ID = new Map(WORLD_SUBCATEGORY_SECTIONS.map((section) => [section.id, section]));
+
+const DESCRIPTIVE_SUBCATEGORY_FIELD_KEYS = new Set(
+  WORLD_SUBCATEGORY_SECTIONS.flatMap((section) =>
+    section.fields.filter((field) => field.continuity === "descriptive").map((field) => field.key),
+  ),
+);
+
+/** Prose and sample utterances. Structuring them does not make them contradiction rules. */
+export function isDescriptiveSubcategoryField(fieldKey: string): boolean {
+  return DESCRIPTIVE_SUBCATEGORY_FIELD_KEYS.has(fieldKey);
+}
 
 export function getSubcategorySection(id: string): WorldSubcategorySectionDef | null {
   return SUBCATEGORY_SECTION_BY_ID.get(id) ?? null;
@@ -761,6 +905,23 @@ function validateFieldValue(
       break;
     case "boolean":
       if (typeof value !== "boolean") problems.push({ path, message: `${field.label} must be true or false.` });
+      break;
+    case "glossed_lines":
+      if (typeof value === "string") break;
+      if (Array.isArray(value) && value.length === 0) break;
+      if (
+        !Array.isArray(value) ||
+        value.some(
+          (item) =>
+            !item ||
+            typeof item !== "object" ||
+            Array.isArray(item) ||
+            typeof (item as { line?: unknown }).line !== "string" ||
+            typeof (item as { gloss?: unknown }).gloss !== "string",
+        )
+      ) {
+        problems.push({ path, message: `${field.label} must be example lines paired with glosses.` });
+      }
       break;
     case "multi_select":
     case "ordered_list":

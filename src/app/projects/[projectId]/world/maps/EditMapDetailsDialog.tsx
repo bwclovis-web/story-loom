@@ -91,6 +91,7 @@ export function EditMapDetailsDialog({
           label={WORLD.mapClassification}
           value={classification}
           onChange={(e) => setClassification(e.target.value)}
+          hint={WORLD.mapsSetTypeHint}
         >
           <option value="">{WORLD.mapClassificationNone}</option>
           {MAP_CLASSIFICATIONS.map((value) => (

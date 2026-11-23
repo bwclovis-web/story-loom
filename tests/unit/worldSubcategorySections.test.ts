@@ -14,7 +14,11 @@ import { resolveWorldFieldsAtPoint } from "@/domain/worldProfileHistory";
 import { redactWorldFieldsForExport, renderWorldContextSlice } from "@/domain/worldWritingContext";
 import { withRecordTaxonomy } from "@/world/taxonomy";
 import {
+  definitionFromKindTemplate,
+  getBuiltinWorldProfileDefinition,
   getSubcategorySection,
+  isDescriptiveSubcategoryField,
+  listAllSubcategorySections,
   listSubcategorySectionsForTaxonomy,
   listSubcategorySectionsWithStoredValues,
   POPULATION_ESTIMATE_FIELD,
@@ -66,7 +70,139 @@ describe("W5D subcategory sections and quantity fields", () => {
       "geography:cities_and_settlements",
       "geography:regions",
       "geography:waterways",
+      "organizations:guilds",
+      "religion:rituals",
+      "languages:dialects",
     ]);
+  });
+
+  it("reuses membership and adds only missing guild, ritual, and dialect fields", () => {
+    const organizations = getBuiltinWorldProfileDefinition("category:organizations");
+    const religion = getBuiltinWorldProfileDefinition("category:religion");
+    expect(organizations?.fields.some((field) => field.key === "membership")).toBe(true);
+    expect(religion?.fields.some((field) => field.key === "rituals" && field.type === "long_text")).toBe(true);
+
+    const guilds = getSubcategorySection("organizations:guilds");
+    const rituals = getSubcategorySection("religion:rituals");
+    const dialects = getSubcategorySection("languages:dialects");
+    expect(guilds?.fields.map((field) => field.key)).toEqual([
+      "admissionRequirements",
+      "apprenticeshipStages",
+      "credentialsIssued",
+    ]);
+    expect(guilds?.fields.some((field) => field.key === "membership")).toBe(false);
+    expect(guilds?.fields.find((field) => field.key === "apprenticeshipStages")?.type).toBe("ordered_list");
+    expect(rituals?.fields.map((field) => field.key)).toEqual([
+      "ritualOccasion",
+      "participantRoles",
+      "ritualSteps",
+      "ritualVariations",
+    ]);
+    expect(rituals?.fields.some((field) => field.key === "rituals")).toBe(false);
+    expect(rituals?.fields.find((field) => field.key === "ritualSteps")?.type).toBe("ordered_list");
+    expect(dialects?.fields.find((field) => field.key === "parentLanguage")).toMatchObject({
+      type: "record_ref",
+      storage: "profile",
+    });
+    expect(dialects?.fields.find((field) => field.key === "exampleLines")?.type).toBe("glossed_lines");
+    expect(isDescriptiveSubcategoryField("exampleLines")).toBe(true);
+    expect(isDescriptiveSubcategoryField("ritualSteps")).toBe(true);
+    expect(isDescriptiveSubcategoryField("parentLanguage")).toBe(false);
+    expect(isDescriptiveSubcategoryField("membership")).toBe(false);
+  });
+
+  it("keeps example lines paired with glosses through read and format", () => {
+    const pairs = [
+      { line: "Kael tor ven", gloss: "the tide turns" },
+      { line: "Vael mir sen", gloss: "the lamp is low" },
+    ];
+    expect(readWorldProfileFieldValue(pairs)).toEqual(pairs);
+    expect(formatWorldProfileFieldValue(pairs)).toBe(
+      "Kael tor ven — the tide turns; Vael mir sen — the lamp is low",
+    );
+    const profile: WorldProfile = {
+      ...emptyWorldProfile(),
+      definitionId: "category:languages",
+      enabledSections: ["languages:dialects"],
+      values: { exampleLines: pairs, parentLanguage: { recordId: "rec_parent" } },
+    };
+    const read = readWorldProfile(withWorldProfile({ kind: "language" }, profile));
+    expect(read.ok).toBe(true);
+    expect(read.profile.values.exampleLines).toEqual(pairs);
+    expect(read.profile.values.parentLanguage).toEqual({ recordId: "rec_parent" });
+    expect(validateSubcategorySectionValues(read.profile)).toEqual([]);
+  });
+
+  it("reads an older profile without enabledSections as an empty list", () => {
+    const read = readWorldProfile({
+      [WORLD_PROFILE_KEY]: {
+        version: 1,
+        definitionId: "category:organizations",
+        values: { membership: "Journeymen and masters." },
+      },
+    });
+    expect(read.ok).toBe(true);
+    expect(read.profile.enabledSections).toEqual([]);
+    expect(read.profile.definitionId).toBe("category:organizations");
+    expect(read.profile.values.membership).toBe("Journeymen and masters.");
+  });
+
+  it("suggests guilds, rituals, and dialects from taxonomy without gating them on the definition", () => {
+    const mixed = listSubcategorySectionsForTaxonomy({
+      primary: { category: "organizations", subcategory: "guilds" },
+      secondary: [
+        { category: "religion", subcategory: "rituals" },
+        { category: "languages", subcategory: "dialects" },
+      ],
+    });
+    expect(mixed.map((section) => section.id)).toEqual([
+      "organizations:guilds",
+      "religion:rituals",
+      "languages:dialects",
+    ]);
+    expect(
+      listSubcategorySectionsForTaxonomy({
+        primary: { category: "languages", subcategory: "dock-cant" },
+      }).map((section) => section.id),
+    ).toEqual([]);
+
+    const custom = definitionFromKindTemplate({
+      id: "wkt_harbor_guild",
+      projectId: "prj_home",
+      kind: "organization",
+      fields: [{ key: "goal", label: "Goal", multiline: false }],
+      worldScope: "series",
+      home: { projectId: "prj_home", title: "Home Book", bookName: "Home Book" },
+      definitionId: "kind:harbor-guild",
+      label: "Harbor guild",
+      categorySlug: "organizations",
+      subcategorySlug: "guilds",
+      profileSpecJson: null,
+    });
+    expect(custom.id).toBe("kind:harbor-guild");
+    expect(custom.fields.some((field) => field.key === "membership")).toBe(false);
+    expect(listAllSubcategorySections().some((section) => section.id === "organizations:guilds")).toBe(true);
+
+    const profile: WorldProfile = {
+      ...emptyWorldProfile(),
+      definitionId: custom.id,
+      enabledSections: ["organizations:guilds"],
+      values: {
+        admissionRequirements: "A living sponsor and one finished cask.",
+      },
+    };
+    const fields = withRecordTaxonomy(withWorldProfile({ kind: "organization" }, profile), {
+      version: 1,
+      primary: { category: "organizations", subcategory: "guilds" },
+      secondary: [{ category: "religion", subcategory: "rituals" }],
+    });
+    const read = readWorldProfile(fields);
+    expect(read.profile.definitionId).toBe("kind:harbor-guild");
+    expect(read.profile.enabledSections).toEqual(["organizations:guilds"]);
+    expect(read.profile.values.admissionRequirements).toBe("A living sponsor and one finished cask.");
+    expect(listSubcategorySectionsWithStoredValues(read.profile).map((section) => section.id)).toContain(
+      "organizations:guilds",
+    );
   });
 
   it("keeps definitionId, enabledSections, and values sticky across taxonomy edits", () => {

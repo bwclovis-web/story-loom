@@ -18,7 +18,7 @@ import type {
   WorldProfileQuantity,
   WorldQuantityQualifier,
 } from "@/domain/worldProfile";
-import { WORLD_QUANTITY_QUALIFIERS } from "@/domain/worldProfile";
+import { formatWorldProfileFieldValue, parseGlossedLinesText, WORLD_QUANTITY_QUALIFIERS } from "@/domain/worldProfile";
 import {
   appendWorldFieldChange,
   compareWorldFieldsAtPoints,
@@ -45,6 +45,8 @@ const HISTORY_FIELD_TYPES = new Set([
   "quantity",
   "ordered_list",
   "number",
+  "record_ref",
+  "glossed_lines",
 ]);
 
 function newHistoryId(): string {
@@ -105,6 +107,14 @@ function parseHistoryValue(field: WorldProfileFieldDef | null, raw: string): Wor
       .map((line) => line.trim())
       .filter(Boolean)
       .slice(0, 64);
+  }
+  if (field.type === "glossed_lines") {
+    const lines = parseGlossedLinesText(raw);
+    return lines.length ? lines : null;
+  }
+  if (field.type === "record_ref") {
+    const trimmed = raw.trim();
+    return trimmed ? { recordId: trimmed.slice(0, 80) } : null;
   }
   if (field.type === "number") {
     const trimmed = raw.trim();
@@ -317,7 +327,7 @@ export function WorldProfileHistorySection({
         definitionId: prior.definitionId ?? profile.definitionId,
         storage: prior.storage,
         presence: "set",
-        value: correctionText,
+        value: parseHistoryValue(findFieldDef(definition, enabledSectionIds, prior.fieldPath), correctionText),
         approval: "draft",
         planned: false,
         provenance: { origin: "author", note: "" },
@@ -520,7 +530,20 @@ export function WorldProfileHistorySection({
             {presence === "set" ? (
               <label>
                 {WORLD_PROFILE.changeValue}
-                <input value={valueText} onChange={(event) => setValueText(event.target.value)} />
+                {selectedFieldDef?.type === "glossed_lines" ||
+                selectedFieldDef?.type === "ordered_list" ||
+                selectedFieldDef?.type === "long_text" ? (
+                  <textarea
+                    rows={selectedFieldDef.type === "long_text" ? 3 : 4}
+                    value={valueText}
+                    placeholder={
+                      selectedFieldDef.type === "glossed_lines" ? WORLD_PROFILE.exampleLinesHistory : undefined
+                    }
+                    onChange={(event) => setValueText(event.target.value)}
+                  />
+                ) : (
+                  <input value={valueText} onChange={(event) => setValueText(event.target.value)} />
+                )}
               </label>
             ) : null}
             <label>
@@ -576,7 +599,8 @@ export function WorldProfileHistorySection({
                   .filter((change) => change.approval !== "superseded")
                   .map((change) => (
                     <option key={change.id} value={change.id}>
-                      {change.fieldPath}: {change.presence === "unknown" ? "unknown" : String(change.value ?? "")} (
+                      {change.fieldPath}:{" "}
+                      {change.presence === "unknown" ? "unknown" : formatWorldProfileFieldValue(change.value) || "—"} (
                       {change.id})
                     </option>
                   ))}
@@ -584,7 +608,7 @@ export function WorldProfileHistorySection({
             </label>
             <label>
               {WORLD_PROFILE.changeValue}
-              <input value={correctionText} onChange={(event) => setCorrectionText(event.target.value)} />
+              <textarea rows={3} value={correctionText} onChange={(event) => setCorrectionText(event.target.value)} />
             </label>
             <label>
               {WORLD_PROFILE.correctionNote}
@@ -605,7 +629,8 @@ export function WorldProfileHistorySection({
           <ul className="small">
             {profile.fieldHistory.map((change) => (
               <li key={change.id}>
-                {change.fieldPath} · {change.presence === "unknown" ? "unknown" : String(change.value ?? "")} ·{" "}
+                {change.fieldPath} ·{" "}
+                {change.presence === "unknown" ? "unknown" : formatWorldProfileFieldValue(change.value) || "—"} ·{" "}
                 {change.approval}
                 {change.planned ? " · planned" : ""} · {change.worldScope}
                 {change.calendarLabel ? ` · ${change.calendarLabel}` : ""}

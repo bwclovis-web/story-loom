@@ -101,17 +101,19 @@ export function MapCard({
         {typeLabel ? <span className="map-library-type-badge">{typeLabel}</span> : null}
       </div>
       <div className="map-library-card-body">
-        <h3 className="map-library-card-title">{map.title}</h3>
-        <p className="map-library-card-meta">
-          <BookMarked aria-hidden="true" strokeWidth={1.75} />
-          <span className="map-library-card-ref">{map.hostRecordTitle}</span>
-        </p>
-        <p className="map-library-card-meta">
-          <MapPin aria-hidden="true" strokeWidth={1.75} />
-          <span>{WORLD.pinsCount(map.pinCount)}</span>
-        </p>
+        <div className="map-library-card-copy">
+          <h3 className="map-library-card-title">{map.title}</h3>
+          <p className="map-library-card-meta">
+            <BookMarked aria-hidden="true" strokeWidth={1.75} />
+            <span className="map-library-card-ref">{map.hostRecordTitle}</span>
+          </p>
+          <p className="map-library-card-meta">
+            <MapPin aria-hidden="true" strokeWidth={1.75} />
+            <span>{WORLD.pinsCount(map.pinCount)}</span>
+          </p>
+        </div>
         <div className="map-library-card-actions">
-          <IconAnchor href={href} aria-label={`${WORLD.openMap} ${map.title}`} tooltip={WORLD.openMap}>
+          <IconAnchor href={href} className="map-library-action" aria-label={`${WORLD.openMap} ${map.title}`} tooltip={WORLD.openMap}>
             <ArrowRight aria-hidden="true" strokeWidth={2} />
           </IconAnchor>
           <MapOverflowActions projectId={projectId} map={map} onEditDetails={onEditDetails} />
@@ -156,7 +158,7 @@ export function MapListRow({
         </p>
       </div>
       <div className="map-library-row-actions">
-        <IconAnchor href={href} aria-label={`${WORLD.openMap} ${map.title}`} tooltip={WORLD.openMap}>
+        <IconAnchor href={href} className="map-library-action" aria-label={`${WORLD.openMap} ${map.title}`} tooltip={WORLD.openMap}>
           <ArrowRight aria-hidden="true" strokeWidth={2} />
         </IconAnchor>
         <MapOverflowActions projectId={projectId} map={map} onEditDetails={onEditDetails} />

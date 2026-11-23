@@ -1,11 +1,12 @@
 "use client";
 
-import { ImagePlus, LayoutGrid, List, Plus, Search } from "lucide-react";
+import { ImagePlus, LayoutGrid, List, Plus } from "lucide-react";
 import { useId, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/Atoms/Button";
 import { Select } from "@/components/ui/Atoms/Select";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { SegmentedControl, SegmentedOption } from "@/components/ui/SegmentedControl";
+import { SearchIcon } from "@/components/shell/icons";
 import { MAPS_VIEW_COOKIE, writePreference, type MapsViewPreference } from "@/components/shell/preferences";
 import { WORLD } from "@/ui/labels";
 import { MAP_CLASSIFICATION_LABEL, MAP_CLASSIFICATIONS, type MapClassification } from "@/world/mapClassification";
@@ -35,6 +36,7 @@ export function MapsLanding({
   initialView: MapsViewPreference;
 }) {
   const searchId = useId();
+  const searchHintId = useId();
   const filterId = useId();
   const sortId = useId();
   const createTitleId = useId();
@@ -74,25 +76,36 @@ export function MapsLanding({
       </header>
 
       {maps.length > 0 ? (
-        <div className="map-library-toolbar" role="search">
-          <label className="map-library-search" htmlFor={searchId}>
-            <Search aria-hidden="true" strokeWidth={1.75} />
-            <span className="sr-only">{WORLD.mapsSearch}</span>
-            <input
-              id={searchId}
-              type="search"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder={WORLD.mapsSearchPlaceholder}
-              autoComplete="off"
-            />
-          </label>
+        <div className="map-library-toolbar">
+          <form
+            role="search"
+            className="map-library-search-form"
+            aria-label={WORLD.mapsSearch}
+            onSubmit={(e) => e.preventDefault()}
+          >
+            <label className="tree-search map-library-search" htmlFor={searchId}>
+              <span className="sr-only">{WORLD.mapsSearch}</span>
+              <SearchIcon />
+              <input
+                id={searchId}
+                type="search"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder={WORLD.mapsSearchPlaceholder}
+                autoComplete="off"
+                aria-describedby={searchHintId}
+              />
+            </label>
+            <p className="sr-only" id={searchHintId}>
+              {WORLD.mapsSearch}
+            </p>
+          </form>
           <Select
             id={filterId}
             label={false}
             value={filter}
             onChange={(e) => setFilter(parseMapLibraryFilter(e.target.value))}
-            aria-label={WORLD.mapsFilterAll}
+            aria-label={WORLD.mapClassification}
           >
             <option value="all">{WORLD.mapsFilterAll}</option>
             {MAP_CLASSIFICATIONS.map((value) => (
@@ -116,17 +129,17 @@ export function MapsLanding({
           <SegmentedControl label={WORLD.toolbarView} size="sm" className="map-library-view-toggle">
             <SegmentedOption
               selected={view === "grid"}
-              aria-label={WORLD.mapsViewGrid}
+              aria-label={WORLD.mapsViewGridHint}
               onClick={() => setViewPreference("grid")}
             >
-              <LayoutGrid aria-hidden="true" strokeWidth={1.75} />
+              <LayoutGrid aria-hidden="true" strokeWidth={1.75} className="map-library-view-icon" />
             </SegmentedOption>
             <SegmentedOption
               selected={view === "list"}
-              aria-label={WORLD.mapsViewList}
+              aria-label={WORLD.mapsViewListHint}
               onClick={() => setViewPreference("list")}
             >
-              <List aria-hidden="true" strokeWidth={1.75} />
+              <List aria-hidden="true" strokeWidth={1.75} className="map-library-view-icon" />
             </SegmentedOption>
           </SegmentedControl>
         </div>
@@ -135,7 +148,7 @@ export function MapsLanding({
       <section className="map-library-atlas" aria-labelledby="maps-atlas-heading">
         <header className="map-library-atlas-head">
           <h2 id="maps-atlas-heading">{WORLD.mapsAtlas}</h2>
-          <span className="badge badge-muted" aria-live="polite">
+          <span className="badge" aria-live="polite">
             {WORLD.mapsCount(visible.length)}
           </span>
         </header>

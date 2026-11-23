@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   classifyPassageStance,
   evaluatePassageAgainstWorldFact,
+  findingsToPersist,
   splitPassageClaims,
   validateAiContradictionCandidate,
   type PassageClaim,
@@ -187,6 +188,42 @@ describe("evaluatePassageAgainstWorldFact", () => {
         manuscriptRevision: 1,
       }).verdict,
     ).toBe("conflict");
+  });
+
+  it("does not turn ritual prose or a glossed sample into a contradiction rule", () => {
+    const steps = fact({
+      fieldPath: "values.ritualSteps",
+      value: ["Wash the body with river water", "Light the blue lantern", "Speak the dead person's harbor name"],
+      formatted: "Wash the body with river water, Light the blue lantern, Speak the dead person's harbor name",
+      worldTitle: "Lantern Vigil",
+      subcategoryId: "rituals",
+    });
+    const stepEval = evaluatePassageAgainstWorldFact({
+      passage: claim("Lantern Vigil buried the dead without a lantern."),
+      fact: steps,
+      manuscriptRecordId: "rec_ms",
+      manuscriptRevision: 1,
+    });
+    expect(stepEval.verdict).toBe("insufficient_evidence");
+
+    const samples = fact({
+      fieldPath: "values.exampleLines",
+      value: [
+        { line: "Kael tor ven", gloss: "the tide turns" },
+        { line: "Vael mir sen", gloss: "the lamp is low" },
+      ],
+      formatted: "Kael tor ven — the tide turns; Vael mir sen — the lamp is low",
+      worldTitle: "Harbour Cant",
+      subcategoryId: "dialects",
+    });
+    const sampleEval = evaluatePassageAgainstWorldFact({
+      passage: claim('Harbour Cant speakers said "the tide never turns."'),
+      fact: samples,
+      manuscriptRecordId: "rec_ms",
+      manuscriptRevision: 1,
+    });
+    expect(sampleEval.verdict).toBe("insufficient_evidence");
+    expect(findingsToPersist([stepEval, sampleEval])).toEqual([]);
   });
 });
 

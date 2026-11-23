@@ -104,11 +104,18 @@ export interface WorldProfileQuantity {
   qualifier?: WorldQuantityQualifier;
 }
 
+/** One sample utterance kept with its gloss. Order in the array is the author's order. */
+export interface WorldProfileGlossedLine {
+  line: string;
+  gloss: string;
+}
+
 export type WorldProfileFieldValue =
   | string
   | number
   | boolean
   | string[]
+  | WorldProfileGlossedLine[]
   | WorldProfileRecordRef
   | WorldProfileCalendarDate
   | WorldProfileQuantity
@@ -390,12 +397,70 @@ function isCalendarDate(value: Record<string, unknown>): boolean {
   );
 }
 
+export function isWorldProfileGlossedLine(value: unknown): value is WorldProfileGlossedLine {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const row = value as Record<string, unknown>;
+  return typeof row.line === "string" && typeof row.gloss === "string";
+}
+
+export function isWorldProfileGlossedLines(value: unknown): value is WorldProfileGlossedLine[] {
+  return Array.isArray(value) && value.length > 0 && value.every((item) => isWorldProfileGlossedLine(item));
+}
+
+function readGlossedLineArray(raw: unknown[]): WorldProfileGlossedLine[] | null {
+  if (!raw.length) return null;
+  if (!raw.every((item) => item && typeof item === "object" && !Array.isArray(item))) return null;
+  const lines: WorldProfileGlossedLine[] = [];
+  let sawPairKey = false;
+  for (const item of raw) {
+    const row = item as Record<string, unknown>;
+    if (!("line" in row) && !("gloss" in row)) continue;
+    sawPairKey = true;
+    const line = typeof row.line === "string" ? text(row.line, 500) : "";
+    const gloss = typeof row.gloss === "string" ? text(row.gloss, 500) : "";
+    if (!line && !gloss) continue;
+    lines.push({ line, gloss });
+    if (lines.length >= MAX_LIST) break;
+  }
+  return sawPairKey ? lines : null;
+}
+
+/** History text box: one `line | gloss` pair per line. The profile editor stores the pairs as objects. */
+export function parseGlossedLinesText(raw: string): WorldProfileGlossedLine[] {
+  const lines: WorldProfileGlossedLine[] = [];
+  for (const row of raw.split(/\r?\n/)) {
+    const trimmed = row.trim();
+    if (!trimmed) continue;
+    const pipe = trimmed.indexOf("|");
+    const line = (pipe === -1 ? trimmed : trimmed.slice(0, pipe)).trim().slice(0, 500);
+    const gloss = (pipe === -1 ? "" : trimmed.slice(pipe + 1)).trim().slice(0, 500);
+    if (!line && !gloss) continue;
+    lines.push({ line, gloss });
+    if (lines.length >= MAX_LIST) break;
+  }
+  return lines;
+}
+
+export function formatGlossedLines(lines: readonly WorldProfileGlossedLine[]): string {
+  return lines
+    .map((item) => {
+      const line = item.line.trim();
+      const gloss = item.gloss.trim();
+      if (line && gloss) return `${line} — ${gloss}`;
+      return line || gloss;
+    })
+    .filter(Boolean)
+    .join("; ");
+}
+
 export function readWorldProfileFieldValue(raw: unknown): WorldProfileFieldValue {
   if (raw === null || raw === undefined) return null;
   if (typeof raw === "string") return text(raw);
   if (typeof raw === "number" && Number.isFinite(raw)) return raw;
   if (typeof raw === "boolean") return raw;
   if (Array.isArray(raw)) {
+    const glossed = readGlossedLineArray(raw);
+    if (glossed) return glossed;
     return raw
       .filter((item): item is string => typeof item === "string")
       .map((item) => text(item, 500))
@@ -656,7 +721,10 @@ export function formatWorldProfileFieldValue(value: WorldProfileFieldValue): str
   if (value === null || value === undefined) return "";
   if (typeof value === "string") return value;
   if (typeof value === "number" || typeof value === "boolean") return String(value);
-  if (Array.isArray(value)) return value.join(", ");
+  if (Array.isArray(value)) {
+    if (isWorldProfileGlossedLines(value)) return formatGlossedLines(value);
+    return value.join(", ");
+  }
   if ("amount" in value && typeof (value as WorldProfileQuantity).amount === "number") {
     const quantity = value as WorldProfileQuantity;
     const qualifier =

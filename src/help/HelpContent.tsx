@@ -2415,8 +2415,10 @@ export function HelpContent() {
           </p>
           <p>
             Optional <L>{WORLD_PROFILE.subcategorySections}</L> add Geography details for cities and settlements,
-            regions, or waterways without changing the profile definition. Taxonomy can suggest a section; you can also
-            add any shipped section before tagging. Hiding a section keeps saved values. Qualified quantities (population
+            regions, or waterways, and the same kind of detail for guilds, rituals, and dialects, without changing the
+            profile definition. Taxonomy can suggest a section; you can also add any shipped section before tagging.
+            Enable Guilds when membership notes do not say who may join or how apprenticeship proceeds. Hiding a
+            section keeps saved values. Qualified quantities (population
             estimate, land area, length) distinguish a blank unknown from a documented zero, and waterway outlet can
             reuse an existing Place relationship (<code>flows_into</code>). Changing primary or secondary categories
             never clears the definition, enabled sections, or saved values — sections with saved data stay under{" "}

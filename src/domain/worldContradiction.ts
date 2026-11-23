@@ -9,11 +9,13 @@ import { resolveQuotation } from "@/analyze/chapterAnalysisReview";
 import { sha256 } from "@/domain/json";
 import {
   formatWorldProfileFieldValue,
+  isWorldProfileGlossedLines,
   isWorldProfileQuantity,
   type WorldProfileFieldValue,
   type WorldProfileQuantity,
   type WorldQuantityQualifier,
 } from "@/domain/worldProfile";
+import { isDescriptiveSubcategoryField } from "@/world/worldProfileRegistry";
 import type { WorldContextFact } from "@/domain/worldWritingContext";
 
 export const PASSAGE_STANCES = ["narration", "dialogue", "belief", "uncertainty"] as const;
@@ -434,6 +436,16 @@ export function evaluatePassageAgainstWorldFact(input: {
         explanation: explanationFor("non_assertive", passage, fact),
       };
     }
+  }
+
+  const fieldKey = fact.fieldPath.replace(/^values\./, "").replace(/^fields\./, "");
+  if (isDescriptiveSubcategoryField(fieldKey) || isWorldProfileGlossedLines(fact.value)) {
+    return {
+      ...base,
+      verdict: "insufficient_evidence",
+      explanation:
+        "Descriptive prose and sample utterances stay notes; they are not contradiction rules.",
+    };
   }
 
   if (!mentionsEntity(passage.text, fact) && fact.fieldPath !== "values.access") {

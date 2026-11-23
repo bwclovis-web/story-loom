@@ -1,5 +1,20 @@
 # Progress
 
+## W8 Close-Out — MCP stdio cold start + final gates (Nov 23, 2026)
+
+Closes the remaining W8 release gate on the final tree:
+
+- **Cause:** `scripts/mcp-stdio.ts` loaded `stdioMain`, which statically imported the MCP SDK, database, and handlers before `isMcpDisabled` ran. Under suite concurrency the disabled child could exceed the 12s `exitOf` budget with empty stdout/stderr (prior cold `speak` ~22s).
+- **Fix:** `mcp-stdio.ts` exits on `WORDLY_MCP_DISABLED` before importing `stdioMain`. `stdioMain` still checks disabled + grant/revocation, then dynamically imports SDK / db / handlers only after an active grant. Stderr diagnostics, JSON-RPC-only stdout, and bounded `stopChild` cleanup unchanged.
+- **Verify (stdio protocol):** enabled `speak` lists projects; disabled and revoked exit non-zero with empty stdout and the expected stderr lines. Diagnostic under full-suite concurrency: `speak` ready ~12.4s; disabled exit ~1.5s; revoked exit ~6.4s (machine-dependent; not CI bounds). Dual-`createTestDb` hook timeouts did not recur; suite timeouts left unchanged.
+- **W8A / W8B execution:** included in the full suite below. Prior targeted runs also passed: `world-bible-export-w8a` (Saltmarsh five-format artifacts), `backup-w8b` + `backupIdRemap` (partial schema, reader abort, preserve/remap, pre-W4 → head via isolated `pnpm db:deploy` + restore). Working `prisma/dev.db` size unchanged (43 692 032 bytes); no reset/reseed.
+- **Final gates (same tree, sequential):** `pnpm test` — **184 files / 988 tests passed**; `pnpm build` — pass (existing Turbopack fs-trace warnings only); `pnpm typecheck` — pass.
+- **Manual still outstanding:** author spot-check of Help world-bible / backup restore notes in the running app; apply any pending working-DB migrations with `pnpm db:deploy` only when ready (backup first). Unrelated in-tree maps landing work is separate from this W8 close-out.
+
+### Rollback
+
+Revert `scripts/mcp-stdio.ts` / `src/mcp/stdioMain.ts` / this entry. W8A–W8C product changes stay.
+
 ## World Maps Landing Redesign (Nov 23, 2026)
 
 Atlas-style Maps landing under the existing World header (nav, crumbs, cover, Getting started unchanged):
@@ -82,6 +97,18 @@ Author-triggered, story-point-scoped comparison of manuscript passages against a
 ### Rollback
 
 Revert domain/service/Prisma migration/backup/continuity/Write/Help/PROGRESS for this milestone. Drop `WorldContradictionCheck` only after confirming no needed review rows in backups.
+
+## W5D — Optional Subcategory Sections (Guilds, Rituals, Dialects) (Nov 23, 2026)
+
+Extends the Geography optional-section pattern. Matching taxonomy suggests a section; the author enables it. Hiding keeps values. `definitionId` stays sticky.
+
+- **Reused:** Organizations `membership` (who belongs). `record_ref` for dialect parent language (`{ recordId }`). `ordered_list` for apprenticeship stages, credentials, participant roles, ritual steps, and distinctive expressions. No language relation kind exists (Record relations are characters, organizations, and places; Place relations are `part_of`, `flows_into`, `governed_by`).
+- **Added:** Guilds `admissionRequirements`, `apprenticeshipStages`, `credentialsIssued`. Rituals `ritualOccasion`, `participantRoles`, `ritualSteps`, `ritualVariations` (the Religion profile `rituals` notes field is unchanged). Dialects `parentLanguage`, `regionalSoundChanges`, `distinctiveExpressions`, `exampleLines` (`glossed_lines`: `{ line, gloss }[]`).
+- **Continuity:** Those new prose, stage, step, and sample fields are descriptive. Structuring them does not create a contradiction rule. Undated current values stay unknown at an earlier point. Parent language follows the existing record-reference export rule (title when the target is in the export set).
+- **Limitation:** Sections are not gated by profile definition, including custom home-book kind templates. A custom subcategory slug does not suggest these sections. Membership appears in the editor only on a definition that includes it (`category:organizations`). The history value box for example lines uses `line | gloss` per line.
+- **Tests:** `tests/unit/worldSubcategorySections.test.ts`, `tests/acceptance/world-subcategory-sections-w5e.test.ts`.
+
+Revert the guild/ritual/dialect registry, glossed-line reader, panel editor, heading map, contradiction guard, Help, and this note. Profiles without `enabledSections` still read as `[]`.
 
 ## W5D — Optional Subcategory Sections (Geography) (Nov 23, 2026)
 
