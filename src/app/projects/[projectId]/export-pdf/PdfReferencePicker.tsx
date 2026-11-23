@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { CanonBadge } from "@/components/Badges";
 import type { AuthorityStatus } from "@/domain/statuses";
-import { Checkbox } from "@/components/ui/Atoms/Checkbox";
+import { Checkbox } from "@/components/ui/Checkbox";
 import { PDF } from "@/ui/labels";
 
 export interface PdfPickerGroup {

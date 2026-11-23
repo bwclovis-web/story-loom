@@ -2,8 +2,8 @@
 
 import { useState, useTransition } from "react";
 import { ProtectionBadge, StatusBadge } from "@/components/Badges";
-import { Button, ButtonLink } from "@/components/ui/Atoms/Button";
-import { Checkbox } from "@/components/ui/Atoms/Checkbox";
+import { Button, ButtonLink } from "@/components/ui/Button";
+import { Checkbox } from "@/components/ui/Checkbox";
 import { RecordFlexRow } from "@/components/ui/RecordRow";
 import type { AuthorityStatus } from "@/domain/statuses";
 import { BOOK_ORDER, MANUSCRIPT_STRUCTURE, WRITING } from "@/ui/labels";
