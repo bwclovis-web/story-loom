@@ -875,6 +875,43 @@ export const WORLD_SUBCATEGORY_SECTIONS: readonly WorldSubcategorySectionDef[] =
       },
     ],
   },
+  {
+    id: "magic:workings",
+    categoryId: "magic",
+    subcategoryId: "workings",
+    label: "Workings",
+    description:
+      "Preconditions, observable signs, and signs of failure for one working. Source, limits, costs, exceptions, and the Workings overview stay on the Magic profile.",
+    fields: [
+      {
+        ...profileField(
+          "preconditions",
+          "Preconditions",
+          "long_text",
+          "What must already be true for this working to take effect.",
+        ),
+        continuity: "descriptive",
+      },
+      {
+        ...profileField(
+          "observableSigns",
+          "Observable signs",
+          "long_text",
+          "What someone present could see, hear, feel, or otherwise perceive when it works. Perception does not mean a character noticed or understood it.",
+        ),
+        continuity: "descriptive",
+      },
+      {
+        ...profileField(
+          "signsOfFailure",
+          "Signs of failure",
+          "long_text",
+          "What someone might notice if the working fails or is interrupted.",
+        ),
+        continuity: "descriptive",
+      },
+    ],
+  },
 ];
 
 const SUBCATEGORY_SECTION_BY_ID = new Map(WORLD_SUBCATEGORY_SECTIONS.map((section) => [section.id, section]));

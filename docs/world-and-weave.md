@@ -58,20 +58,17 @@ Non-character World references (`worldbuilding`, `rules_glossary`, `research_not
 - **Field history (W5C):** optional `worldProfile.fieldHistory[]` records dated changes for a field path (`values.access`, `fields.climate`, `summary`, …) anchored to book / timeline event / chapter / scene. Undated current values in Details or the profile panel do **not** establish earlier story time — as-of with no applicable dated change resolves as unknown. Approved as-of uses only `approval === "approved"` && `!planned` && not superseded changes, ordered via the same `NarrativePoint` + `OrderEdge` rules as character state. Corrections supersede; Revisions recover. Book-scoped changes stay out of sibling resolves. Context export redacts planned, unapproved, superseded, and after-point history; undated current remains with a reading instruction.
 - **Deferred editors (W7+):** rich story-calendar picker UI (era/year/month/day), record-picker UI for `record_ref` / `record_refs`, deeper collection item editors, wiki/bible deep formatting, AI-assisted profile fill, and a full `worldContexts` product. Ordered lists and calendar free-text are editable as plain fields today; boolean/number/list/date/ref history values resolve when stored but the History UI focuses on short/long text for climate + access first.
 
-## Premade beat sheets
+## Premade beat sheets and structure adoption
 
-Weave → Templates, and the Plan page, offer six starter sheets:
+Weave → Templates, and the Plan page, offer starter sheets (including Save the Cat, Hero's Journey, Heroine's Journey — Murdock, Heroine's Journey — Carriger, Mystery, and others). Murdock and Carriger are separately attributed frameworks; stage labels are never blended with the Hero's Journey. Guidance text is short and original; source links point at the books.
 
-- Three-Act Structure
-- Save the Cat 15-Beat
-- Hero's Journey 12-Stage
-- Seven-Point Story Structure
-- Romance Beat Sheet
-- Mystery Clue & Red Herring Arc
+**Add structures** (Plan) adopts one or more starters onto a new or existing plan as independent copies (`sourcePresetId`, version, attribution). **Custom structure** adds author-defined ordered stages with optional section groups. Framework stage names and guidance stay on the structure; author story ideas are separate Weave beats that can link to several stages. Later starter edits never overwrite an adopted copy. Existing plans keep their current default view; only new structure-based plans open on Beat sheet. Removing a structure clears stage links only — story ideas and manuscript records stay.
 
-**Start a grid** opens a plot grid with that sheet's threads, beats, and setup→payoff links. **Save as template** copies the same beats into a template you can edit. The starter itself does not change. A beat's thread is stored as a first line in the notes; applying the template creates the threads and removes that line.
+Plan views of one grid: **Beat sheet** (framework stages), **Story grid** (planning moments × threads; presentation order, not chronology), **Chapter grid** (manuscript-linked plot grid), **Freeform**. **Planning breakdown** exports Stage | Your description | Linked chapters/scenes | Notes (shows “Not linked yet” when empty; never invents page numbers). The Jessica Brody chapter-breakdown PDF is a reference for that readable layout only — not sample fiction to import. Original plan, Zero-draft story map, and Author rewrite plan stay separate.
 
-**Create scene from beat** is offered when the beat is not yet linked to a chapter or scene. You choose a chapter. Story Loom adds a protected scene there, copies the beat notes into the synopsis, links each cited World record, and points the beat at the new scene. The scene body stays empty. This does not reorder the book.
+**Start a grid** (legacy starter path) still opens a plot grid with that sheet's threads, beats, and setup→payoff links. **Save as template** copies the same beats into a template you can edit. The starter itself does not change. A template beat's thread is stored as a first line in the notes; applying the template creates the threads and removes that line. Old beat prose is never reinterpreted as framework guidance.
+
+**Create scene from beat** is offered when the beat is not yet linked to a chapter or scene. You choose a chapter. Story Loom adds a protected scene there, copies the beat notes into the synopsis, links each cited World record, and points the beat at the new scene. The scene body stays empty. This does not reorder the book. Optional extra manuscript placements may exist; `manuscriptRecordId` remains the primary/legacy link. Word counts never duplicate prose from beat bodies.
 
 Moving a beat never reorders manuscript scenes.
 

@@ -29,6 +29,7 @@ export function CompileValidationSummary({ report }: { report: CompileValidation
         {report.hasBackMatter ? <li>{COMPILE_PROFILE.previewBackMatter}</li> : null}
         {report.includeSynopses ? <li>{COMPILE_PROFILE.previewSynopses}</li> : null}
         {report.includeMarginComments ? <li>{COMPILE_PROFILE.previewComments}</li> : null}
+        {report.readerSafe ? <li>{COMPILE_PROFILE.previewReaderSafe}</li> : null}
       </ul>
 
       {errors.length || warnings.length || infos.length ? (

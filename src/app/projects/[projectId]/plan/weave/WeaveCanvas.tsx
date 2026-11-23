@@ -47,6 +47,7 @@ import {
   type WeaveBoardExtraFilter,
 } from "@/weave/beatCardSignals";
 import { CreateSceneFromBeat } from "./CreateSceneFromBeat";
+import { PlanChaptersFlow } from "./PlanChaptersFlow";
 import {
   addWeaveBeatAction,
   addWeaveBeatWorldRefAction,
@@ -60,6 +61,7 @@ import {
   renameWeaveGridAction,
   saveWeaveGridAsTemplateAction,
   setWeaveLayoutModeAction,
+  setWeavePreferredSurfaceAction,
   updateWeaveBeatAction,
 } from "./actions";
 import { WeavePlotGrid, type PlotDensity, type PlotGridChapter } from "./WeavePlotGrid";
@@ -160,6 +162,8 @@ export function WeaveCanvas({
   worldChoices,
   seriesBeats,
   continuityByRecord = {},
+  hideLayoutToggle = false,
+  showChapterEmptyState = false,
 }: {
   projectId: string;
   grid: WeaveGridView;
@@ -176,6 +180,10 @@ export function WeaveCanvas({
   worldChoices: WorldChoice[];
   seriesBeats: SeriesBeatChoice[];
   continuityByRecord?: Record<string, number>;
+  /** Surface toggle lives above the canvas — hide the legacy Grid/Freeform switch. */
+  hideLayoutToggle?: boolean;
+  /** Chapter grid with no manuscript rows yet. */
+  showChapterEmptyState?: boolean;
 }) {
   const continuityMap = useMemo(() => new Map(Object.entries(continuityByRecord)), [continuityByRecord]);
   const router = useRouter();
@@ -206,6 +214,7 @@ export function WeaveCanvas({
   const [narrow, setNarrow] = useState(false);
   const [issues, setIssues] = useState<Issue[]>([]);
   const [pending, startTransition] = useTransition();
+  const [planChaptersOpen, setPlanChaptersOpen] = useState(false);
   const [title, setTitle] = useState(initial.title);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [templateTitle, setTemplateTitle] = useState("");
@@ -511,6 +520,8 @@ export function WeaveCanvas({
 
   const isPlotGrid = layoutMode === "plot_grid";
   const visibleThreadCount = threads.filter((t) => !hiddenThreadIds.includes(t.id)).length;
+  const hasManuscriptRows = manuscriptChapters.some((chapter) => chapter.id !== "__unplaced_scenes__");
+  const chapterGridEmpty = showChapterEmptyState && isPlotGrid && !hasManuscriptRows;
 
   return (
     <div className={`write-layout reference-write-layout board-layout${isPlotGrid ? " plot-grid-layout" : ""}`}>
@@ -593,31 +604,73 @@ export function WeaveCanvas({
         ) : null}
         <IssueList issues={issues} />
 
+        {chapterGridEmpty ? (
+          <div className="panel weave-chapter-empty">
+            <p className="small muted" style={{ margin: 0 }}>
+              {WEAVE.chapterGridEmpty}
+            </p>
+            <div className="row" style={{ gap: "0.5rem", flexWrap: "wrap", marginTop: "0.65rem" }}>
+              <Button
+                type="button"
+                size="sm"
+                onClick={() =>
+                  startTransition(async () => {
+                    await setWeavePreferredSurfaceAction(projectId, grid.id, "beat_sheet");
+                    router.refresh();
+                  })
+                }
+              >
+                {WEAVE.chapterGridToBeatSheet}
+              </Button>
+              <Button type="button" size="sm" variant="secondary" onClick={() => setPlanChaptersOpen(true)}>
+                {WEAVE.planChapters}
+              </Button>
+            </div>
+          </div>
+        ) : null}
+        {planChaptersOpen ? (
+          <PlanChaptersFlow
+            projectId={projectId}
+            gridId={grid.id}
+            beats={beats}
+            manuscriptChoices={manuscriptChoices}
+            draftId={activeDraftId}
+            onClose={() => setPlanChaptersOpen(false)}
+          />
+        ) : null}
+
         <CanvasToolbar label={WEAVE.beatCanvas}>
-          <CanvasToolbarGroup>
-            <SegmentedControl label={WEAVE.toolbarView}>
-              <SegmentedOption
-                selected={isPlotGrid}
-                disabled={pending}
-                onClick={() => {
-                  if (!isPlotGrid) setLayout("plot_grid");
-                }}
-              >
-                {WEAVE.layoutPlotGrid}
-              </SegmentedOption>
-              <SegmentedOption
-                selected={!isPlotGrid}
-                disabled={pending}
-                onClick={() => {
-                  if (isPlotGrid) setLayout("freeform");
-                }}
-              >
-                {WEAVE.layoutFreeform}
-              </SegmentedOption>
-            </SegmentedControl>
-          </CanvasToolbarGroup>
+          {!hideLayoutToggle ? (
+            <CanvasToolbarGroup>
+              <SegmentedControl label={WEAVE.toolbarView}>
+                <SegmentedOption
+                  selected={isPlotGrid}
+                  disabled={pending}
+                  onClick={() => {
+                    if (!isPlotGrid) setLayout("plot_grid");
+                  }}
+                >
+                  {WEAVE.layoutPlotGrid}
+                </SegmentedOption>
+                <SegmentedOption
+                  selected={!isPlotGrid}
+                  disabled={pending}
+                  onClick={() => {
+                    if (isPlotGrid) setLayout("freeform");
+                  }}
+                >
+                  {WEAVE.layoutFreeform}
+                </SegmentedOption>
+              </SegmentedControl>
+            </CanvasToolbarGroup>
+          ) : null}
 
           <CanvasToolbarGroup grow>
+            {isPlotGrid ? (
+              <Button type="button" size="sm" variant="secondary" onClick={() => setPlanChaptersOpen(true)}>
+                {WEAVE.planChapters}
+              </Button>
+            ) : null}
             {isPlotGrid ? (
               <details className="board-threads-menu">
                 <summary>{WEAVE.threadsControl(visibleThreadCount)}</summary>
@@ -673,64 +726,65 @@ export function WeaveCanvas({
               </select>
             </label>
             {isPlotGrid ? (
-              <label className="small board-toolbar-select">
-                <span className="sr-only">{WEAVE.filterLinks}</span>
-                <select
-                  value={linkKind}
-                  aria-label={WEAVE.filterLinks}
-                  onChange={(e) => setLinkKind(e.target.value as WeaveLinkFilter["kind"])}
-                >
-                  <option value="all">{WEAVE.filterLinksAll}</option>
-                  <option value="character">{WEAVE.filterCharacters}</option>
-                  <option value="location">{WEAVE.filterLocations}</option>
-                  <option value="pov">{WEAVE.filterPov}</option>
-                </select>
-              </label>
-            ) : null}
-            {isPlotGrid && linkKind === "pov" ? (
-              <label className="small board-toolbar-select">
-                <span className="sr-only">{WEAVE.filterPov}</span>
-                <select value={linkPov} aria-label={WEAVE.filterPov} onChange={(e) => setLinkPov(e.target.value)}>
-                  <option value="">{WEAVE.filterPovAny}</option>
-                  {povChoices.map((pov) => (
-                    <option key={pov} value={pov}>
-                      {pov}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            ) : null}
-            {isPlotGrid ? (
-              <label className="small board-toolbar-select">
-                <span className="sr-only">{WEAVE.filterStatus}</span>
-                <select
-                  value={sceneStatusFilter}
-                  aria-label={WEAVE.filterStatus}
-                  onChange={(e) => setSceneStatusFilter(e.target.value as WeaveBoardExtraFilter["sceneStatus"])}
-                >
-                  <option value="all">{WEAVE.filterStatusAll}</option>
-                  <option value="unset">{WEAVE.filterStatusUnset}</option>
-                  {MANUSCRIPT_SCENE_STATUSES.map((status) => (
-                    <option key={status} value={status}>
-                      {SCENE_META[status]}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            ) : null}
-            {isPlotGrid ? (
-              <label className="small board-toolbar-select">
-                <span className="sr-only">{WEAVE.filterContinuity}</span>
-                <select
-                  value={continuityFilter}
-                  aria-label={WEAVE.filterContinuity}
-                  onChange={(e) => setContinuityFilter(e.target.value as WeaveBoardExtraFilter["continuity"])}
-                >
-                  <option value="all">{WEAVE.filterContinuityAll}</option>
-                  <option value="open">{WEAVE.filterContinuityOpen}</option>
-                  <option value="clear">{WEAVE.filterContinuityClear}</option>
-                </select>
-              </label>
+              <details className="board-filters-menu">
+                <summary>{WEAVE.filtersControl}</summary>
+                <div className="board-filters-menu-body">
+                  <label className="small board-toolbar-select">
+                    <span>{WEAVE.filterLinks}</span>
+                    <select
+                      value={linkKind}
+                      aria-label={WEAVE.filterLinks}
+                      onChange={(e) => setLinkKind(e.target.value as WeaveLinkFilter["kind"])}
+                    >
+                      <option value="all">{WEAVE.filterLinksAll}</option>
+                      <option value="character">{WEAVE.filterCharacters}</option>
+                      <option value="location">{WEAVE.filterLocations}</option>
+                      <option value="pov">{WEAVE.filterPov}</option>
+                    </select>
+                  </label>
+                  {linkKind === "pov" ? (
+                    <label className="small board-toolbar-select">
+                      <span>{WEAVE.filterPov}</span>
+                      <select value={linkPov} aria-label={WEAVE.filterPov} onChange={(e) => setLinkPov(e.target.value)}>
+                        <option value="">{WEAVE.filterPovAny}</option>
+                        {povChoices.map((pov) => (
+                          <option key={pov} value={pov}>
+                            {pov}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  ) : null}
+                  <label className="small board-toolbar-select">
+                    <span>{WEAVE.filterStatus}</span>
+                    <select
+                      value={sceneStatusFilter}
+                      aria-label={WEAVE.filterStatus}
+                      onChange={(e) => setSceneStatusFilter(e.target.value as WeaveBoardExtraFilter["sceneStatus"])}
+                    >
+                      <option value="all">{WEAVE.filterStatusAll}</option>
+                      <option value="unset">{WEAVE.filterStatusUnset}</option>
+                      {MANUSCRIPT_SCENE_STATUSES.map((status) => (
+                        <option key={status} value={status}>
+                          {SCENE_META[status]}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="small board-toolbar-select">
+                    <span>{WEAVE.filterContinuity}</span>
+                    <select
+                      value={continuityFilter}
+                      aria-label={WEAVE.filterContinuity}
+                      onChange={(e) => setContinuityFilter(e.target.value as WeaveBoardExtraFilter["continuity"])}
+                    >
+                      <option value="all">{WEAVE.filterContinuityAll}</option>
+                      <option value="open">{WEAVE.filterContinuityOpen}</option>
+                      <option value="clear">{WEAVE.filterContinuityClear}</option>
+                    </select>
+                  </label>
+                </div>
+              </details>
             ) : null}
             {seriesBeats.length ? (
               <Button

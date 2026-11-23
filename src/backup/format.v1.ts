@@ -798,6 +798,8 @@ export const workspaceBackupV1Schema = z
             viewKind: z.enum(["original", "zero_draft_map", "author_rewrite"]),
             /** Omitted or freeform in older backups → freeform canvas. */
             layoutMode: z.enum(["freeform", "plot_grid"]).optional(),
+            /** Omitted/null in older backups → legacy default from layoutMode. */
+            preferredSurface: z.enum(["beat_sheet", "story_grid", "chapter_grid", "freeform"]).nullable().optional(),
             sourceTemplateId: id.nullable().optional(),
             createdAt: timestamp,
             updatedAt: timestamp,
@@ -833,7 +835,11 @@ export const workspaceBackupV1Schema = z
             manuscriptRecordId: id.nullable().optional(),
             /** Plot-grid column; omitted/null in older backups → unplaced on threads. */
             threadId: id.nullable().optional(),
+            /** Story-grid planning moment; omitted/null → not on a planning row. */
+            planningRowId: id.nullable().optional(),
             cellOrder: z.number().int().min(0).optional(),
+            /** Omitted in older backups → 1. */
+            contentRevision: z.number().int().min(1).optional(),
             x: z.number().int(),
             y: z.number().int(),
             width: z.number().int().min(1),
@@ -853,6 +859,95 @@ export const workspaceBackupV1Schema = z
             projectId: id,
             recordId: id,
             createdAt: timestamp,
+          })
+          .strict(),
+      )
+      .optional(),
+    /** Extra manuscript placements; omitted → use beat.manuscriptRecordId only. */
+    weaveBeatManuscriptLinks: z
+      .array(
+        z
+          .object({
+            id,
+            beatId: id,
+            projectId: id,
+            recordId: id,
+            position: z.number().int().min(0),
+            createdAt: timestamp,
+          })
+          .strict(),
+      )
+      .optional(),
+    /** Adopted structure copies; omitted in older backups → none. */
+    weaveStructures: z
+      .array(
+        z
+          .object({
+            id,
+            gridId: id,
+            projectId: id,
+            sourcePresetId: z.string().min(1),
+            sourceVersion: z.number().int().min(1),
+            title: z.string().min(1),
+            description: z.string(),
+            attribution: z.string(),
+            position: z.number().int().min(0),
+            contentRevision: z.number().int().min(1).optional(),
+            createdAt: timestamp,
+            updatedAt: timestamp,
+          })
+          .strict(),
+      )
+      .optional(),
+    weaveStructureStages: z
+      .array(
+        z
+          .object({
+            id,
+            structureId: id,
+            gridId: id,
+            projectId: id,
+            stageKey: z.string().min(1),
+            title: z.string().min(1),
+            guidance: z.string(),
+            notes: z.string(),
+            groupKey: z.string(),
+            groupTitle: z.string(),
+            position: z.number().int().min(0),
+            contentRevision: z.number().int().min(1).optional(),
+            createdAt: timestamp,
+            updatedAt: timestamp,
+          })
+          .strict(),
+      )
+      .optional(),
+    weaveStageIdeas: z
+      .array(
+        z
+          .object({
+            id,
+            stageId: id,
+            beatId: id,
+            projectId: id,
+            position: z.number().int().min(0),
+            createdAt: timestamp,
+          })
+          .strict(),
+      )
+      .optional(),
+    /** Story-grid planning moments; omitted → none. */
+    weavePlanningRows: z
+      .array(
+        z
+          .object({
+            id,
+            gridId: id,
+            projectId: id,
+            title: z.string(),
+            position: z.number().int().min(0),
+            contentRevision: z.number().int().min(1).optional(),
+            createdAt: timestamp,
+            updatedAt: timestamp,
           })
           .strict(),
       )
@@ -1198,6 +1293,11 @@ export const workspaceBackupV1Schema = z
         weaveThreads: z.number().int().optional(),
         weaveBeats: z.number().int().optional(),
         weaveBeatWorldRefs: z.number().int().optional(),
+        weaveBeatManuscriptLinks: z.number().int().optional(),
+        weaveStructures: z.number().int().optional(),
+        weaveStructureStages: z.number().int().optional(),
+        weaveStageIdeas: z.number().int().optional(),
+        weavePlanningRows: z.number().int().optional(),
         weaveSetupPayoffs: z.number().int().optional(),
         weaveTemplates: z.number().int().optional(),
         weaveTemplateBeats: z.number().int().optional(),

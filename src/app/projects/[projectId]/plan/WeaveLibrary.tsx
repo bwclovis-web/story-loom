@@ -16,7 +16,8 @@ import type { WeaveViewKind } from "@/server/services/weaveService";
 import type { SpellingLanguage } from "@/writing/spelling";
 import { NewRecordForm } from "../NewRecordForm";
 import { CreateWeaveGridForm } from "./weave/CreateWeaveGridForm";
-import { StarterBeatSheets } from "./weave/StarterBeatSheets";
+import { DeleteWeavePlanButton } from "./weave/DeleteWeavePlanButton";
+import { StructureAdoptPanel } from "./weave/StructureAdoptPanel";
 
 const SCOPE_HELP: Record<WeaveViewKind, string> = {
   original: WEAVE.scopeHelpOriginal,
@@ -143,7 +144,7 @@ export function WeaveLibrary({
                         </span>
                       </div>
                     </div>
-                    <div className="weave-card-action">
+                    <div className="weave-card-action weave-card-actions">
                       <ButtonLink
                         href={`${base}/plan/weave/${encodeURIComponent(entry.grid.id)}`}
                         size="sm"
@@ -151,6 +152,11 @@ export function WeaveLibrary({
                       >
                         {WEAVE.openGridAction}
                       </ButtonLink>
+                      <DeleteWeavePlanButton
+                        projectId={projectId}
+                        gridId={entry.grid.id}
+                        title={entry.grid.title}
+                      />
                     </div>
                   </article>
                 </li>
@@ -189,7 +195,15 @@ export function WeaveLibrary({
               <HelpPopover label={WEAVE.movingBeatsHelp}>{WEAVE.dragBeatHint}</HelpPopover>
             </p>
           </div>
-          <StarterBeatSheets projectId={projectId} compact />
+          <StructureAdoptPanel
+            projectId={projectId}
+            grids={grids.map((grid) => ({
+              id: grid.id,
+              title: grid.title,
+              viewKind: grid.viewKind,
+              viewLabel: grid.viewLabel,
+            }))}
+          />
           {grids.length === 0 ? <WorkspaceToolsChooser projectId={projectId} emphasize="weave" /> : null}
         </section>
 

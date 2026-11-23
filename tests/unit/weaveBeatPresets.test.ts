@@ -12,18 +12,31 @@ const EXPECTED: Record<string, { beats: number; threads: number; links: number }
   "three-act": { beats: 8, threads: 3, links: 1 },
   "save-the-cat": { beats: 15, threads: 3, links: 2 },
   "heros-journey": { beats: 12, threads: 3, links: 1 },
+  "heroines-journey-murdock": { beats: 10, threads: 4, links: 1 },
+  "heroines-journey-carriger": { beats: 10, threads: 3, links: 2 },
   "seven-point": { beats: 7, threads: 3, links: 1 },
   romance: { beats: 7, threads: 3, links: 2 },
   mystery: { beats: 7, threads: 3, links: 2 },
 };
 
 describe("weave beat presets", () => {
-  it("includes each starter once", () => {
+  it("includes each starter once with separate heroine journeys", () => {
     expect(WEAVE_BEAT_PRESETS.map((preset) => preset.id).sort()).toEqual(Object.keys(EXPECTED).sort());
     for (const preset of WEAVE_BEAT_PRESETS) {
       expect(getWeaveBeatPreset(preset.id)?.title).toBe(preset.title);
     }
     expect(getWeaveBeatPreset("nope")).toBeNull();
+    const murdock = getWeaveBeatPreset("heroines-journey-murdock")!;
+    const carriger = getWeaveBeatPreset("heroines-journey-carriger")!;
+    expect(murdock.title).toContain("Murdock");
+    expect(carriger.title).toContain("Carriger");
+    expect(murdock.attribution).toContain("Murdock");
+    expect(carriger.attribution).toContain("Carriger");
+    expect(murdock.sourceUrl).toContain("maureenmurdock.com");
+    expect(carriger.sourceUrl).toContain("gailcarriger.com");
+    expect(murdock.beats.map((b) => b.key)).not.toEqual(carriger.beats.map((b) => b.key));
+    expect(murdock.beats.some((b) => /ordinary world|call to adventure/i.test(b.title))).toBe(false);
+    expect(carriger.beats.some((b) => /ordinary world|call to adventure/i.test(b.title))).toBe(false);
   });
 
   it.each(WEAVE_BEAT_PRESETS.map((preset) => [preset.id, preset] as const))("%s has threads, unique beats, and positions", (id, preset) => {

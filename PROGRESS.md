@@ -1,5 +1,33 @@
 # Progress
 
+## Weave framework library + planning UI (Nov 23, 2026)
+
+Completes beat-sheet-first planning UI and the curated framework catalog.
+
+- **Frameworks:** Existing starters preserved. Murdock Heroine's Journey naming/attribution verified; **Carriger** Heroine's Journey added as a separate Descent/Search/Ascent framework (verified via gailcarriger.com + secondary structure summaries). Short original guidance + source URLs; no Hero's Journey label blending. Catalog version 2. Custom editable structures (`sourcePresetId: "custom"`).
+- **UI:** Weave home adopt panel; Beat sheet (autosave, Compare, rail, TextField); Story grid; Chapter empty + Plan chapters; Filters control; Planning breakdown export (Stage | Description | Links | Notes; “Not linked yet”); Delete plan.
+- **Acceptance:** Empty-project workflow (two frameworks → shared idea → fork → story grid → blank chapters → backup remap + preserve); legacy plan surface/structure add does not rewrite prose/positions.
+- **Migration:** `20261123200000_weave_structure_planning` (additive). Working DB: apply with `pnpm db:deploy` only; never reset.
+- **Verify:** `vitest` weaveBeatPresets + weave-structure-planning + weave-presets (24/24); `tsc --noEmit`; production `pnpm build` with `align-next-ssr-react`. Browser fixture (isolated DB, not working DB): home / beat sheet / story grid / breakdown; light + narrow. Screenshots under `docs/screenshots/weave-framework-*.png`. Compared to approved Weave mockups and prior `ui-pass-weave-*` shell shots — layout/tokens match; not pixel-perfect (Carriger added to catalog; em-dash attribution labels).
+
+### Rollback
+
+Revert presets/UI/help/docs/tests/PROGRESS; drop new tables/columns only on a disposable copy after confirming backups. Existing Weave beats/grids remain valid.
+
+## Market roadmap Phase 5 — Publishing and World Portal (Nov 23, 2026)
+
+Extends compile handoff and adds a static World Portal without retailer/ISBN work or schema reset.
+
+- **Presets:** Submission, formatter-ready, paperback, ebook, beta reader, and world guide layout overlays (`exportPresets.ts`); apply still preserves matter/exclusions on the single compile profile.
+- **Validation:** Deeper read-only checks — package metadata, unresolved `[[links]]` vs titles/aliases, image-ref hints, drop-cap/mono and tight-margin layout warnings, reader-safe flag when synopses/comments are off.
+- **World Portal:** `/world-portal?mode=publicSafe|private` ZIP with wiki pages, `relationships.json`, `maps.json`, `portal.html`; public-safe = point + approved-only; omits scene notes, comments, revision tables, secrets; audited `world_portal.export`.
+- **Help / UI:** Export page portal buttons; Help `#world-portal` under PDF export.
+- **Verify:** `tests/unit/export-presets-phase5.test.ts`, `compile-validation-phase5.test.ts`, `world-portal.test.ts`; acceptance export-presets + help. Working DB untouched.
+
+### Rollback
+
+Revert preset expansions, validation additions, world-portal route/service, export-page UI, Help/PROGRESS/labels. Existing compile profiles remain valid.
+
 ## Home navigation after a manuscript exists (Nov 23, 2026)
 
 Write, Weave, World, and Assistant in the left navigation open the featured manuscript from the home page as soon as one exists. They no longer stay disabled until that manuscript is opened. A project address still wins, including before the shell list refreshes. An empty library leaves those items unavailable.
@@ -173,6 +201,17 @@ Author-triggered, story-point-scoped comparison of manuscript passages against a
 ### Rollback
 
 Revert domain/service/Prisma migration/backup/continuity/Write/Help/PROGRESS for this milestone. Drop `WorldContradictionCheck` only after confirming no needed review rows in backups.
+
+## W5D — Optional Subcategory Sections (Magic Workings) (Nov 23, 2026)
+
+Extends the optional-section registry to Magic → Workings. Taxonomy suggests Workings; the author enables the section. Hiding keeps values. `definitionId` stays sticky.
+
+- **Reused:** Magic profile fields `source`, `limits`, `costs`, `exceptions`, and the Workings overview (`workings`). Built-in `magic_system` kind flats stay in Details.
+- **Added:** Workings `preconditions`, `observableSigns`, and `signsOfFailure` (long text). All three are descriptive — a perceptible sign does not prove a character noticed it, and omitting a sign from scene prose is not a contradiction by itself.
+- **History / export:** Dated observable signs follow the existing story-point rules. Undated current values stay unknown at an earlier point. Source, limits, costs, exceptions, and the overview are not copied onto the optional section.
+- **Tests:** `tests/unit/worldSubcategorySections.test.ts`, `tests/unit/worldContradiction.test.ts`, `tests/acceptance/world-subcategory-sections-w5g.test.ts`.
+
+Revert the workings registry entry, heading map, Help sentence, and this note.
 
 ## W5D — Optional Subcategory Sections (Buildings, Rooms) (Nov 23, 2026)
 

@@ -225,6 +225,24 @@ describe("evaluatePassageAgainstWorldFact", () => {
     expect(sampleEval.verdict).toBe("insufficient_evidence");
     expect(findingsToPersist([stepEval, sampleEval])).toEqual([]);
   });
+
+  it("does not treat an omitted observable magic sign as a contradiction", () => {
+    const signs = fact({
+      fieldPath: "values.observableSigns",
+      value: "one clear chime",
+      formatted: "one clear chime",
+      worldTitle: "Bellglass Ward",
+      subcategoryId: "workings",
+    });
+    const omitted = evaluatePassageAgainstWorldFact({
+      passage: claim("She checked the ward and walked on."),
+      fact: signs,
+      manuscriptRecordId: "rec_ms",
+      manuscriptRevision: 1,
+    });
+    expect(omitted.verdict).toBe("insufficient_evidence");
+    expect(findingsToPersist([omitted])).toEqual([]);
+  });
 });
 
 describe("validateAiContradictionCandidate", () => {

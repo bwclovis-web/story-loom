@@ -1958,13 +1958,32 @@ export function HelpContent() {
             change that copy.
           </p>
           <p>
-            <L>{WEAVE.presetHeading}</L> on Plan and on <L>{WEAVE.templates}</L> are <L>{WEAVE.presetThreeAct}</L>,{" "}
-            <L>{WEAVE.presetSaveTheCat}</L>, <L>{WEAVE.presetHerosJourney}</L>, <L>{WEAVE.presetSevenPoint}</L>,{" "}
-            <L>{WEAVE.presetRomance}</L>, and <L>{WEAVE.presetMystery}</L>. <L>{WEAVE.presetStartGrid}</L> opens a plot
-            grid with that sheet&apos;s threads, beats, and setup→payoff links. <L>{WEAVE.presetSaveTemplate}</L> copies
-            the same beats into a template you can edit. A beat&apos;s column is stored as a first line beginning with{" "}
-            <L>{WEAVE.presetThreadPrefix}</L>; applying the template creates those threads and removes that line from the
-            notes. The starter itself does not change when you edit the copy.
+            <L>{WEAVE.structuresHeading}</L> on Plan adopts one or more starters (for example{" "}
+            <L>{WEAVE.presetSaveTheCat}</L>, <L>{WEAVE.presetHeroinesJourneyMurdock}</L>,{" "}
+            <L>{WEAVE.presetHeroinesJourneyCarriger}</L>, <L>{WEAVE.presetMystery}</L>) onto a new or existing plan. Each
+            adoption is an independent copy with source id, version, and attribution; later starter edits do not
+            overwrite it. Murdock and Carriger are separate frameworks — do not blend their stage labels with the
+            Hero&apos;s Journey. Framework stage names and guidance stay on the structure; your story ideas are separate
+            and may link to several stages. Sharing an idea shares its description — unlink or make an independent copy
+            when you need a private version. <L>{WEAVE.customStructureHeading}</L> adds author-defined ordered stages with
+            optional section groups. Removing a structure clears stage links only; story ideas and manuscript records
+            stay. Existing plans keep their current default view; new structure-based plans open on{" "}
+            <L>{WEAVE.surfaceBeatSheet}</L>. The same plan also offers <L>{WEAVE.surfaceStoryGrid}</L>,{" "}
+            <L>{WEAVE.surfaceChapterGrid}</L>, and <L>{WEAVE.surfaceFreeform}</L>. <L>{WEAVE.breakdownExport}</L> lists
+            Stage, your description, linked chapters/scenes (or <L>{WEAVE.breakdownNotLinked}</L>), and notes — it never
+            invents page numbers. Jessica Brody&apos;s chapter-breakdown PDF is a reference for that readable layout only,
+            not sample fiction to import.
+          </p>
+          <p>
+            <L>{WEAVE.presetHeading}</L> on Plan and on <L>{WEAVE.templates}</L> still include <L>{WEAVE.presetThreeAct}</L>,{" "}
+            <L>{WEAVE.presetSaveTheCat}</L>, <L>{WEAVE.presetHerosJourney}</L>,{" "}
+            <L>{WEAVE.presetHeroinesJourneyMurdock}</L>, <L>{WEAVE.presetHeroinesJourneyCarriger}</L>,{" "}
+            <L>{WEAVE.presetSevenPoint}</L>, <L>{WEAVE.presetRomance}</L>, and <L>{WEAVE.presetMystery}</L>.{" "}
+            <L>{WEAVE.presetStartGrid}</L> opens a plot grid with that sheet&apos;s threads, beats, and setup→payoff
+            links. <L>{WEAVE.presetSaveTemplate}</L> copies the same beats into a template you can edit. A beat&apos;s
+            column is stored as a first line beginning with <L>{WEAVE.presetThreadPrefix}</L>; applying the template
+            creates those threads and removes that line from the notes. The starter itself does not change when you edit
+            the copy. Old beat prose is never reinterpreted as framework guidance.
           </p>
           <p>
             <L>{WEAVE.createSceneFromBeat}</L> is on a beat that is not yet linked to a chapter or scene. Choose a{" "}
@@ -1973,8 +1992,9 @@ export function HelpContent() {
             This does not reorder the book (see <See anchor="book-order" />).
           </p>
           <p>
-            Weave grids, story threads, beats (including thread associations), setup→payoff links and templates are
-            included in workspace backups. Older backups without threads restore as freeform.
+            Weave grids, story threads, planning moments, adopted structures, stage↔idea links, beats (including thread
+            associations), setup→payoff links and templates are included in workspace backups. Older backups without
+            those optional fields restore as before (freeform or chapter grid defaults; no silent structure adoption).
           </p>
         </Sub>
       </Section>
@@ -2453,12 +2473,13 @@ export function HelpContent() {
           </p>
           <p>
             Optional <L>{WORLD_PROFILE.subcategorySections}</L> add Geography details for cities and settlements,
-            regions, or waterways, and the same kind of detail for guilds, rituals, dialects, buildings, and rooms,
-            without changing the
+            regions, or waterways, and the same kind of detail for guilds, rituals, dialects, buildings, rooms, and
+            magic workings, without changing the
             profile definition. Taxonomy can suggest a section; you can also add any shipped section before tagging.
             Enable Guilds when membership notes do not say who may join or how apprenticeship proceeds. Enable
             Buildings when a scene uses a street door and a rear exit, or Rooms when a viewpoint needs the doorway
-            and what the window shows. Hiding a
+            and what the window shows. Enable Workings when a ward needs a precondition, the sound it makes, and what
+            a crack would look like if it fails. Hiding a
             section keeps saved values. Qualified quantities (population
             estimate, land area, length) distinguish a blank unknown from a documented zero, and waterway outlet can
             reuse an existing Place relationship (<code>flows_into</code>). Changing primary or secondary categories
@@ -3214,19 +3235,28 @@ export function HelpContent() {
         </p>
         <h4>Export presets</h4>
         <p>
-          On <L>{NAV.exportPdf}</L>, <L>{COMPILE_PROFILE.presetStandard}</L> fills Letter size, mono type, double spacing,
-          one-inch margins, and <code>#</code> scene breaks for a Shunn-style submission DOCX or PDF, with the approximate
-          word count on the title page and a short-title running header. <L>{COMPILE_PROFILE.presetFormatter}</L> fills
-          6×9, serif, novel spacing, <code>***</code> breaks, and a contents page for a clean DOCX or EPUB handoff to
-          Atticus, Vellum, or a similar formatter. Applying a preset stores the layout immediately and keeps your front
-          and back matter text and compile exclusions.
+          On <L>{NAV.exportPdf}</L>, presets fill layout only and keep front/back matter and exclusions:{" "}
+          <L>{COMPILE_PROFILE.presetStandard}</L> (Shunn submission), <L>{COMPILE_PROFILE.presetFormatter}</L> (Atticus /
+          Vellum handoff), <L>{COMPILE_PROFILE.presetPaperback}</L>, <L>{COMPILE_PROFILE.presetEbook}</L>,{" "}
+          <L>{COMPILE_PROFILE.presetBeta}</L> (pair with <L>{PDF.betaReaderHeading}</L>), and{" "}
+          <L>{COMPILE_PROFILE.presetWorldGuide}</L> (reader-safe layout; download a World Portal for the wiki package).
         </p>
         <h4>Export preview</h4>
         <p>
           <L>{COMPILE_PROFILE.previewHeading}</L> lists chapter and scene counts, word count, and read-only warnings
-          (empty chapters, unplaced scenes, possible <code>[[links]]</code>, synopses or margin comments left on). It
-          does not change the manuscript. {COMPILE_PROFILE.handoffNote}
+          (empty chapters, unplaced scenes, unresolved <code>[[links]]</code> against project titles/aliases, layout
+          clashes such as drop cap on mono, synopses or margin comments left on). It marks when the package is
+          reader-safe. It does not change the manuscript. {COMPILE_PROFILE.handoffNote}
         </p>
+        <Sub id="world-portal">
+          <p>
+            <L>{COMPILE_PROFILE.worldPortalHeading}</L> downloads a static ZIP: wiki pages from the World Bible exporter,
+            <code>data/relationships.json</code>, and <code>data/maps.json</code>.{" "}
+            <L>{COMPILE_PROFILE.worldPortalPublic}</L> uses approved references with drafting redaction;{" "}
+            <L>{COMPILE_PROFILE.worldPortalPrivate}</L> uses full editorial bible mode. Neither includes scene notes,
+            margin comments, revision history, Trash, or assistant secrets — those stay in author backups.
+          </p>
+        </Sub>
         <h4>What a PDF contains</h4>
         <ul>
           <li>Text is formatted the way the reference page shows it: headings, lists, tables, quotes, links and code.</li>

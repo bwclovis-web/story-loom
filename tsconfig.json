@@ -39,7 +39,9 @@
     "node_modules/.cache/wordly-build-chapter-trial/types/**/*.ts",
     "node_modules/.cache/wordly-build-chapter-trial/dev/types/**/*.ts",
     ".next-ux-verify/nav-repro/types/**/*.ts",
-    ".next-ux-verify/nav-repro/dev/types/**/*.ts"
+    ".next-ux-verify/nav-repro/dev/types/**/*.ts",
+    ".next-weave-ui/types/**/*.ts",
+    ".next-weave-ui/dev/types/**/*.ts"
   ],
   "exclude": [
     "node_modules"

@@ -42,6 +42,26 @@ import {
   instantiateWeavePresetGrid,
 } from "@/server/services/weavePresetService";
 import {
+  addIdeaToWeaveStage,
+  addWeavePlanningRow,
+  adoptWeaveStructures,
+  applyWeavePlanChapterMappings,
+  createCustomWeaveStructure,
+  forkIdeaOnWeaveStage,
+  isWeaveSurface,
+  placeIdeaOnPlanningRow,
+  previewRemoveWeaveStructure,
+  removeWeaveStructure,
+  renameWeavePlanningRow,
+  reorderWeavePlanningRows,
+  setWeaveIdeaManuscriptPlacements,
+  setWeavePreferredSurface,
+  unlinkIdeaFromWeaveStage,
+  updateWeaveIdeaText,
+  updateWeaveStageNotes,
+  type WeavePlanChapterOp,
+} from "@/server/services/weaveStructureService";
+import {
   applyWeaveBuild,
   getWeaveBuildRun,
   saveWeaveBuildDecisions,
@@ -484,6 +504,253 @@ export async function listManuscriptRewriteSourcesAction(projectId: string, manu
   try {
     const sources = await listRewriteSources(getDb(), projectId, manuscriptRecordId);
     return { ok: true as const, sources };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+export async function adoptWeaveStructuresAction(
+  projectId: string,
+  input: {
+    presetIds: string[];
+    gridId?: string;
+    viewKind?: string;
+    title?: string;
+    confirmDuplicates?: boolean;
+    clientRequestId?: string;
+  },
+) {
+  try {
+    if (input.viewKind != null && !isWeaveViewKind(input.viewKind)) {
+      return { ok: false as const, issues: [errorIssue("INVALID_REFERENCE", "Unknown Weave view.")] };
+    }
+    const result = await adoptWeaveStructures(getDb(), projectId, {
+      presetIds: input.presetIds,
+      gridId: input.gridId,
+      viewKind: input.viewKind as WeaveViewKind | undefined,
+      title: input.title,
+      confirmDuplicates: input.confirmDuplicates,
+      clientRequestId: input.clientRequestId,
+    });
+    if (!result.ok) {
+      return {
+        ok: false as const,
+        needsDuplicateConfirm: true as const,
+        duplicates: result.duplicates,
+        issues: result.duplicates.map((d) => errorIssue("INVALID_CHANGE", WEAVE_DUP(d.title))),
+      };
+    }
+    revalidateWeave(projectId, result.gridId);
+    return {
+      ok: true as const,
+      gridId: result.gridId,
+      structureIds: result.structureIds,
+      preferredSurface: result.preferredSurface,
+    };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+function WEAVE_DUP(title: string) {
+  return `“${title}” is already on this plan. Confirm to adopt another independent copy.`;
+}
+
+export async function removeWeaveStructureAction(projectId: string, structureId: string) {
+  try {
+    const preview = await removeWeaveStructure(getDb(), projectId, structureId);
+    revalidateWeave(projectId);
+    return { ok: true as const, preview };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+export async function previewRemoveWeaveStructureAction(projectId: string, structureId: string) {
+  try {
+    const preview = await previewRemoveWeaveStructure(getDb(), projectId, structureId);
+    return { ok: true as const, preview };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+export async function setWeavePreferredSurfaceAction(projectId: string, gridId: string, surface: string) {
+  try {
+    if (!isWeaveSurface(surface)) {
+      return { ok: false as const, issues: [errorIssue("INVALID_REFERENCE", "Unknown plan view.")] };
+    }
+    const next = await setWeavePreferredSurface(getDb(), projectId, gridId, surface);
+    revalidateWeave(projectId, gridId);
+    return { ok: true as const, surface: next };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+export async function updateWeaveIdeaTextAction(
+  projectId: string,
+  beatId: string,
+  input: { title?: string; body?: string; expectedRevision: number },
+) {
+  try {
+    const idea = await updateWeaveIdeaText(getDb(), projectId, beatId, input);
+    revalidateWeave(projectId);
+    return { ok: true as const, idea };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+export async function updateWeaveStageNotesAction(
+  projectId: string,
+  stageId: string,
+  input: { notes: string; expectedRevision: number },
+) {
+  try {
+    const stage = await updateWeaveStageNotes(getDb(), projectId, stageId, input);
+    revalidateWeave(projectId);
+    return { ok: true as const, stage };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+export async function addIdeaToWeaveStageAction(
+  projectId: string,
+  stageId: string,
+  input: { title?: string; body?: string; existingBeatId?: string },
+) {
+  try {
+    const idea = await addIdeaToWeaveStage(getDb(), projectId, stageId, input);
+    revalidateWeave(projectId);
+    return { ok: true as const, idea };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+export async function unlinkIdeaFromWeaveStageAction(projectId: string, stageId: string, beatId: string) {
+  try {
+    await unlinkIdeaFromWeaveStage(getDb(), projectId, stageId, beatId);
+    revalidateWeave(projectId);
+    return { ok: true as const };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+export async function forkIdeaOnWeaveStageAction(projectId: string, stageId: string, beatId: string) {
+  try {
+    const idea = await forkIdeaOnWeaveStage(getDb(), projectId, stageId, beatId);
+    revalidateWeave(projectId);
+    return { ok: true as const, idea };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+export async function addWeavePlanningRowAction(
+  projectId: string,
+  gridId: string,
+  input: { title?: string } = {},
+) {
+  try {
+    const row = await addWeavePlanningRow(getDb(), projectId, gridId, input);
+    revalidateWeave(projectId, gridId);
+    return { ok: true as const, row };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+export async function renameWeavePlanningRowAction(
+  projectId: string,
+  gridId: string,
+  planningRowId: string,
+  title: string,
+) {
+  try {
+    const row = await renameWeavePlanningRow(getDb(), projectId, gridId, planningRowId, title);
+    revalidateWeave(projectId, gridId);
+    return { ok: true as const, row };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+export async function reorderWeavePlanningRowsAction(
+  projectId: string,
+  gridId: string,
+  orderedRowIds: string[],
+) {
+  try {
+    const rows = await reorderWeavePlanningRows(getDb(), projectId, gridId, orderedRowIds);
+    revalidateWeave(projectId, gridId);
+    return { ok: true as const, rows };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+export async function placeIdeaOnPlanningRowAction(
+  projectId: string,
+  gridId: string,
+  beatId: string,
+  input: { planningRowId: string | null; threadId?: string | null; cellOrder?: number },
+) {
+  try {
+    await placeIdeaOnPlanningRow(getDb(), projectId, gridId, beatId, input);
+    revalidateWeave(projectId, gridId);
+    return { ok: true as const };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+export async function setWeaveIdeaManuscriptPlacementsAction(
+  projectId: string,
+  beatId: string,
+  recordIds: string[],
+) {
+  try {
+    const result = await setWeaveIdeaManuscriptPlacements(getDb(), projectId, beatId, recordIds);
+    revalidateWeave(projectId);
+    return { ok: true as const, ...result };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+export async function applyWeavePlanChapterMappingsAction(
+  projectId: string,
+  gridId: string,
+  ops: WeavePlanChapterOp[],
+) {
+  try {
+    const result = await applyWeavePlanChapterMappings(getDb(), projectId, gridId, ops);
+    revalidateWeave(projectId, gridId);
+    revalidatePath(`/projects/${projectId}/write`);
+    return { ok: true as const, ...result };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+export async function createCustomWeaveStructureAction(
+  projectId: string,
+  gridId: string,
+  input: {
+    title: string;
+    attribution?: string;
+    description?: string;
+    stages: Array<{ title: string; guidance?: string; groupTitle?: string }>;
+  },
+) {
+  try {
+    const structure = await createCustomWeaveStructure(getDb(), projectId, gridId, input);
+    revalidateWeave(projectId, gridId);
+    return { ok: true as const, structure };
   } catch (error) {
     return failure(error);
   }

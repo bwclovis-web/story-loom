@@ -82,12 +82,17 @@ export async function applyExportPresetAction(
       ...layout,
     });
     revalidatePath(`/projects/${projectId}/export-pdf`);
+    const messages: Record<ExportPresetId, string> = {
+      standard_manuscript: COMPILE_PROFILE.presetStandardApplied,
+      formatter_ready: COMPILE_PROFILE.presetFormatterApplied,
+      paperback: COMPILE_PROFILE.presetPaperbackApplied,
+      ebook: COMPILE_PROFILE.presetEbookApplied,
+      beta_reader: COMPILE_PROFILE.presetBetaApplied,
+      world_guide: COMPILE_PROFILE.presetWorldGuideApplied,
+    };
     return {
       ok: true,
-      message:
-        presetId === "standard_manuscript"
-          ? COMPILE_PROFILE.presetStandardApplied
-          : COMPILE_PROFILE.presetFormatterApplied,
+      message: messages[presetId],
     };
   } catch (error) {
     return failure(error);

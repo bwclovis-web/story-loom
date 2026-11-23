@@ -51,6 +51,11 @@ export type IdPrefix =
   | "wvs" // weave setup/payoff
   | "wvt" // weave template
   | "wvx" // weave template beat
+  | "wst" // weave adopted structure
+  | "wss" // weave structure stage
+  | "wsi" // weave stage↔idea link
+  | "wpr" // weave planning row (story-grid moment)
+  | "wml" // weave beat manuscript link (extra placement)
   | "wbr" // weave build-from-draft run
   | "fct" // established fact
   | "fev" // fact evidence

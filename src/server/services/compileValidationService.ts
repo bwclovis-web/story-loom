@@ -6,6 +6,8 @@ import {
   type ManuscriptExportBuildOptions,
   type ManuscriptExportContext,
 } from "./manuscriptExportCompile";
+import { findProject } from "./projectService";
+import { listCodexEntries } from "./recordService";
 import type { DbOrTx } from "../db";
 
 export type CompileIssueSeverity = "error" | "warn" | "info";
@@ -29,9 +31,11 @@ export interface CompileValidationReport {
   excludedCount: number;
   includeSynopses: boolean;
   includeMarginComments: boolean;
+  readerSafe: boolean;
 }
 
-const BRACKET_LINK = /\[\[[^\]]+\]\]/g;
+const BRACKET_LINK = /\[\[([^\]]+)\]\]/g;
+const IMAGE_REF = /(?:^|\s)!?\[[^\]]*\]\(image:([^)\s]+)\)|!\[[^\]]*\]\(([^)\s]+)\)/gi;
 
 function recordHref(projectId: string, recordId: string): string {
   return `/projects/${encodeURIComponent(projectId)}/records/${encodeURIComponent(recordId)}`;
@@ -49,7 +53,12 @@ function emptyReport(issues: CompileIssue[]): CompileValidationReport {
     excludedCount: 0,
     includeSynopses: false,
     includeMarginComments: false,
+    readerSafe: true,
   };
+}
+
+function normalizeLinkLabel(raw: string): string {
+  return raw.trim().replace(/\s+/g, " ").toLowerCase();
 }
 
 /**
@@ -77,6 +86,29 @@ export async function validateManuscriptCompile(
   const { model, compile } = ctx;
   const issues: CompileIssue[] = [];
   let sceneCount = 0;
+  const project = await findProject(db, projectId);
+  const codex = await listCodexEntries(db, projectId);
+  const knownLabels = new Set<string>();
+  for (const entry of codex) {
+    knownLabels.add(normalizeLinkLabel(entry.title));
+    for (const alias of entry.aliases) knownLabels.add(normalizeLinkLabel(alias));
+  }
+
+  if (!project?.title.trim()) {
+    issues.push({
+      code: "MISSING_PROJECT_TITLE",
+      severity: "error",
+      title: "Manuscript title is empty",
+      detail: "Rename the project before packaging EPUB, PDF, or DOCX — package metadata uses the title.",
+    });
+  } else {
+    issues.push({
+      code: "PACKAGE_METADATA",
+      severity: "info",
+      title: "Package metadata",
+      detail: `Title “${project.title}”. EPUB currently lists Story Loom as creator; add author lines on the title or copyright page for handoff packages.`,
+    });
+  }
 
   for (const chapter of model.chapters) {
     sceneCount += chapter.scenes.length;
@@ -100,9 +132,9 @@ export async function validateManuscriptCompile(
           href: recordHref(projectId, scene.record.id),
         });
       }
-      scanUnresolved(projectId, scene.record.id, scene.record.title, scene.record.body, issues);
+      scanBody(projectId, scene.record.id, scene.record.title, scene.record.body, knownLabels, issues);
     }
-    scanUnresolved(projectId, chapter.record.id, chapter.record.title, chapter.record.body, issues);
+    scanBody(projectId, chapter.record.id, chapter.record.title, chapter.record.body, knownLabels, issues);
   }
 
   for (const scene of model.unplacedScenes) {
@@ -116,7 +148,7 @@ export async function validateManuscriptCompile(
         href: recordHref(projectId, scene.record.id),
       });
     }
-    scanUnresolved(projectId, scene.record.id, scene.record.title, scene.record.body, issues);
+    scanBody(projectId, scene.record.id, scene.record.title, scene.record.body, knownLabels, issues);
   }
 
   if (model.unplacedScenes.length) {
@@ -129,20 +161,57 @@ export async function validateManuscriptCompile(
     });
   }
 
+  const readerSafe = !compile.includeSynopses && !compile.includeMarginComments;
   if (compile.includeSynopses) {
     issues.push({
       code: "INCLUDES_SYNOPSES",
-      severity: "info",
+      severity: "warn",
       title: "Synopses are included",
-      detail: "Synopsis cards will appear before chapter and scene bodies. Turn them off for a clean formatter handoff.",
+      detail:
+        "Synopsis cards will appear before chapter and scene bodies. Turn them off for submission, ebook, or reader-facing packages.",
     });
   }
   if (compile.includeMarginComments) {
     issues.push({
       code: "INCLUDES_COMMENTS",
-      severity: "info",
+      severity: "warn",
       title: "Margin comments are included",
-      detail: "Unresolved margin comments will appear after bodies. Turn them off for submission or formatter files.",
+      detail:
+        "Unresolved margin comments will appear after bodies. They are private planning notes — turn them off for reader packages.",
+    });
+  }
+  if (!readerSafe) {
+    issues.push({
+      code: "NOT_READER_SAFE",
+      severity: "info",
+      title: "Not a reader-safe package",
+      detail:
+        "Author backups keep notes and history. Reader exports should leave synopses and margin comments off so private planning stays out of the file.",
+    });
+  }
+
+  if (compile.dropCap && compile.fontPreset === "mono") {
+    issues.push({
+      code: "LAYOUT_DROP_CAP_MONO",
+      severity: "warn",
+      title: "Drop cap with mono font",
+      detail: "Drop caps are uncommon on mono submission manuscripts. Turn drop cap off for Shunn-style handoff.",
+    });
+  }
+  if (compile.dropCap && compile.spacingPreset === "manuscript") {
+    issues.push({
+      code: "LAYOUT_DROP_CAP_MANUSCRIPT",
+      severity: "warn",
+      title: "Drop cap with manuscript spacing",
+      detail: "Double-spaced submission layouts usually omit drop caps.",
+    });
+  }
+  if (compile.marginInches < 0.5) {
+    issues.push({
+      code: "LAYOUT_TIGHT_MARGINS",
+      severity: "warn",
+      title: "Margins under 0.5 in",
+      detail: "Very tight margins may clip on paperback PDF printers. Check the spread preview.",
     });
   }
 
@@ -178,7 +247,7 @@ export async function validateManuscriptCompile(
         severity: "info",
         title: `${draftNotes.length} draft or unresolved scene note${draftNotes.length === 1 ? "" : "s"}`,
         detail:
-          "Scene notes are not in the manuscript download, but they sit beside included chapters. Review them before handoff if needed.",
+          "Scene notes are never copied into manuscript PDF/DOCX/EPUB. They stay in the project (and author backups) only.",
       });
     }
   }
@@ -194,17 +263,48 @@ export async function validateManuscriptCompile(
     excludedCount: compile.excludedRecordIds.length,
     includeSynopses: compile.includeSynopses,
     includeMarginComments: compile.includeMarginComments,
+    readerSafe,
   };
 }
 
-function scanUnresolved(projectId: string, recordId: string, title: string, body: string, issues: CompileIssue[]) {
-  const brackets = body.match(BRACKET_LINK);
-  if (!brackets?.length) return;
-  issues.push({
-    code: "UNRESOLVED_LINKS",
-    severity: "warn",
-    title: `Possible [[links]] in “${title}”`,
-    detail: `${brackets.slice(0, 3).join(", ")}${brackets.length > 3 ? "…" : ""} — check these before handing the file to an editor.`,
-    href: recordHref(projectId, recordId),
-  });
+function scanBody(
+  projectId: string,
+  recordId: string,
+  title: string,
+  body: string,
+  knownLabels: Set<string>,
+  issues: CompileIssue[],
+) {
+  const unresolved: string[] = [];
+  for (const match of body.matchAll(BRACKET_LINK)) {
+    const label = normalizeLinkLabel(match[1] ?? "");
+    if (!label) continue;
+    if (!knownLabels.has(label)) unresolved.push(match[0]);
+  }
+  if (unresolved.length) {
+    issues.push({
+      code: "UNRESOLVED_LINKS",
+      severity: "warn",
+      title: `Unresolved [[links]] in “${title}”`,
+      detail: `${unresolved.slice(0, 3).join(", ")}${unresolved.length > 3 ? "…" : ""} — no matching World or manuscript title/alias in this project.`,
+      href: recordHref(projectId, recordId),
+    });
+  }
+
+  const imageHits: string[] = [];
+  for (const match of body.matchAll(IMAGE_REF)) {
+    const name = (match[1] || match[2] || "").trim();
+    if (name.startsWith("image:") || name.includes("/")) {
+      imageHits.push(name);
+    }
+  }
+  if (imageHits.length) {
+    issues.push({
+      code: "IMAGE_REFS",
+      severity: "info",
+      title: `Image references in “${title}”`,
+      detail: `${imageHits.slice(0, 3).join(", ")}${imageHits.length > 3 ? "…" : ""} — manuscript PDF/DOCX/EPUB may not embed every Markdown image the same way. Prefer World images on references for bible/portal packages.`,
+      href: recordHref(projectId, recordId),
+    });
+  }
 }

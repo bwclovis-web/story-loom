@@ -11,6 +11,9 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["tests/**/*.test.ts"],
+    // Cap concurrency so createTestDb hooks stay under the default 10s hookTimeout
+    // on this machine. CLI --maxWorkers still overrides.
+    maxWorkers: 4,
     testTimeout: 20000,
   },
 });

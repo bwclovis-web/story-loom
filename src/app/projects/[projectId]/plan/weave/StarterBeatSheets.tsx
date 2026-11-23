@@ -47,7 +47,15 @@ export function StarterBeatSheets({
               <strong>{preset.title}</strong>
               <p className="small muted" style={{ margin: "0.15rem 0 0" }}>
                 {preset.description} {WEAVE.beatsCount(preset.beats.length)}.
+                {preset.attribution ? ` ${preset.attribution}.` : null}
               </p>
+              {preset.sourceUrl ? (
+                <p className="small" style={{ margin: "0.15rem 0 0" }}>
+                  <a href={preset.sourceUrl} target="_blank" rel="noreferrer">
+                    {WEAVE.presetSource}
+                  </a>
+                </p>
+              ) : null}
             </div>
             <div className="row" style={{ gap: "0.35rem", flexWrap: "wrap", alignItems: "end" }}>
               <label className="small">

@@ -73,6 +73,11 @@ model Project {
   weaveBeatWorldRefs     WeaveBeatWorldRef[]
   weaveThreads           WeaveThread[]
   weaveTemplates         WeaveTemplate[]
+  weaveStructures        WeaveStructure[]
+  weaveStructureStages   WeaveStructureStage[]
+  weaveStageIdeas        WeaveStageIdea[]
+  weavePlanningRows      WeavePlanningRow[]
+  weaveBeatManuscriptLinks WeaveBeatManuscriptLink[]
   weaveBuildRuns         WeaveBuildRun[]
   chapterAnalysisRuns    ChapterAnalysisRun[]
   characterAnalysisRuns  CharacterAnalysisRun[]
@@ -309,6 +314,7 @@ model Record {
   recordRelationsTo     RecordRelation[] @relation("RecordRelationTo")
   weaveBeatsManuscript  WeaveBeat[]           @relation("WeaveManuscript")
   weaveBeatWorldRefs    WeaveBeatWorldRef[]
+  weaveBeatManuscriptLinks WeaveBeatManuscriptLink[]
   establishedFacts      EstablishedFact[]     @relation("FactSubject")
   factEvidenceSources   FactEvidence[]        @relation("FactEvidenceSource")
   sceneLocationsAsManuscript SceneLocation[]  @relation("SceneLocationManuscript")
@@ -955,12 +961,18 @@ model WeaveGrid {
   viewKind         String
   /// freeform | plot_grid — presentation only; freeform x/y always retained.
   layoutMode       String        @default("freeform")
+  /// beat_sheet | story_grid | chapter_grid | freeform | null
+  /// null = legacy default derived from layoutMode (never silently beat_sheet).
+  preferredSurface String?
   /// Provenance only when created from a template; not a live link.
   sourceTemplateId String?
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @updatedAt
   beats            WeaveBeat[]
   threads          WeaveThread[]
+  structures       WeaveStructure[]
+  stages           WeaveStructureStage[]
+  planningRows     WeavePlanningRow[]
 
   @@index([projectId])
   @@index([projectId, viewKind])
@@ -984,9 +996,12 @@ model WeaveThread {
   @@index([gridId, position])
 }
 
-/// A beat on a Weave grid. Optional manuscript link (chapter/scene) and World
-/// references. Decision: keep | cut | move | combine | rebuild | "".
-/// Freeform uses x/y; plot-grid uses threadId + manuscriptRecordId as the cell.
+/// A beat / story idea on a Weave grid. Title and body are author-written
+/// planning text (never framework guidance). Optional manuscript link
+/// (chapter/scene) and World references. Decision: keep | cut | move |
+/// combine | rebuild | "". Freeform uses x/y; chapter grid uses threadId +
+/// manuscriptRecordId; story grid uses threadId + planningRowId.
+/// contentRevision supports stale-save checks on idea text.
 model WeaveBeat {
   id                   String              @id
   gridId               String
@@ -997,13 +1012,19 @@ model WeaveBeat {
   body                 String              @default("")
   /// keep | cut | move | combine | rebuild | ""
   decision             String              @default("")
+  /// Legacy / primary manuscript placement. Additional placements use WeaveBeatManuscriptLink.
   manuscriptRecordId   String?
   manuscriptRecord     Record?             @relation("WeaveManuscript", fields: [manuscriptRecordId], references: [id])
   /// Plot-grid column; null = not placed on a thread (still visible in freeform / Unplaced).
   threadId             String?
   thread               WeaveThread?        @relation(fields: [threadId], references: [id], onDelete: SetNull)
-  /// Stack order within a plot-grid cell (same thread + manuscript row).
+  /// Story-grid planning moment; null = not on a story-grid row.
+  planningRowId        String?
+  planningRow          WeavePlanningRow?   @relation(fields: [planningRowId], references: [id], onDelete: SetNull)
+  /// Stack order within a plot-grid cell (same thread + manuscript/planning row).
   cellOrder            Int                 @default(0)
+  /// Optimistic concurrency for title/body edits.
+  contentRevision      Int                 @default(1)
   x                    Int
   y                    Int
   width                Int                 @default(220)
@@ -1011,6 +1032,8 @@ model WeaveBeat {
   zIndex               Int                 @default(0)
   createdAt            DateTime            @default(now())
   worldRefs            WeaveBeatWorldRef[]
+  manuscriptLinks      WeaveBeatManuscriptLink[]
+  stageLinks           WeaveStageIdea[]
   setupsFrom           WeaveSetupPayoff[]  @relation("SetupFrom")
   payoffsTo            WeaveSetupPayoff[]  @relation("PayoffTo")
 
@@ -1018,6 +1041,7 @@ model WeaveBeat {
   @@index([projectId])
   @@index([manuscriptRecordId])
   @@index([threadId])
+  @@index([planningRowId])
 }
 
 /// A World (or other linkable reference) record cited by a beat.
@@ -1034,6 +1058,120 @@ model WeaveBeatWorldRef {
   @@unique([beatId, recordId])
   @@index([projectId])
   @@index([recordId])
+}
+
+/// Optional extra manuscript placements for one story idea. Legacy readers keep
+/// using WeaveBeat.manuscriptRecordId (primary). Links never duplicate prose;
+/// word counts stay on Record bodies only.
+model WeaveBeatManuscriptLink {
+  id        String    @id
+  beatId    String
+  beat      WeaveBeat @relation(fields: [beatId], references: [id], onDelete: Cascade)
+  projectId String
+  project   Project   @relation(fields: [projectId], references: [id])
+  recordId  String
+  record    Record    @relation(fields: [recordId], references: [id])
+  position  Int       @default(0)
+  createdAt DateTime  @default(now())
+
+  @@unique([beatId, recordId])
+  @@index([beatId])
+  @@index([projectId])
+  @@index([recordId])
+}
+
+/// Adopted story-structure copy on a plan. sourcePresetId / sourceVersion /
+/// attribution are provenance only — later starter edits do not overwrite this.
+model WeaveStructure {
+  id              String                @id
+  gridId          String
+  grid            WeaveGrid             @relation(fields: [gridId], references: [id], onDelete: Cascade)
+  projectId       String
+  project         Project               @relation(fields: [projectId], references: [id])
+  sourcePresetId  String
+  sourceVersion   Int                   @default(1)
+  title           String
+  description     String                @default("")
+  attribution     String                @default("")
+  position        Int                   @default(0)
+  contentRevision Int                   @default(1)
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+  stages          WeaveStructureStage[]
+
+  @@index([gridId])
+  @@index([projectId])
+  @@index([gridId, position])
+  @@index([sourcePresetId])
+}
+
+/// Framework stage inside an adopted structure. Title/guidance are framework
+/// copy; notes are stage-local author context. Never equated to another
+/// structure's stages by number or row.
+model WeaveStructureStage {
+  id              String          @id
+  structureId     String
+  structure       WeaveStructure  @relation(fields: [structureId], references: [id], onDelete: Cascade)
+  gridId          String
+  grid            WeaveGrid       @relation(fields: [gridId], references: [id], onDelete: Cascade)
+  projectId       String
+  project         Project         @relation(fields: [projectId], references: [id])
+  /// Stable within this structure copy (not a cross-structure equate key).
+  stageKey        String
+  title           String
+  guidance        String          @default("")
+  notes           String          @default("")
+  groupKey        String          @default("")
+  groupTitle      String          @default("")
+  position        Int             @default(0)
+  contentRevision Int             @default(1)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  ideas           WeaveStageIdea[]
+
+  @@unique([structureId, stageKey])
+  @@index([structureId])
+  @@index([gridId])
+  @@index([projectId])
+  @@index([structureId, position])
+}
+
+/// Explicit link: one story idea (WeaveBeat) may serve several stages/structures.
+model WeaveStageIdea {
+  id        String              @id
+  stageId   String
+  stage     WeaveStructureStage @relation(fields: [stageId], references: [id], onDelete: Cascade)
+  beatId    String
+  beat      WeaveBeat           @relation(fields: [beatId], references: [id], onDelete: Cascade)
+  projectId String
+  project   Project             @relation(fields: [projectId], references: [id])
+  position  Int                 @default(0)
+  createdAt DateTime            @default(now())
+
+  @@unique([stageId, beatId])
+  @@index([beatId])
+  @@index([projectId])
+  @@index([stageId, position])
+}
+
+/// Ordered story-grid planning moment. Independent of manuscript records.
+/// Presentation order only — not fictional chronology.
+model WeavePlanningRow {
+  id              String     @id
+  gridId          String
+  grid            WeaveGrid  @relation(fields: [gridId], references: [id], onDelete: Cascade)
+  projectId       String
+  project         Project    @relation(fields: [projectId], references: [id])
+  title           String     @default("")
+  position        Int        @default(0)
+  contentRevision Int        @default(1)
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+  beats           WeaveBeat[]
+
+  @@index([gridId])
+  @@index([projectId])
+  @@index([gridId, position])
 }
 
 /// Series setup → payoff between beats. May span projects in the same workspace

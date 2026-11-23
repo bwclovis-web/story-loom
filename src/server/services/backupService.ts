@@ -166,6 +166,26 @@ function weaveBeatWorldRefsOf(b: WorkspaceBackupV1) {
   return b.weaveBeatWorldRefs ?? [];
 }
 
+function weaveBeatManuscriptLinksOf(b: WorkspaceBackupV1) {
+  return b.weaveBeatManuscriptLinks ?? [];
+}
+
+function weaveStructuresOf(b: WorkspaceBackupV1) {
+  return b.weaveStructures ?? [];
+}
+
+function weaveStructureStagesOf(b: WorkspaceBackupV1) {
+  return b.weaveStructureStages ?? [];
+}
+
+function weaveStageIdeasOf(b: WorkspaceBackupV1) {
+  return b.weaveStageIdeas ?? [];
+}
+
+function weavePlanningRowsOf(b: WorkspaceBackupV1) {
+  return b.weavePlanningRows ?? [];
+}
+
 function weaveSetupPayoffsOf(b: WorkspaceBackupV1) {
   return b.weaveSetupPayoffs ?? [];
 }
@@ -889,8 +909,28 @@ async function weaveGridRows(db: DbOrTx, projectIds: string[]) {
     });
   } catch (error) {
     if (isMissingSchemaError(error, "P2021")) return [];
+    // Pre-migrate: preferredSurface may not exist yet.
+    if (isMissingSchemaError(error, "P2022")) return weaveGridRowsBeforePreferredSurface(db, projectIds);
     throw error;
   }
+}
+
+async function weaveGridRowsBeforePreferredSurface(db: DbOrTx, projectIds: string[]) {
+  const rows = await db.weaveGrid.findMany({
+    where: { projectId: { in: projectIds } },
+    orderBy: [{ projectId: "asc" }, { id: "asc" }],
+    select: {
+      id: true,
+      projectId: true,
+      title: true,
+      viewKind: true,
+      layoutMode: true,
+      sourceTemplateId: true,
+      createdAt: true,
+      updatedAt: true,
+    },
+  });
+  return rows.map((row) => ({ ...row, preferredSurface: null as string | null }));
 }
 
 async function weaveThreadRows(db: DbOrTx, projectIds: string[]) {
@@ -915,8 +955,39 @@ async function weaveBeatRows(db: DbOrTx, projectIds: string[]) {
     });
   } catch (error) {
     if (isMissingSchemaError(error, "P2021")) return [];
+    // Pre-migrate: planningRowId / contentRevision may not exist yet.
+    if (isMissingSchemaError(error, "P2022")) return weaveBeatRowsBeforePlanning(db, projectIds);
     throw error;
   }
+}
+
+async function weaveBeatRowsBeforePlanning(db: DbOrTx, projectIds: string[]) {
+  const rows = await db.weaveBeat.findMany({
+    where: { projectId: { in: projectIds } },
+    orderBy: [{ gridId: "asc" }, { zIndex: "asc" }, { id: "asc" }],
+    select: {
+      id: true,
+      gridId: true,
+      projectId: true,
+      title: true,
+      body: true,
+      decision: true,
+      manuscriptRecordId: true,
+      threadId: true,
+      cellOrder: true,
+      x: true,
+      y: true,
+      width: true,
+      height: true,
+      zIndex: true,
+      createdAt: true,
+    },
+  });
+  return rows.map((row) => ({
+    ...row,
+    planningRowId: null as string | null,
+    contentRevision: 1,
+  }));
 }
 
 async function weaveBeatWorldRefRows(db: DbOrTx, projectIds: string[]) {
@@ -928,6 +999,75 @@ async function weaveBeatWorldRefRows(db: DbOrTx, projectIds: string[]) {
     });
   } catch (error) {
     if (isMissingSchemaError(error, "P2021")) return [];
+    throw error;
+  }
+}
+
+async function weaveBeatManuscriptLinkRows(db: DbOrTx, projectIds: string[]) {
+  if (!("weaveBeatManuscriptLink" in db) || !(db as { weaveBeatManuscriptLink?: { findMany: unknown } }).weaveBeatManuscriptLink) {
+    return [];
+  }
+  try {
+    return await db.weaveBeatManuscriptLink.findMany({
+      where: { projectId: { in: projectIds } },
+      orderBy: [{ beatId: "asc" }, { position: "asc" }, { id: "asc" }],
+    });
+  } catch (error) {
+    if (isMissingSchemaError(error, "P2021") || isMissingSchemaError(error, "P2022")) return [];
+    throw error;
+  }
+}
+
+async function weaveStructureRows(db: DbOrTx, projectIds: string[]) {
+  if (!("weaveStructure" in db) || !(db as { weaveStructure?: { findMany: unknown } }).weaveStructure) return [];
+  try {
+    return await db.weaveStructure.findMany({
+      where: { projectId: { in: projectIds } },
+      orderBy: [{ gridId: "asc" }, { position: "asc" }, { id: "asc" }],
+    });
+  } catch (error) {
+    if (isMissingSchemaError(error, "P2021") || isMissingSchemaError(error, "P2022")) return [];
+    throw error;
+  }
+}
+
+async function weaveStructureStageRows(db: DbOrTx, projectIds: string[]) {
+  if (!("weaveStructureStage" in db) || !(db as { weaveStructureStage?: { findMany: unknown } }).weaveStructureStage) {
+    return [];
+  }
+  try {
+    return await db.weaveStructureStage.findMany({
+      where: { projectId: { in: projectIds } },
+      orderBy: [{ structureId: "asc" }, { position: "asc" }, { id: "asc" }],
+    });
+  } catch (error) {
+    if (isMissingSchemaError(error, "P2021") || isMissingSchemaError(error, "P2022")) return [];
+    throw error;
+  }
+}
+
+async function weaveStageIdeaRows(db: DbOrTx, projectIds: string[]) {
+  if (!("weaveStageIdea" in db) || !(db as { weaveStageIdea?: { findMany: unknown } }).weaveStageIdea) return [];
+  try {
+    return await db.weaveStageIdea.findMany({
+      where: { projectId: { in: projectIds } },
+      orderBy: [{ stageId: "asc" }, { position: "asc" }, { id: "asc" }],
+    });
+  } catch (error) {
+    if (isMissingSchemaError(error, "P2021") || isMissingSchemaError(error, "P2022")) return [];
+    throw error;
+  }
+}
+
+async function weavePlanningRowRows(db: DbOrTx, projectIds: string[]) {
+  if (!("weavePlanningRow" in db) || !(db as { weavePlanningRow?: { findMany: unknown } }).weavePlanningRow) return [];
+  try {
+    return await db.weavePlanningRow.findMany({
+      where: { projectId: { in: projectIds } },
+      orderBy: [{ gridId: "asc" }, { position: "asc" }, { id: "asc" }],
+    });
+  } catch (error) {
+    if (isMissingSchemaError(error, "P2021") || isMissingSchemaError(error, "P2022")) return [];
     throw error;
   }
 }
@@ -1344,6 +1484,11 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
     weaveThreads,
     weaveBeats,
     weaveBeatWorldRefs,
+    weaveBeatManuscriptLinks,
+    weaveStructures,
+    weaveStructureStages,
+    weaveStageIdeas,
+    weavePlanningRows,
     weaveSetupPayoffs,
     weaveTemplates,
     establishedFacts,
@@ -1395,6 +1540,11 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
     weaveThreadRows(db, projectIds),
     weaveBeatRows(db, projectIds),
     weaveBeatWorldRefRows(db, projectIds),
+    weaveBeatManuscriptLinkRows(db, projectIds),
+    weaveStructureRows(db, projectIds),
+    weaveStructureStageRows(db, projectIds),
+    weaveStageIdeaRows(db, projectIds),
+    weavePlanningRowRows(db, projectIds),
     weaveSetupPayoffRows(db, workspaceId),
     weaveTemplateRows(db, projectIds),
     establishedFactRows(db, projectIds),
@@ -2132,16 +2282,27 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
       : {}),
     ...(weaveGrids.length
       ? {
-          weaveGrids: weaveGrids.map((g) => ({
-            id: g.id,
-            projectId: g.projectId,
-            title: g.title,
-            viewKind: g.viewKind as "original" | "zero_draft_map" | "author_rewrite",
-            ...((g as { layoutMode?: string }).layoutMode === "plot_grid" ? { layoutMode: "plot_grid" as const } : {}),
-            ...(g.sourceTemplateId ? { sourceTemplateId: g.sourceTemplateId } : { sourceTemplateId: null }),
-            createdAt: iso(g.createdAt),
-            updatedAt: iso(g.updatedAt),
-          })),
+          weaveGrids: weaveGrids.map((g) => {
+            const preferred = (g as { preferredSurface?: string | null }).preferredSurface;
+            const surface =
+              preferred === "beat_sheet" ||
+              preferred === "story_grid" ||
+              preferred === "chapter_grid" ||
+              preferred === "freeform"
+                ? preferred
+                : null;
+            return {
+              id: g.id,
+              projectId: g.projectId,
+              title: g.title,
+              viewKind: g.viewKind as "original" | "zero_draft_map" | "author_rewrite",
+              ...((g as { layoutMode?: string }).layoutMode === "plot_grid" ? { layoutMode: "plot_grid" as const } : {}),
+              ...(surface ? { preferredSurface: surface } : {}),
+              ...(g.sourceTemplateId ? { sourceTemplateId: g.sourceTemplateId } : { sourceTemplateId: null }),
+              createdAt: iso(g.createdAt),
+              updatedAt: iso(g.updatedAt),
+            };
+          }),
         }
       : {}),
     ...(weaveThreads.length
@@ -2156,11 +2317,30 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
           })),
         }
       : {}),
+    ...(weavePlanningRows.length
+      ? {
+          weavePlanningRows: weavePlanningRows.map((row) => ({
+            id: row.id,
+            gridId: row.gridId,
+            projectId: row.projectId,
+            title: row.title,
+            position: row.position,
+            ...((row as { contentRevision?: number }).contentRevision &&
+            (row as { contentRevision?: number }).contentRevision !== 1
+              ? { contentRevision: (row as { contentRevision: number }).contentRevision }
+              : {}),
+            createdAt: iso(row.createdAt),
+            updatedAt: iso(row.updatedAt),
+          })),
+        }
+      : {}),
     ...(weaveBeats.length
       ? {
           weaveBeats: weaveBeats.map((b) => {
             const threadId = (b as { threadId?: string | null }).threadId ?? null;
+            const planningRowId = (b as { planningRowId?: string | null }).planningRowId ?? null;
             const cellOrder = (b as { cellOrder?: number }).cellOrder ?? 0;
+            const contentRevision = (b as { contentRevision?: number }).contentRevision ?? 1;
             return {
               id: b.id,
               gridId: b.gridId,
@@ -2170,7 +2350,9 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
               decision: (b.decision || "") as "" | "keep" | "cut" | "move" | "combine" | "rebuild",
               ...(b.manuscriptRecordId ? { manuscriptRecordId: b.manuscriptRecordId } : { manuscriptRecordId: null }),
               ...(threadId ? { threadId } : {}),
+              ...(planningRowId ? { planningRowId } : {}),
               ...(cellOrder ? { cellOrder } : {}),
+              ...(contentRevision !== 1 ? { contentRevision } : {}),
               x: b.x,
               y: b.y,
               width: b.width,
@@ -2189,6 +2371,68 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
             projectId: r.projectId,
             recordId: r.recordId,
             createdAt: iso(r.createdAt),
+          })),
+        }
+      : {}),
+    ...(weaveBeatManuscriptLinks.length
+      ? {
+          weaveBeatManuscriptLinks: weaveBeatManuscriptLinks.map((r) => ({
+            id: r.id,
+            beatId: r.beatId,
+            projectId: r.projectId,
+            recordId: r.recordId,
+            position: r.position,
+            createdAt: iso(r.createdAt),
+          })),
+        }
+      : {}),
+    ...(weaveStructures.length
+      ? {
+          weaveStructures: weaveStructures.map((s) => ({
+            id: s.id,
+            gridId: s.gridId,
+            projectId: s.projectId,
+            sourcePresetId: s.sourcePresetId,
+            sourceVersion: s.sourceVersion,
+            title: s.title,
+            description: s.description,
+            attribution: s.attribution,
+            position: s.position,
+            ...(s.contentRevision !== 1 ? { contentRevision: s.contentRevision } : {}),
+            createdAt: iso(s.createdAt),
+            updatedAt: iso(s.updatedAt),
+          })),
+        }
+      : {}),
+    ...(weaveStructureStages.length
+      ? {
+          weaveStructureStages: weaveStructureStages.map((s) => ({
+            id: s.id,
+            structureId: s.structureId,
+            gridId: s.gridId,
+            projectId: s.projectId,
+            stageKey: s.stageKey,
+            title: s.title,
+            guidance: s.guidance,
+            notes: s.notes,
+            groupKey: s.groupKey,
+            groupTitle: s.groupTitle,
+            position: s.position,
+            ...(s.contentRevision !== 1 ? { contentRevision: s.contentRevision } : {}),
+            createdAt: iso(s.createdAt),
+            updatedAt: iso(s.updatedAt),
+          })),
+        }
+      : {}),
+    ...(weaveStageIdeas.length
+      ? {
+          weaveStageIdeas: weaveStageIdeas.map((s) => ({
+            id: s.id,
+            stageId: s.stageId,
+            beatId: s.beatId,
+            projectId: s.projectId,
+            position: s.position,
+            createdAt: iso(s.createdAt),
           })),
         }
       : {}),
@@ -2427,6 +2671,11 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
       ...(weaveThreads.length ? { weaveThreads: weaveThreads.length } : {}),
       ...(weaveBeats.length ? { weaveBeats: weaveBeats.length } : {}),
       ...(weaveBeatWorldRefs.length ? { weaveBeatWorldRefs: weaveBeatWorldRefs.length } : {}),
+      ...(weaveBeatManuscriptLinks.length ? { weaveBeatManuscriptLinks: weaveBeatManuscriptLinks.length } : {}),
+      ...(weaveStructures.length ? { weaveStructures: weaveStructures.length } : {}),
+      ...(weaveStructureStages.length ? { weaveStructureStages: weaveStructureStages.length } : {}),
+      ...(weaveStageIdeas.length ? { weaveStageIdeas: weaveStageIdeas.length } : {}),
+      ...(weavePlanningRows.length ? { weavePlanningRows: weavePlanningRows.length } : {}),
       ...(weaveSetupPayoffs.length ? { weaveSetupPayoffs: weaveSetupPayoffs.length } : {}),
       ...(weaveTemplates.length ? { weaveTemplates: weaveTemplates.length } : {}),
       ...(weaveTemplateBeats.length ? { weaveTemplateBeats: weaveTemplateBeats.length } : {}),
@@ -2521,6 +2770,11 @@ function checkInternalConsistency(b: WorkspaceBackupV1): Issue[] {
     weaveThreads: weaveThreadsOf(b).length,
     weaveBeats: weaveBeatsOf(b).length,
     weaveBeatWorldRefs: weaveBeatWorldRefsOf(b).length,
+    weaveBeatManuscriptLinks: weaveBeatManuscriptLinksOf(b).length,
+    weaveStructures: weaveStructuresOf(b).length,
+    weaveStructureStages: weaveStructureStagesOf(b).length,
+    weaveStageIdeas: weaveStageIdeasOf(b).length,
+    weavePlanningRows: weavePlanningRowsOf(b).length,
     weaveSetupPayoffs: weaveSetupPayoffsOf(b).length,
     weaveTemplates: weaveTemplatesOf(b).length,
     weaveTemplateBeats: weaveTemplateBeatsOf(b).length,
@@ -2660,6 +2914,22 @@ function checkInternalConsistency(b: WorkspaceBackupV1): Issue[] {
   checkUnique(weaveBeatsOf(b).map((x) => x.id), "weave beat", issues);
   checkUnique(weaveBeatWorldRefsOf(b).map((x) => x.id), "weave beat world ref", issues);
   checkUnique(weaveBeatWorldRefsOf(b).map((x) => `${x.beatId}/${x.recordId}`), "weave beat world ref pair", issues);
+  checkUnique(weaveBeatManuscriptLinksOf(b).map((x) => x.id), "weave beat manuscript link", issues);
+  checkUnique(
+    weaveBeatManuscriptLinksOf(b).map((x) => `${x.beatId}/${x.recordId}`),
+    "weave beat manuscript link pair",
+    issues,
+  );
+  checkUnique(weaveStructuresOf(b).map((x) => x.id), "weave structure", issues);
+  checkUnique(weaveStructureStagesOf(b).map((x) => x.id), "weave structure stage", issues);
+  checkUnique(
+    weaveStructureStagesOf(b).map((x) => `${x.structureId}/${x.stageKey}`),
+    "weave structure stage key",
+    issues,
+  );
+  checkUnique(weaveStageIdeasOf(b).map((x) => x.id), "weave stage idea", issues);
+  checkUnique(weaveStageIdeasOf(b).map((x) => `${x.stageId}/${x.beatId}`), "weave stage idea pair", issues);
+  checkUnique(weavePlanningRowsOf(b).map((x) => x.id), "weave planning row", issues);
   checkUnique(weaveSetupPayoffsOf(b).map((x) => x.id), "weave setup/payoff", issues);
   checkUnique(weaveSetupPayoffsOf(b).map((x) => `${x.fromBeatId}/${x.toBeatId}`), "weave setup/payoff pair", issues);
   checkUnique(weaveTemplatesOf(b).map((x) => x.id), "weave template", issues);
@@ -3229,6 +3499,72 @@ function checkInternalConsistency(b: WorkspaceBackupV1): Issue[] {
       }
     }
   });
+  const weavePlanningRowIds = new Set(weavePlanningRowsOf(b).map((x) => x.id));
+  const weavePlanningRowProject = new Map(weavePlanningRowsOf(b).map((x) => [x.id, x.projectId]));
+  const weavePlanningRowGrid = new Map(weavePlanningRowsOf(b).map((x) => [x.id, x.gridId]));
+  weavePlanningRowsOf(b).forEach((row) => {
+    needProject(row.projectId, `Weave planning row ${row.id}`);
+    if (!weaveGridIds.has(row.gridId) || weaveGridProject.get(row.gridId) !== row.projectId) {
+      issues.push(integrity(`Weave planning row ${row.id} references missing grid ${row.gridId}.`));
+    }
+  });
+  weaveBeatsOf(b).forEach((beat) => {
+    if (!beat.planningRowId) return;
+    if (
+      !weavePlanningRowIds.has(beat.planningRowId) ||
+      weavePlanningRowProject.get(beat.planningRowId) !== beat.projectId ||
+      weavePlanningRowGrid.get(beat.planningRowId) !== beat.gridId
+    ) {
+      issues.push(integrity(`Weave beat ${beat.id} references missing planning row ${beat.planningRowId}.`));
+    }
+  });
+  weaveBeatManuscriptLinksOf(b).forEach((link) => {
+    needProject(link.projectId, `Weave beat manuscript link ${link.id}`);
+    if (!weaveBeatIds.has(link.beatId) || weaveBeatProject.get(link.beatId) !== link.projectId) {
+      issues.push(integrity(`Weave beat manuscript link ${link.id} references missing beat ${link.beatId}.`));
+    }
+    if (!recordIds.has(link.recordId) || recordProject.get(link.recordId) !== link.projectId) {
+      issues.push(integrity(`Weave beat manuscript link ${link.id} references missing manuscript ${link.recordId}.`));
+    } else {
+      const type = recordType.get(link.recordId);
+      if (type && (!isManuscriptType(type) || type === "scene_note")) {
+        issues.push(integrity(`Weave beat manuscript link ${link.id} must link to a chapter or scene.`));
+      }
+    }
+  });
+  const weaveStructureIds = new Set(weaveStructuresOf(b).map((x) => x.id));
+  const weaveStructureProject = new Map(weaveStructuresOf(b).map((x) => [x.id, x.projectId]));
+  const weaveStructureGrid = new Map(weaveStructuresOf(b).map((x) => [x.id, x.gridId]));
+  weaveStructuresOf(b).forEach((structure) => {
+    needProject(structure.projectId, `Weave structure ${structure.id}`);
+    if (!weaveGridIds.has(structure.gridId) || weaveGridProject.get(structure.gridId) !== structure.projectId) {
+      issues.push(integrity(`Weave structure ${structure.id} references missing grid ${structure.gridId}.`));
+    }
+  });
+  const weaveStageIds = new Set(weaveStructureStagesOf(b).map((x) => x.id));
+  const weaveStageProject = new Map(weaveStructureStagesOf(b).map((x) => [x.id, x.projectId]));
+  weaveStructureStagesOf(b).forEach((stage) => {
+    needProject(stage.projectId, `Weave structure stage ${stage.id}`);
+    if (
+      !weaveStructureIds.has(stage.structureId) ||
+      weaveStructureProject.get(stage.structureId) !== stage.projectId ||
+      weaveStructureGrid.get(stage.structureId) !== stage.gridId
+    ) {
+      issues.push(integrity(`Weave structure stage ${stage.id} references missing structure ${stage.structureId}.`));
+    }
+    if (!weaveGridIds.has(stage.gridId) || weaveGridProject.get(stage.gridId) !== stage.projectId) {
+      issues.push(integrity(`Weave structure stage ${stage.id} references missing grid ${stage.gridId}.`));
+    }
+  });
+  weaveStageIdeasOf(b).forEach((link) => {
+    needProject(link.projectId, `Weave stage idea ${link.id}`);
+    if (!weaveStageIds.has(link.stageId) || weaveStageProject.get(link.stageId) !== link.projectId) {
+      issues.push(integrity(`Weave stage idea ${link.id} references missing stage ${link.stageId}.`));
+    }
+    if (!weaveBeatIds.has(link.beatId) || weaveBeatProject.get(link.beatId) !== link.projectId) {
+      issues.push(integrity(`Weave stage idea ${link.id} references missing beat ${link.beatId}.`));
+    }
+  });
   weaveSetupPayoffsOf(b).forEach((link) => {
     if (link.workspaceId !== b.workspace.id) {
       issues.push(integrity(`Weave setup/payoff ${link.id} belongs to another workspace.`));
@@ -3599,6 +3935,36 @@ async function findCollisions(db: DbOrTx, b: WorkspaceBackupV1): Promise<Issue[]
       db.weaveBeatWorldRef.count({ where: { id: { in: weaveBeatWorldRefsOf(b).map((x) => x.id) } } }),
     );
   }
+  if (weaveBeatManuscriptLinksOf(b).length && "weaveBeatManuscriptLink" in db) {
+    await check(
+      "weave beat manuscript link",
+      db.weaveBeatManuscriptLink.count({ where: { id: { in: weaveBeatManuscriptLinksOf(b).map((x) => x.id) } } }),
+    );
+  }
+  if (weaveStructuresOf(b).length && "weaveStructure" in db) {
+    await check(
+      "weave structure",
+      db.weaveStructure.count({ where: { id: { in: weaveStructuresOf(b).map((x) => x.id) } } }),
+    );
+  }
+  if (weaveStructureStagesOf(b).length && "weaveStructureStage" in db) {
+    await check(
+      "weave structure stage",
+      db.weaveStructureStage.count({ where: { id: { in: weaveStructureStagesOf(b).map((x) => x.id) } } }),
+    );
+  }
+  if (weaveStageIdeasOf(b).length && "weaveStageIdea" in db) {
+    await check(
+      "weave stage idea",
+      db.weaveStageIdea.count({ where: { id: { in: weaveStageIdeasOf(b).map((x) => x.id) } } }),
+    );
+  }
+  if (weavePlanningRowsOf(b).length && "weavePlanningRow" in db) {
+    await check(
+      "weave planning row",
+      db.weavePlanningRow.count({ where: { id: { in: weavePlanningRowsOf(b).map((x) => x.id) } } }),
+    );
+  }
   if (weaveSetupPayoffsOf(b).length) {
     await check(
       "weave setup/payoff",
@@ -3812,8 +4178,13 @@ export async function restoreWorkspaceBackup(db: Db, input: string | unknown, op
   characterAnalysesOf(b).forEach((row) => assign(row.id, "carc"));
   weaveGridsOf(b).forEach((x) => assign(x.id, "wvg"));
   weaveThreadsOf(b).forEach((x) => assign(x.id, "wth"));
+  weavePlanningRowsOf(b).forEach((x) => assign(x.id, "wpr"));
   weaveBeatsOf(b).forEach((x) => assign(x.id, "wvb"));
   weaveBeatWorldRefsOf(b).forEach((x) => assign(x.id, "wvr"));
+  weaveBeatManuscriptLinksOf(b).forEach((x) => assign(x.id, "wml"));
+  weaveStructuresOf(b).forEach((x) => assign(x.id, "wst"));
+  weaveStructureStagesOf(b).forEach((x) => assign(x.id, "wss"));
+  weaveStageIdeasOf(b).forEach((x) => assign(x.id, "wsi"));
   weaveSetupPayoffsOf(b).forEach((x) => assign(x.id, "wvs"));
   weaveTemplatesOf(b).forEach((x) => assign(x.id, "wvt"));
   weaveTemplateBeatsOf(b).forEach((x) => assign(x.id, "wvx"));
@@ -4658,6 +5029,7 @@ export async function restoreWorkspaceBackup(db: Db, input: string | unknown, op
               title: g.title,
               viewKind: g.viewKind,
               layoutMode: g.layoutMode === "plot_grid" ? "plot_grid" : "freeform",
+              preferredSurface: g.preferredSurface ?? null,
               sourceTemplateId: g.sourceTemplateId ? m(g.sourceTemplateId) : null,
               createdAt: new Date(g.createdAt),
               updatedAt: new Date(g.updatedAt),
@@ -4677,6 +5049,21 @@ export async function restoreWorkspaceBackup(db: Db, input: string | unknown, op
             })),
           });
         }
+        const planningRows = weavePlanningRowsOf(b);
+        if (planningRows.length) {
+          await tx.weavePlanningRow.createMany({
+            data: planningRows.map((row) => ({
+              id: m(row.id),
+              gridId: m(row.gridId),
+              projectId: m(row.projectId),
+              title: row.title,
+              position: row.position,
+              contentRevision: row.contentRevision ?? 1,
+              createdAt: new Date(row.createdAt),
+              updatedAt: new Date(row.updatedAt),
+            })),
+          });
+        }
         const weaveBeats = weaveBeatsOf(b);
         if (weaveBeats.length) {
           await tx.weaveBeat.createMany({
@@ -4689,7 +5076,9 @@ export async function restoreWorkspaceBackup(db: Db, input: string | unknown, op
               decision: beat.decision,
               manuscriptRecordId: beat.manuscriptRecordId ? m(beat.manuscriptRecordId) : null,
               threadId: beat.threadId ? m(beat.threadId) : null,
+              planningRowId: beat.planningRowId ? m(beat.planningRowId) : null,
               cellOrder: beat.cellOrder ?? 0,
+              contentRevision: beat.contentRevision ?? 1,
               x: beat.x,
               y: beat.y,
               width: beat.width,
@@ -4708,6 +5097,72 @@ export async function restoreWorkspaceBackup(db: Db, input: string | unknown, op
               projectId: m(ref.projectId),
               recordId: m(ref.recordId),
               createdAt: new Date(ref.createdAt),
+            })),
+          });
+        }
+        const manuscriptLinks = weaveBeatManuscriptLinksOf(b);
+        if (manuscriptLinks.length) {
+          await tx.weaveBeatManuscriptLink.createMany({
+            data: manuscriptLinks.map((link) => ({
+              id: m(link.id),
+              beatId: m(link.beatId),
+              projectId: m(link.projectId),
+              recordId: m(link.recordId),
+              position: link.position,
+              createdAt: new Date(link.createdAt),
+            })),
+          });
+        }
+        const structures = weaveStructuresOf(b);
+        if (structures.length) {
+          await tx.weaveStructure.createMany({
+            data: structures.map((structure) => ({
+              id: m(structure.id),
+              gridId: m(structure.gridId),
+              projectId: m(structure.projectId),
+              sourcePresetId: structure.sourcePresetId,
+              sourceVersion: structure.sourceVersion,
+              title: structure.title,
+              description: structure.description,
+              attribution: structure.attribution,
+              position: structure.position,
+              contentRevision: structure.contentRevision ?? 1,
+              createdAt: new Date(structure.createdAt),
+              updatedAt: new Date(structure.updatedAt),
+            })),
+          });
+        }
+        const stages = weaveStructureStagesOf(b);
+        if (stages.length) {
+          await tx.weaveStructureStage.createMany({
+            data: stages.map((stage) => ({
+              id: m(stage.id),
+              structureId: m(stage.structureId),
+              gridId: m(stage.gridId),
+              projectId: m(stage.projectId),
+              stageKey: stage.stageKey,
+              title: stage.title,
+              guidance: stage.guidance,
+              notes: stage.notes,
+              groupKey: stage.groupKey,
+              groupTitle: stage.groupTitle,
+              position: stage.position,
+              contentRevision: stage.contentRevision ?? 1,
+              createdAt: new Date(stage.createdAt),
+              updatedAt: new Date(stage.updatedAt),
+            })),
+          });
+        }
+        const stageIdeas = weaveStageIdeasOf(b);
+        if (stageIdeas.length) {
+          await tx.weaveStageIdea.createMany({
+            data: stageIdeas.map((link) => ({
+              id: m(link.id),
+              stageId: m(link.stageId),
+              beatId: m(link.beatId),
+              projectId: m(link.projectId),
+              position: link.position,
+              createdAt: new Date(link.createdAt),
             })),
           });
         }

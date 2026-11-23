@@ -77,6 +77,7 @@ describe("W5D subcategory sections and quantity fields", () => {
       "languages:dialects",
       "locations:buildings",
       "locations:rooms",
+      "magic:workings",
     ]);
   });
 
@@ -181,6 +182,35 @@ describe("W5D subcategory sections and quantity fields", () => {
     expect(isDescriptiveSubcategoryField("sightlines")).toBe(true);
     expect(isDescriptiveSubcategoryField("layout")).toBe(false);
     expect(isDescriptiveSubcategoryField("access")).toBe(false);
+  });
+
+  it("adds magic workings fields without copying source, limits, costs, exceptions, or the overview", () => {
+    const magic = getBuiltinWorldProfileDefinition("category:magic");
+    const owned = ["source", "limits", "workings", "costs", "exceptions"];
+    for (const key of owned) {
+      expect(magic?.fields.some((field) => field.key === key)).toBe(true);
+    }
+    const workings = getSubcategorySection("magic:workings");
+    expect(workings?.fields.map((field) => field.key)).toEqual([
+      "preconditions",
+      "observableSigns",
+      "signsOfFailure",
+    ]);
+    for (const field of workings?.fields ?? []) {
+      expect(owned).not.toContain(field.key);
+      expect(field.type).toBe("long_text");
+      expect(field.continuity).toBe("descriptive");
+    }
+    expect(isDescriptiveSubcategoryField("preconditions")).toBe(true);
+    expect(isDescriptiveSubcategoryField("observableSigns")).toBe(true);
+    expect(isDescriptiveSubcategoryField("signsOfFailure")).toBe(true);
+    expect(isDescriptiveSubcategoryField("workings")).toBe(false);
+    expect(isDescriptiveSubcategoryField("source")).toBe(false);
+    expect(
+      listSubcategorySectionsForTaxonomy({
+        primary: { category: "magic", subcategory: "workings" },
+      }).map((section) => section.id),
+    ).toEqual(["magic:workings"]);
   });
 
   it("reads an older profile without enabledSections as an empty list", () => {

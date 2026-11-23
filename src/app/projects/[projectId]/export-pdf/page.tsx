@@ -2,6 +2,7 @@ import { ProjectPageHeader } from "@/components/library/ProjectPageHeader";
 import { DraftDefaultsPanel, VisitDraftSwitcher, type DraftOption } from "@/components/drafts/DraftControls";
 import { HelpHint } from "@/components/HelpHint";
 import { Banner } from "@/components/ui/Banner";
+import { ButtonLink } from "@/components/ui/Atoms/Button";
 import { Checkbox } from "@/components/ui/Atoms/Checkbox";
 import { isManuscriptType, isRecordType, RECORD_TYPE_LABELS, type RecordType } from "@/domain/recordTypes";
 import { getDb } from "@/server/db";
@@ -105,6 +106,7 @@ export default async function ExportPdfPage({
   const epubHref = `/projects/${encodeURIComponent(projectId)}/epub`;
   const markdownHref = `/projects/${encodeURIComponent(projectId)}/markdown`;
   const wikiHref = `/projects/${encodeURIComponent(projectId)}/wiki`;
+  const portalHref = `/projects/${encodeURIComponent(projectId)}/world-portal`;
   const base = `/projects/${encodeURIComponent(projectId)}`;
 
   const requested = new Set(list(query.record));
@@ -294,6 +296,18 @@ export default async function ExportPdfPage({
       {showManuscript && (tree.chapters.length || tree.unplaced.length) ? (
         <CompileValidationSummary report={compileValidation} />
       ) : null}
+
+      <section className="panel stack" aria-labelledby="world-portal-heading">
+        <h2 id="world-portal-heading">{COMPILE_PROFILE.worldPortalHeading}</h2>
+        <p className="small muted">{COMPILE_PROFILE.worldPortalIntro}</p>
+        <div className="row" style={{ flexWrap: "wrap", gap: "0.5rem" }}>
+          <ButtonLink href={`${portalHref}?mode=publicSafe`}>{COMPILE_PROFILE.worldPortalPublic}</ButtonLink>
+          <ButtonLink variant="secondary" href={`${portalHref}?mode=private`}>
+            {COMPILE_PROFILE.worldPortalPrivate}
+          </ButtonLink>
+        </div>
+        <p className="small muted">{COMPILE_PROFILE.worldPortalNote}</p>
+      </section>
 
       {showManuscript && previewChapter ? (
         <section className="panel stack">

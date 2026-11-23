@@ -9,6 +9,7 @@ import { listManuscriptNav, listRecords } from "@/server/services/recordService"
 import { getProject, listSeriesBookProjects } from "@/server/services/projectService";
 import { listContinuityLedger } from "@/server/services/continuityService";
 import { getWeaveGrid, listSeriesWeaveBeats } from "@/server/services/weaveService";
+import { getWeavePlanPlanning } from "@/server/services/weaveStructureService";
 import { SHELL, WEAVE } from "@/ui/labels";
 import { buildManuscriptTree } from "@/ui/manuscriptTree";
 import { otherDraftRowByRecord } from "@/ui/plotGridPlacement";
@@ -16,7 +17,10 @@ import { DevelopmentCues } from "@/components/world/CharacterDevelopment";
 import { developmentCuesForBeats } from "@/server/services/characterDevelopmentService";
 import { CHARACTER_DEVELOPMENT } from "@/ui/labels";
 import { continuityOpenByRecord } from "@/weave/beatCardSignals";
+import { BeatSheetView } from "../BeatSheetView";
+import { StoryGridView } from "../StoryGridView";
 import { WeaveCanvas } from "../WeaveCanvas";
+import { WeaveSurfaceToggle } from "../WeaveSurfaceToggle";
 import type { PlotGridChapter } from "../WeavePlotGrid";
 
 export const dynamic = "force-dynamic";
@@ -29,12 +33,15 @@ export default async function WeaveGridPage({
   const { projectId, gridId } = await params;
   const db = getDb();
   let grid;
+  let planning;
   try {
     grid = await getWeaveGrid(db, projectId, gridId);
+    planning = await getWeavePlanPlanning(db, projectId, gridId);
   } catch (error) {
     if (error instanceof NotFoundError) notFound();
     throw error;
   }
+  const surface = planning.surface;
 
   const drafts = await listManuscriptDrafts(db, projectId).catch(() => []);
   const hasDrafts = drafts.length > 0;
@@ -131,22 +138,47 @@ export default async function WeaveGridPage({
         ]}
       />
       {arcCues.length ? <DevelopmentCues title={CHARACTER_DEVELOPMENT.plotTracks} cues={arcCues} /> : null}
-      <WeaveCanvas
-        projectId={projectId}
-        grid={grid}
-        projectTitle={project.title}
-        bookName={project.bookName}
-        seriesBooks={seriesBooks}
-        drafts={draftOptions}
-        activeDraftId={activeDraftId}
-        planLabel={grid.viewLabel}
-        manuscriptChoices={manuscriptChoices}
-        manuscriptChapters={manuscriptChapters}
-        otherDraftRowByRecordId={otherDraftRowByRecordId}
-        worldChoices={worldChoices}
-        seriesBeats={seriesBeats}
-        continuityByRecord={continuityByRecord}
-      />
+      <div style={{ margin: "0.75rem 0 1rem" }}>
+        <WeaveSurfaceToggle projectId={projectId} gridId={grid.id} surface={surface} />
+      </div>
+      {surface === "beat_sheet" ? (
+        <BeatSheetView
+          projectId={projectId}
+          gridId={grid.id}
+          gridTitle={grid.title}
+          structures={planning.structures}
+          beats={grid.beats}
+        />
+      ) : surface === "story_grid" ? (
+        <StoryGridView
+          projectId={projectId}
+          gridId={grid.id}
+          gridTitle={grid.title}
+          threads={grid.threads}
+          planningRows={planning.planningRows}
+          beats={grid.beats}
+          structures={planning.structures}
+        />
+      ) : (
+        <WeaveCanvas
+          projectId={projectId}
+          grid={grid}
+          projectTitle={project.title}
+          bookName={project.bookName}
+          seriesBooks={seriesBooks}
+          drafts={draftOptions}
+          activeDraftId={activeDraftId}
+          planLabel={grid.viewLabel}
+          manuscriptChoices={manuscriptChoices}
+          manuscriptChapters={manuscriptChapters}
+          otherDraftRowByRecordId={otherDraftRowByRecordId}
+          worldChoices={worldChoices}
+          seriesBeats={seriesBeats}
+          continuityByRecord={continuityByRecord}
+          hideLayoutToggle
+          showChapterEmptyState={surface === "chapter_grid"}
+        />
+      )}
     </>
   );
 }

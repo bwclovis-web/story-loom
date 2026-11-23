@@ -1,9 +1,11 @@
 "use client";
-import { Button } from "@/components/ui/Atoms/Button";
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { IssueList } from "@/components/IssueList";
+import { Button } from "@/components/ui/Atoms/Button";
+import { Select } from "@/components/ui/Atoms/Select";
+import { TextField } from "@/components/ui/TextField";
 import type { Issue } from "@/domain/issues";
 import { WEAVE_VIEW_KINDS, WEAVE_VIEW_LABELS, type WeaveViewKind } from "@/server/services/weaveService";
 import { HOME, WEAVE } from "@/ui/labels";
@@ -40,20 +42,25 @@ export function CreateWeaveGridForm({
         });
       }}
     >
-      <label>
-        {WEAVE.gridTitle}
-        <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder={WEAVE_VIEW_LABELS[viewKind]} maxLength={200} autoComplete="off" />
-      </label>
-      <label>
-        {WEAVE.planningScope}
-        <select value={viewKind} onChange={(e) => setViewKind(e.target.value as WeaveViewKind)}>
-          {WEAVE_VIEW_KINDS.map((k) => (
-            <option key={k} value={k}>
-              {WEAVE_VIEW_LABELS[k]}
-            </option>
-          ))}
-        </select>
-      </label>
+      <TextField
+        label={WEAVE.gridTitle}
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        placeholder={WEAVE_VIEW_LABELS[viewKind]}
+        maxLength={200}
+        autoComplete="off"
+      />
+      <Select
+        label={WEAVE.planningScope}
+        value={viewKind}
+        onChange={(e) => setViewKind(e.target.value as WeaveViewKind)}
+      >
+        {WEAVE_VIEW_KINDS.map((k) => (
+          <option key={k} value={k}>
+            {WEAVE_VIEW_LABELS[k]}
+          </option>
+        ))}
+      </Select>
       <div className="row">
         <Button type="submit" disabled={pending}>
           {pending ? WEAVE.creatingGrid : WEAVE.createGridAction}

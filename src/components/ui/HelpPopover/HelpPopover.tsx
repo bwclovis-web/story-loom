@@ -21,7 +21,7 @@ function placeHelpPopover(panel: HTMLElement, trigger: HTMLElement) {
 
 function InfoIcon() {
   return (
-    <svg viewBox="0 0 26 26" width="34" height="34" aria-hidden="true" focusable="false">
+    <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false">
       <circle cx="8" cy="8" r="6.25" fill="none" stroke="currentColor" strokeWidth="1.4" />
       <path d="M8 7.15v4.15" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
       <circle cx="8" cy="4.65" r="0.75" fill="currentColor" />

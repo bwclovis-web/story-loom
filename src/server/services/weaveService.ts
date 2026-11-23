@@ -13,7 +13,7 @@ import { readThreadLine, withThreadLine } from "@/world/weaveBeatPresets";
 import { worldbuildingKindFromFields } from "@/world/worldKinds";
 import type { Db, DbOrTx, Tx } from "../db";
 import { writeAudit } from "./auditService";
-import { MutationRejectedError, NotFoundError } from "./errors";
+import { MutationRejectedError, NotFoundError, StaleRevisionError } from "./errors";
 
 /*
  * Plan Weave: Original plan, Zero-draft story map, and Author rewrite grids.
@@ -70,6 +70,22 @@ export function isWeaveDecision(v: string): v is WeaveDecision {
   return (WEAVE_DECISIONS as readonly string[]).includes(v);
 }
 
+export const WEAVE_SURFACES = ["beat_sheet", "story_grid", "chapter_grid", "freeform"] as const;
+export type WeaveSurface = (typeof WEAVE_SURFACES)[number];
+
+export function isWeaveSurface(v: string): v is WeaveSurface {
+  return (WEAVE_SURFACES as readonly string[]).includes(v);
+}
+
+/** Null preferredSurface keeps the pre-structure default derived from layoutMode. */
+export function resolveWeaveSurface(grid: {
+  preferredSurface?: string | null;
+  layoutMode: string;
+}): WeaveSurface {
+  if (grid.preferredSurface && isWeaveSurface(grid.preferredSurface)) return grid.preferredSurface;
+  return grid.layoutMode === "plot_grid" ? "chapter_grid" : "freeform";
+}
+
 export interface WeaveGridSummary {
   id: string;
   title: string;
@@ -77,6 +93,7 @@ export interface WeaveGridSummary {
   viewLabel: string;
   beatCount: number;
   sourceTemplateId: string | null;
+  preferredSurface: WeaveSurface | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -115,7 +132,9 @@ export interface WeaveBeatView {
   /** Draft status on the linked chapter or scene, when set. */
   manuscriptSceneStatus: ManuscriptSceneStatus | "";
   threadId: string | null;
+  planningRowId: string | null;
   cellOrder: number;
+  contentRevision: number;
   x: number;
   y: number;
   width: number;
@@ -147,6 +166,9 @@ export interface WeaveGridView {
   viewKind: WeaveViewKind;
   viewLabel: string;
   layoutMode: WeaveLayoutMode;
+  /** null = legacy default (see resolveWeaveSurface). */
+  preferredSurface: WeaveSurface | null;
+  surface: WeaveSurface;
   sourceTemplateId: string | null;
   createdAt: Date;
   updatedAt: Date;
@@ -207,6 +229,8 @@ export async function listWeaveGrids(db: DbOrTx, projectId: string): Promise<Wea
   });
   return rows.flatMap((g) => {
     if (!isWeaveViewKind(g.viewKind)) return [];
+    const preferred =
+      g.preferredSurface && isWeaveSurface(g.preferredSurface) ? g.preferredSurface : null;
     return [
       {
         id: g.id,
@@ -215,6 +239,7 @@ export async function listWeaveGrids(db: DbOrTx, projectId: string): Promise<Wea
         viewLabel: WEAVE_VIEW_LABELS[g.viewKind],
         beatCount: g._count.beats,
         sourceTemplateId: g.sourceTemplateId,
+        preferredSurface: preferred,
         createdAt: g.createdAt,
         updatedAt: g.updatedAt,
       },
@@ -230,7 +255,9 @@ function beatViewOf(b: {
   decision: string;
   manuscriptRecordId: string | null;
   threadId: string | null;
+  planningRowId?: string | null;
   cellOrder: number;
+  contentRevision?: number;
   x: number;
   y: number;
   width: number;
@@ -264,7 +291,9 @@ function beatViewOf(b: {
     manuscriptPov: ms ? povOf(ms.fields) : "",
     manuscriptSceneStatus: ms ? sceneStatusOf(ms.fields) : "",
     threadId: b.threadId,
+    planningRowId: b.planningRowId ?? null,
     cellOrder: b.cellOrder,
+    contentRevision: b.contentRevision ?? 1,
     x: b.x,
     y: b.y,
     width: b.width,
@@ -404,13 +433,18 @@ export async function getWeaveGrid(db: DbOrTx, projectId: string, gridId: string
     }
   }
 
+  const preferred =
+    grid.preferredSurface && isWeaveSurface(grid.preferredSurface) ? grid.preferredSurface : null;
+  const layoutMode = layoutModeOf(grid.layoutMode);
   return {
     id: grid.id,
     projectId: grid.projectId,
     title: grid.title,
     viewKind: grid.viewKind,
     viewLabel: WEAVE_VIEW_LABELS[grid.viewKind],
-    layoutMode: layoutModeOf(grid.layoutMode),
+    layoutMode,
+    preferredSurface: preferred,
+    surface: resolveWeaveSurface({ preferredSurface: preferred, layoutMode }),
     sourceTemplateId: grid.sourceTemplateId,
     createdAt: grid.createdAt,
     updatedAt: grid.updatedAt,
@@ -477,9 +511,14 @@ export async function deleteWeaveGrid(db: Db, projectId: string, gridId: string)
         where: { OR: [{ fromBeatId: { in: beatIds } }, { toBeatId: { in: beatIds } }] },
       });
       await tx.weaveBeatWorldRef.deleteMany({ where: { beatId: { in: beatIds } } });
-      await tx.weaveBeat.updateMany({ where: { gridId }, data: { threadId: null } });
+      await tx.weaveBeatManuscriptLink.deleteMany({ where: { beatId: { in: beatIds } } });
+      await tx.weaveStageIdea.deleteMany({ where: { beatId: { in: beatIds } } });
+      await tx.weaveBeat.updateMany({ where: { gridId }, data: { threadId: null, planningRowId: null } });
       await tx.weaveBeat.deleteMany({ where: { gridId } });
     }
+    await tx.weaveStructureStage.deleteMany({ where: { gridId } });
+    await tx.weaveStructure.deleteMany({ where: { gridId } });
+    await tx.weavePlanningRow.deleteMany({ where: { gridId } });
     await tx.weaveThread.deleteMany({ where: { gridId } });
     await tx.weaveGrid.delete({ where: { id: gridId } });
     await writeAudit(tx, {
@@ -601,20 +640,35 @@ export async function updateWeaveBeat(
     decision?: string;
     manuscriptRecordId?: string | null;
     threadId?: string | null;
+    planningRowId?: string | null;
     cellOrder?: number;
+    /** When set, title/body updates refuse if the idea changed elsewhere. */
+    expectedRevision?: number;
   },
 ): Promise<WeaveBeatView> {
   return db.$transaction(async (tx) => {
     await requireGrid(tx, projectId, gridId);
     const beat = await tx.weaveBeat.findFirst({ where: { id: beatId, gridId, projectId } });
     if (!beat) throw rejected("That beat is not on this Weave grid.");
+    const touchesText = typeof input.title === "string" || typeof input.body === "string";
+    if (touchesText && typeof input.expectedRevision === "number" && beat.contentRevision !== input.expectedRevision) {
+      throw new StaleRevisionError(
+        errorIssue(
+          "STALE_REVISION",
+          "This story idea changed elsewhere. Your local text was kept.",
+          { recordId: beatId },
+        ),
+      );
+    }
     const data: {
       title?: string;
       body?: string;
       decision?: string;
       manuscriptRecordId?: string | null;
       threadId?: string | null;
+      planningRowId?: string | null;
       cellOrder?: number;
+      contentRevision?: number;
     } = {};
     if (typeof input.title === "string") {
       const title = input.title.trim();
@@ -622,6 +676,7 @@ export async function updateWeaveBeat(
       data.title = title;
     }
     if (typeof input.body === "string") data.body = input.body;
+    if (touchesText) data.contentRevision = beat.contentRevision + 1;
     if (typeof input.decision === "string") {
       const decision = input.decision.trim();
       if (decision && !isWeaveDecision(decision)) throw rejected("Unknown Weave decision.");
@@ -634,6 +689,17 @@ export async function updateWeaveBeat(
     }
     if (input.threadId !== undefined) {
       data.threadId = input.threadId ? await requireThread(tx, projectId, gridId, input.threadId) : null;
+    }
+    if (input.planningRowId !== undefined) {
+      if (input.planningRowId) {
+        const row = await tx.weavePlanningRow.findFirst({
+          where: { id: input.planningRowId, gridId, projectId },
+        });
+        if (!row) throw rejected("That planning moment is not on this Weave grid.");
+        data.planningRowId = row.id;
+      } else {
+        data.planningRowId = null;
+      }
     }
     if (typeof input.cellOrder === "number" && Number.isFinite(input.cellOrder)) {
       data.cellOrder = Math.max(0, Math.round(input.cellOrder));

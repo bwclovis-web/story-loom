@@ -157,7 +157,11 @@ export const HELP_SECTIONS = [
       { id: "load-from-file", title: "Loading a chapter from a file" },
     ],
   },
-  { id: "pdf-export", title: "Exporting PDFs, DOCX, and EPUB" },
+  {
+    id: "pdf-export",
+    title: "Exporting PDFs, DOCX, and EPUB",
+    children: [{ id: "world-portal", title: "World Portal" }],
+  },
   {
     id: "writing-tools",
     title: "Writing tools",
@@ -299,6 +303,7 @@ export const HELP_ROUTES = [
   "/projects/[projectId]/pdf",
   "/projects/[projectId]/markdown",
   "/projects/[projectId]/wiki",
+  "/projects/[projectId]/world-portal",
   "/projects/[projectId]/history",
   "/projects/[projectId]/assistant",
   "/projects/[projectId]/dictionary",
