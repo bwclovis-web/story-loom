@@ -2,7 +2,7 @@
 
 import { ConfirmAction } from "@/components/ConfirmAction";
 import { HelpHint } from "@/components/HelpHint";
-import { Checkbox } from "@/components/ui/Checkbox";
+import { Checkbox } from "@/components/ui/Atoms/Checkbox";
 import { RECORD } from "@/ui/labels";
 import { restoreRecordAction } from "../../actions";
 

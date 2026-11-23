@@ -3,7 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import { IssueList } from "@/components/IssueList";
 import type { Issue } from "@/domain/issues";
-import { Checkbox } from "@/components/ui/Checkbox";
+import { Checkbox } from "@/components/ui/Atoms/Checkbox";
 import { RECORD, WORLD } from "@/ui/labels";
 import { applyOutlineAction } from "../../world/inspectorActions";
 import {

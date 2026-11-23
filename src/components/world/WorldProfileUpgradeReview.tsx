@@ -5,7 +5,7 @@ import type { WorldProfileUpgradePreview, ApplyWorldProfileUpgradeResult } from 
 import type { WorldUpgradeDecision, WorldUpgradeDecisionInput } from "@/domain/worldProfileUpgrade";
 import { Banner } from "@/components/ui/Banner";
 import { Button, ButtonLink } from "@/components/ui/Button";
-import { Checkbox } from "@/components/ui/Checkbox";
+import { Checkbox } from "@/components/ui/Atoms/Checkbox";
 import { WORLD_PROFILE_UPGRADE as LABELS } from "@/ui/labels";
 
 type DecisionState = Record<string, { decision: WorldUpgradeDecision; modifiedValue: string }>;

@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/Button";
-import { Checkbox } from "@/components/ui/Checkbox";
+import { Checkbox } from "@/components/ui/Atoms/Checkbox";
 import { PDF } from "@/ui/labels";
 
 export function BetaReaderDocxForm({

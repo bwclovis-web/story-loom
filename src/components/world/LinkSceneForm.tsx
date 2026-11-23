@@ -3,7 +3,7 @@
 import { useEffect, useId, useState, useTransition } from "react";
 import { IssueList } from "@/components/IssueList";
 import { Button } from "@/components/ui/Button";
-import { Checkbox } from "@/components/ui/Checkbox";
+import { Checkbox } from "@/components/ui/Atoms/Checkbox";
 import type { Issue } from "@/domain/issues";
 import type { LinkableManuscript } from "@/server/services/sceneLocationService";
 import { WORLD } from "@/ui/labels";

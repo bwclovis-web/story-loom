@@ -13,7 +13,7 @@ import { IconButton } from "@/components/ui/IconButton";
 import { CanvasInspectorSection } from "@/components/world/CanvasInspectorSection";
 import { CanvasReferenceSummary } from "@/components/world/CanvasReferenceSummary";
 import { MapToolbarPopover } from "@/components/world/MapToolbarPopover";
-import { Checkbox } from "@/components/ui/Checkbox";
+import { Checkbox } from "@/components/ui/Atoms/Checkbox";
 import { LabeledSwitch } from "@/components/ui/LabeledSwitch";
 import { LinkSceneForm } from "@/components/world/LinkSceneForm";
 import { ContextRail, ContextRailToggle, useContextRail } from "@/components/shell/ContextRail";

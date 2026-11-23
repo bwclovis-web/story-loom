@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import { createReferenceFromSelectionAction } from "@/app/projects/[projectId]/write/actions";
 import { Button } from "@/components/ui/Button";
-import { Checkbox } from "@/components/ui/Checkbox";
+import { Checkbox } from "@/components/ui/Atoms/Checkbox";
 import { Banner } from "@/components/ui/Banner";
 import { RECORD_TYPE_LABELS } from "@/domain/recordTypes";
 import { WRITE } from "@/ui/labels";

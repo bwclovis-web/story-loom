@@ -9,7 +9,7 @@ import { CloseIcon } from "@/components/shell/icons";
 import { IconButton } from "@/components/ui/IconButton";
 import { Banner } from "@/components/ui/Banner";
 import { Button, ButtonLink } from "@/components/ui/Button";
-import { Checkbox } from "@/components/ui/Checkbox";
+import { Checkbox } from "@/components/ui/Atoms/Checkbox";
 import type { Issue } from "@/domain/issues";
 import type { StoryEventDetail, StoryMapChoice, StoryTimeline } from "@/server/services/storyEventService";
 import { WORLD, WRITE } from "@/ui/labels";

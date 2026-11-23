@@ -5,7 +5,7 @@ import type { FindContextCandidate, FindRelevantContextResult } from "@/server/s
 import { ASSISTANT } from "@/ui/labels";
 import { findRelevantContextAction } from "./actions";
 import { Button } from "@/components/ui/Button";
-import { Checkbox } from "@/components/ui/Checkbox";
+import { Checkbox } from "@/components/ui/Atoms/Checkbox";
 
 export interface FindSelectionApply {
   selectedRefs: string[];

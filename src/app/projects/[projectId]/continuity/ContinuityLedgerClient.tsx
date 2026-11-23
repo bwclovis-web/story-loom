@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
 import { Banner } from "@/components/ui/Banner";
 import { Button } from "@/components/ui/Button";
-import { Checkbox } from "@/components/ui/Checkbox";
+import { Checkbox } from "@/components/ui/Atoms/Checkbox";
 import { EmptyState } from "@/components/ui/EmptyState";
 import type { ContinuityCategory, ContinuityItem, ContinuityKind, ContinuitySeverity } from "@/server/services/continuityService";
 import { CONTINUITY } from "@/ui/labels";

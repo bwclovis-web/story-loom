@@ -4,7 +4,7 @@ import { useActionState } from "react";
 import { submitWithoutReset } from "@/components/submitWithoutReset";
 import { Banner } from "@/components/ui/Banner";
 import { Button } from "@/components/ui/Button";
-import { Checkbox } from "@/components/ui/Checkbox";
+import { Checkbox } from "@/components/ui/Atoms/Checkbox";
 import { CONNECTIONS } from "@/ui/labels";
 import { saveGrantSettingsAction } from "./actions";
 

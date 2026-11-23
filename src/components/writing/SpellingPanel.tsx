@@ -12,7 +12,7 @@ import { ProtectionTick } from "./ProtectionTick";
 import { applyTextareaEdit, selectRange } from "./textareaEdit";
 import type { Spellcheck } from "./useSpellcheck";
 import { Button } from "@/components/ui/Button";
-import { Checkbox } from "@/components/ui/Checkbox";
+import { Checkbox } from "@/components/ui/Atoms/Checkbox";
 
 /** The flagged word the selection is in, if any. */
 export function flagAt(flags: readonly SpellFlag[], selection: { start: number; end: number }): SpellFlag | null {

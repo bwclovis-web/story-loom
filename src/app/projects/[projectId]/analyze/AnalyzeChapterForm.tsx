@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ANALYSIS_KINDS, type AnalysisKind } from "@/analyze/chapterAnalysisOutput";
 import { CATEGORY_BOUNDARY } from "@/analyze/chapterAnalysisReview";
 import { Button } from "@/components/ui/Button";
-import { Checkbox } from "@/components/ui/Checkbox";
+import { Checkbox } from "@/components/ui/Atoms/Checkbox";
 import { ANALYZE } from "@/ui/labels";
 import { previewChapterAnalysisAction } from "./actions";
 

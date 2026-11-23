@@ -6,7 +6,7 @@ import Link from "next/link";
 import { IssueList } from "@/components/IssueList";
 import { Banner } from "@/components/ui/Banner";
 import { Button, ButtonLink } from "@/components/ui/Button";
-import { Checkbox } from "@/components/ui/Checkbox";
+import { Checkbox } from "@/components/ui/Atoms/Checkbox";
 import { RECORD_TYPE_LABELS } from "@/domain/recordTypes";
 import type { ManuscriptReplaceMatch, ManuscriptReplacePreview } from "@/server/services/manuscriptReplaceService";
 import { MANUSCRIPT_REPLACE, RECORD } from "@/ui/labels";

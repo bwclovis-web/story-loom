@@ -9,7 +9,7 @@ import type { DossierUpgradeDecisionInput, UpgradeDecision } from "@/domain/char
 import { Banner } from "@/components/ui/Banner";
 import { Button } from "@/components/ui/Button";
 import { ButtonLink } from "@/components/ui/Button";
-import { Checkbox } from "@/components/ui/Checkbox";
+import { Checkbox } from "@/components/ui/Atoms/Checkbox";
 import { CHARACTER_DOSSIER_UPGRADE as LABELS } from "@/ui/labels";
 
 type DecisionState = Record<string, { decision: UpgradeDecision; modifiedValue: string }>;

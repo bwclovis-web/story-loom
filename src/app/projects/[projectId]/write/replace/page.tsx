@@ -4,7 +4,7 @@ import { ProjectPageHeader } from "@/components/library/ProjectPageHeader";
 import { VisitDraftSwitcher } from "@/components/drafts/DraftControls";
 import { HelpHint } from "@/components/HelpHint";
 import { Button, ButtonLink } from "@/components/ui/Button";
-import { Checkbox } from "@/components/ui/Checkbox";
+import { Checkbox } from "@/components/ui/Atoms/Checkbox";
 import { DRAFT } from "@/ui/labels";
 import { getDb } from "@/server/db";
 import { readWriteDraftCookie, resolveWriteDraftId } from "@/server/draftSelection";

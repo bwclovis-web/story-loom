@@ -21,7 +21,7 @@ import {
 } from "@/components/shell/icons";
 import { ActionChip } from "@/components/ui/ActionChip";
 import { Button } from "@/components/ui/Button";
-import { Checkbox } from "@/components/ui/Checkbox";
+import { Checkbox } from "@/components/ui/Atoms/Checkbox";
 import { IconButton, iconButtonVariants } from "@/components/ui/IconButton";
 import { cn } from "@/ui/cn";
 import { PillLabel, PillSelect } from "@/components/ui/Pill";

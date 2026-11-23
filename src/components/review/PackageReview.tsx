@@ -8,7 +8,7 @@ import { IssueList } from "@/components/IssueList";
 import { ResultSummary } from "@/components/PackagePreview";
 import { Banner } from "@/components/ui/Banner";
 import { Button, ButtonLink } from "@/components/ui/Button";
-import { Checkbox } from "@/components/ui/Checkbox";
+import { Checkbox } from "@/components/ui/Atoms/Checkbox";
 import { RECORD_TYPE_LABELS } from "@/domain/recordTypes";
 import type { PackagePreview } from "@/server/services/changePackageService";
 import { REVIEW } from "@/ui/labels";

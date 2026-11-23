@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Banner } from "@/components/ui/Banner";
 import { Button } from "@/components/ui/Button";
-import { Checkbox } from "@/components/ui/Checkbox";
+import { Checkbox } from "@/components/ui/Atoms/Checkbox";
 import type { ContextInspectReport } from "@/server/services/assistantContextInspect";
 import { ASSISTANT } from "@/ui/labels";
 

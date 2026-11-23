@@ -1,6 +1,6 @@
 "use client";
 
-import { Checkbox } from "@/components/ui/Checkbox";
+import { Checkbox } from "@/components/ui/Atoms/Checkbox";
 import { WRITE } from "@/ui/labels";
 
 /**

@@ -21,7 +21,7 @@ import { IssueList } from "@/components/IssueList";
 import { BookOpen, FileText, Shield, Sparkles, StickyNote, Waypoints, X } from "lucide-react";
 import { Banner } from "@/components/ui/Banner";
 import { Button, ButtonLink } from "@/components/ui/Button";
-import { Checkbox } from "@/components/ui/Checkbox";
+import { Checkbox } from "@/components/ui/Atoms/Checkbox";
 import { readAssistantJobStream } from "@/assistant/jobStream";
 import { applyTextareaEdit } from "@/components/writing/textareaEdit";
 import { useLayout } from "@/components/shell/LayoutContext";

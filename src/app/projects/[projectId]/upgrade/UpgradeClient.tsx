@@ -10,7 +10,7 @@ import {
   type WorldScope,
 } from "@/domain/assignments";
 import type { AssignmentPlan, AssignmentPreview, ManuscriptGroupInput } from "@/server/services/assignmentService";
-import { Checkbox } from "@/components/ui/Checkbox";
+import { Checkbox } from "@/components/ui/Atoms/Checkbox";
 import { UPGRADE } from "@/ui/labels";
 import { applyAssignmentsAction, previewAssignmentsAction } from "./actions";
 

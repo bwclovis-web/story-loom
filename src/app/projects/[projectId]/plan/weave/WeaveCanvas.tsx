@@ -19,7 +19,7 @@ import { ContextRail, ContextRailToggle, useContextRail } from "@/components/she
 import { CloseIcon } from "@/components/shell/icons";
 import { BoardOverflowMenu } from "@/components/ui/BoardOverflowMenu";
 import { Button, ButtonLink } from "@/components/ui/Button";
-import { Checkbox } from "@/components/ui/Checkbox";
+import { Checkbox } from "@/components/ui/Atoms/Checkbox";
 import { CanvasToolbar, CanvasToolbarGroup } from "@/components/ui/CanvasToolbar";
 import { IconButton } from "@/components/ui/IconButton";
 import { SegmentedControl, SegmentedOption } from "@/components/ui/SegmentedControl";

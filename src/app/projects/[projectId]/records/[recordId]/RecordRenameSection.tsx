@@ -7,7 +7,7 @@ import { IssueList } from "@/components/IssueList";
 import { HelpHint } from "@/components/HelpHint";
 import { Banner } from "@/components/ui/Banner";
 import { Button } from "@/components/ui/Button";
-import { Checkbox } from "@/components/ui/Checkbox";
+import { Checkbox } from "@/components/ui/Atoms/Checkbox";
 import { RECORD_TYPE_LABELS } from "@/domain/recordTypes";
 import type { RecordRenameMatch, RecordRenamePreview } from "@/server/services/recordRenameService";
 import { aliasesOf, nameFromTitle } from "@/writing/crossRefs";
