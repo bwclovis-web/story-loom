@@ -109,6 +109,10 @@ function worldKindTemplatesOf(b: WorkspaceBackupV1) {
   return b.worldKindTemplates ?? [];
 }
 
+function worldCategoryDefinitionsOf(b: WorkspaceBackupV1) {
+  return b.worldCategoryDefinitions ?? [];
+}
+
 function continuitySuppressionsOf(b: WorkspaceBackupV1) {
   return b.continuitySuppressions ?? [];
 }
@@ -491,6 +495,74 @@ async function worldKindTemplateRows(db: DbOrTx, projectIds: string[]) {
     });
   } catch (error) {
     if (isMissingSchemaError(error, "P2021")) return [];
+    if (isMissingSchemaError(error, "P2022")) {
+      try {
+        const rows = await db.worldKindTemplate.findMany({
+          where: { projectId: { in: projectIds } },
+          orderBy: [{ projectId: "asc" }, { kind: "asc" }, { id: "asc" }],
+          select: {
+            id: true,
+            projectId: true,
+            kind: true,
+            fieldsJson: true,
+            worldScope: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+        });
+        return rows.map((row) => ({
+          ...row,
+          definitionId: null,
+          label: null,
+          description: "",
+          categorySlug: null,
+          subcategorySlug: null,
+          profileSpecJson: null,
+        }));
+      } catch (inner) {
+        if (!isMissingSchemaError(inner, "P2022")) throw inner;
+        const rows = await db.worldKindTemplate.findMany({
+          where: { projectId: { in: projectIds } },
+          orderBy: [{ projectId: "asc" }, { kind: "asc" }, { id: "asc" }],
+          select: {
+            id: true,
+            projectId: true,
+            kind: true,
+            fieldsJson: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+        });
+        return rows.map((row) => ({
+          ...row,
+          worldScope: null,
+          definitionId: null,
+          label: null,
+          description: "",
+          categorySlug: null,
+          subcategorySlug: null,
+          profileSpecJson: null,
+        }));
+      }
+    }
+    throw error;
+  }
+}
+
+async function worldCategoryDefinitionRows(db: DbOrTx, projectIds: string[]) {
+  if (
+    !("worldCategoryDefinition" in db) ||
+    !(db as { worldCategoryDefinition?: { findMany: unknown } }).worldCategoryDefinition
+  ) {
+    return [];
+  }
+  try {
+    return await db.worldCategoryDefinition.findMany({
+      where: { projectId: { in: projectIds } },
+      orderBy: [{ projectId: "asc" }, { slug: "asc" }, { id: "asc" }],
+    });
+  } catch (error) {
+    if (isMissingSchemaError(error, "P2021")) return [];
     throw error;
   }
 }
@@ -674,6 +746,21 @@ async function placeRelationRows(db: DbOrTx, projectIds: string[]) {
     });
   } catch (error) {
     if (isMissingSchemaError(error, "P2021")) return [];
+    if (isMissingSchemaError(error, "P2022")) {
+      const rows = await db.placeRelation.findMany({
+        where: { projectId: { in: projectIds } },
+        orderBy: [{ projectId: "asc" }, { kind: "asc" }, { id: "asc" }],
+        select: {
+          id: true,
+          projectId: true,
+          fromRecordId: true,
+          toRecordId: true,
+          kind: true,
+          createdAt: true,
+        },
+      });
+      return rows.map((row) => ({ ...row, scope: "book" }));
+    }
     throw error;
   }
 }
@@ -687,6 +774,22 @@ async function recordRelationRows(db: DbOrTx, projectIds: string[]) {
     });
   } catch (error) {
     if (isMissingSchemaError(error, "P2021")) return [];
+    if (isMissingSchemaError(error, "P2022")) {
+      const rows = await db.recordRelation.findMany({
+        where: { projectId: { in: projectIds } },
+        orderBy: [{ projectId: "asc" }, { kind: "asc" }, { customLabel: "asc" }, { id: "asc" }],
+        select: {
+          id: true,
+          projectId: true,
+          fromRecordId: true,
+          toRecordId: true,
+          kind: true,
+          customLabel: true,
+          createdAt: true,
+        },
+      });
+      return rows.map((row) => ({ ...row, scope: "book" }));
+    }
     throw error;
   }
 }
@@ -1165,6 +1268,7 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
     chapterAnalyses,
     characterAnalyses,
     worldKindTemplates,
+    worldCategoryDefinitions,
   ] = await Promise.all([
     recordRows(db, projectIds),
     db.source.findMany({ where: inProjects, orderBy: { id: "asc" } }),
@@ -1213,6 +1317,7 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
     chapterAnalysisRows(db, projectIds),
     characterAnalysisRows(db, projectIds),
     worldKindTemplateRows(db, projectIds),
+    worldCategoryDefinitionRows(db, projectIds),
   ]);
   const continuitySuppressions = await continuitySuppressionRows(db, projectIds).catch(() => [] as Awaited<ReturnType<typeof continuitySuppressionRows>>);
   const weaveTemplateBeats = await weaveTemplateBeatRows(
@@ -1554,6 +1659,14 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
             } catch {
               parsed = [];
             }
+            let profileSpec: unknown;
+            if (template.profileSpecJson) {
+              try {
+                profileSpec = JSON.parse(template.profileSpecJson) as unknown;
+              } catch {
+                profileSpec = undefined;
+              }
+            }
             return {
               id: template.id,
               projectId: template.projectId,
@@ -1563,10 +1676,36 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
                 label: field.label,
                 ...(field.multiline ? { multiline: true as const } : {}),
               })),
+              ...(template.worldScope === "book" || template.worldScope === "series"
+                ? { worldScope: template.worldScope as "book" | "series" }
+                : {}),
+              ...(template.definitionId ? { definitionId: template.definitionId } : {}),
+              ...(template.label ? { label: template.label } : {}),
+              ...(template.description ? { description: template.description } : {}),
+              ...(template.categorySlug ? { categorySlug: template.categorySlug } : {}),
+              ...(template.subcategorySlug ? { subcategorySlug: template.subcategorySlug } : {}),
+              ...(profileSpec !== undefined ? { profileSpec } : {}),
               createdAt: iso(template.createdAt),
               updatedAt: iso(template.updatedAt),
             };
           }),
+        }
+      : {}),
+    ...(worldCategoryDefinitions.length
+      ? {
+          worldCategoryDefinitions: worldCategoryDefinitions.map((row) => ({
+            id: row.id,
+            projectId: row.projectId,
+            slug: row.slug,
+            label: row.label,
+            ...(row.description ? { description: row.description } : {}),
+            ...(row.parentCategorySlug ? { parentCategorySlug: row.parentCategorySlug } : {}),
+            ...(row.worldScope === "book" || row.worldScope === "series"
+              ? { worldScope: row.worldScope as "book" | "series" }
+              : {}),
+            createdAt: iso(row.createdAt),
+            updatedAt: iso(row.updatedAt),
+          })),
         }
       : {}),
     ...(continuitySuppressions.length
@@ -1675,6 +1814,7 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
             fromRecordId: r.fromRecordId,
             toRecordId: r.toRecordId,
             kind: r.kind as "part_of" | "flows_into" | "governed_by",
+            ...(r.scope === "series" ? { scope: "series" as const } : { scope: "book" as const }),
             createdAt: iso(r.createdAt),
           })),
         }
@@ -1697,6 +1837,7 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
               | "rival_of"
               | "custom",
             customLabel: r.customLabel,
+            ...(r.scope === "series" ? { scope: "series" as const } : { scope: "book" as const }),
             createdAt: iso(r.createdAt),
           })),
         }
@@ -2131,6 +2272,7 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
       ...(manuscriptAnnotations.length ? { manuscriptAnnotations: manuscriptAnnotations.length } : {}),
       ...(compileProfiles.length ? { compileProfiles: compileProfiles.length } : {}),
       ...(worldKindTemplates.length ? { worldKindTemplates: worldKindTemplates.length } : {}),
+      ...(worldCategoryDefinitions.length ? { worldCategoryDefinitions: worldCategoryDefinitions.length } : {}),
       ...(continuitySuppressions.length ? { continuitySuppressions: continuitySuppressions.length } : {}),
       ...(boards.length ? { boards: boards.length } : {}),
       ...(boardCards.length ? { boardCards: boardCards.length } : {}),
@@ -2223,6 +2365,7 @@ function checkInternalConsistency(b: WorkspaceBackupV1): Issue[] {
     manuscriptAnnotations: manuscriptAnnotationsOf(b).length,
     compileProfiles: compileProfilesOf(b).length,
     worldKindTemplates: worldKindTemplatesOf(b).length,
+    worldCategoryDefinitions: worldCategoryDefinitionsOf(b).length,
     continuitySuppressions: continuitySuppressionsOf(b).length,
     boards: boardsOf(b).length,
     boardCards: boardCardsOf(b).length,
@@ -2326,6 +2469,12 @@ function checkInternalConsistency(b: WorkspaceBackupV1): Issue[] {
     "world kind template kind",
     issues,
   );
+  checkUnique(worldCategoryDefinitionsOf(b).map((row) => row.id), "world category definition", issues);
+  checkUnique(
+    worldCategoryDefinitionsOf(b).map((row) => `${row.projectId}/${row.slug}`),
+    "world category definition slug",
+    issues,
+  );
   checkUnique(boardsOf(b).map((x) => x.id), "board", issues);
   checkUnique(boardCardsOf(b).map((c) => c.id), "board card", issues);
   checkUnique(worldMapsOf(b).map((x) => x.id), "world map", issues);
@@ -2394,11 +2543,23 @@ function checkInternalConsistency(b: WorkspaceBackupV1): Issue[] {
   const recordIds = new Set(b.records.map((r) => r.id));
   const sourceIds = new Set(b.sources.map((s) => s.id));
   const recordProject = new Map(b.records.map((r) => [r.id, r.projectId]));
+  const recordWorldScope = new Map(b.records.map((r) => [r.id, r.worldScope ?? null]));
+  const projectSeries = new Map(b.projects.map((p) => [p.id, p.seriesName?.trim() || null]));
   const groupIds = new Set(manuscriptGroupsOf(b).map((g) => g.id));
   const groupProject = new Map(manuscriptGroupsOf(b).map((g) => [g.id, g.projectId]));
   const draftIds = new Set(manuscriptDraftsOf(b).map((d) => d.id));
   const draftProject = new Map(manuscriptDraftsOf(b).map((d) => [d.id, d.projectId]));
   const revisionKeys = new Set(b.revisions.map((r) => `${r.recordId}/${r.revisionNumber}`));
+
+  /** Same project, or series-shared sibling endpoints in the same named series. */
+  const seriesCompatible = (owningProjectId: string, recordId: string): boolean => {
+    if (!recordIds.has(recordId)) return false;
+    const home = recordProject.get(recordId);
+    if (home === owningProjectId) return true;
+    const series = projectSeries.get(owningProjectId);
+    const homeSeries = home ? projectSeries.get(home) : null;
+    return Boolean(series && homeSeries && series === homeSeries && recordWorldScope.get(recordId) === "series");
+  };
 
   for (const p of b.projects) {
     if (p.workspaceId !== b.workspace.id) issues.push(integrity(`Project ${p.id} belongs to another workspace.`));
@@ -2540,6 +2701,11 @@ function checkInternalConsistency(b: WorkspaceBackupV1): Issue[] {
     needProject(template.projectId, `World kind template ${template.id}`);
     if (!template.kind.trim()) issues.push(integrity(`World kind template ${template.id} needs a kind name.`));
   });
+  worldCategoryDefinitionsOf(b).forEach((row) => {
+    needProject(row.projectId, `World category ${row.id}`);
+    if (!row.slug.trim()) issues.push(integrity(`World category ${row.id} needs a slug.`));
+    if (!row.label.trim()) issues.push(integrity(`World category ${row.id} needs a label.`));
+  });
   compileProfilesOf(b).forEach((p) => {
     needProject(p.projectId, `Compile profile ${p.id}`);
     if (p.chapterHeadingStyle !== "centered" && p.chapterHeadingStyle !== "left") {
@@ -2580,16 +2746,28 @@ function checkInternalConsistency(b: WorkspaceBackupV1): Issue[] {
       issues.push(integrity(`Board card ${c.id} references missing board ${c.boardId}.`));
     }
     if (c.kind === "record") {
-      if (!c.recordId || !recordIds.has(c.recordId) || recordProject.get(c.recordId) !== c.projectId) {
+      if (!c.recordId || !seriesCompatible(c.projectId, c.recordId)) {
         issues.push(integrity(`Board card ${c.id} references missing record ${c.recordId}.`));
       }
     }
     if (c.kind === "image") {
-      if (!c.imageId || !imageIds.has(c.imageId) || imageProject.get(c.imageId) !== c.projectId) {
+      if (!c.imageId || !imageIds.has(c.imageId)) {
         issues.push(integrity(`Board card ${c.id} references missing image ${c.imageId}.`));
+      } else {
+        const imageHome = imageProject.get(c.imageId);
+        const imageOk =
+          imageHome === c.projectId ||
+          (imageHome != null &&
+            (() => {
+              const hostRecordId = recordImagesOf(b).find((img) => img.id === c.imageId)?.recordId;
+              return hostRecordId ? seriesCompatible(c.projectId, hostRecordId) : false;
+            })());
+        if (!imageOk) {
+          issues.push(integrity(`Board card ${c.id} references missing image ${c.imageId}.`));
+        }
       }
     }
-    if (c.recordId && (!recordIds.has(c.recordId) || recordProject.get(c.recordId) !== c.projectId)) {
+    if (c.recordId && !seriesCompatible(c.projectId, c.recordId)) {
       issues.push(integrity(`Board card ${c.id} references missing record ${c.recordId}.`));
     }
   });
@@ -2597,8 +2775,17 @@ function checkInternalConsistency(b: WorkspaceBackupV1): Issue[] {
   const mapProject = new Map(worldMapsOf(b).map((x) => [x.id, x.projectId]));
   worldMapsOf(b).forEach((m) => {
     needProject(m.projectId, `World map ${m.id}`);
-    if (!imageIds.has(m.imageId) || imageProject.get(m.imageId) !== m.projectId) {
+    if (!imageIds.has(m.imageId)) {
       issues.push(integrity(`World map ${m.id} references missing image ${m.imageId}.`));
+    } else {
+      const imageHome = imageProject.get(m.imageId);
+      const hostRecordId = recordImagesOf(b).find((img) => img.id === m.imageId)?.recordId;
+      const imageOk =
+        imageHome === m.projectId ||
+        (hostRecordId != null && seriesCompatible(m.projectId, hostRecordId));
+      if (!imageOk) {
+        issues.push(integrity(`World map ${m.id} references missing image ${m.imageId}.`));
+      }
     }
   });
   const layerIds = new Set(worldMapLayersOf(b).map((layer) => layer.id));
@@ -2635,7 +2822,7 @@ function checkInternalConsistency(b: WorkspaceBackupV1): Issue[] {
       issues.push(integrity(`World map pin ${p.id} area needs a closed boundary of at least three points.`));
     }
     if (recordId) {
-      if (!recordIds.has(recordId) || recordProject.get(recordId) !== p.projectId) {
+      if (!seriesCompatible(p.projectId, recordId)) {
         issues.push(integrity(`World map pin ${p.id} references missing record ${recordId}.`));
       }
       const type = recordType.get(recordId);
@@ -2654,9 +2841,19 @@ function checkInternalConsistency(b: WorkspaceBackupV1): Issue[] {
   });
   placeRelationsOf(b).forEach((r) => {
     needProject(r.projectId, `Place relation ${r.id}`);
+    const scope = r.scope ?? "book";
     for (const end of [r.fromRecordId, r.toRecordId]) {
-      if (!recordIds.has(end) || recordProject.get(end) !== r.projectId) {
+      const ok =
+        scope === "series" ? seriesCompatible(r.projectId, end) : recordProject.get(end) === r.projectId && recordIds.has(end);
+      if (!ok) {
         issues.push(integrity(`Place relation ${r.id} references missing record ${end}.`));
+      }
+    }
+    if (scope === "series") {
+      for (const end of [r.fromRecordId, r.toRecordId]) {
+        if (recordWorldScope.get(end) !== "series") {
+          issues.push(integrity(`Place relation ${r.id} series scope requires series-shared endpoints.`));
+        }
       }
     }
     if (r.fromRecordId === r.toRecordId) {
@@ -2671,9 +2868,19 @@ function checkInternalConsistency(b: WorkspaceBackupV1): Issue[] {
   });
   recordRelationsOf(b).forEach((r) => {
     needProject(r.projectId, `Record relation ${r.id}`);
+    const scope = r.scope ?? "book";
     for (const end of [r.fromRecordId, r.toRecordId]) {
-      if (!recordIds.has(end) || recordProject.get(end) !== r.projectId) {
+      const ok =
+        scope === "series" ? seriesCompatible(r.projectId, end) : recordProject.get(end) === r.projectId && recordIds.has(end);
+      if (!ok) {
         issues.push(integrity(`Record relation ${r.id} references missing record ${end}.`));
+      }
+    }
+    if (scope === "series") {
+      for (const end of [r.fromRecordId, r.toRecordId]) {
+        if (recordWorldScope.get(end) !== "series") {
+          issues.push(integrity(`Record relation ${r.id} series scope requires series-shared endpoints.`));
+        }
       }
     }
     if (r.fromRecordId === r.toRecordId) {
@@ -3147,6 +3354,14 @@ async function findCollisions(db: DbOrTx, b: WorkspaceBackupV1): Promise<Issue[]
       db.worldKindTemplate.count({ where: { id: { in: worldKindTemplatesOf(b).map((template) => template.id) } } }),
     );
   }
+  if (worldCategoryDefinitionsOf(b).length && "worldCategoryDefinition" in db) {
+    await check(
+      "world category definition",
+      db.worldCategoryDefinition.count({
+        where: { id: { in: worldCategoryDefinitionsOf(b).map((row) => row.id) } },
+      }),
+    );
+  }
   if (continuitySuppressionsOf(b).length && "continuitySuppression" in db) {
     await check(
       "continuity suppression",
@@ -3421,6 +3636,7 @@ export async function restoreWorkspaceBackup(db: Db, input: string | unknown, op
   manuscriptAnnotationsOf(b).forEach((a) => assign(a.id, "man"));
   compileProfilesOf(b).forEach((p) => assign(p.id, "cprof"));
   worldKindTemplatesOf(b).forEach((template) => assign(template.id, "wkt"));
+  worldCategoryDefinitionsOf(b).forEach((row) => assign(row.id, "wcat"));
   continuitySuppressionsOf(b).forEach((row) => assign(row.id, "csp"));
   boardsOf(b).forEach((x) => assign(x.id, "brd"));
   boardCardsOf(b).forEach((c) => assign(c.id, "bcd"));
@@ -3788,8 +4004,32 @@ export async function restoreWorkspaceBackup(db: Db, input: string | unknown, op
                   ...(field.multiline ? { multiline: true } : {}),
                 })),
               ),
+              worldScope: template.worldScope ?? null,
+              definitionId: template.definitionId ?? null,
+              label: template.label ?? null,
+              description: template.description ?? "",
+              categorySlug: template.categorySlug ?? null,
+              subcategorySlug: template.subcategorySlug ?? null,
+              profileSpecJson:
+                template.profileSpec !== undefined ? JSON.stringify(template.profileSpec) : null,
               createdAt: new Date(template.createdAt),
               updatedAt: new Date(template.updatedAt),
+            })),
+          });
+        }
+        const categoryDefs = worldCategoryDefinitionsOf(b);
+        if (categoryDefs.length && "worldCategoryDefinition" in tx) {
+          await tx.worldCategoryDefinition.createMany({
+            data: categoryDefs.map((row) => ({
+              id: m(row.id),
+              projectId: m(row.projectId),
+              slug: row.slug,
+              label: row.label,
+              description: row.description ?? "",
+              parentCategorySlug: row.parentCategorySlug ?? null,
+              worldScope: row.worldScope ?? null,
+              createdAt: new Date(row.createdAt),
+              updatedAt: new Date(row.updatedAt),
             })),
           });
         }
@@ -4166,6 +4406,7 @@ export async function restoreWorkspaceBackup(db: Db, input: string | unknown, op
               fromRecordId: m(r.fromRecordId),
               toRecordId: m(r.toRecordId),
               kind: r.kind,
+              scope: r.scope ?? "book",
               createdAt: new Date(r.createdAt),
             })),
           });
@@ -4180,6 +4421,7 @@ export async function restoreWorkspaceBackup(db: Db, input: string | unknown, op
               toRecordId: m(r.toRecordId),
               kind: r.kind,
               customLabel: r.customLabel,
+              scope: r.scope ?? "book",
               createdAt: new Date(r.createdAt),
             })),
           });

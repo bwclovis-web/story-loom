@@ -1,7 +1,17 @@
+import type { WorldScope } from "@/domain/assignments";
 import type { AuthorityStatus } from "@/domain/statuses";
 import type { JsonObject } from "@/domain/json";
 import { isLinkableReferenceType, isRecordType, RECORD_TYPE_LABELS, type RecordType } from "@/domain/recordTypes";
 import { developmentIsEmpty, profileFreshness, readCharacterDevelopment } from "@/domain/characterDevelopment";
+import {
+  formatWorldProfileFieldValue,
+  isWorldProfileRecordType,
+  readWorldProfile,
+  worldProfileIsEmpty,
+  WORLD_PROFILE_KEY,
+} from "@/domain/worldProfile";
+import { WORLD_PROFILE } from "@/ui/labels";
+import type { SeriesHomeRef } from "@/world/seriesHome";
 import { worldbuildingKindFromFields, worldKindDisplayFromFields } from "@/world/worldKinds";
 import { listSections } from "@/writing/sections";
 
@@ -65,7 +75,14 @@ export interface ReferenceInspectorModel {
   /** Short read-only development lines for a character dossier. */
   developmentLines: string[];
   developmentStale: boolean;
+  /** Short read-only Living World Profile lines for a non-character World reference. */
+  worldProfileLines: string[];
+  /** Home book when this inspector is viewing a series-shared sibling record. */
+  seriesHome: SeriesHomeRef | null;
+  worldScope: WorldScope | null;
 }
+
+const MAX_PROFILE_VALUE_LINES = 3;
 
 function supportsRecordRelations(type: RecordType, fields: JsonObject | undefined): boolean {
   if (type === "character_dossier") return true;
@@ -109,6 +126,8 @@ export function buildReferenceInspectorModel(input: {
   relations: InspectorRelation[];
   manuscriptLinks: InspectorManuscriptLink[];
   placements: RecordPlacement[];
+  seriesHome?: SeriesHomeRef | null;
+  worldScope?: WorldScope | null;
 }): ReferenceInspectorModel | null {
   if (!isRecordType(input.type)) return null;
   const development = input.type === "character_dossier" ? readCharacterDevelopment(input.fields ?? {}).profile : null;
@@ -121,6 +140,25 @@ export function buildReferenceInspectorModel(input: {
         development.arcs.length ? `Arcs: ${development.arcs.map((arc) => arc.title).slice(0, 3).join(", ")}` : "",
       ].filter(Boolean)
     : [];
+  const worldProfileLines: string[] = [];
+  if (isWorldProfileRecordType(input.type) && input.fields && WORLD_PROFILE_KEY in input.fields) {
+    const { profile } = readWorldProfile(input.fields);
+    if (!worldProfileIsEmpty(profile)) {
+      if (profile.summary.trim()) worldProfileLines.push(clip(profile.summary, 160));
+      if (profile.definitionId) worldProfileLines.push(`Definition: ${profile.definitionId}`);
+      let shown = 0;
+      for (const [key, value] of Object.entries(profile.values)) {
+        if (shown >= MAX_PROFILE_VALUE_LINES) break;
+        const text = formatWorldProfileFieldValue(value).trim();
+        if (!text) continue;
+        worldProfileLines.push(`${key}: ${clip(text, 120)}`);
+        shown += 1;
+      }
+      if (profile.migrationHold.length) worldProfileLines.push(WORLD_PROFILE.holdCount(profile.migrationHold.length));
+      const approved = Object.values(profile.fieldMeta).filter((meta) => meta.approval === "approved").length;
+      if (approved) worldProfileLines.push(WORLD_PROFILE.approvedCount(approved));
+    }
+  }
   const sections = listSections(input.body);
   const first = sections[0];
   const leadSource =
@@ -150,5 +188,8 @@ export function buildReferenceInspectorModel(input: {
     worldKindLabel: input.type === "worldbuilding" ? worldKindDisplayFromFields(input.fields ?? {}) : undefined,
     developmentLines,
     developmentStale: development ? profileFreshness(development, input.revision) === "stale" : false,
+    worldProfileLines,
+    seriesHome: input.seriesHome ?? null,
+    worldScope: input.worldScope ?? null,
   };
 }

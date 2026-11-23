@@ -14,7 +14,7 @@ import type { ProofreadConfig } from "./Proofreader";
 import { ProtectionTick } from "./ProtectionTick";
 import { applyTextareaEdit, selectRange } from "./textareaEdit";
 import { Banner } from "@/components/ui/Banner";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui/Atoms/Button";
 
 interface ApiError {
   code: string;

@@ -1,5 +1,7 @@
 import { parseJsonObject, type JsonObject, type JsonValue } from "@/domain/json";
+import { WORLD_PROFILE_KEY } from "@/domain/worldProfile";
 import { isWorldKindKey } from "./referenceTemplates";
+import { TAXONOMY_FIELD_KEY } from "./taxonomy";
 import { WORLD_KIND_FIELD_SPECS } from "./worldKinds";
 
 export type FieldDraft =
@@ -27,11 +29,11 @@ function kindSpecs(fields: JsonObject): readonly { key: string }[] {
   return WORLD_KIND_FIELD_SPECS[kind];
 }
 
-/** Keys that are not the current kind's friendly fields and not `kind` itself. */
+/** Keys that are not the current kind's friendly fields and not `kind` / taxonomy overlays. */
 export function otherSavedEntries(fields: JsonObject): Array<{ key: string; value: JsonValue; editable: boolean }> {
   const known = new Set(kindSpecs(fields).map((spec) => spec.key));
   return Object.entries(fields)
-    .filter(([key]) => key !== "kind" && !known.has(key))
+    .filter(([key]) => key !== "kind" && key !== TAXONOMY_FIELD_KEY && key !== WORLD_PROFILE_KEY && !known.has(key))
     .map(([key, value]) => ({ key, value, editable: typeof value === "string" }));
 }
 

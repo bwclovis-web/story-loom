@@ -4,7 +4,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { VisitDraftSwitcher } from "@/components/drafts/DraftControls";
 import { HelpHint } from "@/components/HelpHint";
-import { ButtonLink } from "@/components/ui/Button";
+import { ButtonLink } from "@/components/ui/Atoms/Button";
 import { RECORD_TYPE_LABELS } from "@/domain/recordTypes";
 import { DRAFT, NAV, SHELL, STYLE_CHECK } from "@/ui/labels";
 import { getDb } from "@/server/db";

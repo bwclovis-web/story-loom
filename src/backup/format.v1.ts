@@ -413,6 +413,33 @@ export const workspaceBackupV1Schema = z
                   .strict(),
               )
               .max(12),
+            /** Omitted in older backups → local / book-only. */
+            worldScope: z.enum(["book", "series"]).nullable().optional(),
+            /** Living World Profile extensions; omitted in older backups. */
+            definitionId: z.string().min(1).max(120).nullable().optional(),
+            label: z.string().max(120).nullable().optional(),
+            description: z.string().max(500).optional(),
+            categorySlug: z.string().max(80).nullable().optional(),
+            subcategorySlug: z.string().max(80).nullable().optional(),
+            profileSpec: z.unknown().optional(),
+            createdAt: timestamp,
+            updatedAt: timestamp,
+          })
+          .strict(),
+      )
+      .optional(),
+  /** Custom World Hub categories / subcategories. Omitted in older backups → none. */
+    worldCategoryDefinitions: z
+      .array(
+        z
+          .object({
+            id,
+            projectId: id,
+            slug: z.string().min(1).max(80),
+            label: z.string().min(1).max(120),
+            description: z.string().max(500).optional(),
+            parentCategorySlug: z.string().max(80).nullable().optional(),
+            worldScope: z.enum(["book", "series"]).nullable().optional(),
             createdAt: timestamp,
             updatedAt: timestamp,
           })
@@ -583,6 +610,8 @@ export const workspaceBackupV1Schema = z
             fromRecordId: id,
             toRecordId: id,
             kind: z.enum(["part_of", "flows_into", "governed_by"]),
+            /** Omitted in older backups → book. */
+            scope: z.enum(["book", "series"]).optional(),
             createdAt: timestamp,
           })
           .strict(),
@@ -609,6 +638,8 @@ export const workspaceBackupV1Schema = z
               "custom",
             ]),
             customLabel: z.string(),
+            /** Omitted in older backups → book. */
+            scope: z.enum(["book", "series"]).optional(),
             createdAt: timestamp,
           })
           .strict(),
@@ -1108,6 +1139,7 @@ export const workspaceBackupV1Schema = z
         manuscriptAnnotations: z.number().int().optional(),
         compileProfiles: z.number().int().optional(),
         worldKindTemplates: z.number().int().optional(),
+        worldCategoryDefinitions: z.number().int().optional(),
         continuitySuppressions: z.number().int().optional(),
         boards: z.number().int().optional(),
         boardCards: z.number().int().optional(),

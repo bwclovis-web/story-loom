@@ -2262,7 +2262,7 @@ export function buildCharacterTimeline(
   });
 }
 
-function knowledgeWindowOpen(item: KnowledgeItem, point: NarrativePoint, edges: readonly OrderEdge[]): boolean {
+export function knowledgeWindowOpen(item: KnowledgeItem, point: NarrativePoint, edges: readonly OrderEdge[]): boolean {
   if (item.bookProjectId && point.bookProjectId && item.bookProjectId !== point.bookProjectId) return false;
   // Secrets are not automatic bible knowledge: they need a story-event or scene anchor.
   if (item.kind === "secret" && !item.fromStoryEventId && !item.sceneRecordId) return false;

@@ -1,5 +1,5 @@
 "use client";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui/Atoms/Button";
 
 import Link from "next/link";
 import { ArrowLeft, Menu, SlidersHorizontal } from "lucide-react";

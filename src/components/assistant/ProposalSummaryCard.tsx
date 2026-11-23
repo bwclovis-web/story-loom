@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { buttonVariants } from "@/components/ui/Button";
+import { buttonVariants } from "@/components/ui/Atoms/Button";
 import type { ProposalView } from "@/server/services/assistantProposalService";
 import { cn } from "@/ui/cn";
 import { ASSISTANT } from "@/ui/labels";

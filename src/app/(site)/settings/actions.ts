@@ -2,7 +2,6 @@
 
 import { revalidatePath } from "next/cache";
 import {
-  ASSISTANT_PROVIDERS,
   BASE_URL_ENV,
   MODEL_ENV,
   PROVIDER_ENV,
@@ -74,8 +73,6 @@ export async function loadSettingsViewAction() {
         : null,
   };
 }
-
-export const ASSISTANT_PROVIDER_OPTIONS = ASSISTANT_PROVIDERS;
 
 export async function saveAssistantKeyAction(formData: FormData): Promise<SettingsFormResult> {
   const rawKey = String(formData.get("apiKey") ?? "");

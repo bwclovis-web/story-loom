@@ -331,6 +331,24 @@ async function assembleContext(
 
   const omissions: RetrievalOmission[] = [];
   const bookIds = await projectBookIds(db, input.projectId, scopeKind, scopeSpec);
+  const edgeRows = await db.storyEventOrder.findMany({
+    where: { projectId: { in: bookIds } },
+    select: { earlierEventId: true, laterEventId: true },
+  });
+  const edges = edgeRows.map((row) => ({ earlierId: row.earlierEventId, laterId: row.laterEventId }));
+  const focusRecordId =
+    scopeKind === "scene"
+      ? (scopeSpec.sceneRecordId ?? null)
+      : scopeKind === "chapter"
+        ? (scopeSpec.chapterRecordId ?? null)
+        : null;
+  const sceneEventLink = focusRecordId
+    ? await db.storyEventScene.findFirst({
+        where: { projectId: { in: bookIds }, manuscriptRecordId: focusRecordId },
+        select: { eventId: true, projectId: true },
+        orderBy: { id: "asc" },
+      })
+    : null;
   const bookLabel = new Map(
     (await listSeriesBookProjects(db, input.projectId)).map((book) => [book.id, book.bookName?.trim() || book.title]),
   );
@@ -349,7 +367,13 @@ async function assembleContext(
             chapterRecordId: scopeSpec.narrativePoint.chapterRecordId ?? null,
             sceneRecordId: scopeSpec.narrativePoint.sceneRecordId ?? null,
           }
-        : { bookProjectId: loaded.record.projectId, storyEventId: null, sequence: null };
+        : {
+            bookProjectId: sceneEventLink?.projectId ?? loaded.record.projectId,
+            storyEventId: sceneEventLink?.eventId ?? null,
+            sequence: null,
+            chapterRecordId: scopeKind === "chapter" ? (scopeSpec.chapterRecordId ?? null) : null,
+            sceneRecordId: scopeKind === "scene" ? (scopeSpec.sceneRecordId ?? null) : null,
+          };
       const text = renderCharacterContextSlice({
         title: loaded.record.title,
         body: loaded.record.body,
@@ -357,6 +381,8 @@ async function assembleContext(
         slice: "continuity",
         bookProjectId: point.bookProjectId,
         point,
+        edges,
+        includePlannedKnowledge: true,
       });
       profileBlocks.push(`<<SOURCE character dossier id=${JSON.stringify(characterId)}>>\n${text}\n<<END-SOURCE>>`);
       catalog.set(characterId, {
@@ -524,9 +550,6 @@ function limitProblem(
   outputTokenAllowance: number,
   segmentCount: number,
 ): string | null {
-  if (requestChars > limits.maxInputChars * Math.max(segmentCount, 1)) {
-    // Broad reviews are segmented; refuse only when a single segment cannot fit.
-  }
   if (!usage) return null;
   if (usage.requestsLastHour >= limits.maxRequestsPerHour) {
     return `This app allows ${limits.maxRequestsPerHour} assistant requests per hour, and that many were started in the last hour. Nothing will be sent.`;
@@ -1056,15 +1079,14 @@ export async function applyCharacterAnalysisDecisions(
   let lastOutcome: ApplyOutcome | null = null;
 
   for (const [characterId, characterFindings] of byCharacter) {
+    const pendingFindings = characterFindings.filter((finding) => !decisions[finding.id]?.appliedPackageId);
+    if (!pendingFindings.length) continue;
     const loaded = await loadCharacterDevelopment(db, projectId, characterId);
-    if (loaded.record.projectId !== projectId && loaded.record.projectId !== characterFindings[0]?.storyLocation.bookProjectId) {
-      // Prefer the dossier home project for the package.
-    }
     const homeProjectId = loaded.record.projectId;
     let profile: CharacterDevelopment = loaded.profile;
     const suggestions: ProfileSuggestion[] = [];
     const observations: ReviewObservation[] = [];
-    for (const finding of characterFindings) {
+    for (const finding of pendingFindings) {
       const decision = decisions[finding.id] ?? emptyDecision();
       if (decision.action === "intentional") {
         observations.push({
@@ -1117,7 +1139,7 @@ export async function applyCharacterAnalysisDecisions(
           note: "Draft notes from character analysis. Not canon until separately approved.",
         },
       ],
-      relatedRecords: characterFindings.map((finding) => ({
+      relatedRecords: pendingFindings.map((finding) => ({
         recordId: characterId,
         note: `${finding.action}: ${finding.observation.slice(0, 200)}`,
       })),
@@ -1128,17 +1150,30 @@ export async function applyCharacterAnalysisDecisions(
     if (lastOutcome.status === "rejected") {
       await db.characterAnalysisRun.update({
         where: { id: runId },
-        data: { status: "proposed", errorCode: "apply_rejected", errorMessage: lastOutcome.issues[0]?.message ?? "Apply was rejected." },
+        data: {
+          status: "proposed",
+          decisionsJson: JSON.stringify(decisions),
+          appliedPackageIdsJson: JSON.stringify(packageIds),
+          errorCode: "apply_rejected",
+          errorMessage: lastOutcome.issues[0]?.message ?? "Apply was rejected.",
+        },
       });
       return { outcome: lastOutcome, run: await getCharacterAnalysis(db, projectId, runId) };
     }
     packageIds.push(packageId);
-    for (const finding of characterFindings) {
+    for (const finding of pendingFindings) {
       decisions[finding.id] = applyFindingDecision(decisions[finding.id], {
         action: decisions[finding.id]?.action ?? "accept",
         appliedPackageId: packageId,
       });
     }
+    await db.characterAnalysisRun.update({
+      where: { id: runId },
+      data: {
+        decisionsJson: JSON.stringify(decisions),
+        appliedPackageIdsJson: JSON.stringify(packageIds),
+      },
+    });
   }
 
   await db.characterAnalysisRun.update({

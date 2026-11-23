@@ -1,7 +1,7 @@
 "use client";
 
 import { Banner } from "@/components/ui/Banner";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui/Atoms/Button";
 import { WRITE } from "@/ui/labels";
 import type { RecoveryDraft } from "@/writing/localRecovery";
 

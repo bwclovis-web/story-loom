@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  emptyBookState,
   emptyCharacterDevelopment,
   setFieldMeta,
   withCharacterDevelopment,
@@ -10,7 +11,9 @@ import {
 import {
   collectCharacterContinuityFindings,
   filterKnowledgeForWriting,
+  redactCharacterFieldsForExport,
   summarizeKnowledgeOmissions,
+  withSeriesBookOrderFallback,
   writingContextPolicy,
 } from "@/domain/characterWritingContext";
 import { characterContextFromFields } from "@/server/services/characterWritingContextService";
@@ -259,5 +262,89 @@ describe("character writing context policy", () => {
     expect(summary.knowledgeCount).toBe(1);
     expect(summary.omittedSpoilers).toBe(1);
     expect(summary.omittedPlanned).toBe(1);
+  });
+
+  it("does not emit false-positive character_limitation for anchored state changes on project-wide ledger", () => {
+    const profile = emptyCharacterDevelopment();
+    profile.stateChanges = [
+      change({
+        id: "anchored-by-event",
+        facet: "injury",
+        text: "burnt palm",
+        bookProjectId: "book-1",
+        storyEventId: "event-1",
+      }),
+      change({
+        id: "truly-unanchored",
+        facet: "ability",
+        text: "speaks Old Salt",
+        bookProjectId: "book-2",
+        storyEventId: null,
+        chapterRecordId: null,
+        sceneRecordId: null,
+        sequence: null,
+      }),
+    ];
+    const findings = collectCharacterContinuityFindings({
+      characterRecordId: "char-mara",
+      characterTitle: "Mara",
+      profile,
+      point: { bookProjectId: "book-1", storyEventId: null, sequence: null },
+      edges: [],
+    });
+    const limitations = findings.filter((item) => item.kind === "character_limitation");
+    expect(limitations).toHaveLength(1);
+    expect(limitations[0]?.evidence).toContain("speaks Old Salt");
+  });
+
+  it("fills fallback book order indices and redacts spoilers from exported fields", () => {
+    const profile = emptyCharacterDevelopment();
+    profile.livedExperience.formativeExperiences = "Private author backstory";
+    profile.bookStates = [
+      { ...emptyBookState("book-1"), openingNote: "Opening", openingApproval: "approved" },
+      { ...emptyBookState("book-3"), openingNote: "Book 3 opening" },
+    ];
+    profile.knowledge = [
+      knowledge({ id: "open", statement: "Knows the harbour", fromStoryEventId: "ev-1", holder: "character" }),
+      knowledge({ id: "later", statement: "Book 4 twist", fromStoryEventId: "ev-4", holder: "character" }),
+      knowledge({ id: "omit", statement: "Author-only note", aiVisibility: "omit", holder: "character" }),
+      knowledge({ id: "spoiler", statement: "Spoiler reveal", aiVisibility: "spoiler", holder: "character" }),
+      knowledge({ id: "plan", statement: "Planned betrayal", planned: true, holder: "character" }),
+    ];
+    const ordered = withSeriesBookOrderFallback(profile, ["book-1", "book-2", "book-3"]);
+    expect(ordered.bookStates.map((b) => [b.projectId, b.narrativeIndex])).toEqual([
+      ["book-1", 0],
+      ["book-2", 1],
+      ["book-3", 2],
+    ]);
+
+    const manual = emptyCharacterDevelopment();
+    manual.bookStates = [{ ...emptyBookState("book-3"), narrativeIndex: 9 }];
+    expect(withSeriesBookOrderFallback(manual, ["book-1", "book-2", "book-3"]).bookStates[0]?.narrativeIndex).toBe(9);
+
+    const rawFields = {
+      ...withCharacterDevelopment({}, profile),
+      dossierMarkdownArchive: { version: 1, markdown: "# Secret archive" },
+    };
+    const redacted = redactCharacterFieldsForExport(rawFields, writingContextPolicy("drafting"), {
+      point: { bookProjectId: "book-1", storyEventId: "ev-1", sequence: null },
+      edges: [{ earlierId: "ev-1", laterId: "ev-4" }],
+    });
+    expect("dossierMarkdownArchive" in redacted).toBe(false);
+    const parsed = characterContextFromFields({
+      title: "Mara",
+      body: "",
+      fieldsJson: JSON.stringify(redacted),
+      projectId: "book-1",
+      point: { bookProjectId: "book-1", storyEventId: "ev-1", sequence: null },
+      edges: [{ earlierId: "ev-1", laterId: "ev-4" }],
+      mode: "drafting",
+    });
+    expect(parsed).toContain("Knows the harbour");
+    expect(parsed).not.toContain("Private author backstory");
+    expect(parsed).not.toContain("Book 4 twist");
+    expect(parsed).not.toContain("Author-only note");
+    expect(parsed).not.toContain("Spoiler reveal");
+    expect(parsed).not.toContain("Planned betrayal");
   });
 });

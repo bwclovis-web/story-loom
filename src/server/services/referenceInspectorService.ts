@@ -4,14 +4,13 @@ import type { EstablishedFactView } from "./establishedFactService";
 import { buildReferenceInspectorModel, type ReferenceInspectorModel } from "@/world/inspectorModel";
 import type { DbOrTx } from "../db";
 import { listManuscriptDrafts } from "./draftService";
-import { NotFoundError } from "./errors";
 import { listEstablishedFactsForSubject } from "./establishedFactService";
 import { listRecordImages } from "./imageService";
 import { listLinkingRecords } from "./linkService";
 import { listPlaceRelationsForRecord } from "./placeRelationService";
 import { listRecordRelationsForRecord, recordShowsRecordRelations } from "./recordRelationService";
 import { listRecordPlacements } from "./referencePlacementService";
-import { getRecord } from "./recordService";
+import { resolveAvailableReference } from "./seriesBibleService";
 
 export interface EstablishedSupport {
   facts: EstablishedFactView[];
@@ -69,19 +68,16 @@ async function establishedSupport(
 
 /** The same saved reference a board card or map pin points at. */
 export async function loadReferenceInspector(db: DbOrTx, projectId: string, recordId: string): Promise<LoadedInspector> {
-  let record;
-  try {
-    record = await getRecord(db, projectId, recordId);
-  } catch (error) {
-    if (error instanceof NotFoundError) return { ok: false, message: "That record is not in this project." };
-    throw error;
-  }
+  const available = await resolveAvailableReference(db, projectId, recordId);
+  if (!available) return { ok: false, message: "That record is not available in this book." };
+  const record = available.record;
   if (!isLinkableReferenceType(record.type) || !isAuthorityStatus(record.authorityStatus)) {
     return { ok: false, message: "Only reference records open here." };
   }
+  const homeProjectId = available.home?.projectId ?? projectId;
   const showRecordRelations = recordShowsRecordRelations(record.type, record.fields);
   const [images, placeRelations, recordRelations, linking, placements, facts] = await Promise.all([
-    listRecordImages(db, projectId, record.id),
+    listRecordImages(db, homeProjectId, record.id),
     listPlaceRelationsForRecord(db, projectId, record.id).catch(() => ({ outgoing: [], incoming: [] })),
     showRecordRelations
       ? listRecordRelationsForRecord(db, projectId, record.id)
@@ -155,8 +151,10 @@ export async function loadReferenceInspector(db: DbOrTx, projectId: string, reco
       chapterTitle: link.parentRecordId ? (chapterTitle.get(link.parentRecordId) ?? null) : null,
     })),
     placements,
+    seriesHome: available.home,
+    worldScope: available.worldScope,
   });
-  if (!model) return { ok: false, message: "That record is not in this project." };
+  if (!model) return { ok: false, message: "That record is not available in this book." };
   const established = model.supportsEstablished ? await establishedSupport(db, projectId, record.id, facts) : null;
   return { ok: true, model, established };
 }

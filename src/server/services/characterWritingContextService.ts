@@ -8,6 +8,7 @@ import {
 import {
   collectCharacterContinuityFindings,
   summarizeKnowledgeOmissions,
+  withSeriesBookOrderFallback,
   writingContextPolicy,
   type AssembledCharacterContextMeta,
   type CharacterContinuityFinding,
@@ -17,6 +18,7 @@ import { parseJsonObject } from "@/domain/json";
 import type { OrderEdge } from "@/world/storyOrder";
 import type { Db, DbOrTx } from "../db";
 import { listCharacterProfiles } from "./characterDevelopmentService";
+import { listSeriesBookProjects } from "./projectService";
 import { LIVE_RECORD } from "./trashFilters";
 
 /*
@@ -33,18 +35,24 @@ export interface FocusManuscript {
   draftId: string | null;
 }
 
+async function seriesBookIds(db: DbOrTx, projectId: string): Promise<string[]> {
+  const siblings = await listSeriesBookProjects(db, projectId);
+  return siblings.length ? siblings.map((book) => book.id) : [projectId];
+}
+
 export async function narrativePointForManuscript(
   db: DbOrTx,
   projectId: string,
   focus: FocusManuscript | null,
-): Promise<{ point: NarrativePoint; edges: OrderEdge[] }> {
+): Promise<{ point: NarrativePoint; edges: OrderEdge[]; bookIds: string[] }> {
+  const bookIds = await seriesBookIds(db, projectId);
   const edgesRows = await db.storyEventOrder.findMany({
-    where: { projectId },
+    where: { projectId: { in: bookIds } },
     select: { earlierEventId: true, laterEventId: true },
   });
   const edges: OrderEdge[] = edgesRows.map((row) => ({ earlierId: row.earlierEventId, laterId: row.laterEventId }));
   if (!focus) {
-    return { point: { bookProjectId: projectId, storyEventId: null, sequence: null }, edges };
+    return { point: { bookProjectId: projectId, storyEventId: null, sequence: null }, edges, bookIds };
   }
   const chapterId =
     focus.type === "manuscript_chapter"
@@ -53,14 +61,24 @@ export async function narrativePointForManuscript(
         ? focus.parentRecordId
         : focus.parentRecordId;
   const sceneId = focus.type === "manuscript_scene" ? focus.recordId : null;
-  const link = await db.storyEventScene.findFirst({
+  let link = await db.storyEventScene.findFirst({
     where: {
-      projectId,
+      projectId: { in: bookIds },
       manuscriptRecordId: focus.recordId,
     },
     select: { eventId: true },
     orderBy: { id: "asc" },
   });
+  if (!link && chapterId && chapterId !== focus.recordId) {
+    link = await db.storyEventScene.findFirst({
+      where: {
+        projectId: { in: bookIds },
+        manuscriptRecordId: chapterId,
+      },
+      select: { eventId: true },
+      orderBy: { id: "asc" },
+    });
+  }
   return {
     point: {
       bookProjectId: focus.projectId || projectId,
@@ -71,6 +89,7 @@ export async function narrativePointForManuscript(
       boundary: "at_point",
     },
     edges,
+    bookIds,
   };
 }
 
@@ -173,7 +192,7 @@ export async function assembleCharacterWritingContexts(
   },
 ): Promise<{ point: NarrativePoint; edges: OrderEdge[]; contexts: RenderedCharacterContext[] }> {
   const focus = await loadFocusManuscript(db, projectId, input.focusRecordId);
-  const { point, edges } = await narrativePointForManuscript(db, projectId, focus);
+  const { point, edges, bookIds } = await narrativePointForManuscript(db, projectId, focus);
   const policy = writingContextPolicy(input.mode ?? "editorial", input.allowFuturePlans === true);
   const ids = await selectRelevantCharacterIds(db, projectId, focus, {
     limit: input.limit,
@@ -185,10 +204,11 @@ export async function assembleCharacterWritingContexts(
   for (const id of ids) {
     const row = byId.get(id);
     if (!row || developmentIsEmpty(row.profile)) continue;
+    const effectiveProfile = withSeriesBookOrderFallback(row.profile, bookIds);
     const text = renderCharacterContextSlice({
       title: row.title,
       body: row.body,
-      profile: row.profile,
+      profile: effectiveProfile,
       slice: policy.slice,
       bookProjectId: point.bookProjectId,
       point,
@@ -196,11 +216,11 @@ export async function assembleCharacterWritingContexts(
       knowledgeHolders: policy.knowledgeHolders,
       includePlannedKnowledge: policy.includePlanned,
     });
-    const omissions = summarizeKnowledgeOmissions(row.profile, point, edges, policy);
+    const omissions = summarizeKnowledgeOmissions(effectiveProfile, point, edges, policy);
     const state = collectCharacterContinuityFindings({
       characterRecordId: id,
       characterTitle: row.title,
-      profile: row.profile,
+      profile: effectiveProfile,
       point,
       edges,
     });
@@ -256,7 +276,7 @@ export async function characterContinuityFindingsForProject(
   options: { recordId?: string | null; focusRecordId?: string | null } = {},
 ): Promise<CharacterContinuityFinding[]> {
   const focus = await loadFocusManuscript(db, projectId, options.focusRecordId ?? options.recordId);
-  const { point, edges } = await narrativePointForManuscript(db, projectId, focus);
+  const { point, edges, bookIds } = await narrativePointForManuscript(db, projectId, focus);
   const profiles = await listCharacterProfiles(db, projectId);
   let allowed: Set<string> | null = null;
   if (options.recordId) {
@@ -272,7 +292,7 @@ export async function characterContinuityFindingsForProject(
       ...collectCharacterContinuityFindings({
         characterRecordId: row.id,
         characterTitle: row.title,
-        profile: row.profile,
+        profile: withSeriesBookOrderFallback(row.profile, bookIds),
         point,
         edges,
       }),

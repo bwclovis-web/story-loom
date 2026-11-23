@@ -56,6 +56,7 @@ describe("project summaries", () => {
         "id",
         "parentRecordId",
         "position",
+        "taxonomy",
         "title",
         "type",
         "worldKind",

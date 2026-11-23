@@ -3,6 +3,7 @@ import { CharacterAnalysisWorkspace } from "@/components/world/CharacterDevelopm
 import { WorldToolHeader } from "@/components/world/WorldToolHeader";
 import { Button } from "@/components/ui/Button";
 import { Checkbox } from "@/components/ui/Checkbox";
+import { DataTable, type DataTableColumn, type DataTableRow } from "@/components/ui/DataTable";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { forgottenArcs } from "@/domain/characterDevelopment";
 import { getAssistantConfig } from "@/server/assistantConfig";
@@ -80,39 +81,37 @@ export default async function CharacterDevelopmentPage({
       ) : (
         <div className="stack">
           <h2>{CHARACTER_DEVELOPMENT.matrix}</h2>
-          <table>
-            <thead>
-              <tr>
-                <th>Character</th>
-                {overview.books.map((book) => (
-                  <th key={book.id}>{book.label}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => (
-                <tr key={row.characterId}>
-                  <td>
-                    <Link href={`${base}/records/${encodeURIComponent(row.characterId)}#character-development`}>{row.title}</Link>
-                    <div className="small muted">{row.importance ?? "unset"}</div>
-                    {row.seriesPlanSummary ? <div className="small muted">{row.seriesPlanSummary}</div> : null}
-                  </td>
-                  {row.books.map((book) => (
-                    <td key={book.projectId}>
-                      <div className="small">{book.presence ?? "—"}</div>
-                      <div className="small muted">{book.importance ?? ""}</div>
-                      {book.arcTemplate ? <div className="small muted">{book.arcTemplate.replaceAll("_", " ")}</div> : null}
-                      {book.arcTitles.map((title) => (
-                        <div key={title} className="small">
-                          {title}
-                        </div>
-                      ))}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <DataTable
+            label={CHARACTER_DEVELOPMENT.matrix}
+            columns={
+              [
+                { id: "character", header: "Character" },
+                ...overview.books.map((book) => ({ id: book.id, header: book.label })),
+              ] satisfies DataTableColumn[]
+            }
+            rows={rows.map((row): DataTableRow => ({
+              id: row.characterId,
+              cells: [
+                <div key="character">
+                  <Link href={`${base}/records/${encodeURIComponent(row.characterId)}#character-development`}>{row.title}</Link>
+                  <div className="small muted">{row.importance ?? "unset"}</div>
+                  {row.seriesPlanSummary ? <div className="small muted">{row.seriesPlanSummary}</div> : null}
+                </div>,
+                ...row.books.map((book) => (
+                  <div key={book.projectId}>
+                    <div className="small">{book.presence ?? "—"}</div>
+                    <div className="small muted">{book.importance ?? ""}</div>
+                    {book.arcTemplate ? <div className="small muted">{book.arcTemplate.replaceAll("_", " ")}</div> : null}
+                    {book.arcTitles.map((title) => (
+                      <div key={title} className="small">
+                        {title}
+                      </div>
+                    ))}
+                  </div>
+                )),
+              ],
+            }))}
+          />
           <h2>{CHARACTER_DEVELOPMENT.unresolved}</h2>
           <ul>
             {overview.characters.flatMap((item) =>

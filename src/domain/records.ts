@@ -1,4 +1,5 @@
 import type { Record as RecordRow, Revision as RevisionRow } from "@/generated/prisma/client";
+import { isWorldScope, type WorldScope } from "./assignments";
 import { parseJsonObject, sha256, stableStringify, type JsonObject } from "./json";
 import { contentClassOf, isRecordType, type ContentClass, type RecordType } from "./recordTypes";
 import { isAuthorityStatus, type AuthorityStatus } from "./statuses";
@@ -20,6 +21,8 @@ export interface RecordView extends RecordSnapshot {
   protected: boolean;
   /** Chapter of a scene, or chapter/scene of a scene note. Not revisioned. */
   parentRecordId: string | null;
+  /** World reference scope. Structural metadata; not revisioned. */
+  worldScope: WorldScope | null;
   currentRevision: number;
   createdAt: Date;
   updatedAt: Date;
@@ -64,6 +67,7 @@ export function toRecordView(row: RecordRow): RecordView {
     supersededByRecordId: row.supersededByRecordId,
     protected: row.protected,
     parentRecordId: row.parentRecordId,
+    worldScope: isWorldScope(row.worldScope) ? row.worldScope : null,
     currentRevision: row.currentRevision,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,

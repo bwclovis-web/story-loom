@@ -58,12 +58,15 @@ export function RecordTableRow({
   );
 }
 
-/** World references table row (labelled badges; optional type column). */
+/** World references table row (labelled badges; optional type / taxonomy columns). */
 export function WorldRecordTableRow({
   projectId,
   recordId,
   title,
   typeLabel,
+  taxonomyLabel,
+  secondaryLabels,
+  scopeLabel,
   authorityStatus,
   currentRevision,
   isProtected,
@@ -73,6 +76,10 @@ export function WorldRecordTableRow({
   recordId: string;
   title: string;
   typeLabel?: string;
+  /** Primary category · subcategory (or inferred label). */
+  taxonomyLabel?: string | null;
+  secondaryLabels?: readonly string[];
+  scopeLabel?: string | null;
   authorityStatus: AuthorityStatus;
   currentRevision: number;
   isProtected: boolean;
@@ -83,6 +90,17 @@ export function WorldRecordTableRow({
     <tr>
       <td>
         <Link href={recordHref(projectId, recordId)}>{title}</Link>
+        {taxonomyLabel || (secondaryLabels && secondaryLabels.length) || scopeLabel ? (
+          <p className="small muted world-row-taxonomy">
+            {taxonomyLabel ? <span className="badge">{taxonomyLabel}</span> : null}
+            {secondaryLabels?.map((label) => (
+              <span key={label} className="badge badge-muted">
+                + {label}
+              </span>
+            ))}
+            {scopeLabel ? <span className="badge badge-muted">{scopeLabel}</span> : null}
+          </p>
+        ) : null}
         {homeBook ? (
           <p className="small">
             <span className="muted">{SERIES.homeBadge(homeBook.label)}</span>{" "}

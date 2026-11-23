@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui/Atoms/Button";
 import { WRITE } from "@/ui/labels";
 import { codexTrigger, insertCodexTitle, matchCodex, type CodexEntry } from "@/writing/codexSuggest";
 

@@ -23,6 +23,7 @@ import { applyTextareaEdit } from "@/components/writing/textareaEdit";
 import { imageMarkdown } from "@/images/imageFormat";
 import { HeadingReviewDialog } from "@/components/world/HeadingReviewDialog";
 import { ReferenceMetaFields } from "@/components/world/ReferenceMetaFields";
+import { TaxonomyFields } from "@/components/world/TaxonomyFields";
 import { WorldKindFields } from "@/components/world/WorldKindFields";
 import type { KindTemplateView } from "@/world/kindTemplates";
 import type { RecordType } from "@/domain/recordTypes";
@@ -304,6 +305,12 @@ export function RecordEditor(props: {
             showKind={props.recordType === "worldbuilding"}
             projectId={props.projectId}
             kindTemplates={props.kindTemplates}
+          />
+          <TaxonomyFields
+            className="reference-taxonomy-slot"
+            fieldsJson={fields}
+            onFieldsJsonChange={setFields}
+            disabled={!editable}
           />
           <div className="reference-headings stack">
             <label>

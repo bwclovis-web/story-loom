@@ -39,6 +39,9 @@ export type IdPrefix =
   | "rrl" // record relationship (character / organization)
   | "wcal" // world calendar
   | "wkt" // world kind template (custom field definitions)
+  | "wcat" // world category definition (custom Hub taxonomy)
+  | "wma" // world markdown archive entry
+  | "wmh" // world profile migration hold
   | "wcmo" // world calendar month
   | "wcra" // world calendar era
   | "wvg" // weave grid

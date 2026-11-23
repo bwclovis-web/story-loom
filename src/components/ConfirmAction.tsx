@@ -4,8 +4,8 @@ import { useActionState, useState, type ReactNode } from "react";
 import type { Issue } from "@/domain/issues";
 import { TRASH } from "@/ui/labels";
 import { Banner } from "@/components/ui/Banner";
-import { Button } from "@/components/ui/Button";
-import { Checkbox } from "@/components/ui/Checkbox";
+import { Button } from "@/components/ui/Atoms/Button";
+import { Checkbox } from "@/components/ui/Atoms/Checkbox";
 import { IssueList } from "./IssueList";
 
 export interface ConfirmResult {

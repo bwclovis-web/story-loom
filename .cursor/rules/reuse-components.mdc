@@ -5,9 +5,9 @@ alwaysApply: true
 
 # Reuse components
 
-Before adding markup, look in `src/components` for a component that already does the job. Import its barrel (`@/components/ui/Button`, `@/components/ui/Breadcrumbs`). Do not copy a second button, banner, empty state, breadcrumb, dialog, or page header.
+Before adding markup, look in `src/components` for a component that already does the job. Import its barrel (`@/components/ui/Atoms/Button`, `@/components/ui/Breadcrumbs`). Do not copy a second button, banner, empty state, breadcrumb, dialog, or page header.
 
-- Buttons are `Button`, `ButtonLink`, or `ButtonAnchor` from `@/components/ui/Button`.
+- Buttons are `Button`, `ButtonLink`, or `ButtonAnchor` from `@/components/ui/Atoms/Button`.
 - Radio choices are `RadioGroup` from `@/components/ui/RadioGroup`. Do not hand-write a second set of radio inputs.
 - Trails are `Breadcrumbs` from `@/components/ui/Breadcrumbs`.
 - Page chrome is `LandingHeader` or `ProjectPageHeader` from `@/components/library`.

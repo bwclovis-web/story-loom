@@ -6,7 +6,14 @@ import type { PlaceRelationView } from "@/server/services/placeRelationService";
 import type { RecordRelationView } from "@/server/services/recordRelationService";
 import type { RecordPlacement } from "@/world/inspectorModel";
 import type { KindTemplateField } from "@/world/kindTemplates";
-import { INFOBOX } from "@/ui/labels";
+import {
+  formatWorldProfileFieldValue,
+  isWorldProfileRecordType,
+  readWorldProfile,
+  worldProfileIsEmpty,
+  WORLD_PROFILE_KEY,
+} from "@/domain/worldProfile";
+import { INFOBOX, WORLD_PROFILE } from "@/ui/labels";
 import {
   formatWorldKindFieldValue,
   worldbuildingCustomKind,
@@ -52,6 +59,7 @@ export interface BuildReferenceInfoboxInput {
 const OPEN_QUESTIONS = "open questions";
 const MAX_FACTS = 12;
 const MAX_RELATIONS = 8;
+const MAX_PROFILE_ROWS = 4;
 
 function recordHref(projectId: string, recordId: string): string {
   return `/projects/${encodeURIComponent(projectId)}/records/${encodeURIComponent(recordId)}`;
@@ -207,6 +215,26 @@ export function buildReferenceInfobox(input: BuildReferenceInfoboxInput): Refere
   if (role) rows.push({ label: INFOBOX.role, value: role });
   const summary = typeof fields.summary === "string" ? fields.summary.trim() : "";
   if (summary) rows.push({ label: INFOBOX.summary, value: summary });
+
+  if (isWorldProfileRecordType(record.type) && WORLD_PROFILE_KEY in fields) {
+    const { profile } = readWorldProfile(fields);
+    if (!worldProfileIsEmpty(profile)) {
+      const profileSummary = profile.summary.trim();
+      if (profileSummary) rows.push({ label: WORLD_PROFILE.summary, value: profileSummary });
+      let shown = 0;
+      for (const [key, raw] of Object.entries(profile.values)) {
+        if (shown >= MAX_PROFILE_ROWS) break;
+        if (formatWorldKindFieldValue(fields[key] as never)) continue;
+        const value = formatWorldProfileFieldValue(raw).trim();
+        if (!value) continue;
+        rows.push({ label: key, value });
+        shown += 1;
+      }
+      if (profile.migrationHold.length) {
+        rows.push({ label: WORLD_PROFILE.holds, value: WORLD_PROFILE.holdCount(profile.migrationHold.length) });
+      }
+    }
+  }
 
   rows.push(...kindFieldRows(fields, input.kindTemplates));
 

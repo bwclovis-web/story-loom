@@ -92,6 +92,12 @@ rewritten automatically, so do not put project rules inside it.
   preview → confirm → one transaction, stale-preview detection, idempotent
   reruns. They are not revisioned content: applying them never rewrites
   record text, revisions, images or links. Audited as `project.assign`.
+  Series-shared World references keep one `Record.id` and home project;
+  siblings resolve them via `resolveAvailableReference` /
+  `resolveAvailableImage` for maps, boards, inspectors, and exports.
+  `PlaceRelation.scope` / `RecordRelation.scope` (`book` \| `series`) and
+  optional `WorldKindTemplate.worldScope` are additive; unsharing never
+  silently deletes sibling pins, cards, or relationships.
 - Manuscript drafts (`ManuscriptDraft`, `Record.draftId`, rewrite source pins,
   `Project.defaultReadingDraftId` / `defaultExportDraftId`) are optional
   structural metadata for same-project Zero draft / Author manuscript trees.
@@ -156,6 +162,42 @@ rewritten automatically, so do not put project rules inside it.
   extracted and held notes are labeled not-canon; body prose is included only
   when not already represented by structured fields. Series-shared dossiers
   are edited only in the home book.
+- Living World Profile authoritative ownership (one reference, no parallel
+  world entity):
+  - `Record.id` — stable reference identity across books and series links.
+  - `Record.body` — freeform author Markdown; never discarded by upgrade or
+    profile edits.
+  - `fields.worldProfile` — optional structured overlay (v1, additive) on
+    non-character World types only: `worldbuilding`, `rules_glossary`,
+    `research_note`, `canon_decision`, `continuity_note`, `reference_note`.
+    Never on `character_dossier` (use `fields.characterDevelopment`) or
+    manuscript types. Unknown keys are kept on save; an unsupported version
+    refuses the profile write.
+  - The overlay does not replace `Record`, body Markdown, the flat
+    `WORLD_KIND_FIELD_SPECS` / `WorldKindTemplate` string fields (which stay in
+    Details and are not copied into the overlay), taxonomy, relations, maps, or
+    boards.
+  - `fieldMeta` — per-path approval + provenance (author / imported /
+    extracted). Legacy fields without `fieldMeta` default to draft / author.
+    Extracted material stays draft or proposed and is never auto-approved.
+  - `fieldHistory` — optional dated changes on the same overlay (no SQLite
+    tables). Undated current (`fields.*` / `worldProfile.values` / summary) is
+    not earlier story truth. As-of resolution reuses NarrativePoint + OrderEdge;
+    approved view is approved && !planned && not superseded. Book-scoped changes
+    stay out of sibling resolves. Context export redacts planned, unapproved,
+    superseded, and after-point history.
+  - `fields.worldMarkdownArchive` — immutable Markdown source snapshots;
+    unsupported archive versions refuse overwrite on apply and in change
+    packages.
+  - Custom `WorldCategoryDefinition` rows add Hub categories for discovery;
+    they do not change record type, identity, or canon status. Templates and
+    categories resolve by series home (home book wins; sibling books read
+    shared definitions). Series-shared references are edited only in the home
+    book.
+  - Markdown upgrade (`WORLD_PROFILE_UPGRADE`) is author-reviewed like the
+    character dossier upgrade: preview, then keep existing, replace, merge,
+    modify, reject, or defer. It never auto-approves proposals as canon, never
+    silently drops conflicts or unclassified text, and keeps the original body.
 
 ## In-app help
 

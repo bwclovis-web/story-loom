@@ -199,7 +199,10 @@ export async function inspectSelectionAssistContext(
   const excluded = new Set(input.excludeRecordIds ?? []);
   const pins = await listReadingPins(db, input.projectId, input.scopeDraftId);
   const pinRefs = pins.filter((p) => !excluded.has(p.recordId)).map((p) => ({ recordId: p.recordId, revision: p.currentRevision }));
-  const contextDocs = await loadAuthorReferenceDocuments(db, input.projectId, pinRefs);
+  const contextDocs = await loadAuthorReferenceDocuments(db, input.projectId, pinRefs, {
+    mode: "drafting",
+    focusRecordId: record.id,
+  });
   let authorInstructionText = normalizeAuthorInstructionText(input.authorInstructionText);
   if (input.promptPresetId) {
     const preset = await getPromptPreset(db, input.projectId, input.promptPresetId);

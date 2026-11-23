@@ -22,11 +22,11 @@ import { CloseIcon } from "@/components/shell/icons";
 import { errorIssue, type Issue } from "@/domain/issues";
 import { isLinkableReferenceType } from "@/domain/recordTypes";
 import type { LoadedInspector } from "@/server/services/referenceInspectorService";
-import type { WorldMapLayerView } from "@/server/services/worldMapLayerService";
-import { layerStrokeColor, resolvePinLayerId } from "@/server/services/worldMapLayerService";
+import { layerStrokeColor, resolvePinLayerId, type WorldMapLayerView } from "@/world/mapLayers";
 import type { WorldMapPinView, WorldMapView } from "@/server/services/worldMapService";
 import type { MapGeographyNode } from "@/world/mapGeography";
-import { WORLD, WRITE } from "@/ui/labels";
+import { SERIES, WORLD, WRITE } from "@/ui/labels";
+import { seriesBookLabel } from "@/world/seriesHome";
 import { canvasReturnPath, withCanvasReturn } from "@/world/canvasReturn";
 import { mapDrawingHandlesKey, mapListHandlesKey } from "@/world/mapKeyboard";
 import {
@@ -107,6 +107,8 @@ export interface PlaceableRecord {
   id: string;
   title: string;
   typeLabel: string;
+  homeLabel?: string | null;
+  worldScope?: string | null;
 }
 
 export interface PlaceableMap {
@@ -1515,7 +1517,8 @@ export function MapCanvas({
                       <option value="">{WORLD.choosePlace}</option>
                       {records.map((record) => (
                         <option key={record.id} value={record.id}>
-                          {record.title} ({record.typeLabel})
+                          {record.title} ({record.typeLabel}
+                          {record.homeLabel ? ` · ${record.homeLabel}` : ""})
                         </option>
                       ))}
                     </select>
@@ -1562,7 +1565,8 @@ export function MapCanvas({
                     <option value="">{WORLD.choosePlace}</option>
                     {records.map((record) => (
                       <option key={record.id} value={record.id}>
-                        {record.title} ({record.typeLabel})
+                        {record.title} ({record.typeLabel}
+                        {record.homeLabel ? ` · ${record.homeLabel}` : ""})
                       </option>
                     ))}
                   </select>
@@ -1772,6 +1776,11 @@ function MarkerRail({
         ) : null}
       </p>
       {pin.unavailable ? <p className="small muted">{WORLD.pinUnavailable}</p> : null}
+      {pin.home ? (
+        <p className="small muted">{SERIES.homeBadge(seriesBookLabel(pin.home))}</p>
+      ) : pin.worldScope === "series" ? (
+        <p className="small muted">{SERIES.scopeWholeSeries}</p>
+      ) : null}
       {pin.targetUnavailable ? <p className="small muted">{WORLD.targetMapUnavailable}</p> : null}
       {pin.targetMapId && !pin.targetUnavailable ? (
         <div className="map-drill-callout">

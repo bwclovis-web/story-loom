@@ -3,8 +3,8 @@
 import { useState, useTransition } from "react";
 import { IssueList } from "@/components/IssueList";
 import { Banner } from "@/components/ui/Banner";
-import { Button } from "@/components/ui/Button";
-import { Checkbox } from "@/components/ui/Checkbox";
+import { Button } from "@/components/ui/Atoms/Button";
+import { Checkbox } from "@/components/ui/Atoms/Checkbox";
 import type { Issue } from "@/domain/issues";
 import { BACKUP } from "@/ui/labels";
 import { runRollingBackupNowAction, saveBackupScheduleAction } from "./rollingActions";

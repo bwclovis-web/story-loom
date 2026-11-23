@@ -1,16 +1,15 @@
 import Link from "next/link";
 import { HelpHint } from "@/components/HelpHint";
-import { ButtonLink } from "@/components/ui/Button";
+import { ButtonLink } from "@/components/ui/Atoms/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ProjectOnboarding } from "@/components/shell/ProjectOnboarding";
 import { WorldToolHeader } from "@/components/world/WorldToolHeader";
 import { getDb } from "@/server/db";
 import { listRecordImages } from "@/server/services/imageService";
-import { listRecords } from "@/server/services/recordService";
+import { listAvailableReferences } from "@/server/services/seriesBibleService";
 import { listWorldMaps } from "@/server/services/worldMapService";
-import { isLinkableReferenceType } from "@/domain/recordTypes";
-import { isWorldType } from "@/ui/world";
-import { WORLD } from "@/ui/labels";
+import { SERIES, WORLD } from "@/ui/labels";
+import { seriesBookLabel } from "@/world/seriesHome";
 import { worldSurfaceCrumbs } from "@/ui/worldDestinations";
 import { ClearMapTrail } from "./ClearMapTrail";
 import { CreateMapForm } from "./CreateMapForm";
@@ -21,14 +20,14 @@ export default async function WorldMapsPage({ params }: { params: Promise<{ proj
   const { projectId } = await params;
   const db = getDb();
   const maps = await listWorldMaps(db, projectId).catch(() => []);
-  const records = (await listRecords(db, projectId)).filter(
-    (r) => isWorldType(r.type) || isLinkableReferenceType(r.type),
-  );
+  const available = await listAvailableReferences(db, projectId, { linkableOnly: true });
   const images: Array<{ id: string; label: string }> = [];
-  for (const r of records) {
-    const imgs = await listRecordImages(db, projectId, r.id);
+  for (const entry of available) {
+    const homeProjectId = entry.home?.projectId ?? projectId;
+    const imgs = await listRecordImages(db, homeProjectId, entry.record.id);
+    const homeSuffix = entry.home ? ` (${SERIES.homeBadge(seriesBookLabel(entry.home))})` : "";
     for (const img of imgs ?? []) {
-      images.push({ id: img.id, label: `${r.title} — ${img.name}` });
+      images.push({ id: img.id, label: `${entry.record.title} — ${img.name}${homeSuffix}` });
     }
   }
   const base = `/projects/${encodeURIComponent(projectId)}`;
@@ -58,7 +57,13 @@ export default async function WorldMapsPage({ params }: { params: Promise<{ proj
         <CreateMapForm
           projectId={projectId}
           images={images}
-          hosts={records.map((record) => ({ id: record.id, title: record.title, isProtected: record.protected }))}
+          hosts={available
+            .filter((entry) => !entry.isShared)
+            .map((entry) => ({
+              id: entry.record.id,
+              title: entry.record.title,
+              isProtected: entry.record.protected,
+            }))}
         />
       </section>
 

@@ -6,7 +6,7 @@ import { MarkdownEditor } from "@/components/writing/MarkdownEditor";
 import { WriteProtectionRow } from "@/components/writing/WriteProtectionRow";
 import type { DraftOption } from "@/components/drafts/DraftControls";
 import { Banner } from "@/components/ui/Banner";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui/Atoms/Button";
 import { normalizeNewlines } from "@/proofread/anchors";
 import { autosaveRecordAction, saveRecordAction } from "@/app/projects/[projectId]/actions";
 import { WRITE } from "@/ui/labels";

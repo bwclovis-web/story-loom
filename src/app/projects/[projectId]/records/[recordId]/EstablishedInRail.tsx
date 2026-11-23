@@ -1,5 +1,5 @@
 "use client";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui/Atoms/Button";
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -13,7 +13,7 @@ import {
   type EstablishedFactView,
   type EvidenceKind,
   type CharacterKnowledgeCheckResult,
-} from "@/server/services/establishedFactService";
+} from "@/world/establishedFacts";
 import { WORLD } from "@/ui/labels";
 import {
   acceptFactAction,

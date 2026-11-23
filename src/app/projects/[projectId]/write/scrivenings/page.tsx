@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { ProjectPageHeader } from "@/components/library/ProjectPageHeader";
 import { ScriveningsScene, type ScriveningsRecord } from "@/components/write/ScriveningsScene";
-import { ButtonLink } from "@/components/ui/Button";
+import { ButtonLink } from "@/components/ui/Atoms/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Banner } from "@/components/ui/Banner";
 import { stableStringify } from "@/domain/json";

@@ -40,9 +40,9 @@ import {
   type RevisionWithSource,
 } from "@/server/services/recordService";
 import { listProjectCoverHashes } from "@/server/services/coverService";
-import { findProject } from "@/server/services/projectService";
+import { findProject, listSeriesBookProjects } from "@/server/services/projectService";
 import { parseCanvasReturn } from "@/world/canvasReturn";
-import { getSeriesSharedRecord } from "@/server/services/seriesBibleService";
+import { getSeriesSharedRecord, listAvailableReferences } from "@/server/services/seriesBibleService";
 import { listWorldKindTemplates } from "@/server/services/worldKindTemplateService";
 import { listOpenReviewItemsForRecord } from "@/server/services/reviewService";
 import {
@@ -346,11 +346,13 @@ export default async function RecordPage({
         ? listRecordRelationsForRecord(db, projectId, record.id)
         : Promise.resolve({ outgoing: [], incoming: [] }),
       showRecordRelations ? listRecordRelationEndpointChoices(db, projectId) : Promise.resolve([]),
-      listReferenceChoices(db, projectId),
+      listAvailableReferences(db, projectId, { linkableOnly: true }),
       listEstablishedFactsForSubject(db, projectId, record.id).catch(() => [] as Awaited<ReturnType<typeof listEstablishedFactsForSubject>>),
       listRecordPlacements(db, projectId, record.id).catch(() => []),
       listMentionedBy(db, projectId, record.id, crossRefs),
     ]);
+  const seriesBooks = await listSeriesBookProjects(db, projectId);
+  const canShareSeries = seriesBooks.length > 1;
   const chapterIds = [...new Set(linking.flatMap((l) => (l.parentRecordId ? [l.parentRecordId] : [])))];
   const chapters = chapterIds.length
     ? await db.record.findMany({ where: { projectId, id: { in: chapterIds }, trashedAt: null }, select: { id: true, title: true } })
@@ -495,10 +497,12 @@ export default async function RecordPage({
       recordRelations={showRecordRelations ? recordRelations : null}
       recordRelationChoices={recordRelationChoices}
       placeChoices={referenceChoices.map((c) => ({
-        id: c.id,
-        title: c.title,
-        typeLabel: RECORD_TYPE_LABELS[c.type],
+        id: c.record.id,
+        title: c.record.title,
+        typeLabel: RECORD_TYPE_LABELS[c.record.type],
+        homeLabel: c.home ? c.home.bookName?.trim() || c.home.title : null,
       }))}
+      canShareSeries={canShareSeries}
       establishedFacts={establishedFacts}
       evidenceSources={evidenceSources}
       manuscriptDrafts={drafts.map((d) => ({ id: d.id, label: d.label, kind: d.kind }))}

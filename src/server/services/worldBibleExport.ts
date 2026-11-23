@@ -6,8 +6,9 @@ import { isManuscriptType, isRecordType, RECORD_TYPES } from "@/domain/recordTyp
 import type { DbOrTx } from "../db";
 import { listEstablishedFactsForSubject, type EstablishedFactView } from "./establishedFactService";
 import { imageDataByIds, imagesByRecord } from "./imageService";
-import { listWorldKindTemplates } from "./worldKindTemplateService";
+import { listAvailableWorldKindTemplates } from "./worldKindTemplateService";
 import { NotFoundError } from "./errors";
+import type { RecordImageView } from "./imageService";
 import { bodyToEpubSectionHtml, escapeHtml } from "./manuscriptExportMarkdown";
 import { exportDateStamp, exportSlug } from "./manuscriptExportModel";
 import { LIVE_PROJECT } from "./trashFilters";
@@ -35,11 +36,11 @@ export interface WorldBibleFile {
 async function selectedReferences(db: DbOrTx, projectId: string, recordIds: readonly string[]) {
   const project = await db.project.findFirst({ where: { id: projectId, ...LIVE_PROJECT }, select: { title: true } });
   if (!project) throw new NotFoundError(`Project ${projectId} not found`);
-  const rows = await db.record.findMany({
-    where: { projectId, id: { in: [...new Set(recordIds)] }, trashedAt: null },
-  });
-  const records = rows
-    .map(toRecordView)
+  const { resolveAvailableReference } = await import("./seriesBibleService");
+  const uniqueIds = [...new Set(recordIds)];
+  const resolved = await Promise.all(uniqueIds.map((id) => resolveAvailableReference(db, projectId, id)));
+  const records = resolved
+    .flatMap((entry) => (entry ? [entry.record] : []))
     .filter((record) => !isManuscriptType(record.type))
     .sort((a, b) => RECORD_TYPES.indexOf(a.type) - RECORD_TYPES.indexOf(b.type) || a.title.localeCompare(b.title) || a.id.localeCompare(b.id));
   if (!records.length) throw new NotFoundError("No reference documents were selected.");
@@ -103,15 +104,22 @@ export async function buildReferencesWikiZip(
   if (ceiling.approvedOnly) records = records.filter((r) => r.authorityStatus === "approved");
   if (!records.length) throw new NotFoundError("No reference documents remain after the spoiler ceiling.");
 
-  const [kindTemplates, imagesMeta, bookRank] = await Promise.all([
-    listWorldKindTemplates(db, projectId),
-    imagesByRecord(
-      db,
-      projectId,
-      records.map((r) => r.id),
-    ),
+  const homeIds = [...new Set(records.map((r) => r.projectId))];
+  const [kindTemplates, bookRank, ...imageMaps] = await Promise.all([
+    listAvailableWorldKindTemplates(db, projectId),
     bookRankForProject(db, projectId),
+    ...homeIds.map((homeId) =>
+      imagesByRecord(
+        db,
+        homeId,
+        records.filter((r) => r.projectId === homeId).map((r) => r.id),
+      ),
+    ),
   ]);
+  const imagesMeta = new Map<string, RecordImageView[]>();
+  for (const map of imageMaps) {
+    for (const [id, value] of map) imagesMeta.set(id, value);
+  }
 
   const ceilingRank =
     ceiling.spoilerBeforeRecordId && bookRank.has(ceiling.spoilerBeforeRecordId)
@@ -132,7 +140,14 @@ export async function buildReferencesWikiZip(
     .flat()
     .filter((img) => isEmbeddableWikiImage(img.mimeType))
     .map((img) => img.id);
-  const imageBytes = await imageDataByIds(db, projectId, embeddableIds);
+  const imageBytes = new Map<string, Uint8Array>();
+  for (const homeId of homeIds) {
+    const homeEmbeds = embeddableIds.filter((id) =>
+      [...imagesMeta.values()].flat().some((img) => img.id === id && records.some((r) => r.projectId === homeId && r.id === img.recordId)),
+    );
+    const chunk = await imageDataByIds(db, homeId, homeEmbeds);
+    for (const [id, data] of chunk) imageBytes.set(id, data);
+  }
 
   const wikiImagesByRecord = new Map<string, Map<string, WikiImageRef>>();
   for (const [recordId, images] of imagesMeta) {

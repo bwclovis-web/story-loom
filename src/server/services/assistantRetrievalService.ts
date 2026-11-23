@@ -4,6 +4,7 @@ import {
   renderCharacterContextSlice,
   type NarrativePoint,
 } from "@/domain/characterDevelopment";
+import { withSeriesBookOrderFallback } from "@/domain/characterWritingContext";
 import { parseJsonObject, type JsonObject } from "@/domain/json";
 import { contentClassOf, isManuscriptType, isRecordType, RECORD_TYPE_LABELS, type RecordType } from "@/domain/recordTypes";
 import { isAuthorityStatus } from "@/domain/statuses";
@@ -57,6 +58,7 @@ function referenceText(
     projectId?: string;
     point?: NarrativePoint | null;
     edges?: readonly OrderEdge[];
+    bookIds?: readonly string[];
   },
 ): string {
   try {
@@ -65,10 +67,11 @@ function referenceText(
       const read = readCharacterDevelopment(fields);
       if (!developmentIsEmpty(read.profile)) {
         const drafting = opts?.scope === "chapter";
+        const profile = opts?.bookIds?.length ? withSeriesBookOrderFallback(read.profile, opts.bookIds) : read.profile;
         return renderCharacterContextSlice({
           title,
           body,
-          profile: read.profile,
+          profile,
           slice: drafting ? "dialogue" : "continuity",
           bookProjectId: opts?.point?.bookProjectId ?? opts?.projectId ?? null,
           point: opts?.point,
@@ -330,8 +333,8 @@ async function readPassageTool(db: DbOrTx, ctx: RetrievalContext, args: Record<s
     };
   }
 
-  const focus = await loadFocusManuscript(db, record.projectId, ctx.focusRecordId);
-  const { point, edges } = await narrativePointForManuscript(db, record.projectId, focus);
+  const focus = await loadFocusManuscript(db, ctx.projectId, ctx.focusRecordId);
+  const { point, edges, bookIds } = await narrativePointForManuscript(db, ctx.projectId, focus);
   let text =
     contentClassOf(record.type) === "reference"
       ? referenceText(record.title, record.body, record.fields, record.type, {
@@ -339,6 +342,7 @@ async function readPassageTool(db: DbOrTx, ctx: RetrievalContext, args: Record<s
           projectId: record.projectId,
           point,
           edges,
+          bookIds,
         })
       : record.body;
   let kind: ContextKind = contentClassOf(record.type) === "reference" ? "reference" : "manuscript";

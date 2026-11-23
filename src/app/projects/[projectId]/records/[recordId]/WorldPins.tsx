@@ -1,5 +1,5 @@
 "use client";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui/Atoms/Button";
 
 import { useEffect, useState, useTransition } from "react";
 import { ContextSection } from "@/components/ContextSection";

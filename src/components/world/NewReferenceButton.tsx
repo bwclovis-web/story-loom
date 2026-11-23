@@ -2,7 +2,7 @@
 
 import { useId, useState, type ReactNode } from "react";
 import { Plus } from "lucide-react";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui/Atoms/Button";
 import { WORLD } from "@/ui/labels";
 
 /** Opens the new-reference form. The control is a real Button, not a disclosure summary. */

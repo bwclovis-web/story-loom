@@ -47,6 +47,8 @@ export interface RelationshipEdge {
   kind: string;
   kindLabel: string;
   family: RelationshipEdgeFamily;
+  /** book | series when the edge is an explicit place/record relation. */
+  scope?: "book" | "series";
 }
 
 export interface RelationshipNode {
@@ -59,6 +61,8 @@ export interface RelationshipNode {
   recordType?: string;
   authorityStatus?: string | null;
   draftId?: string | null;
+  /** Home book project id when this node is a series-shared sibling reference. */
+  homeProjectId?: string | null;
 }
 
 export type GraphKindOption = { id: string; label: string; family: RelationshipEdgeFamily };

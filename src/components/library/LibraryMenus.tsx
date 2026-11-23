@@ -4,7 +4,7 @@ import { useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent,
 import { Image as ImageIcon, Pencil, Trash2 } from "lucide-react";
 import { ConfirmAction, type ConfirmResult } from "@/components/ConfirmAction";
 import { MoreIcon } from "@/components/shell/icons";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui/Atoms/Button";
 import { FileInput } from "@/components/ui/FileInput";
 import { HOME, SHELL, TRASH } from "@/ui/labels";
 

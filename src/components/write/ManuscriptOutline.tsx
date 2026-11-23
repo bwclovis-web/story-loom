@@ -9,7 +9,7 @@ import { ManuscriptCreateForm } from "@/components/shell/ManuscriptTree";
 import { HelpHint } from "@/components/HelpHint";
 import { Corkboard, type CorkboardCard, type CorkboardGroup } from "@/components/write/Corkboard";
 import { Outliner, type OutlinerRow } from "@/components/write/Outliner";
-import { Button, ButtonLink } from "@/components/ui/Button";
+import { Button, ButtonLink } from "@/components/ui/Atoms/Button";
 import { RECORD_TYPE_LABELS } from "@/domain/recordTypes";
 import { MANUSCRIPT_ANNOTATIONS, MANUSCRIPT_SEARCH, NAV, WRITE } from "@/ui/labels";
 

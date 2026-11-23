@@ -220,7 +220,7 @@ export async function removeWorldMapPinAction(
 
 export async function addPlaceRelationAction(
   projectId: string,
-  input: { fromRecordId: string; toRecordId: string; kind: string },
+  input: { fromRecordId: string; toRecordId: string; kind: string; scope?: string | null },
 ) {
   try {
     if (!isPlaceRelationKind(input.kind)) {
@@ -230,6 +230,7 @@ export async function addPlaceRelationAction(
       fromRecordId: input.fromRecordId,
       toRecordId: input.toRecordId,
       kind: input.kind as PlaceRelationKind,
+      scope: input.scope,
     });
     revalidatePath(`/projects/${projectId}/records/${input.fromRecordId}`);
     revalidatePath(`/projects/${projectId}/records/${input.toRecordId}`);

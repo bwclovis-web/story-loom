@@ -3,7 +3,7 @@
 import { ChevronDown } from "lucide-react";
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui/Atoms/Button";
 import { cn } from "@/ui/cn";
 
 type PanelAlign = "start" | "end";

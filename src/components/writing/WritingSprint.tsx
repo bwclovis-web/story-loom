@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui/Atoms/Button";
 import { WRITING_GOALS } from "@/ui/labels";
 
 const MINUTES = [15, 25, 45] as const;

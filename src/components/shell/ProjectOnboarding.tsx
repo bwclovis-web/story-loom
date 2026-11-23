@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Button, ButtonLink } from "@/components/ui/Button";
+import { Button, ButtonLink } from "@/components/ui/Atoms/Button";
 import { useEffect, useRef, useState } from "react";
 import { helpHref, type HelpAnchor } from "@/help/outline";
 import { ONBOARDING } from "@/ui/labels";

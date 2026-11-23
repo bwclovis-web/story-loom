@@ -37,6 +37,7 @@ import { contentClassOf, isRecordType, type ContentClass, type RecordType } from
 import { isAuthorityStatus, type AuthorityStatus } from "@/domain/statuses";
 import { hasSectionStatus, listSections, outermostSections, sectionPath, type DocSection } from "@/writing/sections";
 import type { Db, DbOrTx } from "../db";
+import { withSeriesBookOrderFallback } from "@/domain/characterWritingContext";
 import { writeAudit } from "./auditService";
 import { loadFocusManuscript, narrativePointForManuscript } from "./characterWritingContextService";
 import { LIVE_PROJECT } from "./trashFilters";
@@ -253,6 +254,7 @@ export interface CharacterReferenceOptions {
   bookProjectId?: string | null;
   point?: import("@/domain/characterDevelopment").NarrativePoint | null;
   edges?: import("@/world/storyOrder").OrderEdge[];
+  bookIds?: readonly string[];
 }
 
 /** What a selected reference contributes: its body and a task-specific character slice or raw fields. */
@@ -268,10 +270,11 @@ export function referenceText(body: string, fieldsJson: string, opts?: Character
         mode === "drafting"
           ? (["character", "both"] as const)
           : (["character", "reader", "both"] as const);
+      const profile = opts.bookIds?.length ? withSeriesBookOrderFallback(read.profile, opts.bookIds) : read.profile;
       return renderCharacterContextSlice({
         title: opts.title ?? "",
         body,
-        profile: read.profile,
+        profile,
         slice,
         bookProjectId: opts.bookProjectId ?? opts.point?.bookProjectId ?? null,
         point: opts.point,
@@ -581,7 +584,7 @@ async function loadDocuments(
   const records = await db.record.findMany({ where: { id: { in: ids }, projectId, trashedAt: null } });
   const byId = new Map(records.map((r) => [r.id, r]));
   const focus = await loadFocusManuscript(db, projectId, options.focusRecordId);
-  const { point, edges } = await narrativePointForManuscript(db, projectId, focus);
+  const { point, edges, bookIds } = await narrativePointForManuscript(db, projectId, focus);
 
   const docs: ContextDocument[] = [];
   for (const ref of refs) {
@@ -634,6 +637,7 @@ async function loadDocuments(
             bookProjectId: point.bookProjectId ?? projectId,
             point,
             edges,
+            bookIds,
           })
         : revision.body;
     if (ref.kind === "passage") {
@@ -838,11 +842,15 @@ export async function prepareTurn(db: Db, runtime: AssistantRuntime, input: Turn
     includeIds = JSON.parse(failed.includedMessageIds) as string[];
   }
 
+  const retryFocusId =
+    input.kind === "retry"
+      ? (refs.find((r) => r.kind === "manuscript" || r.kind === "passage")?.recordId ?? null)
+      : null;
   const characterMode =
     writeHandoff != null ? "drafting" : mode === "proposal" ? "editorial" : retrievalScope === "chapter" ? "drafting" : "editorial";
   const documents = await loadDocuments(db, input.projectId, refs, input.kind === "ask", {
     mode: characterMode,
-    focusRecordId: writeHandoff?.recordId ?? (input.kind === "ask" ? input.selection.manuscript?.recordId : null),
+    focusRecordId: writeHandoff?.recordId ?? (input.kind === "ask" ? input.selection.manuscript?.recordId : retryFocusId),
     allowFuturePlans: false,
   });
   const sourceNotes: RetrievalMeta["sources"] = documents.map((d) => ({

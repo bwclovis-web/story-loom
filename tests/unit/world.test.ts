@@ -78,5 +78,11 @@ describe("world categories", () => {
     expect(worldHref("prj_x", { type: "canon_decision" })).toBe("/projects/prj_x/world?type=canon_decision");
     expect(worldHref("prj_x", { q: " salt & tide " })).toBe("/projects/prj_x/world?q=salt+%26+tide");
     expect(worldHref("prj_x", { list: true })).toBe("/projects/prj_x/world?list=1");
+    expect(worldHref("prj_x", { category: "magic", subcategory: "rules", view: "cards" })).toBe(
+      "/projects/prj_x/world?category=magic&subcategory=rules&view=cards",
+    );
+    expect(worldHref("prj_x", { unclassified: true, scope: "series", sort: "title" })).toBe(
+      "/projects/prj_x/world?unclassified=1&scope=series&sort=title",
+    );
   });
 });

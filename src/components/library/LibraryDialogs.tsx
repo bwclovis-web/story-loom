@@ -1,7 +1,7 @@
 "use client";
 
 import { useId, useRef } from "react";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui/Atoms/Button";
 import { HOME } from "@/ui/labels";
 import { createProjectAction, createWorkspaceAction } from "@/app/(site)/actions";
 

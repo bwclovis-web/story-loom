@@ -1,3 +1,6 @@
+import type { WorldScope } from "@/domain/assignments";
+import type { SeriesHomeRef } from "@/world/seriesHome";
+
 /** One author-defined field on a custom worldbuilding kind. */
 export interface KindTemplateField {
   key: string;
@@ -10,6 +13,19 @@ export interface KindTemplateView {
   projectId: string;
   kind: string;
   fields: KindTemplateField[];
+  /** null/book = local; series = shared to sibling books (never overrides local). */
+  worldScope: WorldScope | null;
+  /** Set when this template was loaded from a sibling book. */
+  home: SeriesHomeRef | null;
+  /** Stable registry id for Living World Profile lookup; null for legacy templates. */
+  definitionId?: string | null;
+  /** Display label; falls back to kind when null/empty. */
+  label?: string | null;
+  description?: string;
+  categorySlug?: string | null;
+  subcategorySlug?: string | null;
+  /** Typed profile field/collection specs JSON; null = legacy flat only. */
+  profileSpecJson?: string | null;
 }
 
 const FIELD_KEY = /^[a-z][a-zA-Z0-9]{0,40}$/;

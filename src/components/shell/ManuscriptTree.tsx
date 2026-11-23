@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useMemo, useRef, useState, type FormEvent } from "react";
 import { createManuscriptAction } from "@/app/projects/[projectId]/write/actions";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui/Atoms/Button";
 import { TreeSearch } from "@/components/ui/SearchPanel";
 import type { Issue } from "@/domain/issues";
 import { NAV, WRITE } from "@/ui/labels";

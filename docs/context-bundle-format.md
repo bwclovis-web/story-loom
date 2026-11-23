@@ -72,7 +72,7 @@ Manuscript chapters and scenes are unselected by default.
 | `protected` | When `true`, the record must not be changed unless the author explicitly authorizes it (`protectedOverrides`). |
 | `parentRecordId` | The chapter of a scene, or the chapter or scene of a scene note; `null` for other records. Read-only context: a change package cannot create scenes or scene notes or move them; only the author moves scenes, on the Write page. |
 | `linkedRecordIds` | For a chapter or scene, the reference records the author linked to it in the app (empty otherwise). Read-only context. The linked records are included only if they were also selected. |
-| `body`, `fields` | Current content. Living Profiles live under `fields.characterDevelopment` when present. |
+| `body`, `fields` | Current content. Living Profiles live under `fields.characterDevelopment` when present. On World references, `fields.worldProfile` is the preferred structured Living World Profile data when present; draft or proposed `fieldMeta` is not approved canon. Undated `worldProfile` values are the author's present surface, not earlier story time. When `fieldHistory` is present, the export keeps only approved, unplanned dated changes at or before the export narrative point (planned, unapproved, superseded, and later entries are omitted). |
 | `sectionStatus` | Present only when headings in `body` carry status tags (for example `## Rules [APPROVED FRAMEWORK]` or `### Scene — SELECTED; after the storm`). One entry per tagged heading: `heading` (the heading text), `level`, and `statusTag` word for word. These markings govern their own sections; `authorityStatus` still describes the record as a whole and is set only by the author. |
 
 ## Character contexts (additive)
@@ -85,6 +85,13 @@ notes). Prefer these slices for writing assistance. They do not replace
 `selection.characterMode` (`drafting` | `editorial` | `planning`) control
 chronology and whether planned or spoiler material appears. Book scope is the
 exporting project; series-shared dossiers may appear with `seriesHome`.
+
+When `redactCharacterSpoilers` is enabled during export, `records[].fields`
+for `character_dossier` records strips `dossierMarkdownArchive`, clears private
+`livedExperience` notes, removes `omit`/`spoiler` secrets and future-revealed
+knowledge relative to `focusRecordId`, and filters out `planned` state changes
+and unapproved arcs. Keep it off (the default) when preparing full-fidelity
+change packages.
 
 ## Instructions, template, and schema
 

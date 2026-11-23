@@ -588,8 +588,40 @@ button.drawer-close { align-self: flex-end; margin: 0.5rem 0.5rem 0; }
 .hint { font-size: 0.85rem; color: var(--muted); margin: 0 0 0.6rem; }
 .review-field { margin: 0.75rem 0; max-width: min(40rem, 100%); }
 .review-label-row { display: flex; align-items: center; gap: 0.35rem; flex-wrap: wrap; }
-.help-popover { display: inline-flex; }
-.help-popover-trigger { min-height: 2.75rem; min-width: 2.75rem; }
+.help-popover { display: inline-flex; vertical-align: middle; margin-inline-start: 0.3rem; }
+button.help-popover-trigger {
+  display: inline-grid;
+  place-items: center;
+  width: 1.3rem;
+  height: 1.33rem;
+  min-width: 1.15rem;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--color-text-muted);
+  line-height: 0;
+  box-shadow: none;
+  cursor: pointer;
+}
+button.help-popover-trigger:hover {
+  color: var(--color-text);
+  border-color: var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent) 16%, transparent);
+}
+button.help-popover-trigger:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+/* Field labels stack their children. Keep the icon on the caption line and the control underneath. */
+label:has(> .help-popover) { display: block; }
+label:has(> .help-popover) > :is(select, textarea, input) {
+  display: block;
+  width: 100%;
+  margin-top: 0.25rem;
+  box-sizing: border-box;
+}
 .help-popover-panel {
   position: fixed;
   inset: auto;
@@ -603,6 +635,10 @@ button.drawer-close { align-self: flex-end; margin: 0.5rem 0.5rem 0; }
   box-shadow: var(--shadow-lg);
   font-size: 0.9rem;
   line-height: 1.45;
+  /* Popovers can sit inside nowrap labels (e.g. Select); never inherit that. */
+  white-space: normal;
+  overflow-wrap: anywhere;
+  overflow: visible;
 }
 .review-field .hint { margin-bottom: 0.35rem; }
 .review-help { margin: 0.2rem 0 0.75rem; max-width: min(40rem, 100%); }
@@ -1094,7 +1130,69 @@ html:has(.write-layout) { scroll-padding: 10rem 0 4rem; }
   display: grid; grid-template-columns: minmax(0, 1fr) minmax(14rem, 18rem);
   gap: 1.5rem 2rem; align-items: start; min-width: 0;
 }
+.world-hub-layout.world-hub-with-nav {
+  grid-template-columns: minmax(11rem, 15rem) minmax(0, 1fr) minmax(14rem, 18rem);
+}
+.world-hub-aside {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
 .world-hub-main { min-width: 0; display: flex; flex-direction: column; gap: 0.85rem; }
+.world-category-nav { min-width: 0; }
+.world-category-list {
+  list-style: none; margin: 0.55rem 0 0; padding: 0;
+  display: flex; flex-direction: column; gap: 0.2rem;
+}
+.world-category-list > li { min-width: 0; }
+.world-category-empty { opacity: 0.72; }
+.world-category-summary {
+  list-style: none; cursor: pointer; display: block;
+}
+.world-category-summary::-webkit-details-marker { display: none; }
+.world-category-link {
+  display: inline-flex; align-items: center; gap: 0.4rem;
+  min-height: 2rem; padding: 0.2rem 0.15rem;
+  color: var(--color-text); text-decoration: none; font-weight: 600;
+  max-width: 100%;
+}
+.world-category-link[aria-current] { color: var(--color-accent); }
+.world-category-link .nav-count,
+.world-subcategory-list .nav-count {
+  margin-left: auto; font-weight: 500; color: var(--color-text-muted); font-size: 0.85em;
+}
+.world-subcategory-list {
+  margin: 0.25rem 0 0.45rem 0.35rem;
+  flex-direction: column; align-items: stretch;
+}
+.world-subcategory-list a {
+  justify-content: space-between; width: 100%;
+  border-radius: var(--radius-sm);
+}
+.world-category-create { font-weight: 500; color: var(--color-accent); }
+.world-category-aside-heading {
+  margin: 0.85rem 0 0.35rem; font-size: 0.7rem; font-weight: 600;
+  letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-text-muted);
+}
+.world-hub-filters { margin: 0 0 0.75rem; }
+.world-hub-filter-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
+  gap: 0.55rem 0.75rem; margin-bottom: 0.65rem;
+}
+.world-hub-filter-grid label {
+  display: flex; flex-direction: column; gap: 0.25rem;
+  font-size: 0.85rem; font-weight: 600;
+}
+.world-card-grid {
+  list-style: none; margin: 0; padding: 0;
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+  gap: 0.75rem;
+}
+.world-card { margin: 0; display: flex; flex-direction: column; gap: 0.45rem; }
+.world-card-head { display: flex; align-items: center; gap: 0.45rem; min-width: 0; }
+.world-card-title { font-weight: 600; overflow-wrap: anywhere; }
+.world-row-taxonomy { display: flex; flex-wrap: wrap; gap: 0.3rem; margin: 0.25rem 0 0; }
 .world-hub-search.panel {
   display: flex; flex-flow: row wrap; align-items: center; gap: 0.5rem;
   margin: 0; padding: 0; border: 0; background: transparent; box-shadow: none;
@@ -1124,8 +1222,10 @@ html:has(.write-layout) { scroll-padding: 10rem 0 4rem; }
 .world-kind-browse .world-filter-list { margin-top: 0.7rem; }
 .world-kind-browse .world-filter-note { margin-top: 0.65rem; }
 @media (max-width: 1200px) {
-  .world-hub-layout { grid-template-columns: minmax(0, 1fr); }
+  .world-hub-layout,
+  .world-hub-layout.world-hub-with-nav { grid-template-columns: minmax(0, 1fr); }
   .world-directory-rail { border-left: 0; padding-left: 0; border-top: 1px solid var(--color-border); padding-top: 1rem; }
+  .world-hub-aside { border-bottom: 1px solid var(--color-border); padding-bottom: 0.85rem; }
 }
 .world-reference-filters { display: flex; flex-direction: column; gap: 0.55rem; margin: 0 0 1rem; min-width: 0; }
 .world-filter-list {
@@ -3180,10 +3280,10 @@ dialog.image-lightbox::backdrop { background: rgba(18, 18, 17, 0.72); }
 .image-lightbox-nav { display: flex; align-items: center; justify-content: center; gap: 0.75rem; margin-top: 0.35rem; }
 .image-lightbox-nav p { margin: 0; }
 .image-lightbox-prev { display: inline-flex; transform: rotate(180deg); }
-.context-tabs { display: flex; gap: 0.2rem; padding: 0 0.75rem; border-bottom: 1px solid var(--border); }
+.context-tabs { display: flex; flex-wrap: wrap; gap: 0.2rem; padding: 0 0.75rem; border-bottom: 1px solid var(--border); }
 button.context-tab {
-  flex: 1; padding: 0.5rem 0.3rem; border: 0; border-bottom: 2px solid transparent; border-radius: 0;
-  background: transparent; color: var(--color-text-muted); font-size: 0.85rem; font-weight: 600;
+  flex: 1 0 auto; padding: 0.5rem 0.55rem; border: 0; border-bottom: 2px solid transparent; border-radius: 0;
+  background: transparent; color: var(--color-text-muted); font-size: 0.85rem; font-weight: 600; white-space: nowrap;
 }
 button.context-tab:where(:hover:not(:disabled)) { background: transparent; color: var(--color-text); border-color: transparent; }
 button.context-tab[aria-selected="true"] { color: var(--color-accent); border-bottom-color: var(--color-accent); }
@@ -3301,9 +3401,12 @@ a.button-link.secondary:hover {
 .reference-type-field,
 .reference-meta-slot,
 .reference-kind-slot,
+.reference-taxonomy-slot,
 .reference-headings,
 .reference-writing-field,
 .reference-json-error { grid-column: 1; min-width: 0; }
+.reference-taxonomy-slot { border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: 0.75rem 0.9rem; margin: 0; }
+.reference-taxonomy-slot > legend { font-weight: 600; padding: 0 0.35rem; }
 .reference-composer input[type="text"],
 .reference-composer select,
 .reference-composer textarea { width: 100%; max-width: 100%; }
@@ -3378,7 +3481,7 @@ a.button-link.secondary:hover {
 .reference-facts { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.6rem; margin: 0.45rem 0 1.1rem; padding: 0; list-style: none; }
 @media (max-width: 800px) {
   .reference-composer-grid { grid-template-columns: minmax(0, 1fr); }
-  .reference-details-slot, .reference-title-field, .reference-type-field, .reference-meta-slot, .reference-kind-slot, .reference-headings, .reference-writing-field, .reference-json-error {
+  .reference-details-slot, .reference-title-field, .reference-type-field, .reference-meta-slot, .reference-kind-slot, .reference-taxonomy-slot, .reference-headings, .reference-writing-field, .reference-json-error {
     grid-column: 1; grid-row: auto;
   }
   .reference-headings { grid-template-columns: minmax(0, 1fr); }

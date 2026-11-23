@@ -10,13 +10,13 @@ import {
   type WorldScope,
 } from "@/domain/assignments";
 import { newId } from "@/domain/ids";
-import { errorIssue, hasErrors, type Issue } from "@/domain/issues";
+import { errorIssue, hasErrors, warningIssue, type Issue } from "@/domain/issues";
 import { sha256, stableStringify, type JsonValue } from "@/domain/json";
 import { isWorldType, WORLD_TYPES } from "@/ui/world";
 import type { Db, DbOrTx, Tx } from "../db";
 import { writeAudit } from "./auditService";
 import { MutationRejectedError, NotFoundError } from "./errors";
-import { getProject } from "./projectService";
+import { getProject, listSeriesBookProjects } from "./projectService";
 import { LIVE_PROJECT } from "./trashFilters";
 
 export interface ManuscriptGroupInput {
@@ -395,6 +395,7 @@ export async function previewAssignments(db: DbOrTx, projectId: string, proposal
   const { plan, issues } = normalizeProposal(proposal, live);
   const current = currentPlan(live);
   const changes = summarizeChanges(current, plan);
+  issues.push(...(await unshareSiblingWarnings(db, projectId, current, plan)));
   return {
     projectId,
     assignmentRevision: live.project.assignmentRevision,
@@ -411,6 +412,44 @@ export async function previewAssignments(db: DbOrTx, projectId: string, proposal
       scope: isWorldScope(w.worldScope) ? w.worldScope : null,
     })),
   };
+}
+
+/**
+ * Non-blocking notices when unsharing a series reference that sibling books
+ * still pin or card. Dependent maps/boards are kept; they show unavailable.
+ */
+async function unshareSiblingWarnings(
+  db: DbOrTx,
+  projectId: string,
+  current: AssignmentPlan,
+  plan: AssignmentPlan,
+): Promise<Issue[]> {
+  const fromWorld = new Map(current.worldScopes.map((w) => [w.recordId, w.scope]));
+  const unsharedIds = plan.worldScopes
+    .filter((w) => fromWorld.get(w.recordId) === "series" && w.scope !== "series")
+    .map((w) => w.recordId);
+  if (!unsharedIds.length) return [];
+  const siblings = (await listSeriesBookProjects(db, projectId)).filter((book) => book.id !== projectId);
+  if (!siblings.length) return [];
+  const siblingIds = siblings.map((book) => book.id);
+  const [pins, cards] = await Promise.all([
+    db.worldMapPin.findMany({
+      where: { projectId: { in: siblingIds }, recordId: { in: unsharedIds } },
+      select: { recordId: true },
+    }),
+    db.boardCard.findMany({
+      where: { projectId: { in: siblingIds }, recordId: { in: unsharedIds } },
+      select: { recordId: true },
+    }),
+  ]);
+  const referenced = new Set([...pins, ...cards].flatMap((row) => (row.recordId ? [row.recordId] : [])));
+  return [...referenced].map((recordId) =>
+    warningIssue(
+      "SCOPE_VIOLATION",
+      `Unsharing a series reference that other books still use on maps or boards. Those pins and cards stay and show as unavailable until you share it again or remove them.`,
+      { recordId },
+    ),
+  );
 }
 
 /** Current assignments for the upgrade form (no proposal). */

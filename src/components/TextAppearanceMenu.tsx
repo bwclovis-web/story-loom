@@ -3,7 +3,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { ALargeSmall } from "lucide-react";
 import { writePreference } from "@/components/shell/preferences";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui/Atoms/Button";
 import { IconButton } from "@/components/ui/IconButton";
 import { TEXT_APPEARANCE } from "@/ui/labels";
 import {

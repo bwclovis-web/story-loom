@@ -4,7 +4,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
 import { IssueList } from "@/components/IssueList";
-import { Button, ButtonLink } from "@/components/ui/Button";
+import { Button, ButtonLink } from "@/components/ui/Atoms/Button";
+import { Select } from "@/components/ui/Atoms/Select";
+import { RadioGroup } from "@/components/ui/RadioGroup";
 import { errorIssue, type Issue } from "@/domain/issues";
 import { WORLD } from "@/ui/labels";
 import {
@@ -88,18 +90,15 @@ export function NameGenerator({ projectId, languages }: { projectId: string; lan
     <div className="stack">
       <p className="muted">{WORLD.nameGeneratorLead}</p>
       <IssueList issues={issues} />
-      <div className="panel stack">
-        <label>
-          {WORLD.nameGeneratorLanguage}
-          <select value={languageId} onChange={(e) => setLanguageId(e.target.value)}>
-            {languages.map((row) => (
-              <option key={row.id} value={row.id}>
-                {row.title}
-                {worldbuildingKindFromFields(row.fields) === "language" ? "" : ""}
-              </option>
-            ))}
-          </select>
-        </label>
+    <div className="panel stack">
+      <Select label={WORLD.nameGeneratorLanguage} value={languageId} onChange={(e) => setLanguageId(e.target.value)}>
+        {languages.map((row) => (
+          <option key={row.id} value={row.id}>
+            {row.title}
+            {worldbuildingKindFromFields(row.fields) === "language" ? "" : ""}
+          </option>
+        ))}
+      </Select>
         {selected ? (
           <p className="small muted">
             <Link href={`/projects/${encodeURIComponent(projectId)}/records/${encodeURIComponent(selected.id)}`}>

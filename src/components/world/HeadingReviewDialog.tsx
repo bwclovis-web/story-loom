@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useMemo, useRef } from "react";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui/Atoms/Button";
 import { REFERENCE_FORM } from "@/ui/labels";
 import { referenceTemplate, reviewTemplateMapping, type ReferenceTemplateKey } from "@/world/referenceTemplates";
 

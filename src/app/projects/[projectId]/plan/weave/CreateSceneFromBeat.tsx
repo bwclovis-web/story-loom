@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui/Atoms/Button";
 import type { Issue } from "@/domain/issues";
 import type { WeaveBeatView } from "@/server/services/weaveService";
 import { WEAVE } from "@/ui/labels";

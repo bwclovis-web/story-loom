@@ -257,6 +257,12 @@ export function CharacterDevelopmentPanel({
   const forgotten = forgottenArcs(profile);
   const completeness = useMemo(() => profileCompleteness(profile), [profile]);
   const dirty = JSON.stringify(profile) !== savedSnapshot;
+  useEffect(() => {
+    if (revision === expectedRevision || dirty) return;
+    setProfile(initialProfile);
+    setSavedSnapshot(JSON.stringify(initialProfile));
+    setExpectedRevision(revision);
+  }, [revision, expectedRevision, dirty, initialProfile]);
   const unsavedKey = `character-development-${recordId}`;
   useEffect(() => {
     setUnsaved(unsavedKey, dirty);

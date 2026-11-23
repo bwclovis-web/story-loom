@@ -46,6 +46,48 @@ describe("series bible and kind templates", () => {
     await target.cleanup();
   });
 
+  it("shows series-scoped rules and research notes in a sibling book", async () => {
+    await createRecord(source.db, IDS.project, {
+      type: "rules_glossary",
+      title: "Shared tide rules",
+      body: "Never sail at the third bell.",
+      fields: {},
+      authorityStatus: "approved",
+      recordId: "rec_test_shared_rules",
+    });
+    await createRecord(source.db, IDS.project, {
+      type: "research_note",
+      title: "Shared quay research",
+      body: "Harbour depth notes.",
+      fields: {},
+      authorityStatus: "draft",
+      recordId: "rec_test_shared_research",
+    });
+    await source.db.record.update({ where: { id: "rec_test_shared_rules" }, data: { worldScope: "series" } });
+    await source.db.record.update({ where: { id: "rec_test_shared_research" }, data: { worldScope: "series" } });
+
+    const fromSibling = await listWorldIndex(source.db, BOOK_TWO);
+    expect(fromSibling.find((row) => row.record.id === "rec_test_shared_rules")?.home?.projectId).toBe(IDS.project);
+    expect(fromSibling.find((row) => row.record.id === "rec_test_shared_research")?.home?.bookName).toBe("Book One");
+
+    const rulesHits = await searchProjectRecords(source.db, {
+      projectId: BOOK_TWO,
+      query: "third bell",
+      includeManuscript: false,
+      includeSeriesBible: true,
+    });
+    expect(rulesHits.find((hit) => hit.id === "rec_test_shared_rules")?.seriesHome?.projectId).toBe(IDS.project);
+
+    const bundle = await exportContextBundle(source.db, BOOK_TWO, {
+      types: ["rules_glossary", "research_note"],
+    });
+    expect(bundle.records.find((record) => record.id === "rec_test_shared_rules")?.seriesHome?.bookName).toBe("Book One");
+    expect(bundle.records.find((record) => record.id === "rec_test_shared_research")?.title).toBe("Shared quay research");
+
+    const siblingRules = await requireSeriesSharedFromSibling(source.db, BOOK_TWO, "rec_test_shared_rules");
+    expect(seriesRecordOwningProjectId(siblingRules)).toBe(IDS.project);
+  });
+
   it("shows a series-scoped reference as read-only in a sibling book", async () => {
     await createRecord(source.db, IDS.project, {
       type: "character_dossier",

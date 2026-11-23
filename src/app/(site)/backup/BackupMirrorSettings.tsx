@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { IssueList } from "@/components/IssueList";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui/Atoms/Button";
 import type { Issue } from "@/domain/issues";
 import { BACKUP } from "@/ui/labels";
 import { clearBackupMirrorDirAction, saveBackupMirrorDirAction } from "./mirrorActions";

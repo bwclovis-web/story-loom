@@ -4,7 +4,7 @@ import { StatusBadge } from "@/components/Badges";
 import { FieldDiffTable, TextDiff } from "@/components/DiffView";
 import { ActionButton, ConfirmAction } from "@/components/ConfirmAction";
 import { HelpHint } from "@/components/HelpHint";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui/Atoms/Button";
 import type { RecordView } from "@/domain/records";
 import { RECORD_TYPE_LABELS, type RecordType } from "@/domain/recordTypes";
 import type { RevisionWithSource } from "@/server/services/recordService";

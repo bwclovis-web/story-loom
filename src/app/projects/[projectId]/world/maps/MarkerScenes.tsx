@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useState } from "react";
 import { IssueList } from "@/components/IssueList";
-import { ButtonLink } from "@/components/ui/Button";
+import { ButtonLink } from "@/components/ui/Atoms/Button";
 import type { Issue } from "@/domain/issues";
 import type { SceneAtLocation, SceneLocationCatalog } from "@/server/services/sceneLocationService";
 import { WORLD } from "@/ui/labels";

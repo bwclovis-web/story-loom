@@ -1,5 +1,6 @@
 import type { RecordType } from "@/domain/recordTypes";
 import type { WorldKindKey } from "@/world/referenceTemplates";
+import type { TaxonomyNavSummary } from "@/world/taxonomy";
 
 /** Record lists reached from the global navigation. Every record type belongs to exactly one. */
 export const RECORD_GROUPS = {
@@ -55,6 +56,8 @@ export interface RecordNavEntry {
   worldKind?: WorldKindKey | null;
   /** Worldbuilding only: author-defined `fields.kind` when not a built-in key. */
   customKind?: string | null;
+  /** World references: read-time taxonomy discovery summary (never a second record). */
+  taxonomy?: TaxonomyNavSummary | null;
 }
 
 const PROJECT_PATH = /^\/projects\/([^/]+)(?:\/(.*))?$/;

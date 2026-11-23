@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState, useTransition, type DragEvent, type KeyboardEvent } from "react";
 import { saveSynopsisAction } from "@/app/projects/[projectId]/records/[recordId]/annotationActions";
 import { moveInBookAction } from "@/app/projects/[projectId]/write/actions";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui/Atoms/Button";
 import { RECORD_TYPE_LABELS, type RecordType } from "@/domain/recordTypes";
 import { BOOK_ORDER, MANUSCRIPT_ANNOTATIONS, MANUSCRIPT_STRUCTURE, SCENE_META } from "@/ui/labels";
 import type { ManuscriptSceneStatus } from "@/writing/manuscriptStructure";

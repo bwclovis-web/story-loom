@@ -5,21 +5,25 @@ import { LandingHeader } from "@/components/library/LandingHeader";
 import { OverflowDisclosure } from "@/components/shell/OverflowDisclosure";
 import { ProjectOnboarding } from "@/components/shell/ProjectOnboarding";
 import { Breadcrumbs } from "@/components/ui/Breadcrumbs";
-import { ButtonLink } from "@/components/ui/Button";
+import { ButtonLink } from "@/components/ui/Atoms/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { WorldRecordTableRow } from "@/components/ui/RecordRow";
 import { SearchPanel } from "@/components/ui/SearchPanel";
+import { WorldCategoryNav } from "@/components/world/WorldCategoryNav";
 import { WorldDirectory } from "@/components/world/WorldDirectory";
+import { WorldHubFilters } from "@/components/world/WorldHubFilters";
+import { WorldRecentAccessed } from "@/components/world/WorldRecentAccessed";
 import { WorldRecordIcon } from "@/components/world/WorldDestinationIcon";
 import { Plus } from "lucide-react";
-import { WorldKindBrowse, WorldReferenceFilters } from "@/components/world/WorldReferenceFilters";
+import { WorldKindBrowse } from "@/components/world/WorldReferenceFilters";
 import { stableStringify } from "@/domain/json";
 import { getDb } from "@/server/db";
 import { listProjectCoverHashes } from "@/server/services/coverService";
 import { findProject } from "@/server/services/projectService";
 import { listWorldIndex } from "@/server/services/recordService";
 import { searchProjectRecords, type SearchHit } from "@/server/services/searchService";
-import { GROUP_PAGES, SERIES, SHELL, WORLD, WORLD_KIND } from "@/ui/labels";
+import { listAvailableWorldCategories } from "@/server/services/worldCategoryService";
+import { GROUP_PAGES, SERIES, SHELL, WORLD } from "@/ui/labels";
 import { seriesBookLabel, seriesRecordHref } from "@/world/seriesHome";
 import { manuscriptEyebrow } from "@/ui/library";
 import { isWorldKindKey } from "@/world/referenceTemplates";
@@ -33,125 +37,318 @@ import {
 } from "@/world/worldKinds";
 import {
   categoryLabel,
-  isWorldType,
-  isWorldbuildingKindFilter,
+  taxonomyPlacementLabel,
   WORLD_CATEGORY_LABELS,
   WORLD_TYPES,
-  worldCounts,
   worldHref,
   worldKindCounts,
 } from "@/ui/world";
+import type { CustomTaxonomyCategoryOption } from "@/world/customCategories";
+import {
+  categoryBrowseCounts,
+  categoryLabelOrCustom,
+  discoverWorldHubRecords,
+  hubHasActiveFilters,
+  listHubTags,
+  parseWorldHubQuery,
+  projectWorldHubRecord,
+  worldHubHref,
+  type WorldHubRecord,
+} from "@/world/hubDiscovery";
+import { getTaxonomyCategory } from "@/world/taxonomy";
+import { WorldCategoryManager } from "@/components/world/WorldCategoryManager";
 
 export const dynamic = "force-dynamic";
+
+function scopeBadge(record: WorldHubRecord): string | null {
+  if (record.worldScope === "book") return WORLD.scopeBook;
+  if (record.worldScope === "series") return WORLD.scopeSeries;
+  return null;
+}
+
+function taxonomyPrimaryLabel(record: WorldHubRecord): string | null {
+  if (!record.taxonomy.primaryCategory) return null;
+  const primary = record.taxonomy.primarySubcategory
+    ? { category: record.taxonomy.primaryCategory, subcategory: record.taxonomy.primarySubcategory }
+    : { category: record.taxonomy.primaryCategory };
+  return taxonomyPlacementLabel(primary);
+}
+
+function secondaryLabels(
+  record: WorldHubRecord,
+  customCategories: readonly CustomTaxonomyCategoryOption[],
+): string[] {
+  return record.taxonomy.secondaryCategories.map((id) => categoryLabelOrCustom(id, customCategories));
+}
+
+function listHeading(query: ReturnType<typeof parseWorldHubQuery>): string {
+  if (query.q) return WORLD.search;
+  if (query.unclassified) return WORLD.uncategorized;
+  if (query.customKind) return query.customKind;
+  if (query.tag) return query.tag;
+  if (query.category) {
+    const category = getTaxonomyCategory(query.category);
+    if (query.subcategory) {
+      const sub =
+        category?.subcategories.find((item) => item.id === query.subcategory)?.label ?? query.subcategory;
+      return category ? `${category.label} · ${sub}` : query.category;
+    }
+    return category?.label ?? query.category;
+  }
+  if (query.type === "worldbuilding" && query.kind && isWorldKindKey(query.kind)) {
+    return worldKindLabel(query.kind);
+  }
+  if (query.type === "worldbuilding" && query.kind === WORLDBUILDING_KIND_OTHER) return WORLD.worldKindOther;
+  if (query.type === "worldbuilding" && query.kind === WORLDBUILDING_KIND_UNSET) return WORLD.worldKindUnset;
+  if (query.type) return WORLD_CATEGORY_LABELS[query.type];
+  if (query.list) return WORLD.allReferencesList;
+  return WORLD.allReferencesList;
+}
+
+function emptyMessage(query: ReturnType<typeof parseWorldHubQuery>, total: number): string {
+  if (total === 0) return WORLD.emptyWorld;
+  if (query.category || query.subcategory || query.unclassified) return WORLD.emptyCategory;
+  return WORLD.emptyFilters;
+}
 
 export default async function WorldPage({
   params,
   searchParams,
 }: {
   params: Promise<{ projectId: string }>;
-  searchParams: Promise<{ type?: string; q?: string; list?: string; kind?: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { projectId } = await params;
-  const query = await searchParams;
-  const type = isWorldType(query.type) ? query.type : null;
-  const q = (query.q ?? "").trim();
-  const list = query.list === "1";
-  const kindFilter =
-    type === "worldbuilding" && isWorldbuildingKindFilter(query.kind) ? query.kind : null;
+  const raw = await searchParams;
+  const flat: Record<string, string | undefined> = {};
+  for (const [key, value] of Object.entries(raw)) {
+    flat[key] = Array.isArray(value) ? value[0] : value;
+  }
+  const query = parseWorldHubQuery(flat);
   const db = getDb();
   const base = `/projects/${encodeURIComponent(projectId)}`;
-  const [project, worldRecords, hits, coverHashes] = await Promise.all([
+  const [project, worldRecords, hits, coverHashes, availableCategories] = await Promise.all([
     findProject(db, projectId),
     listWorldIndex(db, projectId),
-    q
+    query.q
       ? searchProjectRecords(db, {
           projectId,
-          query: q,
-          types: WORLD_TYPES,
+          query: query.q,
+          types: [...WORLD_TYPES],
           includeManuscript: false,
           includeSeriesBible: true,
         })
       : null,
     listProjectCoverHashes(db, [projectId]),
+    listAvailableWorldCategories(db, projectId),
   ]);
   if (!project) notFound();
+
+  const customCategories: CustomTaxonomyCategoryOption[] = availableCategories.map((row) => ({
+    slug: row.slug,
+    label: row.label,
+    description: row.description,
+    parentCategorySlug: row.parentCategorySlug,
+    shared: Boolean(row.home),
+    homeLabel: row.home ? row.home.bookName?.trim() || row.home.title : null,
+  }));
+
+  const hubRecords = worldRecords.map(({ record, home }) =>
+    projectWorldHubRecord({
+      id: record.id,
+      title: record.title,
+      type: record.type,
+      authorityStatus: record.authorityStatus,
+      protected: record.protected,
+      currentRevision: record.currentRevision,
+      worldScope: record.worldScope,
+      createdAt: record.createdAt,
+      updatedAt: record.updatedAt,
+      fields: record.fields,
+      home,
+    }),
+  );
+  const browse = categoryBrowseCounts(hubRecords, customCategories);
+  const tags = listHubTags(hubRecords);
+  const discovered = discoverWorldHubRecords(hubRecords, query);
+  const showHub = !hubHasActiveFilters(query);
+  const recentUpdated = [...hubRecords]
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt) || a.title.localeCompare(b.title))
+    .slice(0, 8);
+  const kindCounts = worldKindCounts(
+    worldRecords.map(({ record }) => ({
+      type: record.type,
+      worldKind: record.type === "worldbuilding" ? worldbuildingKindFromFields(record.fields) : null,
+      customKind: record.type === "worldbuilding" ? worldbuildingCustomKind(record.fields) : null,
+    })),
+  );
+
   const coverHash = coverHashes.get(projectId) ?? null;
   const eyebrow = manuscriptEyebrow(project.seriesName, project.workspace.name);
-  const counted = worldRecords.map(({ record }) => ({
-    type: record.type,
-    worldKind: record.type === "worldbuilding" ? worldbuildingKindFromFields(record.fields) : null,
-    customKind: record.type === "worldbuilding" ? worldbuildingCustomKind(record.fields) : null,
-  }));
-  const counts = worldCounts(counted);
-  const kindCounts = worldKindCounts(counted);
-  const listed = type
-    ? worldRecords.filter(({ record: r }) => {
-        if (r.type !== type) return false;
-        if (type === "worldbuilding" && kindFilter) {
-          const kind = worldbuildingKindFromFields(r.fields);
-          const custom = worldbuildingCustomKind(r.fields);
-          if (kindFilter === WORLDBUILDING_KIND_UNSET) return !kind && !custom;
-          if (kindFilter === WORLDBUILDING_KIND_OTHER) return !!custom;
-          return kind === kindFilter;
-        }
-        return true;
-      })
-    : worldRecords;
-  const recent = [...worldRecords]
-    .sort((a, b) => b.record.updatedAt.getTime() - a.record.updatedAt.getTime() || a.record.title.localeCompare(b.record.title))
-    .slice(0, 8);
-  const showHub = !type && !q && !list;
   const byId = new Map(worldRecords.map(({ record }) => [record.id, record]));
   const startsMidText = (hit: SearchHit): boolean => {
     const record = byId.get(hit.id);
     if (!hit.excerptTruncated || !record) return false;
-    const source = hit.matchedIn === "title" ? record.title : hit.matchedIn === "body" ? record.body : stableStringify(record.fields);
+    const source =
+      hit.matchedIn === "title" ? record.title : hit.matchedIn === "body" ? record.body : stableStringify(record.fields);
     return !source.normalize("NFC").startsWith(hit.excerpt);
   };
-  const selection = type ? `type=${type}` : "group=world";
+
+  const selection = query.type ? `type=${query.type}` : "group=world";
   const exportHref = `${base}/export?${selection}`;
   const pdfHref = `${base}/export-pdf?${selection}`;
-  const listTitle =
-    type === "worldbuilding" && kindFilter && isWorldKindKey(kindFilter)
-      ? worldKindLabel(kindFilter)
-      : type === "worldbuilding" && kindFilter === WORLDBUILDING_KIND_OTHER
-        ? WORLD.worldKindOther
-      : type === "worldbuilding" && kindFilter === WORLDBUILDING_KIND_UNSET
-        ? WORLD.worldKindUnset
-        : type
-          ? WORLD_CATEGORY_LABELS[type]
-          : WORLD.allReferencesList;
-  const crumb = q ? WORLD.search : listTitle;
+  const listTitle = listHeading(query);
+  const crumb = query.q ? WORLD.search : listTitle;
+  const newHref = query.category
+    ? `${base}/world/new?category=${encodeURIComponent(query.category)}${
+        query.subcategory ? `&subcategory=${encodeURIComponent(query.subcategory)}` : ""
+      }`
+    : query.type
+      ? `${base}/world/new?type=${encodeURIComponent(query.type)}`
+      : `${base}/world/new`;
+  const categoryForCreate = query.category ? getTaxonomyCategory(query.category) : null;
+  const knownIds = hubRecords.map((record) => record.id);
 
   const newReference = (
-    <ButtonLink href={`${base}/world/new${type ? `?type=${type}` : ""}`} icon={<Plus strokeWidth={1.75} />}>
+    <ButtonLink href={newHref} icon={<Plus strokeWidth={1.75} />}>
       {WORLD.newReference}
     </ButtonLink>
   );
-  const kindBrowse =
-    !q && (showHub || type === "worldbuilding") ? (
-      <WorldKindBrowse
-        projectId={projectId}
-        type={type}
-        kind={kindFilter}
-        searching={!!q}
-        kindCounts={kindCounts}
-      />
-    ) : null;
+
+  const categoryNav = (
+    <WorldCategoryNav
+      projectId={projectId}
+      counts={browse.byCategory}
+      subcategoryCounts={browse.bySubcategory}
+      customKinds={browse.customKinds}
+      tagCounts={browse.tags}
+      unclassified={browse.unclassified}
+      currentCategory={query.category}
+      currentSubcategory={query.subcategory}
+      currentCustomKind={query.customKind}
+      currentTag={query.tag}
+      unclassifiedSelected={query.unclassified}
+      allSelected={query.list && !query.category && !query.unclassified && !query.customKind && !query.tag && !query.type}
+      customCategories={customCategories}
+    />
+  );
+
+  const renderRecordTable = (rows: WorldHubRecord[]) => (
+    <table className="record-table world-table">
+      <thead>
+        <tr>
+          <th scope="col">Title</th>
+          <th scope="col">{WORLD.documentType}</th>
+          <th scope="col">{WORLD.canonStatus}</th>
+          <th scope="col">{WORLD.savedVersion}</th>
+          <th scope="col">{WORLD.protection}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((record) => {
+          const book = record.home ? seriesBookLabel(record.home) : null;
+          return (
+            <WorldRecordTableRow
+              key={record.id}
+              projectId={projectId}
+              recordId={record.id}
+              title={record.title}
+              typeLabel={categoryLabel(record.type)}
+              taxonomyLabel={taxonomyPrimaryLabel(record)}
+              secondaryLabels={secondaryLabels(record, customCategories)}
+              scopeLabel={scopeBadge(record)}
+              authorityStatus={record.authorityStatus}
+              currentRevision={record.currentRevision}
+              isProtected={record.protected}
+              homeBook={book && record.home ? { label: book, editHref: seriesRecordHref(record.home.projectId, record.id) } : null}
+            />
+          );
+        })}
+      </tbody>
+    </table>
+  );
+
+  const renderRecordCards = (rows: WorldHubRecord[]) => (
+    <ul className="world-card-grid">
+      {rows.map((record) => {
+        const book = record.home ? seriesBookLabel(record.home) : null;
+        const kind = record.type === "worldbuilding" ? worldbuildingKindFromFields(record.fields) : null;
+        return (
+          <li key={record.id} className="world-card panel">
+            <div className="world-card-head">
+              <WorldRecordIcon type={record.type} kind={kind} />
+              <Link href={`${base}/records/${encodeURIComponent(record.id)}`} className="world-card-title">
+                {record.title}
+              </Link>
+            </div>
+            <p className="small muted">
+              {categoryLabel(record.type)}
+              {taxonomyPrimaryLabel(record) ? ` · ${taxonomyPrimaryLabel(record)}` : ""}
+              {scopeBadge(record) ? ` · ${scopeBadge(record)}` : ""}
+            </p>
+            <div className="row" style={{ flexWrap: "wrap", gap: "0.35rem" }}>
+              <CanonBadge status={record.authorityStatus} />
+              {secondaryLabels(record, customCategories).map((label) => (
+                <span key={label} className="badge badge-muted">
+                  + {label}
+                </span>
+              ))}
+              {book && record.home ? (
+                <span className="small">
+                  {SERIES.homeBadge(book)}{" "}
+                  <Link href={seriesRecordHref(record.home.projectId, record.id)}>{SERIES.editIn(book)}</Link>
+                </span>
+              ) : null}
+            </div>
+          </li>
+        );
+      })}
+    </ul>
+  );
+
+  const discoveryEmpty =
+    hubRecords.length === 0 ? (
+      <EmptyState as="div">
+        {WORLD.emptyWorld}
+        <div className="row" style={{ flexWrap: "wrap", gap: "0.5rem", marginTop: "0.65rem" }}>
+          <ButtonLink href={`${base}/world/new`}>{WORLD.newReference}</ButtonLink>
+          <ButtonLink variant="secondary" href={`${base}/import-markdown`}>
+            {WORLD.importReferences}
+          </ButtonLink>
+        </div>
+      </EmptyState>
+    ) : (
+      <EmptyState as="div">
+        {emptyMessage(query, hubRecords.length)}
+        <div className="row" style={{ flexWrap: "wrap", gap: "0.5rem", marginTop: "0.65rem" }}>
+          {categoryForCreate ? (
+            <ButtonLink href={newHref}>{WORLD.newInCategory(categoryForCreate.label)}</ButtonLink>
+          ) : (
+            <ButtonLink href={`${base}/world/new`}>{WORLD.newReference}</ButtonLink>
+          )}
+          <ButtonLink variant="secondary" href={worldHref(projectId)}>
+            {WORLD.clearFilters}
+          </ButtonLink>
+          <ButtonLink variant="secondary" href={`${base}/world/organize`}>
+            {WORLD.organizeReferences}
+          </ButtonLink>
+        </div>
+      </EmptyState>
+    );
 
   return (
     <>
       <LandingHeader
         projectId={projectId}
-        title={showHub ? SHELL.world : q ? WORLD.resultsFor(q) : listTitle}
+        title={showHub ? SHELL.world : query.q ? WORLD.resultsFor(query.q) : listTitle}
         coverTitle={project.title}
         eyebrow={eyebrow}
         coverSrc={coverHash ? `${base}/cover?v=${coverHash}` : null}
-        description={showHub ? undefined : GROUP_PAGES.world}
+        description={showHub ? WORLD.hubLead : GROUP_PAGES.world}
         gettingStarted={showHub ? <ProjectOnboarding projectId={projectId} quiet marked /> : undefined}
         actions={newReference}
         breadcrumbs={
-          type || q || list ? (
+          !showHub ? (
             <Breadcrumbs
               label={WORLD.breadcrumb}
               items={[
@@ -164,7 +361,8 @@ export default async function WorldPage({
       />
 
       {showHub ? (
-        <div className="world-hub-layout">
+        <div className="world-hub-layout world-hub-with-nav pt-10">
+          <aside className="world-hub-aside">{categoryNav}</aside>
           <div className="world-hub-main">
             <SearchPanel
               action={worldHref(projectId)}
@@ -172,47 +370,51 @@ export default async function WorldPage({
               inputId="world-hub-q"
               submitLabel={WORLD.search}
               hint={WORLD.hubSearchHint}
-              defaultValue={q}
+              defaultValue={query.q}
               className="world-hub-search"
             />
-            <WorldReferenceFilters
-              projectId={projectId}
-              type={type}
-              kind={kindFilter}
-              searching={!!q}
-              listing={list}
-              counts={counts}
-            />
-            <section aria-labelledby="world-recent-heading">
+            <div className="row" style={{ flexWrap: "wrap", gap: "0.5rem" }}>
+              <ButtonLink href={`${base}/world/organize`} variant="secondary">
+                {WORLD.organizeReferences}
+              </ButtonLink>
+              <ButtonLink href={worldHref(projectId, { list: true })} variant="secondary">
+                {WORLD.viewAllReferences}
+              </ButtonLink>
+            </div>
+            <WorldCategoryManager projectId={projectId} categories={customCategories} />
+            <WorldRecentAccessed projectId={projectId} knownIds={knownIds} />
+            <section aria-labelledby="world-updated-heading">
               <div className="world-section-head">
-                <h2 id="world-recent-heading">{WORLD.recentReferences}</h2>
+                <h2 id="world-updated-heading">{WORLD.recentUpdated}</h2>
                 <Link href={worldHref(projectId, { list: true })}>{WORLD.viewAllReferences}</Link>
               </div>
-              {recent.length === 0 ? (
+              {recentUpdated.length === 0 ? (
                 <EmptyState>{WORLD.noRecent}</EmptyState>
               ) : (
                 <ul className="world-recent">
-                  {recent.map(({ record: r, home }) => {
-                    const kind = r.type === "worldbuilding" ? worldbuildingKindFromFields(r.fields) : null;
-                    const kindLabel = r.type === "worldbuilding" ? worldKindDisplayFromFields(r.fields) : null;
-                    const book = home ? seriesBookLabel(home) : null;
+                  {recentUpdated.map((record) => {
+                    const kind = record.type === "worldbuilding" ? worldbuildingKindFromFields(record.fields) : null;
+                    const kindLabel =
+                      record.type === "worldbuilding" ? worldKindDisplayFromFields(record.fields) : null;
+                    const book = record.home ? seriesBookLabel(record.home) : null;
                     return (
-                      <li key={r.id}>
+                      <li key={record.id}>
                         <span className="world-recent-icon">
-                          <WorldRecordIcon type={r.type} kind={kind} />
+                          <WorldRecordIcon type={record.type} kind={kind} />
                         </span>
-                        <Link className="world-recent-title" href={`${base}/records/${encodeURIComponent(r.id)}`}>
-                          {r.title}
+                        <Link className="world-recent-title" href={`${base}/records/${encodeURIComponent(record.id)}`}>
+                          {record.title}
                         </Link>
                         <p className="world-recent-meta small muted">
-                          {categoryLabel(r.type)}
+                          {categoryLabel(record.type)}
                           {kindLabel ? ` · ${kindLabel}` : ""}
+                          {taxonomyPrimaryLabel(record) ? ` · ${taxonomyPrimaryLabel(record)}` : ""}
                           {book ? ` · ${SERIES.homeBadge(book)}` : ""}
                           {" · "}
-                          {r.updatedAt.toLocaleString(undefined, { dateStyle: "medium" })}
+                          {new Date(record.updatedAt).toLocaleString(undefined, { dateStyle: "medium" })}
                         </p>
                         <span className="world-recent-status">
-                          <CanonBadge status={r.authorityStatus} />
+                          <CanonBadge status={record.authorityStatus} />
                         </span>
                       </li>
                     );
@@ -220,7 +422,6 @@ export default async function WorldPage({
                 </ul>
               )}
             </section>
-            {kindBrowse}
             <OverflowDisclosure summary={SHELL.exportAndImport}>
               <div className="row" style={{ flexWrap: "wrap", gap: "0.5rem" }}>
                 <ButtonLink variant="secondary" href={`${base}/import-markdown`}>
@@ -235,141 +436,117 @@ export default async function WorldPage({
               </div>
             </OverflowDisclosure>
           </div>
-          <WorldDirectory projectId={projectId} current="references" rail />
+          <WorldDirectory projectId={projectId} current="references" rail heading={WORLD.toolsAndSpaces} />
         </div>
       ) : (
-        <>
-          <SearchPanel
-            action={worldHref(projectId)}
-            label={WORLD.searchReferences}
-            inputId="world-hub-q"
-            submitLabel={WORLD.search}
-            hint={WORLD.hubSearchHint}
-            defaultValue={q}
-            className="world-hub-search"
-          />
-          <WorldReferenceFilters
-            projectId={projectId}
-            type={type}
-            kind={kindFilter}
-            searching={!!q}
-            listing={list}
-            counts={counts}
-          />
-          {kindBrowse}
-          {q ? (
-            <p className="small">
-              <Link href={worldHref(projectId)}>{WORLD.clearSearch}</Link>
-            </p>
-          ) : (
-            <p className="small">
-              <Link href={worldHref(projectId)}>{WORLD.clearFilters}</Link>
-            </p>
-          )}
-          <OverflowDisclosure summary={SHELL.exportAndImport}>
-        <div className="row" style={{ flexWrap: "wrap", gap: "0.5rem" }}>
-          <ButtonLink variant="secondary" href={`${base}/import-markdown`}>
-            {WORLD.importReferences}
-          </ButtonLink>
-          <ButtonLink variant="secondary" href={exportHref}>
-            {WORLD.exportForChatGpt}
-          </ButtonLink>
-          <ButtonLink variant="secondary" href={pdfHref}>
-            {WORLD.exportPdf}
-          </ButtonLink>
+        <div className="world-hub-layout world-hub-with-nav pt-10">
+          <aside className="world-hub-aside">{categoryNav}</aside>
+          <div className="world-hub-main">
+            <SearchPanel
+              action={worldHref(projectId)}
+              label={WORLD.searchReferences}
+              inputId="world-hub-q"
+              submitLabel={WORLD.search}
+              hint={WORLD.hubSearchHint}
+              defaultValue={query.q}
+              className="world-hub-search"
+            />
+            <WorldHubFilters projectId={projectId} query={query} tags={tags} />
+            {query.type === "worldbuilding" || query.kind ? (
+              <WorldKindBrowse
+                projectId={projectId}
+                type={query.type}
+                kind={query.kind}
+                searching={!!query.q}
+                kindCounts={kindCounts}
+              />
+            ) : null}
+            <div className="row" style={{ flexWrap: "wrap", gap: "0.5rem" }}>
+              <Link href={worldHref(projectId)}>{query.q ? WORLD.clearSearch : WORLD.clearFilters}</Link>
+              {categoryForCreate ? (
+                <Link href={newHref}>{WORLD.newInCategory(categoryForCreate.label)}</Link>
+              ) : null}
+              <Link href={`${base}/world/organize`}>{WORLD.organizeReferences}</Link>
+            </div>
+            <OverflowDisclosure summary={SHELL.exportAndImport}>
+              <div className="row" style={{ flexWrap: "wrap", gap: "0.5rem" }}>
+                <ButtonLink variant="secondary" href={`${base}/import-markdown`}>
+                  {WORLD.importReferences}
+                </ButtonLink>
+                <ButtonLink variant="secondary" href={exportHref}>
+                  {WORLD.exportForChatGpt}
+                </ButtonLink>
+                <ButtonLink variant="secondary" href={pdfHref}>
+                  {WORLD.exportPdf}
+                </ButtonLink>
+              </div>
+            </OverflowDisclosure>
+
+            {hits ? (
+              <section className="panel" aria-label={WORLD.resultsFor(query.q)}>
+                <p className="small muted">
+                  {hits.length} {hits.length === 1 ? "match" : "matches"} in titles, text and structured fields.{" "}
+                  <Link href={worldHref(projectId)}>{WORLD.clearSearch}</Link>
+                </p>
+                {hits.length === 0 ? (
+                  <p>{WORLD.noResults}</p>
+                ) : (
+                  <ul className="search-hits">
+                    {hits.map((h) => (
+                      <li key={h.id}>
+                        <div className="row">
+                          <Link href={`${base}/records/${encodeURIComponent(h.id)}`} className="hit-title">
+                            {h.title}
+                          </Link>
+                          <span className="small muted">{categoryLabel(h.type)}</span>
+                          <CanonBadge status={h.authorityStatus} />
+                          {h.seriesHome ? (
+                            <span className="small">
+                              {SERIES.homeBadge(seriesBookLabel(h.seriesHome))}{" "}
+                              <Link href={seriesRecordHref(h.seriesHome.projectId, h.id)}>
+                                {SERIES.editIn(seriesBookLabel(h.seriesHome))}
+                              </Link>
+                            </span>
+                          ) : null}
+                        </div>
+                        <p className="hit-excerpt small">
+                          <span className="muted">Matched in {WORLD.matchedIn[h.matchedIn]}: </span>
+                          {startsMidText(h) ? <span className="muted">&hellip; </span> : null}
+                          {h.excerpt}
+                          {h.excerptTruncated ? (
+                            <span className="muted">
+                              {" "}
+                              &hellip;<span className="sr-only"> {WORLD.excerptShortened}</span>
+                            </span>
+                          ) : null}
+                        </p>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </section>
+            ) : null}
+
+            {!query.q ? (
+              <section className="panel" aria-labelledby="world-list-heading">
+                <div className="world-section-head">
+                  <h2 id="world-list-heading">{listTitle}</h2>
+                  <Link href={worldHubHref(projectId, { ...query, view: query.view === "cards" ? "list" : "cards" })}>
+                    {query.view === "cards" ? WORLD.viewList : WORLD.viewCards}
+                  </Link>
+                </div>
+                {discovered.length === 0
+                  ? discoveryEmpty
+                  : query.view === "cards"
+                    ? renderRecordCards(discovered)
+                    : renderRecordTable(discovered)}
+                {discovered.some((record) => record.home) && !discovered.some((record) => !record.home) ? (
+                  <p className="small muted">{WORLD.seriesOnlyNote}</p>
+                ) : null}
+              </section>
+            ) : null}
+          </div>
         </div>
-      </OverflowDisclosure>
-
-      {hits ? (
-        <section className="panel" aria-label={WORLD.resultsFor(q)}>
-          <p className="small muted">
-            {hits.length} {hits.length === 1 ? "match" : "matches"} in titles, text and structured fields.{" "}
-            <Link href={worldHref(projectId)}>{WORLD.clearSearch}</Link>
-          </p>
-          {hits.length === 0 ? (
-            <p>{WORLD.noResults}</p>
-          ) : (
-            <ul className="search-hits">
-              {hits.map((h) => (
-                <li key={h.id}>
-                  <div className="row">
-                    <Link href={`${base}/records/${encodeURIComponent(h.id)}`} className="hit-title">
-                      {h.title}
-                    </Link>
-                    <span className="small muted">{categoryLabel(h.type)}</span>
-                    <CanonBadge status={h.authorityStatus} />
-                    {h.seriesHome ? (
-                      <span className="small">
-                        {SERIES.homeBadge(seriesBookLabel(h.seriesHome))}{" "}
-                        <Link href={seriesRecordHref(h.seriesHome.projectId, h.id)}>{SERIES.editIn(seriesBookLabel(h.seriesHome))}</Link>
-                      </span>
-                    ) : null}
-                  </div>
-                  <p className="hit-excerpt small">
-                    <span className="muted">Matched in {WORLD.matchedIn[h.matchedIn]}: </span>
-                    {startsMidText(h) ? <span className="muted">&hellip; </span> : null}
-                    {h.excerpt}
-                    {h.excerptTruncated ? (
-                      <span className="muted">
-                        {" "}
-                        &hellip;<span className="sr-only"> {WORLD.excerptShortened}</span>
-                      </span>
-                    ) : null}
-                  </p>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-      ) : null}
-
-      {!q && (type || list) ? (
-        <section className="panel" aria-labelledby="world-list-heading">
-          <h2 id="world-list-heading" className="sr-only">
-            {listTitle}
-          </h2>
-          {listed.length === 0 ? (
-            <EmptyState>{WORLD.noReferences}</EmptyState>
-          ) : (
-            <table className="record-table world-table">
-              <thead>
-                <tr>
-                  <th scope="col">Title</th>
-                  {type ? (type === "worldbuilding" ? <th scope="col">{WORLD_KIND.fieldKind}</th> : null) : (
-                    <th scope="col">{WORLD.documentType}</th>
-                  )}
-                  <th scope="col">{WORLD.canonStatus}</th>
-                  <th scope="col">{WORLD.savedVersion}</th>
-                  <th scope="col">{WORLD.protection}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {listed.map(({ record: r, home }) => {
-                  const kindLabel =
-                    r.type === "worldbuilding"
-                      ? worldKindDisplayFromFields(r.fields) ?? (type === "worldbuilding" ? "—" : undefined)
-                      : undefined;
-                  const book = home ? seriesBookLabel(home) : null;
-                  return (
-                    <WorldRecordTableRow
-                      key={r.id}
-                      projectId={projectId}
-                      recordId={r.id}
-                      title={r.title}
-                      typeLabel={type ? (type === "worldbuilding" ? kindLabel : undefined) : categoryLabel(r.type)}
-                      authorityStatus={r.authorityStatus}
-                      currentRevision={r.currentRevision}
-                      isProtected={r.protected}
-                      homeBook={book && home ? { label: book, editHref: seriesRecordHref(home.projectId, r.id) } : null}
-                    />
-                  );
-                })}
-              </tbody>
-            </table>
-          )}
-        </section>
-      ) : null}
-        </>
       )}
     </>
   );

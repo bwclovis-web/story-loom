@@ -5,9 +5,10 @@ import { getDb } from "@/server/db";
 import { getBoard } from "@/server/services/boardService";
 import { NotFoundError } from "@/server/services/errors";
 import { listRecordImages } from "@/server/services/imageService";
-import { listRecords } from "@/server/services/recordService";
-import { isLinkableReferenceType, RECORD_TYPE_LABELS } from "@/domain/recordTypes";
-import { isWorldType } from "@/ui/world";
+import { listAvailableReferences } from "@/server/services/seriesBibleService";
+import { RECORD_TYPE_LABELS } from "@/domain/recordTypes";
+import { SERIES } from "@/ui/labels";
+import { seriesBookLabel } from "@/world/seriesHome";
 import { worldSurfaceCrumbs } from "@/ui/worldDestinations";
 import { BoardCanvas } from "../BoardCanvas";
 
@@ -31,19 +32,27 @@ export default async function WorldBoardPage({
     throw error;
   }
 
-  const records = (await listRecords(db, projectId)).filter(
-    (r) => isWorldType(r.type) || isLinkableReferenceType(r.type),
-  );
-  const images: Array<{ id: string; recordId: string; recordTitle: string; name: string; altText: string }> = [];
-  for (const r of records) {
-    const imgs = await listRecordImages(db, projectId, r.id);
+  const available = await listAvailableReferences(db, projectId, { linkableOnly: true });
+  const images: Array<{
+    id: string;
+    recordId: string;
+    recordTitle: string;
+    name: string;
+    altText: string;
+    homeLabel: string | null;
+  }> = [];
+  for (const entry of available) {
+    const homeProjectId = entry.home?.projectId ?? projectId;
+    const imgs = await listRecordImages(db, homeProjectId, entry.record.id);
+    const homeLabel = entry.home ? SERIES.homeBadge(seriesBookLabel(entry.home)) : null;
     for (const img of imgs ?? []) {
       images.push({
         id: img.id,
-        recordId: r.id,
-        recordTitle: r.title,
+        recordId: entry.record.id,
+        recordTitle: entry.record.title,
         name: img.name,
         altText: img.altText,
+        homeLabel,
       });
     }
   }
@@ -59,10 +68,12 @@ export default async function WorldBoardPage({
       <BoardCanvas
         projectId={projectId}
         board={board}
-        records={records.map((r) => ({
-          id: r.id,
-          title: r.title,
-          typeLabel: RECORD_TYPE_LABELS[r.type],
+        records={available.map((entry) => ({
+          id: entry.record.id,
+          title: entry.record.title,
+          typeLabel: RECORD_TYPE_LABELS[entry.record.type],
+          homeLabel: entry.home ? SERIES.homeBadge(seriesBookLabel(entry.home)) : null,
+          worldScope: entry.worldScope,
         }))}
         images={images}
         initialCardId={query.card ?? null}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useState } from "react";
-import { ButtonLink } from "@/components/ui/Button";
+import { ButtonLink } from "@/components/ui/Atoms/Button";
 import type { PlaceEventItem } from "@/server/services/storyEventService";
 import { WORLD } from "@/ui/labels";
 import { listEventsAtLocationAction } from "../events/actions";

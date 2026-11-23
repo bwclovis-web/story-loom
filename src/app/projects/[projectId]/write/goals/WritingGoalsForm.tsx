@@ -3,7 +3,7 @@
 import { useActionState } from "react";
 import { IssueList } from "@/components/IssueList";
 import { Banner } from "@/components/ui/Banner";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui/Atoms/Button";
 import { submitWithoutReset } from "@/components/submitWithoutReset";
 import type { WritingGoalView } from "@/server/services/writingGoalService";
 import { WRITING_GOALS } from "@/ui/labels";

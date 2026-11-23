@@ -254,6 +254,28 @@ async function deleteProjectRowsInTx(tx: Tx, projectId: string) {
   await tx.worldMap.deleteMany({ where: { projectId } });
   await tx.placeRelation.deleteMany({ where: { projectId } });
   await tx.recordRelation.deleteMany({ where: { projectId } });
+  // Cross-project placements/relations that pointed at this project's records or images.
+  const recordIds = records.map((r) => r.id);
+  if (recordIds.length) {
+    await tx.boardCard.deleteMany({
+      where: { projectId: { not: projectId }, OR: [{ recordId: { in: recordIds } }, { image: { recordId: { in: recordIds } } }] },
+    });
+    await tx.worldMapPin.deleteMany({
+      where: { projectId: { not: projectId }, recordId: { in: recordIds } },
+    });
+    await tx.placeRelation.deleteMany({
+      where: {
+        projectId: { not: projectId },
+        OR: [{ fromRecordId: { in: recordIds } }, { toRecordId: { in: recordIds } }],
+      },
+    });
+    await tx.recordRelation.deleteMany({
+      where: {
+        projectId: { not: projectId },
+        OR: [{ fromRecordId: { in: recordIds } }, { toRecordId: { in: recordIds } }],
+      },
+    });
+  }
   const weaveBeats = await tx.weaveBeat.findMany({ where: { projectId }, select: { id: true } });
   if (weaveBeats.length) {
     const beatIds = weaveBeats.map((b) => b.id);
@@ -269,6 +291,8 @@ async function deleteProjectRowsInTx(tx: Tx, projectId: string) {
     await tx.weaveTemplateBeat.deleteMany({ where: { templateId: { in: templates.map((t) => t.id) } } });
   }
   await tx.weaveTemplate.deleteMany({ where: { projectId } });
+  await tx.weaveThread.deleteMany({ where: { projectId } }).catch(() => undefined);
+  await tx.weaveBuildRun.deleteMany({ where: { projectId } }).catch(() => undefined);
   await tx.factEvidence.deleteMany({ where: { projectId } });
   await tx.establishedFact.deleteMany({ where: { projectId } });
   await tx.storyEventEvidence.deleteMany({ where: { projectId } });
@@ -277,6 +301,24 @@ async function deleteProjectRowsInTx(tx: Tx, projectId: string) {
   await tx.storyEventOrder.deleteMany({ where: { projectId } });
   await tx.storyEvent.deleteMany({ where: { projectId } });
   await tx.projectCover.deleteMany({ where: { projectId } });
+  await tx.worldKindTemplate.deleteMany({ where: { projectId } });
+  await tx.worldCategoryDefinition.deleteMany({ where: { projectId } }).catch(() => undefined);
+  await tx.compileProfile.deleteMany({ where: { projectId } }).catch(() => undefined);
+  await tx.continuitySuppression.deleteMany({ where: { projectId } }).catch(() => undefined);
+  await tx.smartCollection.deleteMany({ where: { projectId } }).catch(() => undefined);
+  await tx.writingGoal.deleteMany({ where: { projectId } }).catch(() => undefined);
+  await tx.assistantPromptPreset.deleteMany({ where: { projectId } }).catch(() => undefined);
+  await tx.sceneLocation.deleteMany({ where: { projectId } }).catch(() => undefined);
+  await tx.chapterAnalysisRun.deleteMany({ where: { projectId } }).catch(() => undefined);
+  await tx.characterAnalysisRun.deleteMany({ where: { projectId } }).catch(() => undefined);
+  if ("worldCalendar" in tx) {
+    const calendars = await tx.worldCalendar.findMany({ where: { projectId }, select: { id: true } });
+    for (const calendar of calendars) {
+      await tx.worldCalendarMonth.deleteMany({ where: { calendarId: calendar.id } }).catch(() => undefined);
+      await tx.worldCalendarEra.deleteMany({ where: { calendarId: calendar.id } }).catch(() => undefined);
+    }
+    await tx.worldCalendar.deleteMany({ where: { projectId } }).catch(() => undefined);
+  }
   await tx.project.update({
     where: { id: projectId },
     data: { defaultReadingDraftId: null, defaultExportDraftId: null },

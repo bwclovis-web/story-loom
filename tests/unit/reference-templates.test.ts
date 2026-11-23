@@ -9,8 +9,9 @@ import {
 const place = referenceTemplate("place");
 
 describe("World original outlines", () => {
-  it("offers the eight original outlines and no others", () => {
+  it("offers Character plus the eight worldbuilding outlines and no others", () => {
     expect(REFERENCE_TEMPLATES.map((template) => template.label)).toEqual([
+      "Character",
       "Place",
       "Religion",
       "Culture",

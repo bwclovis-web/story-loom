@@ -1,3 +1,4 @@
+import type { WorldScope } from "@/domain/assignments";
 import { newId } from "@/domain/ids";
 import { errorIssue } from "@/domain/issues";
 import { isLinkableReferenceType, isRecordType, RECORD_TYPE_LABELS } from "@/domain/recordTypes";
@@ -11,6 +12,7 @@ import {
   type NormPoint,
 } from "@/world/mapGeometry";
 import { isMarkerGroup, type MarkerGroup } from "@/world/mapMarkers";
+import type { SeriesHomeRef } from "@/world/seriesHome";
 import {
   listWorldMapLayers,
   resolveLayerForWrite,
@@ -22,6 +24,9 @@ import type { Db, DbOrTx, Tx } from "../db";
 import { writeAudit } from "./auditService";
 import { MutationRejectedError, NotFoundError } from "./errors";
 import { applyMutationsInTx } from "./mutationService";
+import { resolveAvailableImage } from "./imageService";
+import { listSeriesBookProjects } from "./projectService";
+import { resolveAvailableReference } from "./seriesBibleService";
 
 /*
  * World maps: a RecordImage backdrop with markers. A marker may link a
@@ -74,8 +79,14 @@ export interface WorldMapPinView {
   title: string;
   typeLabel: string;
   authorityStatus: AuthorityStatus | null;
-  /** True when the linked record is in the Trash (marker kept until permanent delete). */
+  /**
+   * True when the linked record is trashed, no longer series-shared, or left
+   * the series (marker kept until permanent delete).
+   */
   unavailable: boolean;
+  /** Home book when the pin targets a series-shared sibling reference. */
+  home: SeriesHomeRef | null;
+  worldScope: WorldScope | null;
 }
 
 export interface WorldMapPinLinks {
@@ -207,7 +218,15 @@ export async function getWorldMap(db: DbOrTx, projectId: string, mapId: string):
         orderBy: [{ createdAt: "asc" }, { id: "asc" }],
         include: {
           record: {
-            select: { id: true, title: true, type: true, authorityStatus: true, trashedAt: true },
+            select: {
+              id: true,
+              projectId: true,
+              title: true,
+              type: true,
+              authorityStatus: true,
+              trashedAt: true,
+              worldScope: true,
+            },
           },
           targetMap: {
             select: {
@@ -221,6 +240,17 @@ export async function getWorldMap(db: DbOrTx, projectId: string, mapId: string):
     },
   });
   if (!map || map.image.record.trashedAt) throw new NotFoundError(`Map ${mapId} not found`);
+
+  const pinRecordIds = [...new Set(map.pins.flatMap((p) => (p.recordId ? [p.recordId] : [])))];
+  const availability = new Map(
+    await Promise.all(
+      pinRecordIds.map(async (id) => [id, await resolveAvailableReference(db, projectId, id)] as const),
+    ),
+  );
+  const seriesBooks = await listSeriesBookProjects(db, projectId);
+  const homeByProject = new Map(
+    seriesBooks.map((book) => [book.id, { projectId: book.id, title: book.title, bookName: book.bookName } as SeriesHomeRef]),
+  );
 
   return {
     id: map.id,
@@ -238,22 +268,32 @@ export async function getWorldMap(db: DbOrTx, projectId: string, mapId: string):
     scaleBarLength: map.scaleBarLength ?? null,
     layers: await listWorldMapLayers(db, mapId),
     pins: map.pins.flatMap((p): WorldMapPinView[] => {
+      const available = p.recordId ? availability.get(p.recordId) ?? null : null;
       const record = p.record;
-      const linked =
-        record && isRecordType(record.type) && isAuthorityStatus(record.authorityStatus)
-          ? { id: record.id, title: record.title, type: record.type, authorityStatus: record.authorityStatus, trashedAt: record.trashedAt }
-          : null;
-      if (p.recordId && !linked) return [];
+      const typeOk = record && isRecordType(record.type);
+      const statusOk = record && isAuthorityStatus(record.authorityStatus);
+      const displayTitle = available?.record.title ?? (typeOk ? record!.title : null);
+      const displayType = available?.record.type ?? (typeOk && isRecordType(record!.type) ? record!.type : null);
+      const displayStatus =
+        available?.record.authorityStatus ??
+        (statusOk && isAuthorityStatus(record!.authorityStatus) ? record!.authorityStatus : null);
+      if (p.recordId && !displayTitle && !record) return [];
       const target = p.targetMap;
       const targetLive = Boolean(target && !target.image.record.trashedAt);
       const label = p.label.trim();
       const kind = kindOf(p.kind);
-      const title = label || linked?.title || target?.title || kindFallback(kind);
+      const title = label || displayTitle || target?.title || kindFallback(kind);
+      const unavailable = Boolean(p.recordId) && !available;
+      const home: SeriesHomeRef | null =
+        available?.home ??
+        (unavailable && record && record.projectId !== projectId
+          ? homeByProject.get(record.projectId) ?? null
+          : null);
       return [
         {
           id: p.id,
           mapId: p.mapId,
-          recordId: linked?.id ?? null,
+          recordId: p.recordId,
           targetMapId: p.targetMapId,
           targetMapTitle: target?.title ?? null,
           targetUnavailable: Boolean(p.targetMapId) && !targetLive,
@@ -266,9 +306,11 @@ export async function getWorldMap(db: DbOrTx, projectId: string, mapId: string):
           xNorm: p.xNorm,
           yNorm: p.yNorm,
           title,
-          typeLabel: linked ? RECORD_TYPE_LABELS[linked.type] : "",
-          authorityStatus: linked ? linked.authorityStatus : null,
-          unavailable: Boolean(p.recordId) && (!record || record.trashedAt !== null),
+          typeLabel: displayType ? RECORD_TYPE_LABELS[displayType] : "",
+          authorityStatus: displayStatus,
+          unavailable,
+          home,
+          worldScope: available?.worldScope ?? (record?.worldScope === "series" || record?.worldScope === "book" ? record.worldScope : null),
         },
       ];
     }),
@@ -286,16 +328,19 @@ export async function createWorldMap(
   return db.$transaction(async (tx) => {
     const project = await tx.project.findFirst({ where: { id: projectId, trashedAt: null }, select: { id: true } });
     if (!project) throw new NotFoundError(`Project ${projectId} not found`);
-    const image = await tx.recordImage.findFirst({
-      where: { id: input.imageId, projectId },
-      include: { record: { select: { id: true, title: true, type: true, trashedAt: true } } },
-    });
-    if (!image || image.record.trashedAt) throw rejected("That image is not available in this project.");
-    if (!isRecordType(image.record.type) || !isLinkableReferenceType(image.record.type)) {
+    const availableImage = await resolveAvailableImage(tx, projectId, input.imageId);
+    if (!availableImage) throw rejected("That image is not available in this project.");
+    const host = await resolveAvailableReference(tx, projectId, availableImage.recordId);
+    if (!host || !isLinkableReferenceType(host.record.type)) {
       throw rejected("Maps use an image from a reference document.");
     }
-
-    return persistMap(tx, projectId, title, image, `Created map "${title}" on image "${image.name}"`);
+    return persistMap(
+      tx,
+      projectId,
+      title,
+      { id: availableImage.id, name: availableImage.name, recordId: availableImage.recordId },
+      `Created map "${title}" on image "${availableImage.name}"`,
+    );
   });
 }
 
@@ -697,15 +742,12 @@ async function resolvePinLinks(tx: Tx, projectId: string, mapId: string, input: 
   const resolvedLayer = await resolveLayerForWrite(tx, mapId, input.layerId, input.markerGroup);
   let recordTitle = "";
   if (recordId) {
-    const record = await tx.record.findFirst({
-      where: { id: recordId, projectId, trashedAt: null },
-      select: { id: true, title: true, type: true },
-    });
-    if (!record) throw rejected("That place is not in this project.", recordId);
-    if (!isRecordType(record.type) || !isLinkableReferenceType(record.type)) {
+    const available = await resolveAvailableReference(tx, projectId, recordId);
+    if (!available) throw rejected("That place is not available in this book.", recordId);
+    if (!isLinkableReferenceType(available.record.type)) {
       throw rejected("Only reference records can be pinned on a map.", recordId);
     }
-    recordTitle = record.title;
+    recordTitle = available.record.title;
   }
   let mapTitle = "";
   if (targetMapId) {

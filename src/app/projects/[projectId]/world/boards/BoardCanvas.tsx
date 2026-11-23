@@ -15,7 +15,7 @@ import {
 } from "react";
 import { IssueList } from "@/components/IssueList";
 import { BoardOverflowMenu } from "@/components/ui/BoardOverflowMenu";
-import { Button, ButtonLink } from "@/components/ui/Button";
+import { Button, ButtonLink } from "@/components/ui/Atoms/Button";
 import { LabeledSwitch } from "@/components/ui/LabeledSwitch";
 import { TextField } from "@/components/ui/TextField";
 import { CanvasToolbar, CanvasToolbarGroup } from "@/components/ui/CanvasToolbar";
@@ -33,7 +33,8 @@ import type { Issue } from "@/domain/issues";
 import { isLinkableReferenceType } from "@/domain/recordTypes";
 import type { BoardCardView, BoardView } from "@/server/services/boardService";
 import type { LoadedInspector } from "@/server/services/referenceInspectorService";
-import { SHELL, WORLD, WRITE } from "@/ui/labels";
+import { SERIES, SHELL, WORLD, WRITE } from "@/ui/labels";
+import { seriesBookLabel } from "@/world/seriesHome";
 import { readBoardFilter, readBoardView, writeBoardFilter, writeBoardView } from "@/world/boardViewState";
 import { canvasReturnPath, withCanvasReturn } from "@/world/canvasReturn";
 import {
@@ -65,6 +66,8 @@ export interface PlaceableRecord {
   id: string;
   title: string;
   typeLabel: string;
+  homeLabel?: string | null;
+  worldScope?: string | null;
 }
 
 export interface PlaceableImage {
@@ -73,6 +76,7 @@ export interface PlaceableImage {
   recordTitle: string;
   name: string;
   altText: string;
+  homeLabel?: string | null;
 }
 
 export function BoardCanvas({
@@ -535,7 +539,8 @@ export function BoardCanvas({
                 <option value="">{WORLD.chooseRecord}</option>
                 {records.map((r) => (
                   <option key={r.id} value={r.id}>
-                    {r.title} ({r.typeLabel})
+                    {r.title} ({r.typeLabel}
+                    {r.homeLabel ? ` · ${r.homeLabel}` : ""})
                   </option>
                 ))}
               </select>
@@ -648,6 +653,7 @@ export function BoardCanvas({
                   {images.map((img) => (
                     <option key={img.id} value={img.id}>
                       {img.recordTitle}: {img.name}
+                      {img.homeLabel ? ` · ${img.homeLabel}` : ""}
                     </option>
                   ))}
                 </select>
@@ -752,7 +758,8 @@ export function BoardCanvas({
                     <option value="">{WORLD.chooseRecord}</option>
                     {records.map((record) => (
                       <option key={record.id} value={record.id}>
-                        {record.title} ({record.typeLabel})
+                        {record.title} ({record.typeLabel}
+                        {record.homeLabel ? ` · ${record.homeLabel}` : ""})
                       </option>
                     ))}
                   </select>
@@ -808,7 +815,7 @@ export function BoardCanvas({
                 role="option"
                 aria-selected={selectedId === card.id}
                 tabIndex={-1}
-                className={`board-card board-card-${card.kind}${selectedId === card.id ? " selected" : ""}${hidden ? " dimmed" : ""}`}
+                className={`board-card board-card-${card.kind}${selectedId === card.id ? " selected" : ""}${hidden ? " dimmed" : ""}${card.unavailable ? " unavailable" : ""}`}
                 style={{
                   left: card.x,
                   top: card.y,
@@ -853,6 +860,10 @@ export function BoardCanvas({
                   />
                 ) : null}
                 <strong className="board-card-title">{card.label}</strong>
+                {card.home ? (
+                  <span className="board-card-meta">{SERIES.homeBadge(seriesBookLabel(card.home))}</span>
+                ) : null}
+                {card.unavailable ? <span className="board-card-meta">{SERIES.unavailableShared}</span> : null}
                 {card.kind === "record" &&
                 [card.recordWorldKindLabel, card.recordTypeLabel].filter(Boolean).length > 0 ? (
                   <span className="board-card-meta">
@@ -1106,13 +1117,23 @@ export function BoardCanvas({
                     {selected.imageName ? <figcaption className="small muted">{selected.imageName}</figcaption> : null}
                   </figure>
                 ) : null}
+                {selected.unavailable ? <p className="small muted">{SERIES.unavailableShared}</p> : null}
+                {selected.home ? (
+                  <p className="small muted">{SERIES.homeBadge(seriesBookLabel(selected.home))}</p>
+                ) : null}
                 {inspection?.ok ? (
                   <CanvasInspectorSection title={selected.kind === "image" ? WORLD.boardReferencePreview : WORLD.referenceSummary}>
                     <CanvasReferenceSummary
                       projectId={projectId}
                       model={inspection.model}
                       returnPath={cardReturnPath}
-                      sourceNote={selected.kind === "image" ? WORLD.openedFromImage : null}
+                      sourceNote={
+                        selected.home
+                          ? SERIES.sharedFrom(seriesBookLabel(selected.home))
+                          : selected.kind === "image"
+                            ? WORLD.openedFromImage
+                            : null
+                      }
                       imageId={selected.kind === "image" ? selected.imageId : null}
                       imageAlt={selected.imageAlt || selected.imageName}
                       openRecordLabel={WORLD.openFullRecord}

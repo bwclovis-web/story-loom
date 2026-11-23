@@ -4,13 +4,12 @@ import Link from "next/link";
 import { useState, useTransition } from "react";
 import { IssueList } from "@/components/IssueList";
 import { Banner } from "@/components/ui/Banner";
-import { Button, ButtonLink } from "@/components/ui/Button";
+import { Button, ButtonLink } from "@/components/ui/Atoms/Buttons";
 import type { Issue } from "@/domain/issues";
-import type { AssistantProviderId } from "@/assistant/config";
+import { ASSISTANT_PROVIDERS, type AssistantProviderId } from "@/assistant/config";
 import type { AssistantKeySource } from "@/server/assistantSecrets";
 import { BACKUP, SETTINGS } from "@/ui/labels";
 import {
-  ASSISTANT_PROVIDER_OPTIONS,
   clearAssistantKeyAction,
   saveAssistantKeyAction,
   saveLibraryDirAction,
@@ -116,7 +115,7 @@ export function AssistantSettingsForm({
           disabled={pending}
           onChange={(e) => setProviderValue(e.target.value as AssistantProviderId)}
         >
-          {ASSISTANT_PROVIDER_OPTIONS.map((id) => (
+          {ASSISTANT_PROVIDERS.map((id) => (
             <option key={id} value={id}>
               {id}
             </option>

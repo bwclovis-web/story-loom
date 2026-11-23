@@ -79,7 +79,7 @@ export function ContinuityLedgerClient({
     })).filter((g) => g.rows.length > 0);
   }, [visible]);
 
-  const onSuppress = (issueKey: string, reason: "intentional" | "ignored") =>
+  const onSuppress = (issueKey: string, reason: "intentional" | "resolved" | "ignored") =>
     startTransition(async () => {
       setError(null);
       const result = await suppressContinuityAction(projectId, issueKey, reason);
@@ -152,12 +152,47 @@ export function ContinuityLedgerClient({
                     <Link href={row.href}>{row.title}</Link>
                     {row.suppressed ? (
                       <span className="small muted">
-                        ({row.suppressReason === "intentional" ? CONTINUITY.markedIntentional : CONTINUITY.markedIgnored})
+                        (
+                        {row.suppressReason === "intentional"
+                          ? CONTINUITY.markedIntentional
+                          : row.suppressReason === "resolved"
+                            ? CONTINUITY.markedResolved
+                            : CONTINUITY.markedIgnored}
+                        )
                       </span>
                     ) : null}
                   </div>
                   {row.detail ? <p className="small muted" style={{ margin: 0 }}>{row.detail}</p> : null}
-                  <div className="row" style={{ gap: "0.35rem" }}>
+                  {row.applicableCanon || row.evidence || row.storyLocation || row.explanation || row.suggestion ? (
+                    <dl className="small muted" style={{ margin: 0, display: "grid", gap: "0.15rem" }}>
+                      {row.applicableCanon ? (
+                        <div>
+                          <strong>Canon:</strong> {row.applicableCanon}
+                        </div>
+                      ) : null}
+                      {row.storyLocation ? (
+                        <div>
+                          <strong>Location:</strong> {row.storyLocation}
+                        </div>
+                      ) : null}
+                      {row.evidence ? (
+                        <div>
+                          <strong>Evidence:</strong> {row.evidence}
+                        </div>
+                      ) : null}
+                      {row.explanation ? (
+                        <div>
+                          <strong>Explanation:</strong> {row.explanation}
+                        </div>
+                      ) : null}
+                      {row.suggestion ? (
+                        <div>
+                          <strong>Suggestion:</strong> {row.suggestion}
+                        </div>
+                      ) : null}
+                    </dl>
+                  ) : null}
+                  <div className="row" style={{ gap: "0.35rem", flexWrap: "wrap" }}>
                     {row.suppressed ? (
                       <Button type="button" size="sm" variant="ghost" disabled={pending} onClick={() => onClear(row.key)}>
                         {CONTINUITY.restore}
@@ -166,6 +201,9 @@ export function ContinuityLedgerClient({
                       <>
                         <Button type="button" size="sm" variant="ghost" disabled={pending} onClick={() => onSuppress(row.key, "intentional")}>
                           {CONTINUITY.markIntentional}
+                        </Button>
+                        <Button type="button" size="sm" variant="ghost" disabled={pending} onClick={() => onSuppress(row.key, "resolved")}>
+                          {CONTINUITY.markResolved}
                         </Button>
                         <Button type="button" size="sm" variant="ghost" disabled={pending} onClick={() => onSuppress(row.key, "ignored")}>
                           {CONTINUITY.markIgnored}

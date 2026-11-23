@@ -1,6 +1,6 @@
 "use client";
 import { Hand, ImageIcon, Library, NotebookPen, Scan, Search } from "lucide-react";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui/Atoms/Button";
 import { RadioGroup } from "@/components/ui/RadioGroup";
 
 import { useRouter } from "next/navigation";

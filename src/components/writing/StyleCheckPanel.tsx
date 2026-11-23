@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, type RefObject } from "react";
-import { ButtonLink } from "@/components/ui/Button";
+import { ButtonLink } from "@/components/ui/Atoms/Button";
 import { STYLE_CHECK } from "@/ui/labels";
 import { runStyleCheck, styleIssueSelectionEnd, type StyleCheckKind, type StyleIssue } from "@/writing/styleCheck";
 import { scrollTextareaToSelection, selectRange } from "./textareaEdit";

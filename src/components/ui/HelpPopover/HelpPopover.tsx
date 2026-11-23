@@ -1,10 +1,9 @@
 "use client";
 
 import { useEffect, useId, useRef, type ReactNode } from "react";
-import { Button } from "@/components/ui/Button";
 import { helpPopoverClasses } from "./helpPopoverVariants";
 
-/** Keep the open panel beside its button, including narrow windows. */
+/** Keep the open panel beside its icon, including narrow windows. */
 function placeHelpPopover(panel: HTMLElement, trigger: HTMLElement) {
   const margin = 12;
   const gap = 6;
@@ -20,17 +19,28 @@ function placeHelpPopover(panel: HTMLElement, trigger: HTMLElement) {
   }
 }
 
+function InfoIcon() {
+  return (
+    <svg viewBox="0 0 26 26" width="34" height="34" aria-hidden="true" focusable="false">
+      <circle cx="8" cy="8" r="6.25" fill="none" stroke="currentColor" strokeWidth="1.4" />
+      <path d="M8 7.15v4.15" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+      <circle cx="8" cy="4.65" r="0.75" fill="currentColor" />
+    </svg>
+  );
+}
+
 /**
- * Short explanation beside a label. The button is the accessible name.
- * Click, tap, Enter, or Space opens it. Escape closes it and returns focus
- * to that button. Clicking elsewhere closes it without moving focus.
- * The panel is text only.
+ * Info icon that sits on the same line as the nearby text. Hover, focus, or
+ * tap opens the explanation. Escape closes it and returns focus to the icon.
+ * Clicking elsewhere closes it. The panel is text only.
  */
 export function HelpPopover({ label, children }: { label: string; children: ReactNode }) {
   const panelId = `help-popover-${useId().replace(/[^a-zA-Z0-9_-]/g, "")}`;
   const anchor = `--${panelId}`;
   const root = useRef<HTMLSpanElement>(null);
+  const pinned = useRef(false);
   const closedByEscape = useRef(false);
+  const closeTimer = useRef<number | null>(null);
 
   useEffect(() => {
     const rootElement = root.current;
@@ -46,8 +56,11 @@ export function HelpPopover({ label, children }: { label: string; children: Reac
       const state = "newState" in event ? String(event.newState) : "";
       if (state === "open") {
         place();
+        trigger?.setAttribute("aria-expanded", "true");
         return;
       }
+      pinned.current = false;
+      trigger?.setAttribute("aria-expanded", "false");
       if (state === "closed" && closedByEscape.current && trigger) {
         closedByEscape.current = false;
         trigger.focus();
@@ -63,37 +76,75 @@ export function HelpPopover({ label, children }: { label: string; children: Reac
     return () => {
       panel.removeEventListener("toggle", onToggle);
       document.removeEventListener("keydown", onKey);
+      if (closeTimer.current !== null) window.clearTimeout(closeTimer.current);
     };
   }, [panelId]);
+
+  const show = () => {
+    if (closeTimer.current !== null) window.clearTimeout(closeTimer.current);
+    const panel = document.getElementById(panelId);
+    const trigger = root.current?.querySelector("button");
+    if (!panel || !trigger) return;
+    if (!panel.matches(":popover-open")) panel.showPopover();
+    if (!CSS.supports("anchor-name", "--a")) placeHelpPopover(panel, trigger);
+  };
+
+  const scheduleHide = () => {
+    if (closeTimer.current !== null) window.clearTimeout(closeTimer.current);
+    closeTimer.current = window.setTimeout(() => {
+      if (pinned.current) return;
+      const panel = document.getElementById(panelId);
+      const rootElement = root.current;
+      if (!panel || !rootElement || !panel.matches(":popover-open")) return;
+      if (rootElement.matches(":hover") || panel.matches(":hover")) return;
+      if (rootElement.contains(document.activeElement)) return;
+      panel.hidePopover();
+    }, 140);
+  };
 
   return (
     <span
       ref={root}
       className={helpPopoverClasses.root}
+      onPointerEnter={show}
+      onPointerLeave={scheduleHide}
       onKeyDownCapture={(event) => {
         if (event.key === "Escape") closedByEscape.current = true;
       }}
     >
-      <Button
+      <button
         type="button"
-        variant="ghost"
-        size="sm"
         className={helpPopoverClasses.trigger}
-        popoverTarget={panelId}
         aria-controls={panelId}
+        aria-expanded="false"
         aria-label={label}
         style={{ anchorName: anchor }}
+        onFocus={show}
+        onBlur={scheduleHide}
+        onClick={() => {
+          const panel = document.getElementById(panelId);
+          if (!panel) return;
+          if (pinned.current && panel.matches(":popover-open")) {
+            pinned.current = false;
+            panel.hidePopover();
+            return;
+          }
+          pinned.current = true;
+          show();
+        }}
       >
-        Explain
-      </Button>
-      <div
+        <InfoIcon />
+      </button>
+      <span
         id={panelId}
         popover="auto"
         className={helpPopoverClasses.panel}
+        onPointerEnter={show}
+        onPointerLeave={scheduleHide}
         style={{ positionAnchor: anchor, positionArea: "block-end span-inline-end", inset: "auto", margin: 0 }}
       >
         {children}
-      </div>
+      </span>
     </span>
   );
 }

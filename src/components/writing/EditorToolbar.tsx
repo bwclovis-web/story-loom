@@ -16,7 +16,7 @@ import {
   Volume2,
   VolumeX,
 } from "lucide-react";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui/Atoms/Button";
 import { TextAppearanceMenu } from "@/components/TextAppearanceMenu";
 import { STYLE_CHECK, WRITE } from "@/ui/labels";
 import {

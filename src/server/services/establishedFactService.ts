@@ -8,10 +8,37 @@ import {
   RECORD_TYPE_LABELS,
 } from "@/domain/recordTypes";
 import { nameFormsOf } from "@/writing/crossRefs";
+import {
+  EVIDENCE_KIND_LABELS,
+  EVIDENCE_KINDS,
+  FACT_STATUSES,
+  isEvidenceKind,
+  isFactStatus,
+  type CharacterKnowledgeCheckResult,
+  type EstablishedFactView,
+  type EvidenceKind,
+  type FactEvidenceView,
+  type FactStatus,
+  type KnowledgePassage,
+} from "@/world/establishedFacts";
 import type { Db, DbOrTx, Tx } from "../db";
 import { writeAudit } from "./auditService";
 import { MutationRejectedError, NotFoundError } from "./errors";
 import { getBoard } from "./boardService";
+
+export {
+  EVIDENCE_KIND_LABELS,
+  EVIDENCE_KINDS,
+  FACT_STATUSES,
+  isEvidenceKind,
+  isFactStatus,
+  type CharacterKnowledgeCheckResult,
+  type EstablishedFactView,
+  type EvidenceKind,
+  type FactEvidenceView,
+  type FactStatus,
+  type KnowledgePassage,
+};
 
 /*
  * Established-in facts for reference records. Facts and evidence are not
@@ -22,53 +49,6 @@ import { getBoard } from "./boardService";
  */
 
 const UI_ACTOR = "author";
-
-export const EVIDENCE_KINDS = ["planned", "zero_draft", "author_rewrite"] as const;
-export type EvidenceKind = (typeof EVIDENCE_KINDS)[number];
-
-export const EVIDENCE_KIND_LABELS: Record<EvidenceKind, string> = {
-  planned: "Planned material",
-  zero_draft: "Zero-draft evidence",
-  author_rewrite: "Author-rewrite evidence",
-};
-
-export const FACT_STATUSES = ["pending", "accepted", "dismissed"] as const;
-export type FactStatus = (typeof FACT_STATUSES)[number];
-
-export function isEvidenceKind(v: string): v is EvidenceKind {
-  return (EVIDENCE_KINDS as readonly string[]).includes(v);
-}
-
-export function isFactStatus(v: string): v is FactStatus {
-  return (FACT_STATUSES as readonly string[]).includes(v);
-}
-
-export interface FactEvidenceView {
-  id: string;
-  sourceRecordId: string;
-  sourceTitle: string;
-  sourceTypeLabel: string;
-  revisionNumber: number;
-  passageStart: number;
-  passageEnd: number;
-  passageExcerpt: string;
-  evidenceKind: EvidenceKind;
-  evidenceKindLabel: string;
-  needsRecheck: boolean;
-  createdAt: Date;
-}
-
-export interface EstablishedFactView {
-  id: string;
-  subjectRecordId: string;
-  statement: string;
-  status: FactStatus;
-  evidenceKind: EvidenceKind;
-  evidenceKindLabel: string;
-  createdAt: Date;
-  updatedAt: Date;
-  evidence: FactEvidenceView[];
-}
 
 function rejected(message: string, recordId?: string): MutationRejectedError {
   return new MutationRejectedError([errorIssue("INVALID_REFERENCE", message, recordId ? { recordId } : {})]);
@@ -367,35 +347,6 @@ export async function clearRecheckFlag(db: Db, projectId: string, evidenceId: st
       createdAt: row.createdAt,
     };
   });
-}
-
-export interface KnowledgePassage {
-  recordId: string;
-  title: string;
-  start: number;
-  end: number;
-  excerpt: string;
-  matchedName: string;
-}
-
-export interface CharacterKnowledgeCheckResult {
-  subjectRecordId: string;
-  subjectTitle: string;
-  draftId: string | null;
-  draftLabel: string | null;
-  sceneId: string;
-  sceneTitle: string;
-  evidenceKind: EvidenceKind;
-  passagesChecked: KnowledgePassage[];
-  /** Name matches found. The list above keeps the first 40. */
-  passagesMatched: number;
-  coveredFactIds: string[];
-  /** Accepted facts with linked evidence citing this scene (same evidence kind). */
-  coveredByEvidence: Array<{ factId: string; statement: string }>;
-  /** Accepted facts matched by keyword overlap only (no linked evidence in this scene). */
-  coveredByKeywords: Array<{ factId: string; statement: string }>;
-  gaps: Array<{ factId: string; statement: string; evidenceKind: EvidenceKind }>;
-  nameFormsUsed: string[];
 }
 
 /** On-demand: scan the chosen draft's scene for the character's names; report coverage vs accepted facts. */

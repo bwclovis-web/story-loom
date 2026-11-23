@@ -3,8 +3,8 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { Banner } from "@/components/ui/Banner";
-import { Button } from "@/components/ui/Button";
-import { Checkbox } from "@/components/ui/Checkbox";
+import { Button } from "@/components/ui/Atoms/Button";
+import { Checkbox } from "@/components/ui/Atoms/Checkbox";
 import { ASSISTANT } from "@/ui/labels";
 import {
   deleteConversationAction,

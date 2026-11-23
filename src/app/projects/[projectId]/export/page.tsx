@@ -8,7 +8,10 @@ import { resolveExportDraftId } from "@/server/draftSelection";
 import { getDraftDefaults, listManuscriptDrafts } from "@/server/services/draftService";
 import { EXPORT } from "@/ui/labels";
 import { listRecords } from "@/server/services/recordService";
+import { listAvailableReferences } from "@/server/services/seriesBibleService";
+import { SERIES } from "@/ui/labels";
 import { RECORD_GROUPS } from "@/ui/navigation";
+import { seriesBookLabel } from "@/world/seriesHome";
 import { ExportClient } from "./ExportClient";
 
 export const dynamic = "force-dynamic";
@@ -25,10 +28,11 @@ export default async function ExportPage({
   const { projectId } = await params;
   const query = await searchParams;
   const db = getDb();
-  const [drafts, defaults, records] = await Promise.all([
+  const [drafts, defaults, records, availableRefs] = await Promise.all([
     listManuscriptDrafts(db, projectId),
     getDraftDefaults(db, projectId),
     listRecords(db, projectId),
+    listAvailableReferences(db, projectId, { linkableOnly: true }),
   ]);
   const selectedDraftId = resolveExportDraftId(drafts, defaults, query.draft ?? null);
   const draftOptions: DraftOption[] = drafts.map((d) => ({
@@ -50,10 +54,20 @@ export default async function ExportPage({
   const requestedIds = list(query.record);
   const types = new Set<RecordType>(list(query.type).filter(isRecordType));
   if (query.group === "world") RECORD_GROUPS.world.forEach((t) => types.add(t));
-  const scoped =
+  const scopedLocal =
     drafts.length === 0 || !selectedDraftId
       ? records
       : records.filter((r) => !isManuscriptType(r.type) || draftIds.get(r.id) === selectedDraftId);
+  const sharedExtras = availableRefs
+    .filter((entry) => entry.isShared)
+    .map((entry) => entry.record)
+    .filter((r) => !scopedLocal.some((local) => local.id === r.id));
+  const scoped = [...scopedLocal, ...sharedExtras];
+  const homeById = new Map(
+    availableRefs.flatMap((entry) =>
+      entry.home ? [[entry.record.id, SERIES.homeBadge(seriesBookLabel(entry.home))] as const] : [],
+    ),
+  );
   const ids = new Set(scoped.map((r) => r.id));
   const missing = requestedIds.filter((id) => !ids.has(id));
   const preselected =
@@ -100,9 +114,12 @@ export default async function ExportPage({
       <ExportClient
         projectId={projectId}
         initialSelection={preselected}
+        storyPoints={scoped
+          .filter((r) => r.type === "manuscript_chapter" || r.type === "manuscript_scene")
+          .map((r) => ({ id: r.id, title: r.title, type: r.type }))}
         records={scoped.map((r) => ({
           id: r.id,
-          title: r.title,
+          title: homeById.has(r.id) ? `${r.title} (${homeById.get(r.id)})` : r.title,
           type: r.type,
           revision: r.currentRevision,
           authorityStatus: r.authorityStatus,

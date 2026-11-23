@@ -1,5 +1,5 @@
 import { LandingHeader } from "@/components/library/LandingHeader";
-import { ButtonAnchor, ButtonLink } from "@/components/ui/Button";
+import { ButtonAnchor, ButtonLink } from "@/components/ui/Atoms/Button";
 import { Breadcrumbs as BreadcrumbTrail } from "@/components/ui/Breadcrumbs";
 import Link from "next/link";
 import type { ReactNode } from "react";
@@ -31,10 +31,16 @@ import {
 } from "@/world/worldKinds";
 import { Banner } from "@/components/ui/Banner";
 import { CanvasReturnBanner } from "@/components/world/CanvasReturnBanner";
-import { MENTIONED_BY, RECORD, REFERENCE_FORM, SERIES, SHELL, WORLD, WORLD_KIND, XREF } from "@/ui/labels";
+import { RecordAccessTracker } from "@/components/world/RecordAccessTracker";
+import { CHARACTER_DEVELOPMENT_KEY } from "@/domain/characterDevelopment";
+import { DOSSIER_MARKDOWN_ARCHIVE_KEY } from "@/domain/characterDossierUpgrade";
+import { WORLD_PROFILE_KEY } from "@/domain/worldProfile";
+import { WORLD_MARKDOWN_ARCHIVE_KEY } from "@/domain/worldProfileUpgrade";
+import { MENTIONED_BY, RECORD, REFERENCE_FORM, SERIES, SHELL, TAXONOMY_FIELDS, WORLD, WORLD_KIND, XREF } from "@/ui/labels";
 import { keepCanvas } from "@/world/canvasReturn";
 import { groupOfType } from "@/ui/navigation";
-import { categoryLabel, isWorldType, worldHref } from "@/ui/world";
+import { categoryLabel, isWorldType, taxonomyPlacementLabel, worldHref } from "@/ui/world";
+import { resolveRecordTaxonomy, TAXONOMY_FIELD_KEY } from "@/world/taxonomy";
 import { crossRefsFor, type CrossRefIndex } from "@/writing/crossRefs";
 import type { CodexEntry } from "@/writing/codexSuggest";
 import { parseMarkdown, type MarkdownDocument } from "@/writing/markdownParse";
@@ -52,9 +58,9 @@ import {
   TrashSection,
   type InsideRecord,
 } from "./RecordSections";
-import type { EstablishedFactView } from "@/server/services/establishedFactService";
-import type { PlaceRelationView } from "@/server/services/placeRelationService";
-import type { RecordRelationView } from "@/server/services/recordRelationService";
+import type { EstablishedFactView } from "@/world/establishedFacts";
+import type { PlaceRelationView } from "@/world/placeRelations";
+import type { RecordRelationView } from "@/world/recordRelations";
 import type { ReadingPinView } from "@/server/services/readingPinService";
 import { type DraftChoice, type EvidenceSourceChoice, type SceneChoice } from "./EstablishedInRail";
 import { ReferenceInspector } from "@/components/world/ReferenceInspector";
@@ -66,6 +72,7 @@ import { RecordRelations } from "./RecordRelations";
 import { ReferenceInfobox } from "@/components/world/ReferenceInfobox";
 import type { ReferenceInfoboxModel } from "@/world/referenceInfobox";
 import { CharacterDevelopmentSection } from "./CharacterDevelopmentSection";
+import { WorldProfileSection } from "./WorldProfileSection";
 import { WorldContextAside, WorldContextProvider, WorldContextToggle } from "./WorldContextRail";
 import { WorldPins } from "./WorldPins";
 
@@ -118,8 +125,9 @@ export interface ReferenceViewProps {
   initialPins: ReadingPinView[];
   placeRelations: { outgoing: PlaceRelationView[]; incoming: PlaceRelationView[] } | null;
   recordRelations: { outgoing: RecordRelationView[]; incoming: RecordRelationView[] } | null;
-  recordRelationChoices: Array<{ id: string; title: string; typeLabel: string }>;
-  placeChoices: Array<{ id: string; title: string; typeLabel: string }>;
+  recordRelationChoices: Array<{ id: string; title: string; typeLabel: string; homeLabel?: string | null }>;
+  placeChoices: Array<{ id: string; title: string; typeLabel: string; homeLabel?: string | null }>;
+  canShareSeries?: boolean;
   establishedFacts: EstablishedFactView[] | null;
   evidenceSources: EvidenceSourceChoice[];
   manuscriptDrafts: DraftChoice[];
@@ -229,8 +237,16 @@ export function ReferenceView(props: ReferenceViewProps) {
   const current = revisions[0];
   const previous = revisions[1] ?? null;
   const disagreements = previous ? findFieldTextDisagreements(previous, record) : [];
-  const fieldEntries = Object.entries(record.fields);
+  const fieldEntries = Object.entries(record.fields).filter(
+    ([key]) =>
+      key !== CHARACTER_DEVELOPMENT_KEY &&
+      key !== DOSSIER_MARKDOWN_ARCHIVE_KEY &&
+      key !== TAXONOMY_FIELD_KEY &&
+      key !== WORLD_PROFILE_KEY &&
+      key !== WORLD_MARKDOWN_ARCHIVE_KEY,
+  );
   const worldKindDisplay = record.type === "worldbuilding" ? worldKindDisplayFromFields(record.fields) : null;
+  const taxonomy = isWorldType(record.type) ? resolveRecordTaxonomy({ type: record.type, fields: record.fields }) : null;
   const linkable = isLinkableReferenceType(record.type);
   const gallery: GalleryImage[] = (props.images ?? []).map((img) => ({
     id: img.id,
@@ -308,6 +324,12 @@ export function ReferenceView(props: ReferenceViewProps) {
 
   return (
     <div className="reference-page">
+      <RecordAccessTracker
+        projectId={projectId}
+        recordId={record.id}
+        title={record.title}
+        isWorld={isWorldType(record.type)}
+      />
       {props.seriesShared ? <Banner>{SERIES.sharedHere}</Banner> : null}
       <CanvasReturnBanner back={props.canvasBack ?? null} />
       <LandingHeader
@@ -351,6 +373,34 @@ export function ReferenceView(props: ReferenceViewProps) {
         <li>
           <ProtectionStateBadge isProtected={record.protected} />
         </li>
+        {taxonomy && taxonomy.primary ? (
+          <li className="small">
+            <span className="muted">
+              {taxonomy.usedLegacyFallback ? TAXONOMY_FIELDS.viewInferred : TAXONOMY_FIELDS.viewPrimary}:{" "}
+            </span>
+            <span className="badge">{taxonomyPlacementLabel(taxonomy.primary)}</span>
+          </li>
+        ) : null}
+        {taxonomy && taxonomy.secondary.length ? (
+          <li className="small">
+            <span className="muted">{TAXONOMY_FIELDS.viewSecondary}: </span>
+            {taxonomy.secondary.map((item) => (
+              <span key={`${item.category}\0${item.subcategory ?? ""}`} className="badge">
+                {taxonomyPlacementLabel(item)}
+              </span>
+            ))}
+          </li>
+        ) : null}
+        {taxonomy && taxonomy.tags.length ? (
+          <li className="small">
+            <span className="muted">{TAXONOMY_FIELDS.tags}: </span>
+            {taxonomy.tags.map((tag) => (
+              <span key={tag} className="badge">
+                {tag}
+              </span>
+            ))}
+          </li>
+        ) : null}
         <li className="small muted">
           ID <code>{record.id}</code>
         </li>
@@ -409,7 +459,7 @@ export function ReferenceView(props: ReferenceViewProps) {
           {editing ? (
             <section className="panel" aria-label={RECORD.editHeading}>
               <RecordEditor
-                key={record.id}
+                key={`${record.id}:${record.currentRevision}`}
                 projectId={projectId}
                 recordId={record.id}
                 recordType={record.type}
@@ -505,12 +555,26 @@ export function ReferenceView(props: ReferenceViewProps) {
               outgoing={props.placeRelations.outgoing}
               incoming={props.placeRelations.incoming}
               choices={props.placeChoices}
+              canShareSeries={props.canShareSeries}
             />
           ) : null}
 
           {record.type === "character_dossier" ? (
             <CharacterDevelopmentSection projectId={projectId} recordId={record.id} />
           ) : null}
+
+          <WorldProfileSection
+            projectId={projectId}
+            recordId={record.id}
+            recordType={record.type}
+            revision={record.currentRevision}
+            body={record.body}
+            fields={record.fields as import("@/domain/json").JsonObject}
+            editable
+            seriesHome={null}
+            isProtected={record.protected}
+            homeProjectId={projectId}
+          />
 
           {linkable && props.recordRelations ? (
             <RecordRelations
@@ -519,6 +583,7 @@ export function ReferenceView(props: ReferenceViewProps) {
               outgoing={props.recordRelations.outgoing}
               incoming={props.recordRelations.incoming}
               choices={props.recordRelationChoices}
+              canShareSeries={props.canShareSeries}
             />
           ) : null}
         </div>

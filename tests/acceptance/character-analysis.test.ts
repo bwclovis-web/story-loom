@@ -11,7 +11,7 @@ import {
   runCharacterAnalysis,
   saveCharacterAnalysisDecision,
 } from "@/server/services/characterAnalysisService";
-import { getRecord, updateRecord } from "@/server/services/recordService";
+import { createRecord, getRecord, updateRecord } from "@/server/services/recordService";
 import { createTestDb, IDS, seedProject, type TestDb } from "../helpers";
 
 const runtime = {
@@ -271,5 +271,65 @@ describe("character analysis acceptance", () => {
     expect(readCharacterDevelopment(mid.fields).profile.psychology.coreMotivation).toBe("Approved motive");
     expect(mid.fields[CHARACTER_DEVELOPMENT_KEY]).toBeTruthy();
     expect(run.findings[0]?.observation).toBeTruthy();
+  });
+
+  it("preserves applied changes per character if a later character is protected and fails apply", async () => {
+    const secondId = "rec_test_second_char";
+    await createRecord(t.db, IDS.project, {
+      recordId: secondId,
+      type: "character_dossier",
+      title: "Corin Vale",
+      body: "Harbour watch.",
+      authorityStatus: "approved",
+    });
+    await t.db.record.update({ where: { id: secondId }, data: { protected: true } });
+    const prep = await prepareCharacterAnalysis(t.db, runtime, {
+      projectId: IDS.project,
+      characterRecordIds: [IDS.dossier, secondId],
+      scopeKind: "chapter",
+      scopeSpec: { chapterRecordId: IDS.chapter },
+      actions: ["motivations"],
+    });
+    const twoFindings = {
+      findings: [
+        ...findingPayload(IDS.chapter, "she had checked it every morning").findings,
+        {
+          ...findingPayload(IDS.chapter, "she had checked it every morning").findings[0]!,
+          characterRecordId: secondId,
+          characterName: "Corin Vale",
+          suggestedAction: {
+            kind: "profile_field",
+            targetPath: "psychology.coreMotivation",
+            value: "Guard the sea gate",
+            reviewCheck: "",
+          },
+        },
+      ],
+    };
+    const run = await runCharacterAnalysis(t.db, provider(twoFindings), prep, new AbortController().signal);
+    for (const finding of run.findings) {
+      await saveCharacterAnalysisDecision(t.db, IDS.project, run.id, finding.id, { action: "accept" });
+    }
+    const latest = await getCharacterAnalysis(t.db, IDS.project, run.id);
+    const rejectedResult = await applyCharacterAnalysisDecisions(t.db, IDS.project, run.id, latest.contentHash, {
+      confirmProtected: false,
+    });
+    expect(rejectedResult.outcome.status).toBe("rejected");
+
+    // First character's package was applied and persisted; reloading the run shows it already has appliedPackageId.
+    const firstAfter = await getRecord(t.db, IDS.project, IDS.dossier);
+    expect(readCharacterDevelopment(firstAfter.fields).profile.psychology.coreMotivation).toBe("Keep the ledger accurate");
+
+    const afterFailure = await getCharacterAnalysis(t.db, IDS.project, run.id);
+    expect(afterFailure.appliedPackageIds).toHaveLength(1);
+
+    // Retrying with confirmProtected applies only the remaining protected character without re-applying the first.
+    const completed = await applyCharacterAnalysisDecisions(t.db, IDS.project, run.id, afterFailure.contentHash, {
+      confirmProtected: true,
+    });
+    expect(completed.outcome.status).toBe("applied");
+    expect(completed.run.appliedPackageIds).toHaveLength(2);
+    const secondAfter = await getRecord(t.db, IDS.project, secondId);
+    expect(readCharacterDevelopment(secondAfter.fields).profile.psychology.coreMotivation).toBe("Guard the sea gate");
   });
 });

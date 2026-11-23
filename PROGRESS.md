@@ -1,5 +1,154 @@
 # Progress
 
+## World Hub — Living World Profile History (W5C) (Nov 23, 2026)
+
+Optional dated `worldProfile.fieldHistory` on the existing overlay (no SQLite migration):
+
+- **Layers:** undated current (Details / panel) ≠ dated change ≠ resolved as-of. Alone, undated current does not fill earlier story time (as-of → unknown).
+- **Resolve / compare / supersede:** `src/domain/worldProfileHistory.ts` reuses NarrativePoint + OrderEdge placement; approved view is approved && !planned && not superseded. Book-scoped changes filter by viewing project.
+- **UX:** WorldProfilePanel History section — as-of picker, compare, record change, correct; scalar short/long text for flat climate + profile access first. Evidence catalog from `loadDevelopmentEvidenceCatalog`.
+- **Export:** context bundles redact planned / unapproved / later history and add a reading instruction; no W7 `worldContexts` product.
+- **Tests:** `tests/unit/world-profile-history.test.ts`, `tests/integration/world-profile-history.test.ts` (station fixture).
+
+### Rollback
+
+Revert `fieldHistory` known key + history module, panel/section wiring, contextExport redaction, Help/docs/this note. Legacy records without `fieldHistory` stay unchanged.
+
+## World Hub — Category Living World Profiles (W5B) (Nov 23, 2026)
+
+Built-in optional Living World Profile definitions for the 13 non-character Hub categories on the W5A overlay:
+
+- **Ownership:** flat `WORLD_KIND_FIELD_SPECS` (e.g. place `climate`, magic `source`/`limits`) stay in Details; category definitions reference them as `storage: "flat"` and add profile-only fields (terrain, workings, costs, layout, …).
+- **Selection:** sticky `definitionId`; home-project templates first; author choice when multiple built-ins are plausible; taxonomy/tag edits never clear the selection or saved values.
+- **Upgrade:** expanded deterministic heading map scoped to the active definition; Costs/Limits/Workings and geography/location headings classify correctly.
+- **UX:** panel groups suggested definitions, edits ordered-list / calendar free-text / record-id fields without a deeper picker.
+- **Deferred:** rich calendar picker, record pickers, collection editors, wiki/bible deep formatting, AI fill (W7+).
+
+### Rollback
+
+Revert registry category field packs, selection helpers, panel/heading changes, Help/docs, and this note. Overlay schema unchanged (W5A).
+
+## Info icon for explanations (Nov 23, 2026)
+
+Explain buttons are the shared info icon (`HelpPopover`). The icon stays on the same line as the label or sentence, and hover, focus, or a tap opens the explanation. No schema change.
+
+### Rollback
+
+Revert `HelpPopover`, the `.help-popover` rules, the Weave note markup, Help, and this note.
+
+## World Hub — Living World Profile Foundations (W5A) (Nov 23, 2026)
+
+- **Overlays:** optional `fields.worldProfile` (v1) on non-character World types (worldbuilding, rules_glossary, research_note, canon_decision, continuity_note, reference_note) and immutable `fields.worldMarkdownArchive` snapshots. Per-field `fieldMeta` approval and provenance; extracted material stays draft and is never auto-approved.
+- **Schema:** `WorldCategoryDefinition` for custom Hub categories, plus `WorldKindTemplate` profile extensions (`definitionId`, `label`, `description`, `categorySlug`, `subcategorySlug`, `profileSpec`).
+- **Registry:** built-in profile definitions merged with template `profileSpec`, resolved with series-home precedence.
+- **UI:** Living World Profile panel, Markdown upgrade review (`/records/<id>/world-upgrade`) with accept / keep / merge / modify / reject / defer, infobox and inspector summaries, create-form definition picker, custom categories on the World hub.
+- **Integration:** backup/restore (optional `worldCategoryDefinitions`), Trash, mutation validation (unsupported versions refuse writes), and export / context bundle.
+- **Tests:** unit (`world-profile`, `world-profile-upgrade`) and integration (`world-profile-foundation`) coverage for the domain, registry, upgrade, categories, packages, and revision rollback.
+- **W5B boundary (out of scope):** deeper collection editors, calendar picker UX polish, wiki/bible deep formatting, and AI-assisted world profile fill.
+
+### Rollback
+
+Revert the profile panel, upgrade route, registry, and docs. Older backups omit the new keys and restore unchanged; `worldProfile` / `worldMarkdownArchive` stay inert in fields.
+
+## World Hub — Series-Wide Worldbuilding Integration (W4) (Nov 22, 2026)
+
+Extend single-record `worldScope` so series-shared references participate across sibling books without duplication:
+
+- **Schema:** forward-only migration adds `PlaceRelation.scope` / `RecordRelation.scope` (default `book`) and optional `WorldKindTemplate.worldScope`.
+- **Resolution:** `resolveAvailableReference` / `listAvailableReferences` / `resolveAvailableImage` with strict workspace + series isolation; `getRecord` stays local-only.
+- **Maps / boards / inspectors:** pin and card pickers use available refs/images; views carry `home` / `worldScope` / `unavailable`; inspectors and canvas summaries badge shared-from home.
+- **Relationships:** endpoints may be local or series-shared; series scope requires named series + both ends `worldScope = series`; graphs/forests load sibling series edges.
+- **Templates / lifecycle:** home `(projectId, kind)` wins; optional series template sharing; `deleteProjectRowsInTx` cleans templates and related project children; unshare preview warns when siblings still pin/card.
+- **Backups / packages / export:** optional `scope` / `worldScope` in v1 format; integrity allows series-compatible cross-project links; change packages emit `SERIES_SHARED_READ_ONLY` for sibling mutations; export/world bible include eligible shared refs.
+
+| Check | Result |
+| --- | --- |
+| Isolated `prisma migrate deploy` | pass (`/tmp/w4-migrate-test`) |
+| `pnpm typecheck` | pass |
+| `pnpm test` | 159 files / 871 tests passed (incl. `tests/acceptance/series-wide-worldbuilding.test.ts`) |
+| `pnpm build` | pass (after clearing `.next`; client-safe extracts for place/record relations, established facts, and map layers) |
+
+### Rollback
+
+Revert migration `20261123010000_series_relation_template_scope` only after restoring a pre-migrate DB backup if needed; revert service/UI/docs/test changes and this note. Do not reset the working author database.
+
+## Verification baseline restoration (Nov 22, 2026)
+
+Cleared outstanding post-W3 verification failures without starting W4:
+
+- **`/settings` build:** Removed non-async `ASSISTANT_PROVIDER_OPTIONS` from `"use server"` `settings/actions.ts`. Settings UI now imports `ASSISTANT_PROVIDERS` from `@/assistant/config`. Server actions and settings behavior unchanged.
+- **`mcp-readonly` Unicode search:** SQLite `contains` candidate filter only saw the NFC query form, so NFD-stored text (e.g. `cafe\u0301`) never reached JS matching. `searchProjectRecords` (and manuscript candidate filter) now OR both NFC and NFD query forms; excerpts still normalize to NFC.
+- **`reference-templates`:** Test expected eight outlines; product already ships Character plus the eight worldbuilding outlines. Assertion updated to the real nine-template list (no product change).
+
+| Check | Result |
+| --- | --- |
+| `pnpm lint` | no `lint` script / ESLint config in this repo |
+| `pnpm typecheck` | pass |
+| `pnpm test` | 158 files / 869 tests passed |
+| `pnpm build` | pass (including `/settings`) |
+
+### Rollback
+
+Revert settings import move, `searchService` NFC/NFD candidate OR, reference-templates assertion, unicode unit test, and this note. Working DB unchanged.
+
+## World Hub — Navigation and Creation UX (Nov 22, 2026)
+
+Category-driven World Hub on existing `fields.taxonomy` (no new tables, no kind rewrite):
+- **Discovery:** `src/world/hubDiscovery.ts` parses/filters/sorts hub URLs; `/world` shows 14-category rail, tools separation, recent accessed/updated, list/card views, and combined filters. Legacy `type`/`kind`/`q`/`list` preserved.
+- **Create/edit:** `TaxonomyFields` on create and record forms; `/world/new` preselects category/subcategory/tag; all `WORLD_TYPES`; optional initial `worldScope` on create; template/kind suggestion chips are opt-in.
+- **Bulk organize:** `/world/organize` with preview, protected unlock, conflict notes, and atomic `applyMutations` (`record.taxonomy_organize`); taxonomy-only skips passage recheck.
+- **Docs/Help:** World Hub classification, organize workflow, and discovery URL contract documented.
+
+| Check | Result |
+| --- | --- |
+| `pnpm typecheck` | pass |
+| Targeted vitest (hubDiscovery, world, taxonomyOrganize, help, world-hub-ux, taxonomy) | 6 files / 30 tests passed |
+| Full `pnpm test` | later fixed in baseline restoration (was 2 pre-existing failures) |
+| `pnpm build` | later fixed in baseline restoration (`/settings` server-export) |
+
+### Rollback
+
+Revert hub discovery, World page/components, TaxonomyFields/create/organize, mutation create `worldScope`, docs/help/tests, and this note. Working DB unchanged (no migration).
+
+## World Hub — Taxonomy and Classification Foundations (Nov 22, 2026)
+
+Additive World Hub taxonomy on the existing unified `Record` model (no schema migration, no second worldbuilding system):
+- **Registry:** `src/world/taxonomy.ts` defines 14 categories with default subcategories, icons, and labels as authoring defaults.
+- **Storage:** validated `fields.taxonomy` v1 (`primary`, `secondary`, `tags`) with unknown-key preservation; `fields.kind` still owns structured templates.
+- **Legacy read-time mapping:** `character_dossier` → Characters; built-in kinds → Locations / Peoples / Magic / Cultures / Religion / Organizations / Languages / Objects; custom kinds stay individually discoverable; unclassified records remain listed. No automatic rewrite of `fields.kind`.
+- **Mutations:** taxonomy validated in `mutationService`; pure taxonomy-only edits skip passage-level evidence/annotation rechecks; protection, revisions, change packages, and backups unchanged.
+- **Series parity:** `SERIES_REFERENCE_TYPES` now includes `rules_glossary` and `research_note` so series-shared rules/research appear in sibling books.
+
+| Check | Result |
+| --- | --- |
+| `pnpm typecheck` | pass |
+| Targeted vitest (taxonomy unit/acceptance, series-bible, worldKinds, world, established-facts) | pass |
+| `pnpm build` (`next build`) | Compiled & typechecked; page-data collection failed on pre-existing `/settings` issue (unchanged) |
+
+### Rollback
+
+Revert `src/world/taxonomy.ts`, mutation/record/nav/world/series/docs/test edits, and this note. Working DB unchanged (no migration).
+
+## Living Character Profiles — Release Readiness & Series Hardening (Nov 22, 2026)
+
+Resolved continuity, dossier UI, analysis, series chronology, and export defects from the Living Character Profile release review:
+- **Continuity Ledger:** Anchored state changes no longer emit false-positive unplaced limitation warnings when viewing the project-wide ledger without a focus chapter/scene; character findings include structured `applicableCanon`, `storyLocation`, `evidence`, `explanation`, and `suggestion` fields; added `"resolved"` suppression status (`Mark resolved`) alongside `Mark intentional` and `Ignore`.
+- **Dossier & Editor Sync:** Hid raw `characterDevelopment` and `dossierMarkdownArchive` JSON blobs from `ReferenceView`'s structured-fields table; synced `RecordEditor` (`key` by revision) and `CharacterDevelopmentPanel` (`revision` effect) when saving externally without dirty edits.
+- **Evidence-Based AI Analysis:** `assembleContext` now passes series `storyEventOrder` edges and `storyEventScene` links into `renderCharacterContextSlice`; `applyCharacterAnalysisDecisions` persists applied packages and finding decisions per character so partial failures do not lose or double-apply prior characters; removed dead `limitProblem` branch.
+- **Series Chronology, Inspector, Chat Retry & Export:** `narrativePointForManuscript` loads series-wide `storyEventOrder` edges, falls back to chapter-level event links, and fills fallback book order (`withSeriesBookOrderFallback`) when `bookStates` lack explicit `narrativeIndex`. `inspectSelectionAssistContext` matches drafting mode; `prepareTurn` recovers `focusRecordId` on `"retry"`; `readPassageTool` resolves focus against the active project; `Export` exposes character mode (`drafting` / `editorial` / `planning`), story point selector, and optional `redactCharacterSpoilers` (`redactCharacterFieldsForExport`), keeping default change-package roundtrip compatible.
+- **UX:** Replaced bare table on `/world/development` with responsive `<DataTable>` and wrapped `.context-tabs` on narrow screens.
+
+| Check | Result |
+| --- | --- |
+| `pnpm typecheck` | pass |
+| Targeted vitest (character-writing-context, character-development, character-analysis, living-character-five-book-e2e, continuity-ledger, export-roundtrip, series-bible, scenes, help) | 9 files, 69 tests passed |
+| Full `pnpm test` (`vitest run`) | 150 files / 836 tests passed; 2 pre-existing unrelated failures (`tests/acceptance/mcp-readonly.test.ts` Unicode excerpt check, `tests/unit/reference-templates.test.ts` 9 vs 8 templates) |
+| `pnpm build` (`next build`) | Compiled & typechecked cleanly; page-data collection failed on pre-existing non-async export in `src/app/(site)/settings/actions.ts` |
+
+### Rollback
+
+Revert edits to `characterWritingContext`, `characterWritingContextService`, `continuityService`, `ContinuityLedgerClient`, `ReferenceView`, `CharacterDevelopmentPanel`, `characterAnalysisService`, `assistantService`, `assistantRetrievalService`, `assistantContextInspect`, `contextExportService`, `export/page.tsx`, `ExportClient`, `world/development/page.tsx`, `globals.css`, `labels.ts`, `HelpContent.tsx`, `docs/context-bundle-format.md`, tests, and this note. No schema change; working DB unchanged.
+
 ## Living Character Profiles — Context-Aware Writing (Nov 22, 2026)
 
 Writing and editorial AI resolve Living Profiles at the selected book, chapter, scene, and story chronology. Drafting uses dialogue slices with character-held knowledge only; editorial continuity can include established reader knowledge; planning may include author-controlled future plans. Continuity Ledger adds character state, knowledge-anchor, limitation, forgotten-arc, and identity findings (mark intentional/ignored; never auto-edits prose). Context bundles keep v1 compatibility and add optional `characterContexts` plus knowledge-holder reading instructions. No schema change.

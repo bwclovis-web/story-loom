@@ -5,8 +5,8 @@ import { useState, useTransition } from "react";
 import { ProtectionBadge } from "@/components/Badges";
 import { IssueList } from "@/components/IssueList";
 import { Banner } from "@/components/ui/Banner";
-import { Button } from "@/components/ui/Button";
-import { Checkbox } from "@/components/ui/Checkbox";
+import { Button } from "@/components/ui/Atoms/Button";
+import { Checkbox } from "@/components/ui/Atoms/Checkbox";
 import { FileInput } from "@/components/ui/FileInput";
 import type {
   ChapterDecision,

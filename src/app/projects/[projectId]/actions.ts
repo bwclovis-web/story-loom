@@ -2,6 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import type { WritingContextMode } from "@/domain/characterWritingContext";
+import { isWorldScope } from "@/domain/assignments";
 import { isRecordType, type RecordType } from "@/domain/recordTypes";
 import { isAuthorityStatus } from "@/domain/statuses";
 import { errorIssue, type Issue } from "@/domain/issues";
@@ -75,14 +77,19 @@ export async function createRecordAction(projectId: string, _prev: FormResult, f
   if (isWorldType(type) && isReferenceTemplateKey(outline) && body.trim() === "") {
     body = scaffoldBody(referenceTemplate(outline));
   }
+  // Empty means unassigned. Only World types may carry a scope; the mutation layer enforces it.
+  const scopeText = str(formData, "worldScope");
+  const worldScope = isWorldScope(scopeText) ? scopeText : null;
   let recordId: string;
   try {
     const batch = await createRecord(getDb(), projectId, {
       type,
       title: str(formData, "title"),
       body,
+      // Taxonomy stays in the parsed fields for every World type; only worldbuilding is sanitized for kind.
       fields: parseFields(str(formData, "fields"), type),
       authorityStatus: status,
+      worldScope,
     });
     recordId = batch.outcomes[0].recordId;
   } catch (error) {
@@ -285,11 +292,20 @@ export async function exportBundleAction(
   recordIds: string[],
   types: string[],
   includeSchema: boolean,
+  options?: {
+    characterMode?: WritingContextMode;
+    focusRecordId?: string | null;
+    redactCharacterSpoilers?: boolean;
+  },
 ): Promise<string> {
   const bundle = await exportContextBundle(getDb(), projectId, {
     recordIds: recordIds.length ? recordIds : undefined,
     types: types.length ? types.filter((t): t is RecordType => isRecordType(t)) : undefined,
     includeSchema,
+    characterMode: options?.characterMode,
+    focusRecordId: options?.focusRecordId || null,
+    allowFuturePlans: options?.characterMode === "planning",
+    redactCharacterSpoilers: options?.redactCharacterSpoilers === true,
   });
   return JSON.stringify(bundle, null, 2);
 }

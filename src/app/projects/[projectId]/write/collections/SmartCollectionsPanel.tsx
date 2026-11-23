@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { IssueList } from "@/components/IssueList";
 import { Banner } from "@/components/ui/Banner";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui/Atoms/Button";
 import type { SmartCollectionFilter } from "@/domain/smartCollection";
 import type { Issue } from "@/domain/issues";
 import type { SmartCollectionView } from "@/server/services/smartCollectionService";

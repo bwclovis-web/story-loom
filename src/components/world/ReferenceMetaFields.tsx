@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui/Atoms/Button";
 import { cn } from "@/ui/cn";
 import type { JsonObject } from "@/domain/json";
 import type { RecordType } from "@/domain/recordTypes";

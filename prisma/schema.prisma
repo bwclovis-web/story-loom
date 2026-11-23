@@ -90,10 +90,11 @@ model Project {
   worldCalendar          WorldCalendar?
   worldCalendarMonths    WorldCalendarMonth[]
   worldCalendarEras      WorldCalendarEra[]
-  worldKindTemplates     WorldKindTemplate[]
-  continuitySuppressions ContinuitySuppression[]
-  smartCollections       SmartCollection[]
-  assistantPromptPresets AssistantPromptPreset[]
+  worldKindTemplates       WorldKindTemplate[]
+  worldCategoryDefinitions WorldCategoryDefinition[]
+  continuitySuppressions   ContinuitySuppression[]
+  smartCollections         SmartCollection[]
+  assistantPromptPresets   AssistantPromptPreset[]
 
   @@index([workspaceId])
 }
@@ -382,19 +383,59 @@ model ManuscriptAnnotation {
 
 /// Author-defined fields for one custom worldbuilding kind (`fields.kind`).
 /// Not a record and not revisioned. Record text stays on the record save path.
+/// worldScope null/book = this book only; series = also readable in sibling books
+/// (never overrides a local template of the same kind name in another book).
+/// Optional profileSpecJson holds typed Living World Profile field definitions;
+/// fieldsJson remains authoritative for legacy flat string/multiline fields.
 model WorldKindTemplate {
-  id         String   @id
-  projectId  String
-  project    Project  @relation(fields: [projectId], references: [id])
+  id               String   @id
+  projectId        String
+  project          Project  @relation(fields: [projectId], references: [id])
   /// Custom kind name, matched to `fields.kind` after trim.
-  kind       String
+  kind             String
   /// JSON array of { key, label, multiline? }.
-  fieldsJson String   @default("[]")
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  fieldsJson       String   @default("[]")
+  /// book | series | null (null treated as book / local).
+  worldScope       String?
+  /// Stable registry id for profile lookup; null for legacy kind-only templates.
+  definitionId     String?
+  /// Display label; falls back to kind when null.
+  label            String?
+  description      String   @default("")
+  /// Optional association to a built-in or custom taxonomy category slug.
+  categorySlug     String?
+  subcategorySlug  String?
+  /// Typed profile field/collection specs (version 1 JSON). Null = legacy flat only.
+  profileSpecJson  String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
   @@unique([projectId, kind])
   @@index([projectId])
+  @@index([definitionId])
+}
+
+/// Author-defined World Hub category or subcategory for discovery.
+/// Not a record and not revisioned. Built-in categories stay in code.
+/// parentCategorySlug null = top-level custom category; non-null = subcategory
+/// under a built-in or custom parent. worldScope series shares with siblings
+/// without overriding a local definition of the same slug.
+model WorldCategoryDefinition {
+  id                 String   @id
+  projectId          String
+  project            Project  @relation(fields: [projectId], references: [id])
+  slug               String
+  label              String
+  description        String   @default("")
+  parentCategorySlug String?
+  /// book | series | null (null treated as book / local).
+  worldScope         String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@unique([projectId, slug])
+  @@index([projectId])
+  @@index([worldScope])
 }
 
 /// Saved front/back matter and compile options for manuscript PDF, DOCX, and EPUB.
@@ -634,6 +675,8 @@ model WorldMapPin {
 /// Explicit World place relationship. Not revisioned; independent of board/map
 /// positions. Moving cards or pins never creates or changes these.
 /// Kinds: part_of | flows_into | governed_by (from → to).
+/// scope: book (visible only in projectId) | series (visible across sibling books
+/// when both endpoints are series-scoped World references).
 model PlaceRelation {
   id           String   @id
   projectId    String
@@ -644,11 +687,14 @@ model PlaceRelation {
   to           Record   @relation("PlaceTo", fields: [toRecordId], references: [id])
   /// part_of | flows_into | governed_by
   kind         String
+  /// book | series
+  scope        String   @default("book")
   createdAt    DateTime @default(now())
 
   @@unique([fromRecordId, toRecordId, kind])
   @@index([projectId])
   @@index([toRecordId])
+  @@index([scope])
 }
 
 /// Explicit relationship between characters, organizations, and related
@@ -656,6 +702,8 @@ model PlaceRelation {
 /// or pins never creates or changes these. Kinds: parent_of | sibling_of |
 /// spouse_of | member_of | leads | serves | allied_with | rival_of | custom
 /// (with customLabel). From → to.
+/// scope: book (visible only in projectId) | series (visible across sibling books
+/// when both endpoints are series-scoped World references).
 model RecordRelation {
   id           String   @id
   projectId    String
@@ -666,11 +714,14 @@ model RecordRelation {
   to           Record   @relation("RecordRelationTo", fields: [toRecordId], references: [id])
   kind         String
   customLabel  String   @default("")
+  /// book | series
+  scope        String   @default("book")
   createdAt    DateTime @default(now())
 
   @@unique([fromRecordId, toRecordId, kind, customLabel])
   @@index([projectId])
   @@index([toRecordId])
+  @@index([scope])
 }
 
 /// A chapter or scene the author assigned to a World location.

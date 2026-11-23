@@ -11,6 +11,8 @@ import {
   recordRelationKindLabel,
 } from "./recordRelationService";
 import { primaryRecordImagesByRecordId, recordImagePublicPath } from "./imageService";
+import { relationVisibilityWhere } from "./relationScope";
+import { listAvailableReferences, resolveAvailableReference } from "./seriesBibleService";
 import type { RelationshipEdge, RelationshipNode } from "@/world/relationshipGraph";
 
 export interface ProjectRelationshipGraph {
@@ -36,40 +38,53 @@ export async function loadProjectRelationshipGraph(db: DbOrTx, projectId: string
     nodeIds.add(e.fromRecordId);
     nodeIds.add(e.toRecordId);
   }
-  const records =
-    nodeIds.size > 0
-      ? await db.record.findMany({
-          where: { projectId, trashedAt: null, id: { in: [...nodeIds] } },
-          select: { id: true, title: true, type: true, fields: true },
-          orderBy: [{ title: "asc" }, { id: "asc" }],
-        })
-      : [];
-  const primaryByRecord = await primaryRecordImagesByRecordId(db, projectId, [...nodeIds]);
-  const nodes: RelationshipNode[] = records.flatMap((r) =>
-    isRecordType(r.type)
-      ? [
-          {
-            id: r.id,
-            title: r.title,
-            typeLabel: RECORD_TYPE_LABELS[r.type],
-            profileImageUrl: primaryByRecord.has(r.id)
-              ? recordImagePublicPath(projectId, primaryByRecord.get(r.id)!)
-              : null,
-          },
-        ]
-      : [],
-  );
-  const choiceRows = await db.record.findMany({
-    where: { projectId, trashedAt: null, type: { in: ["character_dossier", "worldbuilding"] } },
-    select: { id: true, title: true, type: true, fields: true },
-    orderBy: [{ title: "asc" }, { id: "asc" }],
-  });
-  const focusChoices = choiceRows.flatMap((r) => {
-    if (!isRecordType(r.type)) return [];
-    if (!isRecordRelationEndpoint(r.type, parseJsonObject(r.fields))) return [];
-    return [{ id: r.id, title: r.title, typeLabel: RECORD_TYPE_LABELS[r.type] }];
+  const nodes = await resolveGraphNodes(db, projectId, [...nodeIds]);
+  const available = await listAvailableReferences(db, projectId, { linkableOnly: true });
+  const focusChoices = available.flatMap((entry) => {
+    if (!isRecordRelationEndpoint(entry.record.type, entry.record.fields)) return [];
+    return [
+      {
+        id: entry.record.id,
+        title: entry.record.title,
+        typeLabel: RECORD_TYPE_LABELS[entry.record.type],
+        homeProjectId: entry.home?.projectId ?? null,
+      },
+    ];
   });
   return { nodes, edges, focusChoices };
+}
+
+async function resolveGraphNodes(
+  db: DbOrTx,
+  viewingProjectId: string,
+  nodeIds: string[],
+): Promise<RelationshipNode[]> {
+  if (!nodeIds.length) return [];
+  const resolved = await Promise.all(
+    nodeIds.map(async (id) => [id, await resolveAvailableReference(db, viewingProjectId, id)] as const),
+  );
+  const nodes: RelationshipNode[] = [];
+  const byHome = new Map<string, string[]>();
+  for (const [id, available] of resolved) {
+    if (!available) continue;
+    const homeId = available.home?.projectId ?? viewingProjectId;
+    byHome.set(homeId, [...(byHome.get(homeId) ?? []), id]);
+    nodes.push({
+      id,
+      title: available.record.title,
+      typeLabel: RECORD_TYPE_LABELS[available.record.type],
+      homeProjectId: available.home?.projectId ?? null,
+    });
+  }
+  for (const [homeId, ids] of byHome) {
+    const primaryByRecord = await primaryRecordImagesByRecordId(db, homeId, ids);
+    for (const node of nodes) {
+      if (!primaryByRecord.has(node.id)) continue;
+      node.profileImageUrl = recordImagePublicPath(viewingProjectId, primaryByRecord.get(node.id)!);
+    }
+  }
+  nodes.sort((a, b) => a.title.localeCompare(b.title) || a.id.localeCompare(b.id));
+  return nodes;
 }
 
 export async function loadProjectAllConnectionsGraph(
@@ -219,8 +234,9 @@ async function listRecordLinkEdges(db: DbOrTx, projectId: string): Promise<Relat
 async function listPlaceEdges(db: DbOrTx, projectId: string): Promise<RelationshipEdge[]> {
   if (!("placeRelation" in db) || !(db as { placeRelation?: { findMany: unknown } }).placeRelation) return [];
   try {
+    const visibility = await relationVisibilityWhere(db, projectId);
     const rows = await db.placeRelation.findMany({
-      where: { projectId, from: { trashedAt: null }, to: { trashedAt: null } },
+      where: { AND: [visibility, { from: { trashedAt: null } }, { to: { trashedAt: null } }] },
       orderBy: [{ kind: "asc" }, { id: "asc" }],
     });
     return rows.flatMap((r) => {
@@ -233,6 +249,7 @@ async function listPlaceEdges(db: DbOrTx, projectId: string): Promise<Relationsh
           kind: r.kind,
           kindLabel: PLACE_RELATION_LABELS[r.kind],
           family: "place" as const,
+          scope: r.scope === "series" ? "series" : "book",
         },
       ];
     });
@@ -245,8 +262,9 @@ async function listPlaceEdges(db: DbOrTx, projectId: string): Promise<Relationsh
 async function listRecordEdges(db: DbOrTx, projectId: string): Promise<RelationshipEdge[]> {
   if (!("recordRelation" in db) || !(db as { recordRelation?: { findMany: unknown } }).recordRelation) return [];
   try {
+    const visibility = await relationVisibilityWhere(db, projectId);
     const rows = await db.recordRelation.findMany({
-      where: { projectId, from: { trashedAt: null }, to: { trashedAt: null } },
+      where: { AND: [visibility, { from: { trashedAt: null } }, { to: { trashedAt: null } }] },
       orderBy: [{ kind: "asc" }, { customLabel: "asc" }, { id: "asc" }],
     });
     return rows.flatMap((r) => {
@@ -259,6 +277,7 @@ async function listRecordEdges(db: DbOrTx, projectId: string): Promise<Relations
           kind: r.kind,
           kindLabel: recordRelationKindLabel(r.kind, r.customLabel),
           family: "record" as const,
+          scope: r.scope === "series" ? "series" : "book",
         },
       ];
     });

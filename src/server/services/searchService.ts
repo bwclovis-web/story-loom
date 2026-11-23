@@ -49,6 +49,8 @@ export async function searchProjectRecords(
   const query = input.query.normalize("NFC").trim();
   if (!query) return [];
   // Pre-filter in SQLite so large non-matching bodies are not loaded into Node.
+  // Include NFD as well as NFC: SQLite substring match is byte-oriented and will
+  // miss combining-character forms that JS later unifies under NFC.
   const typeFilter = input.types
     ? { in: [...input.types] }
     : input.includeManuscript
@@ -59,11 +61,7 @@ export async function searchProjectRecords(
       projectId: input.projectId,
       trashedAt: null,
       ...(typeFilter ? { type: typeFilter } : {}),
-      OR: [
-        { title: { contains: query } },
-        { body: { contains: query } },
-        { fields: { contains: query } },
-      ],
+      OR: sqlContainsAny(["title", "body", "fields"], query),
     },
     orderBy: { id: "asc" },
     select: { id: true },
@@ -276,7 +274,7 @@ export async function searchManuscript(
       trashedAt: null,
       AND: [
         { OR: [manuscriptFilter, { type: "scene_note" }] },
-        { OR: [{ title: { contains: query } }, { body: { contains: query } }] },
+        { OR: sqlContainsAny(["title", "body"], query) },
       ],
     },
     select: { id: true, parentRecordId: true, type: true },
@@ -475,6 +473,22 @@ export function excerptAt(text: string, query: string): { excerpt: string; excer
 
 function clipExcerpt(text: string, query: string): string {
   return excerptAt(text, query)?.excerpt ?? text.slice(0, SEARCH_EXCERPT_CHARS);
+}
+
+/** NFC and NFD query forms for SQLite `contains` candidate filtering. */
+export function searchQuerySqlForms(query: string): string[] {
+  const nfc = query.normalize("NFC");
+  const nfd = nfc.normalize("NFD");
+  return nfc === nfd ? [nfc] : [nfc, nfd];
+}
+
+function sqlContainsAny(
+  fields: readonly ("title" | "body" | "fields")[],
+  query: string,
+): Array<Record<"title" | "body" | "fields", { contains: string }>> {
+  return searchQuerySqlForms(query).flatMap((form) =>
+    fields.map((field) => ({ [field]: { contains: form } }) as Record<"title" | "body" | "fields", { contains: string }>),
+  );
 }
 
 function findMatch(haystack: string, query: string): number {

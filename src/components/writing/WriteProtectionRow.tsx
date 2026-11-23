@@ -2,7 +2,7 @@
 
 import { Lock } from "lucide-react";
 import type { DraftOption } from "@/components/drafts/DraftControls";
-import { buttonVariants } from "@/components/ui/Button";
+import { buttonVariants } from "@/components/ui/Atoms/Button";
 import { DRAFT, WORLD, WRITE } from "@/ui/labels";
 import { cn } from "@/ui/cn";
 

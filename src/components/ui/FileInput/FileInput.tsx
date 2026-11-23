@@ -2,7 +2,7 @@
 
 import { Upload } from "lucide-react";
 import { useEffect, useId, useRef, useState, type ChangeEvent, type InputHTMLAttributes, type Ref } from "react";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui/Atoms/Button";
 import { FILE } from "@/ui/labels";
 import { fileInputNameClass, fileInputVariants } from "./fileInputVariants";
 

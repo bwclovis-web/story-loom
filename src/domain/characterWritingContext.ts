@@ -1,7 +1,13 @@
 import {
+  CHARACTER_DEVELOPMENT_KEY,
+  emptyBookState,
+  emptyLivedExperience,
   forgottenArcs,
+  knowledgeWindowOpen,
+  readCharacterDevelopment,
   resolveCharacterState,
   resolveKnowledgeAtPoint,
+  withCharacterDevelopment,
   type CharacterDevelopment,
   type ContextSlice,
   type KnowledgeHolder,
@@ -9,6 +15,8 @@ import {
   type NarrativePoint,
   type StateConflict,
 } from "@/domain/characterDevelopment";
+import { DOSSIER_MARKDOWN_ARCHIVE_KEY } from "@/domain/characterDossierUpgrade";
+import type { JsonObject } from "@/domain/json";
 import type { OrderEdge } from "@/world/storyOrder";
 
 /*
@@ -88,6 +96,7 @@ export interface CharacterContinuityFinding {
   title: string;
   detail: string;
   characterRecordId: string;
+  applicableCanon: string;
   explanation: string;
   evidence: string;
   suggestion: string;
@@ -106,6 +115,7 @@ function conflictFinding(
     title,
     detail: `${conflict.facet}: ${conflict.reason}`,
     characterRecordId: characterId,
+    applicableCanon: `Approved ${conflict.facet} state changes`,
     explanation:
       "Two or more approved state changes could not be ordered at this story point. This may be a timeline gap, not a forced rewrite.",
     evidence: conflict.changeIds.join(", "),
@@ -128,24 +138,41 @@ export function collectCharacterContinuityFindings(input: {
   const edges = input.edges ?? [];
   const findings: CharacterContinuityFinding[] = [];
   const state = resolveCharacterState(input.profile, input.point, edges);
+  const hasPointAnchor = Boolean(
+    input.point.storyEventId ||
+      input.point.chapterRecordId ||
+      input.point.sceneRecordId ||
+      input.point.sequence !== null,
+  );
   for (const conflict of state.conflicts) {
     findings.push(conflictFinding(input.characterRecordId, input.characterTitle, conflict));
   }
   for (const changeId of state.unplacedChangeIds) {
     const change = input.profile.stateChanges.find((item) => item.id === changeId);
     if (!change || change.approval !== "approved" || change.planned) continue;
+    const changeHasAnchor = Boolean(
+      change.storyEventId || change.chapterRecordId || change.sceneRecordId || change.sequence !== null,
+    );
+    // Project-wide Continuity Ledger (no focus point) should not flag properly anchored changes as unplaced.
+    if (!hasPointAnchor && changeHasAnchor) continue;
     findings.push({
       key: `character_limitation:${input.characterRecordId}:${changeId}`,
       kind: "character_limitation",
       severity: "info",
       title: input.characterTitle,
-      detail: `Approved ${change.facet} change is not placed on the timeline yet.`,
+      detail: changeHasAnchor
+        ? `Approved ${change.facet} change could not be ordered relative to this story point.`
+        : `Approved ${change.facet} change is not placed on the timeline yet.`,
       characterRecordId: input.characterRecordId,
-      explanation:
-        "The change is canon but has no story-event or chapter anchor relative to this point. Growth or a temporary reaction may still be fine.",
+      applicableCanon: `Approved ${change.facet}: ${change.text || "(state change)"}`,
+      explanation: changeHasAnchor
+        ? "This change has a timeline/chapter anchor, but no story-event order connects it to the current focus point."
+        : "The change is canon but has no story-event or chapter anchor yet. Growth or a temporary reaction may still be fine.",
       evidence: change.note || change.text || change.facet,
-      suggestion: "Link the change to a story event, chapter, or scene, or mark the Continuity finding intentional.",
-      storyLocation: change.bookProjectId ?? "unplaced",
+      suggestion: changeHasAnchor
+        ? "Link the story events in Timeline order if ordering matters here, or mark the finding intentional."
+        : "Link the change to a story event, chapter, or scene, or mark the Continuity finding intentional.",
+      storyLocation: change.storyEventId ?? change.sceneRecordId ?? change.chapterRecordId ?? change.bookProjectId ?? "unplaced",
     });
   }
 
@@ -168,6 +195,7 @@ export function collectCharacterContinuityFindings(input: {
       title: input.characterTitle,
       detail: `Secret without a story anchor: ${secret.statement.slice(0, 120)}`,
       characterRecordId: input.characterRecordId,
+      applicableCanon: `Character-held secret (${secret.aiVisibility})`,
       explanation:
         "A character should not automatically know bible facts. This secret has no from-event or scene, so drafting context will omit it until anchored.",
       evidence: secret.statement,
@@ -184,6 +212,7 @@ export function collectCharacterContinuityFindings(input: {
       title: input.characterTitle,
       detail: `Arc “${arc.title}” has no recent manuscript-linked milestone.`,
       characterRecordId: input.characterRecordId,
+      applicableCanon: `Approved arc (${arc.scope})`,
       explanation: "This is a planning cue, not proof the prose is wrong. Intentional quiet arcs can be marked intentional.",
       evidence: arc.title,
       suggestion: "Add a milestone, link a scene, or mark the finding intentional.",
@@ -199,6 +228,7 @@ export function collectCharacterContinuityFindings(input: {
       title: input.characterTitle,
       detail: "Variant identity has a foundation but inherits no traits yet.",
       characterRecordId: input.characterRecordId,
+      applicableCanon: `Variant (${input.profile.variant.relationshipKind.replaceAll("_", " ")})`,
       explanation: "Alternate identities keep independent histories; inheritance is optional and explicit.",
       evidence: input.profile.variant.foundationRecordId,
       suggestion: "Tick inherited traits when this variant should share baseline voice or identity.",
@@ -245,4 +275,59 @@ export function summarizeKnowledgeOmissions(
     omittedOtherHolders,
     knowledgeCount: included.length,
   };
+}
+
+/**
+ * Fallback narrative book order for series dossiers whose bookStates do not set
+ * narrativeIndex explicitly. Never overrides author-chosen narrativeIndex values.
+ */
+export function withSeriesBookOrderFallback(
+  profile: CharacterDevelopment,
+  bookIds: readonly string[],
+): CharacterDevelopment {
+  if (bookIds.length <= 1) return profile;
+  if (profile.bookStates.some((book) => book.narrativeIndex !== null)) return profile;
+  const byId = new Map(profile.bookStates.map((book) => [book.projectId, book]));
+  const bookStates = bookIds.map((id, index) => ({
+    ...(byId.get(id) ?? emptyBookState(id)),
+    narrativeIndex: index,
+  }));
+  return { ...profile, bookStates };
+}
+
+/**
+ * Optionally strips lived-experience notes, omit/spoiler knowledge, and planned
+ * future character items from raw record fields when exporting a spoiler-safe bundle.
+ */
+export function redactCharacterFieldsForExport(
+  fields: JsonObject,
+  policy: WritingContextPolicy,
+  scope?: { point?: NarrativePoint | null; edges?: readonly OrderEdge[] },
+): JsonObject {
+  const copy: JsonObject = { ...fields };
+  delete copy[DOSSIER_MARKDOWN_ARCHIVE_KEY];
+  if (!(CHARACTER_DEVELOPMENT_KEY in copy)) return copy;
+  const read = readCharacterDevelopment(copy);
+  const point = scope?.point ?? null;
+  const edges = scope?.edges ?? [];
+  const filteredKnowledge = filterKnowledgeForWriting(read.profile.knowledge, policy).filter((item) => {
+    if (!point || policy.includeSpoilers) return true;
+    return knowledgeWindowOpen(item, point, edges);
+  });
+  const filteredChanges = policy.includePlanned
+    ? read.profile.stateChanges
+    : read.profile.stateChanges.filter((item) => !item.planned);
+  const filteredArcs = policy.includePlanned
+    ? read.profile.arcs
+    : read.profile.arcs.filter((arc) => arc.approval === "approved");
+  const redacted: CharacterDevelopment = {
+    ...read.profile,
+    livedExperience: emptyLivedExperience(),
+    knowledge: filteredKnowledge,
+    stateChanges: filteredChanges,
+    arcs: filteredArcs,
+    reviewNotes: [],
+    migrationHold: [],
+  };
+  return withCharacterDevelopment(copy, redacted);
 }

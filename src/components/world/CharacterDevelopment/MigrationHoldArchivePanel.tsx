@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Banner } from "@/components/ui/Banner";
-import { Button, ButtonLink } from "@/components/ui/Button";
+import { Button, ButtonLink } from "@/components/ui/Atoms/Button";
 import type { CharacterDevelopment } from "@/domain/characterDevelopment";
 import {
   dismissHold,

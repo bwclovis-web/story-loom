@@ -5,7 +5,7 @@ import { IssueList } from "@/components/IssueList";
 import type { DiffPart } from "@/changePackage/diff";
 import { foldUnchanged, unifiedSegments, type Segment } from "@/ui/packageReview";
 import { Banner } from "@/components/ui/Banner";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui/Atoms/Button";
 import { FileInput } from "@/components/ui/FileInput";
 import { RadioGroup } from "@/components/ui/RadioGroup";
 import type { Issue } from "@/domain/issues";

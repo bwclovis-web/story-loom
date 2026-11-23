@@ -2,7 +2,7 @@
 
 import { useActionState, useState } from "react";
 import { IssueList } from "@/components/IssueList";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui/Atoms/Button";
 import { TextField } from "@/components/ui/TextField";
 import { submitWithoutReset } from "@/components/submitWithoutReset";
 import type { WorldCalendarView } from "@/server/services/worldCalendarService";

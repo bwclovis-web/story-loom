@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { HelpHint } from "@/components/HelpHint";
-import { ButtonLink } from "@/components/ui/Button";
+import { ButtonLink } from "@/components/ui/Atoms/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ProjectOnboarding } from "@/components/shell/ProjectOnboarding";
 import { WorldToolHeader } from "@/components/world/WorldToolHeader";

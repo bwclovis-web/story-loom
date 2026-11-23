@@ -11,8 +11,9 @@ import {
   RECORD_RELATION_LABELS,
   type RecordRelationKind,
   type RecordRelationView,
-} from "@/server/services/recordRelationService";
-import { WORLD } from "@/ui/labels";
+} from "@/world/recordRelations";
+import { RELATION_SCOPE_LABELS, type RelationScope } from "@/domain/assignments";
+import { SERIES, WORLD } from "@/ui/labels";
 import { addRecordRelationAction, removeRecordRelationAction } from "../recordRelationActions";
 
 export function RecordRelations({
@@ -21,17 +22,20 @@ export function RecordRelations({
   outgoing,
   incoming,
   choices,
+  canShareSeries = false,
 }: {
   projectId: string;
   recordId: string;
   outgoing: RecordRelationView[];
   incoming: RecordRelationView[];
-  choices: Array<{ id: string; title: string; typeLabel: string }>;
+  choices: Array<{ id: string; title: string; typeLabel: string; homeLabel?: string | null }>;
+  canShareSeries?: boolean;
 }) {
   const router = useRouter();
   const [kind, setKind] = useState<RecordRelationKind>("member_of");
   const [customLabel, setCustomLabel] = useState("");
   const [toRecordId, setToRecordId] = useState("");
+  const [scope, setScope] = useState<RelationScope>("book");
   const [issues, setIssues] = useState<Issue[]>([]);
   const [pending, startTransition] = useTransition();
   const base = `/projects/${encodeURIComponent(projectId)}/records`;
@@ -54,7 +58,11 @@ export function RecordRelations({
                 <span>
                   {r.kindLabel}{" "}
                   <Link href={`${base}/${encodeURIComponent(r.toRecordId)}`}>{r.toTitle}</Link>
-                  <span className="small muted"> ({r.toTypeLabel})</span>
+                  <span className="small muted">
+                    {" "}
+                    ({r.toTypeLabel}
+                    {r.scope === "series" ? ` · ${SERIES.scopeWholeSeries}` : ` · ${SERIES.scopeThisBook}`})
+                  </span>
                 </span>
                 <Button
                   type="button"
@@ -108,6 +116,7 @@ export function RecordRelations({
                 toRecordId,
                 kind,
                 customLabel: kind === "custom" ? customLabel : undefined,
+                scope,
               });
               if (!result.ok) {
                 setIssues(result.issues);
@@ -137,7 +146,8 @@ export function RecordRelations({
                 <option value="">{WORLD.chooseRecordRelationTarget}</option>
                 {pickerChoices.map((c) => (
                   <option key={c.id} value={c.id}>
-                    {c.title} ({c.typeLabel})
+                    {c.title} ({c.typeLabel}
+                    {c.homeLabel ? ` · ${c.homeLabel}` : ""})
                   </option>
                 ))}
               </select>
@@ -152,6 +162,15 @@ export function RecordRelations({
                   required
                   maxLength={64}
                 />
+              </label>
+            ) : null}
+            {canShareSeries ? (
+              <label>
+                Visibility
+                <select value={scope} onChange={(e) => setScope(e.target.value as RelationScope)}>
+                  <option value="book">{RELATION_SCOPE_LABELS.book}</option>
+                  <option value="series">{RELATION_SCOPE_LABELS.series}</option>
+                </select>
               </label>
             ) : null}
             <Button type="submit" disabled={pending || !toRecordId || (kind === "custom" && !customLabel.trim())} size="sm">

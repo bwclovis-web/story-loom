@@ -19,6 +19,7 @@ import {
 import type { Db, DbOrTx, Tx } from "../db";
 import { writeAudit } from "./auditService";
 import { MutationRejectedError, NotFoundError } from "./errors";
+import { resolveAvailableReference } from "./seriesBibleService";
 import { LIVE_RECORD } from "./trashFilters";
 import { deleteMapsForImageInTx } from "./worldMapService";
 
@@ -133,6 +134,50 @@ export async function getImageData(db: DbOrTx, projectId: string, imageId: strin
   });
   if (!row || !isImageMimeType(row.mimeType)) throw new NotFoundError(`Image ${imageId} not found`);
   return { ...row, mimeType: row.mimeType, data: new Uint8Array(row.data) };
+}
+
+export interface AvailableImage extends ImageData {
+  recordId: string;
+  /** Owning project of the image / host record (may differ from viewing project). */
+  projectId: string;
+  /** True when the host record is a series-shared sibling reference. */
+  isShared: boolean;
+}
+
+/**
+ * Reads image bytes when the host record belongs to the viewing project or is
+ * an eligible series-shared sibling record. Strict workspace/series isolation.
+ */
+export async function resolveAvailableImage(
+  db: DbOrTx,
+  viewingProjectId: string,
+  imageId: string,
+): Promise<AvailableImage | null> {
+  const row = await db.recordImage.findFirst({
+    where: { id: imageId, record: LIVE_RECORD },
+    select: {
+      id: true,
+      name: true,
+      mimeType: true,
+      contentHash: true,
+      data: true,
+      recordId: true,
+      projectId: true,
+    },
+  });
+  if (!row || !isImageMimeType(row.mimeType)) return null;
+  const available = await resolveAvailableReference(db, viewingProjectId, row.recordId);
+  if (!available) return null;
+  return {
+    id: row.id,
+    name: row.name,
+    mimeType: row.mimeType,
+    contentHash: row.contentHash,
+    data: new Uint8Array(row.data),
+    recordId: row.recordId,
+    projectId: row.projectId,
+    isShared: available.isShared,
+  };
 }
 
 /** Image bytes for the given image IDs, for the PDF export. */

@@ -9,7 +9,7 @@ import {
   startAuthorRewriteAction,
 } from "@/app/projects/[projectId]/drafts/actions";
 import { WRITE_DRAFT_COOKIE, writePreference } from "@/components/shell/preferences";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui/Atoms/Button";
 import type { DraftKind } from "@/domain/assignments";
 import { DRAFT } from "@/ui/labels";
 

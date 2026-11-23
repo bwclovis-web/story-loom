@@ -10,7 +10,7 @@ alwaysApply: true
   `ComponentName/ComponentName.tsx`, `ComponentName/componentVariants.ts` (or
   `*Variants.ts`), optional siblings (`ButtonLink.tsx`), and `index.ts` that
   re-exports the public API.
-- Import from the folder barrel (`@/components/ui/Button`,
+- Import from the folder barrel (`@/components/ui/Atoms/Button`,
   `@/components/ui/Banner`), not from deep file paths or leftover flat files.
 - Keep CVA / variant helpers in the same folder as the component. Do not leave
   `buttonVariants.ts` (or similar) as a sibling of many unrelated components.

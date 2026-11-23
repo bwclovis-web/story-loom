@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ButtonLink } from "@/components/ui/Button";
+import { ButtonLink } from "@/components/ui/Atoms/Button";
 import { ImageLightbox } from "@/components/ui/ImageLightbox";
 import { useId, useState, type KeyboardEvent, type ReactNode } from "react";
 import { CanonBadge, ProtectionStateBadge, SavedVersionBadge } from "@/components/Badges";
@@ -11,9 +11,10 @@ import {
   type EvidenceSourceChoice,
   type SceneChoice,
 } from "@/app/projects/[projectId]/records/[recordId]/EstablishedInRail";
-import type { EstablishedFactView } from "@/server/services/establishedFactService";
-import { CHARACTER_DEVELOPMENT, IMAGES, REFERENCE_FORM, WORLD, WORLD_KIND } from "@/ui/labels";
+import type { EstablishedFactView } from "@/world/establishedFacts";
+import { CHARACTER_DEVELOPMENT, IMAGES, REFERENCE_FORM, SERIES, WORLD, WORLD_KIND, WORLD_PROFILE } from "@/ui/labels";
 import { placementHref, type ReferenceInspectorModel } from "@/world/inspectorModel";
+import { seriesBookLabel, seriesRecordHref } from "@/world/seriesHome";
 
 export interface InspectorEstablished {
   facts: EstablishedFactView[];
@@ -152,6 +153,18 @@ export function ReferenceInspector({
                   <CanonBadge status={model.authorityStatus} />
                   <SavedVersionBadge revision={model.revision} />
                   <ProtectionStateBadge isProtected={model.protected} />
+                  {model.seriesHome ? (
+                    <span className="small muted">{SERIES.sharedFrom(seriesBookLabel(model.seriesHome))}</span>
+                  ) : model.worldScope === "series" ? (
+                    <span className="small muted">{SERIES.scopeWholeSeries}</span>
+                  ) : model.worldScope === "book" ? (
+                    <span className="small muted">{SERIES.scopeThisBook}</span>
+                  ) : null}
+                  {model.seriesHome ? (
+                    <ButtonLink href={seriesRecordHref(model.seriesHome.projectId, model.id)} size="sm" variant="secondary">
+                      {SERIES.editIn(seriesBookLabel(model.seriesHome))}
+                    </ButtonLink>
+                  ) : null}
                 </p>
               </div>
               {editing ? <p className="small muted">{WORLD.inspectorSavedNote}</p> : null}
@@ -201,6 +214,21 @@ export function ReferenceInspector({
               <p className="small">
                 <a href={linkMode === "page" ? "#character-development" : `${recordHref}#character-development`}>
                   {CHARACTER_DEVELOPMENT.openDossier}
+                </a>
+              </p>
+            </div>
+          ) : null}
+          {model.worldProfileLines.length ? (
+            <div>
+              <h3>{WORLD_PROFILE.heading}</h3>
+              <ul className="small">
+                {model.worldProfileLines.map((line) => (
+                  <li key={line}>{line}</li>
+                ))}
+              </ul>
+              <p className="small">
+                <a href={linkMode === "page" ? "#world-profile" : `${recordHref}#world-profile`}>
+                  {WORLD_PROFILE.heading}
                 </a>
               </p>
             </div>

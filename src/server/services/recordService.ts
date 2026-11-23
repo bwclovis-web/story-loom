@@ -1,11 +1,12 @@
 import { compareBookOrder } from "@/domain/bookOrder";
 import { errorIssue } from "@/domain/issues";
-import { stableStringify, type JsonObject } from "@/domain/json";
+import { parseJsonObject, stableStringify, type JsonObject } from "@/domain/json";
 import { toRecordView, toRevisionView, type RecordView, type RevisionView } from "@/domain/records";
 import { isLinkableReferenceType, isRecordType, RECORD_TYPE_LABELS, type RecordType } from "@/domain/recordTypes";
 import { isAuthorityStatus, type AuthorityStatus } from "@/domain/statuses";
 import type { RecordNavEntry } from "@/ui/navigation";
 import { aliasesOf } from "@/writing/crossRefs";
+import { resolveRecordTaxonomy, taxonomyNavSummary } from "@/world/taxonomy";
 import { worldbuildingCustomKind, worldbuildingKindFromFields } from "@/world/worldKinds";
 import type { Db, DbOrTx } from "../db";
 import { MutationRejectedError, NotFoundError } from "./errors";
@@ -21,9 +22,20 @@ import {
   type TrashedBatch,
 } from "./mutationService";
 import { LIVE_RECORD } from "./trashFilters";
-import { getSeriesSharedRecord, listSeriesSharedRecords, type SeriesSharedRecord } from "./seriesBibleService";
+import {
+  getSeriesSharedRecord,
+  listAvailableReferences,
+  listSeriesSharedRecords,
+  resolveAvailableReference,
+  type AvailableReference,
+  type ListAvailableReferencesOptions,
+  type SeriesSharedRecord,
+} from "./seriesBibleService";
 import { isWorldType } from "@/ui/world";
 import type { SeriesHomeRef } from "@/world/seriesHome";
+
+export type { AvailableReference, ListAvailableReferencesOptions };
+export { listAvailableReferences, resolveAvailableReference };
 
 /*
  * Direct author edits from the UI. The author editing in the app may touch
@@ -54,6 +66,7 @@ export async function createRecord(
     recordId?: string;
     parentRecordId?: string | null;
     draftId?: string | null;
+    worldScope?: "book" | "series" | null;
   },
 ): Promise<AppliedBatch> {
   return applyMutations(
@@ -70,6 +83,7 @@ export async function createRecord(
         authorityStatus: input.authorityStatus,
         parentRecordId: input.parentRecordId ?? null,
         draftId: input.draftId ?? null,
+        worldScope: input.worldScope ?? null,
       },
     ],
     { action: "record.create", summary: `Created ${RECORD_TYPE_LABELS[input.type]} "${input.title}"` },
@@ -229,23 +243,32 @@ export async function listRecordNav(
       fields: true,
     },
   });
-  return rows.flatMap((r) =>
-    isRecordType(r.type)
-      ? [
-          {
-            id: r.id,
-            title: r.title,
-            type: r.type,
-            parentRecordId: r.parentRecordId,
-            position: r.position,
-            createdAt: r.createdAt.toISOString(),
-            draftId: r.draftId,
-            worldKind: r.type === "worldbuilding" ? worldbuildingKindFromFields(r.fields) : null,
-            customKind: r.type === "worldbuilding" ? worldbuildingCustomKind(r.fields) : null,
-          },
-        ]
-      : [],
-  );
+  return rows.flatMap((r) => {
+    if (!isRecordType(r.type)) return [];
+    let fields: Record<string, unknown> = {};
+    try {
+      fields = parseJsonObject(r.fields);
+    } catch {
+      fields = {};
+    }
+    const taxonomy = isWorldType(r.type)
+      ? taxonomyNavSummary(resolveRecordTaxonomy({ type: r.type, fields }))
+      : null;
+    return [
+      {
+        id: r.id,
+        title: r.title,
+        type: r.type,
+        parentRecordId: r.parentRecordId,
+        position: r.position,
+        createdAt: r.createdAt.toISOString(),
+        draftId: r.draftId,
+        worldKind: r.type === "worldbuilding" ? worldbuildingKindFromFields(fields) : null,
+        customKind: r.type === "worldbuilding" ? worldbuildingCustomKind(fields) : null,
+        taxonomy,
+      },
+    ];
+  });
 }
 
 /** Manuscript chapters and scenes only, under a draft scope (or whole project when legacy). */

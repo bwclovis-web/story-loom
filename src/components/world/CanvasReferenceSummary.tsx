@@ -1,9 +1,10 @@
 import { BookMarked, MapPin } from "lucide-react";
 import { BoardProjectImage } from "@/components/world/BoardProjectImage";
-import { ButtonLink } from "@/components/ui/Button";
-import { REFERENCE_FORM, WORLD } from "@/ui/labels";
+import { ButtonLink } from "@/components/ui/Atoms/Button";
+import { REFERENCE_FORM, SERIES, WORLD } from "@/ui/labels";
 import { withCanvasReturn } from "@/world/canvasReturn";
 import type { ReferenceInspectorModel } from "@/world/inspectorModel";
+import { seriesBookLabel } from "@/world/seriesHome";
 
 /** Compact identity for a map marker or board card. The full record stays on its own page. */
 export function CanvasReferenceSummary({
@@ -45,6 +46,13 @@ export function CanvasReferenceSummary({
             {model.typeLabel}
             {model.worldKindLabel ? ` · ${model.worldKindLabel}` : ""}
             {model.protected ? ` · ${WORLD.protectedLabel}` : ""}
+            {model.seriesHome
+              ? ` · ${SERIES.sharedFrom(seriesBookLabel(model.seriesHome))}`
+              : model.worldScope === "series"
+                ? ` · ${SERIES.scopeWholeSeries}`
+                : model.worldScope === "book"
+                  ? ` · ${SERIES.scopeThisBook}`
+                  : ""}
           </p>
         </div>
       </div>

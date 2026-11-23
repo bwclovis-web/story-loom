@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { useId, useMemo, useState } from "react";
 import { profileGraphNode } from "@/components/world/ProfileGraphNode";
 import { Banner } from "@/components/ui/Banner";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui/Atoms/Button";
 import { RadioGroup } from "@/components/ui/RadioGroup";
 import { SegmentedControl, SegmentedOption } from "@/components/ui/SegmentedControl";
 import { AUTHORITY_STATUSES } from "@/domain/statuses";

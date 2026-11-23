@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, type RefObject } from "react";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui/Atoms/Button";
 import type { MarginCommentView } from "@/server/services/manuscriptAnnotationService";
 import {
   addMarginCommentAction,

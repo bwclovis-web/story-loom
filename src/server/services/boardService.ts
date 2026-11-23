@@ -1,11 +1,16 @@
+import type { WorldScope } from "@/domain/assignments";
 import { newId } from "@/domain/ids";
 import { errorIssue } from "@/domain/issues";
 import { isLinkableReferenceType, isRecordType, RECORD_TYPE_LABELS } from "@/domain/recordTypes";
 import { worldKindDisplayFromFields } from "@/world/worldKinds";
 import { isAuthorityStatus, type AuthorityStatus } from "@/domain/statuses";
+import type { SeriesHomeRef } from "@/world/seriesHome";
 import type { Db, DbOrTx, Tx } from "../db";
 import { writeAudit } from "./auditService";
 import { MutationRejectedError, NotFoundError } from "./errors";
+import { resolveAvailableImage } from "./imageService";
+import { listSeriesBookProjects } from "./projectService";
+import { resolveAvailableReference } from "./seriesBibleService";
 
 /*
  * World boards: place record/image cards and freeform notes. Positions and
@@ -59,6 +64,11 @@ export interface BoardCardView {
   authorityStatus: AuthorityStatus | null;
   imageName: string | null;
   imageAlt: string | null;
+  /** Home book when the card targets a series-shared sibling reference. */
+  home: SeriesHomeRef | null;
+  worldScope: WorldScope | null;
+  /** True when the linked record/image is trashed, unshared, or left the series. */
+  unavailable: boolean;
 }
 
 export interface BoardView {
@@ -157,7 +167,18 @@ export async function getBoard(db: DbOrTx, projectId: string, boardId: string): 
       cards: {
         orderBy: [{ zIndex: "asc" }, { createdAt: "asc" }, { id: "asc" }],
         include: {
-          record: { select: { id: true, title: true, type: true, authorityStatus: true, trashedAt: true, fields: true } },
+          record: {
+            select: {
+              id: true,
+              projectId: true,
+              title: true,
+              type: true,
+              authorityStatus: true,
+              trashedAt: true,
+              fields: true,
+              worldScope: true,
+            },
+          },
           image: { select: { id: true, name: true, altText: true, recordId: true } },
         },
       },
@@ -165,15 +186,53 @@ export async function getBoard(db: DbOrTx, projectId: string, boardId: string): 
   });
   if (!board || !isBoardTemplateKey(board.templateKey)) throw new NotFoundError(`Board ${boardId} not found`);
 
+  const linkedRecordIds = [
+    ...new Set(
+      board.cards.flatMap((c) => {
+        if (c.recordId) return [c.recordId];
+        if (c.image?.recordId) return [c.image.recordId];
+        return [];
+      }),
+    ),
+  ];
+  const availability = new Map(
+    await Promise.all(
+      linkedRecordIds.map(async (id) => [id, await resolveAvailableReference(db, projectId, id)] as const),
+    ),
+  );
+  const seriesBooks = await listSeriesBookProjects(db, projectId);
+  const homeByProject = new Map(
+    seriesBooks.map((book) => [book.id, { projectId: book.id, title: book.title, bookName: book.bookName } as SeriesHomeRef]),
+  );
+
   const cards: BoardCardView[] = board.cards.flatMap((c) => {
     if (!isBoardCardKind(c.kind)) return [];
-    const liveRecord = c.record && c.record.trashedAt === null ? c.record : null;
+    const targetRecordId = c.recordId ?? c.image?.recordId ?? null;
+    const available = targetRecordId ? availability.get(targetRecordId) ?? null : null;
+    const unavailable = Boolean(targetRecordId) && !available && c.kind !== "note";
+    const liveRecord = available
+      ? {
+          id: available.record.id,
+          title: available.record.title,
+          type: available.record.type,
+          authorityStatus: available.record.authorityStatus,
+          fields: available.record.fields,
+          worldScope: available.worldScope,
+        }
+      : c.record && c.record.trashedAt === null && isRecordType(c.record.type)
+        ? c.record
+        : null;
     const typeLabel =
       liveRecord && isRecordType(liveRecord.type) ? RECORD_TYPE_LABELS[liveRecord.type] : null;
     const worldKindLabel =
       liveRecord?.type === "worldbuilding" ? worldKindDisplayFromFields(liveRecord.fields) : null;
     const status =
       liveRecord && isAuthorityStatus(liveRecord.authorityStatus) ? liveRecord.authorityStatus : null;
+    const home: SeriesHomeRef | null =
+      available?.home ??
+      (unavailable && c.record && c.record.projectId !== projectId
+        ? homeByProject.get(c.record.projectId) ?? null
+        : null);
     return [
       {
         id: c.id,
@@ -189,16 +248,19 @@ export async function getBoard(db: DbOrTx, projectId: string, boardId: string): 
         height: c.height,
         zIndex: c.zIndex,
         label: cardLabel(c.kind, {
-          recordTitle: liveRecord?.title ?? null,
+          recordTitle: liveRecord?.title ?? (unavailable ? c.record?.title ?? null : null),
           imageName: c.image?.name ?? null,
           noteTitle: c.noteTitle,
         }),
-        recordTitle: liveRecord?.title ?? null,
+        recordTitle: liveRecord?.title ?? (unavailable ? c.record?.title ?? null : null),
         recordTypeLabel: typeLabel,
         recordWorldKindLabel: worldKindLabel,
         authorityStatus: status,
         imageName: c.image?.name ?? null,
         imageAlt: c.image?.altText ?? null,
+        home,
+        worldScope: available?.worldScope ?? (c.record?.worldScope === "series" || c.record?.worldScope === "book" ? c.record.worldScope : null),
+        unavailable,
       },
     ];
   });
@@ -311,12 +373,9 @@ export async function addRecordCard(
 ): Promise<BoardCardView> {
   return db.$transaction(async (tx) => {
     await requireBoard(tx, projectId, boardId);
-    const record = await tx.record.findFirst({
-      where: { id: input.recordId, projectId, trashedAt: null },
-      select: { id: true, title: true, type: true, authorityStatus: true },
-    });
-    if (!record) throw rejected("That record is not in this project.", input.recordId);
-    if (!isRecordType(record.type) || !isLinkableReferenceType(record.type)) {
+    const available = await resolveAvailableReference(tx, projectId, input.recordId);
+    if (!available) throw rejected("That record is not available in this book.", input.recordId);
+    if (!isLinkableReferenceType(available.record.type)) {
       throw rejected("Only reference records can be placed on a board.", input.recordId);
     }
     const z = await nextZ(tx, boardId);
@@ -327,7 +386,7 @@ export async function addRecordCard(
         boardId,
         projectId,
         kind: "record",
-        recordId: record.id,
+        recordId: available.record.id,
         x: Math.round(input.x),
         y: Math.round(input.y),
         zIndex: z,
@@ -338,8 +397,8 @@ export async function addRecordCard(
       projectId,
       action: "board_card.add",
       actor: UI_ACTOR,
-      summary: `Added "${record.title}" to a board`,
-      details: { boardId, cardId: id, kind: "record", recordId: record.id },
+      summary: `Added "${available.record.title}" to a board`,
+      details: { boardId, cardId: id, kind: "record", recordId: available.record.id },
     });
     const board = await getBoard(tx, projectId, boardId);
     return board.cards.find((c) => c.id === id)!;
@@ -354,11 +413,8 @@ export async function addImageCard(
 ): Promise<BoardCardView> {
   return db.$transaction(async (tx) => {
     await requireBoard(tx, projectId, boardId);
-    const image = await tx.recordImage.findFirst({
-      where: { id: input.imageId, projectId },
-      include: { record: { select: { id: true, title: true, trashedAt: true } } },
-    });
-    if (!image || image.record.trashedAt) throw rejected("That image is not in this project.");
+    const image = await resolveAvailableImage(tx, projectId, input.imageId);
+    if (!image) throw rejected("That image is not available in this book.");
     const z = await nextZ(tx, boardId);
     const id = newId("bcd");
     await tx.boardCard.create({

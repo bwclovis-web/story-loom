@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Banner } from "@/components/ui/Banner";
-import { ButtonLink } from "@/components/ui/Button";
+import { ButtonLink } from "@/components/ui/Atoms/Button";
 import { MarkdownView } from "@/components/MarkdownView";
 import { CanonBadge } from "@/components/Badges";
 import type { RecordView } from "@/domain/records";
@@ -16,9 +16,11 @@ import { parseMarkdown } from "@/writing/markdownParse";
 import type { SpellChecker, SpellingLanguage } from "@/writing/spelling";
 import { RecordEditor } from "@/app/projects/[projectId]/records/[recordId]/RecordForms";
 import { saveSeriesSharedRecordAction } from "@/app/projects/[projectId]/records/[recordId]/seriesSharedActions";
+import { WorldProfileSection } from "@/app/projects/[projectId]/records/[recordId]/WorldProfileSection";
+import type { JsonObject } from "@/domain/json";
 
 /** A series reference opened from a sibling book. Linking and trash stay on the home book. */
-export function SeriesSharedRecord({
+export async function SeriesSharedRecord({
   viewingProjectId,
   record,
   home,
@@ -103,6 +105,18 @@ export function SeriesSharedRecord({
       </p>
       {infobox ? <ReferenceInfobox model={infobox} /> : null}
       <MarkdownView doc={parseMarkdown(record.body)} />
+      <WorldProfileSection
+        projectId={viewingProjectId}
+        recordId={record.id}
+        recordType={record.type}
+        revision={record.currentRevision}
+        body={record.body}
+        fields={record.fields as JsonObject}
+        editable={false}
+        seriesHome={home}
+        isProtected={record.protected}
+        homeProjectId={home.projectId}
+      />
       <p className="row">
         <ButtonLink href={seriesRecordHref(home.projectId, record.id)}>{SERIES.editIn(book)}</ButtonLink>
         <ButtonLink href={`${recordHref}?edit=cross`} variant="secondary">

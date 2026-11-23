@@ -1,9 +1,11 @@
 "use client";
-import { Button } from "@/components/ui/Button";
-import { Checkbox } from "@/components/ui/Checkbox";
+import { Button } from "@/components/ui/Atoms/Button";
+import { Checkbox } from "@/components/ui/Atoms/Checkbox";
+import { Select } from "@/components/ui/Atoms/Select";
 
 import { useState, useTransition } from "react";
 import { ProtectionBadge, StatusBadge } from "@/components/Badges";
+import type { WritingContextMode } from "@/domain/characterWritingContext";
 import { isManuscriptType, RECORD_TYPE_LABELS, RECORD_TYPES, type RecordType } from "@/domain/recordTypes";
 import type { AuthorityStatus } from "@/domain/statuses";
 import { EXPORT } from "@/ui/labels";
@@ -18,20 +20,31 @@ interface ExportableRecord {
   protected: boolean;
 }
 
+interface StoryPointOption {
+  id: string;
+  title: string;
+  type: RecordType;
+}
+
 export function ExportClient({
   projectId,
   records,
   initialSelection,
+  storyPoints = [],
 }: {
   projectId: string;
   records: ExportableRecord[];
   /** Record IDs to tick first; by default every non-manuscript record. */
   initialSelection: string[] | null;
+  storyPoints?: StoryPointOption[];
 }) {
   const [selected, setSelected] = useState<Set<string>>(
     () => new Set(initialSelection ?? records.filter((r) => !isManuscriptType(r.type)).map((r) => r.id)),
   );
   const [includeSchema, setIncludeSchema] = useState(true);
+  const [characterMode, setCharacterMode] = useState<WritingContextMode>("editorial");
+  const [focusRecordId, setFocusRecordId] = useState<string>("");
+  const [redactCharacterSpoilers, setRedactCharacterSpoilers] = useState(false);
   const [bundle, setBundle] = useState("");
   const [copied, setCopied] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -46,7 +59,13 @@ export function ExportClient({
   const generate = () =>
     startTransition(async () => {
       setCopied(false);
-      setBundle(await exportBundleAction(projectId, [...selected], [], includeSchema));
+      setBundle(
+        await exportBundleAction(projectId, [...selected], [], includeSchema, {
+          characterMode,
+          focusRecordId: focusRecordId || null,
+          redactCharacterSpoilers,
+        }),
+      );
     });
 
   const download = () => {
@@ -100,6 +119,38 @@ export function ExportClient({
       })}
 
       <div className="panel stack">
+        <div className="row" style={{ flexWrap: "wrap", gap: "1rem", alignItems: "flex-start" }}>
+          <Select
+            label={EXPORT.characterModeLabel}
+            hint={EXPORT.characterModeHint}
+            value={characterMode}
+            onChange={(e) => setCharacterMode(e.target.value as WritingContextMode)}
+          >
+            <option value="drafting">{EXPORT.characterModeDrafting}</option>
+            <option value="editorial">{EXPORT.characterModeEditorial}</option>
+            <option value="planning">{EXPORT.characterModePlanning}</option>
+          </Select>
+          {storyPoints.length > 0 ? (
+            <Select
+              label={EXPORT.storyPointLabel}
+              hint={EXPORT.storyPointHint}
+              value={focusRecordId}
+              onChange={(e) => setFocusRecordId(e.target.value)}
+            >
+              <option value="">{EXPORT.storyPointNone}</option>
+              {storyPoints.map((point) => (
+                <option key={point.id} value={point.id}>
+                  {point.title} ({RECORD_TYPE_LABELS[point.type]})
+                </option>
+              ))}
+            </Select>
+          ) : null}
+        </div>
+        <Checkbox
+          checked={redactCharacterSpoilers}
+          onChange={(e) => setRedactCharacterSpoilers(e.target.checked)}
+          label={EXPORT.redactSpoilers}
+        />
         <Checkbox checked={includeSchema} onChange={(e) => setIncludeSchema(e.target.checked)} label={EXPORT.includeSchema} />
         <div className="row">
           <Button onClick={generate} disabled={pending || selected.size === 0}>

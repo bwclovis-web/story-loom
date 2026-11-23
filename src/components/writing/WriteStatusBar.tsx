@@ -2,7 +2,7 @@
 
 import { Check, CircleAlert, CircleOff, LoaderCircle, Minus, SpellCheck } from "lucide-react";
 import type { ReactNode, Ref } from "react";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui/Atoms/Button";
 import { SPELLING } from "@/ui/labels";
 import type { SpellChecker } from "@/writing/spelling";
 import { spellingFooterKind, type SpellcheckRunStatus, type SpellingFooterKind } from "@/writing/spellingStatus";

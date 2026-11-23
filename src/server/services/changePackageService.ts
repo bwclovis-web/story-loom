@@ -256,12 +256,13 @@ async function analyze(db: DbOrTx, input: string | unknown, target: PackageTarge
     }
   });
 
+  const { resolveAvailableReference } = await import("./seriesBibleService");
   const relatedIds = pkg.relatedRecords.map((r) => r.recordId);
-  const relatedRows = await db.record.findMany({
-    where: { id: { in: relatedIds }, projectId: pkg.projectId, trashedAt: null },
-    select: { id: true, title: true },
-  });
-  const relatedTitles = new Map(relatedRows.map((r) => [r.id, r.title]));
+  const relatedTitles = new Map<string, string>();
+  for (const recordId of relatedIds) {
+    const available = await resolveAvailableReference(db, pkg.projectId, recordId);
+    if (available) relatedTitles.set(recordId, available.record.title);
+  }
   const relatedNotes: ReviewNotePreview[] = [];
   pkg.relatedRecords.forEach((r, i) => {
     const created = plan.planned.find((p) => p.before === null && p.recordId === r.recordId);
@@ -275,6 +276,20 @@ async function analyze(db: DbOrTx, input: string | unknown, target: PackageTarge
     }
     relatedNotes.push({ recordId: r.recordId, title: relatedTitles.get(r.recordId) ?? created?.after.title ?? null, note: r.note });
   });
+
+  for (const planned of plan.planned) {
+    if (planned.before === null) continue;
+    const available = await resolveAvailableReference(db, pkg.projectId, planned.recordId);
+    if (available?.isShared) {
+      issues.push(
+        errorIssue(
+          "SCOPE_VIOLATION",
+          `SERIES_SHARED_READ_ONLY: Record ${planned.recordId} is a series-shared reference owned by another book. Edit it in its home book or with a package targeting that book.`,
+          { recordId: planned.recordId, path: `operations.${planned.index}` },
+        ),
+      );
+    }
+  }
 
   return { pkg, contentHash, issues, planned: plan.planned, previousResult: null, relatedNotes };
 }

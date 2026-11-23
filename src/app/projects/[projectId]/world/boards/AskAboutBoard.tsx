@@ -1,7 +1,7 @@
 "use client";
 
-import Link from "next/link";
-import { Button, ButtonLink } from "@/components/ui/Button";
+import { Button } from "@/components/ui/Atoms/Button";
+import { ButtonLink } from "@/components/ui/Atoms/Button";
 import { useState, useTransition } from "react";
 import { IssueList } from "@/components/IssueList";
 import type { Issue } from "@/domain/issues";

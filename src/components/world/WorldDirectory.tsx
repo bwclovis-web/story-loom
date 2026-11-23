@@ -13,15 +13,18 @@ export function WorldDirectory({
   projectId,
   current = "references",
   rail = false,
+  heading = WORLD.worldDirectory,
 }: {
   projectId: string;
   current?: WorldDestinationKey;
   /** Right-hand column on the References hub. */
   rail?: boolean;
+  /** Optional section title (hub uses Tools & spaces). */
+  heading?: string;
 }) {
   return (
     <section className={rail ? "world-directory world-directory-rail" : "world-directory"} aria-labelledby="world-directory-heading">
-      <h2 id="world-directory-heading">{WORLD.worldDirectory}</h2>
+      <h2 id="world-directory-heading">{heading}</h2>
       <div className="world-directory-groups">
         {WORLD_DESTINATION_GROUPS.map((group) => (
           <div key={group.id} className="world-directory-group">

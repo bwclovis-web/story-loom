@@ -34,6 +34,27 @@ export function isWorldScope(value: string | null | undefined): value is WorldSc
   return !!value && (WORLD_SCOPES as readonly string[]).includes(value);
 }
 
+/**
+ * Visibility of an explicit PlaceRelation / RecordRelation.
+ * book = only in the owning project; series = across sibling books when both
+ * endpoints are series-scoped World references in that series.
+ */
+export const RELATION_SCOPES = ["book", "series"] as const;
+export type RelationScope = (typeof RELATION_SCOPES)[number];
+
+export const RELATION_SCOPE_LABELS: Record<RelationScope, string> = {
+  book: "This book only",
+  series: "Whole series",
+};
+
+export function isRelationScope(value: string | null | undefined): value is RelationScope {
+  return !!value && (RELATION_SCOPES as readonly string[]).includes(value);
+}
+
+export function normalizeRelationScope(value: string | null | undefined): RelationScope {
+  return isRelationScope(value) ? value : "book";
+}
+
 /** Empty / whitespace-only names are stored as null (unassigned). */
 export function normalizeOptionalName(value: string | null | undefined): string | null {
   const trimmed = value?.trim() ?? "";

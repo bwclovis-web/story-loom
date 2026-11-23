@@ -1,3 +1,4 @@
+import { isWorldScope, type WorldScope } from "@/domain/assignments";
 import { compareBookOrder, orderAfterMove } from "@/domain/bookOrder";
 import {
   CHARACTER_DEVELOPMENT_KEY,
@@ -7,6 +8,15 @@ import {
   DOSSIER_MARKDOWN_ARCHIVE_KEY,
   dossierMarkdownArchiveWriteProblems,
 } from "@/domain/characterDossierUpgrade";
+import {
+  WORLD_PROFILE_KEY,
+  worldProfileOnUnsupportedTypeProblems,
+  worldProfileWriteProblems,
+} from "@/domain/worldProfile";
+import {
+  WORLD_MARKDOWN_ARCHIVE_KEY,
+  worldMarkdownArchiveWriteProblems,
+} from "@/domain/worldProfileUpgrade";
 import { newId } from "@/domain/ids";
 import { errorIssue, warningIssue, type Issue } from "@/domain/issues";
 import { stableStringify, type JsonObject } from "@/domain/json";
@@ -20,7 +30,14 @@ import {
   type RecordType,
 } from "@/domain/recordTypes";
 import type { AuthorityStatus, MutationScope, SourceKind } from "@/domain/statuses";
+import { RECORD_GROUPS } from "@/ui/navigation";
 import { mergeManuscriptBodies, splitManuscriptBody } from "@/writing/manuscriptStructure";
+import {
+  isTaxonomyOnlyFieldsChange,
+  TAXONOMY_FIELD_KEY,
+  taxonomyOnNonWorldTypeProblems,
+  taxonomyWriteProblems,
+} from "@/world/taxonomy";
 import type { Db, DbOrTx, Tx } from "../db";
 import { writeAudit } from "./auditService";
 import { MutationRejectedError, NotFoundError, StaleRevisionError } from "./errors";
@@ -37,6 +54,9 @@ import {
 import { markStoryEvidenceNeedsRecheckForSourceInTx } from "./storyEventService";
 import { clearWeaveForDeletedRecordsInTx } from "./weaveService";
 
+function isWorldRecordType(type: RecordType): boolean {
+  return (RECORD_GROUPS.world as readonly string[]).includes(type);
+}
 /*
  * The only code path that writes Record and Revision rows. The UI, the
  * change-package importer, and any future API/MCP adapter all go through here.
@@ -62,6 +82,63 @@ function issuesForDossierMarkdownArchiveField(
   );
 }
 
+function issuesForTaxonomyField(
+  fields: JsonObject,
+  type: RecordType,
+  path: { path?: string; recordId?: string },
+): Issue[] {
+  const issues: Issue[] = [];
+  for (const problem of taxonomyOnNonWorldTypeProblems(type, fields)) {
+    issues.push(errorIssue("INVALID_CHANGE", problem.message, { ...path, path: problem.path }));
+  }
+  if (!(TAXONOMY_FIELD_KEY in fields)) return issues;
+  return [
+    ...issues,
+    ...taxonomyWriteProblems(fields[TAXONOMY_FIELD_KEY]).map((problem) =>
+      errorIssue("INVALID_CHANGE", problem.message, { ...path, path: problem.path }),
+    ),
+  ];
+}
+
+function issuesForWorldProfileField(
+  fields: JsonObject,
+  type: RecordType,
+  path: { path?: string; recordId?: string },
+): Issue[] {
+  const issues: Issue[] = [];
+  for (const problem of worldProfileOnUnsupportedTypeProblems(type, fields)) {
+    issues.push(errorIssue("INVALID_CHANGE", problem.message, { ...path, path: problem.path }));
+  }
+  if (!(WORLD_PROFILE_KEY in fields)) return issues;
+  return [
+    ...issues,
+    ...worldProfileWriteProblems(fields[WORLD_PROFILE_KEY]).map((problem) =>
+      errorIssue("INVALID_CHANGE", problem.message, { ...path, path: problem.path }),
+    ),
+  ];
+}
+
+function issuesForWorldMarkdownArchiveField(
+  fields: JsonObject,
+  path: { path?: string; recordId?: string },
+): Issue[] {
+  if (!(WORLD_MARKDOWN_ARCHIVE_KEY in fields)) return [];
+  return worldMarkdownArchiveWriteProblems(fields[WORLD_MARKDOWN_ARCHIVE_KEY]).map((problem) =>
+    errorIssue("INVALID_CHANGE", problem.message, { ...path, path: problem.path }),
+  );
+}
+
+/** Pure taxonomy metadata edits do not alter cited prose or canon claims. */
+export function isTaxonomyOnlySnapshotChange(before: RecordSnapshot, after: RecordSnapshot): boolean {
+  return (
+    before.title === after.title &&
+    before.body === after.body &&
+    before.authorityStatus === after.authorityStatus &&
+    before.supersededByRecordId === after.supersededByRecordId &&
+    isTaxonomyOnlyFieldsChange(before.fields, after.fields)
+  );
+}
+
 export interface CreateRecordMutation {
   kind: "create_record";
   /** Caller-chosen stable ID; generated when omitted. */
@@ -77,6 +154,8 @@ export interface CreateRecordMutation {
   parentRecordId?: string | null;
   /** Optional manuscript draft. Structural only; not part of the revision snapshot. */
   draftId?: string | null;
+  /** Optional World scope at creation. Structural only; World types only. */
+  worldScope?: WorldScope | null;
   operationIndex?: number;
 }
 
@@ -130,6 +209,8 @@ export interface PlannedMutation {
   parentRecordId: string | null;
   /** Set only on creation; existing records keep the draft they were created with. */
   draftId: string | null;
+  /** Set only on creation; existing records keep their World scope. */
+  worldScope: WorldScope | null;
   before: RecordSnapshot | null;
   beforeRevision: number | null;
   after: RecordSnapshot;
@@ -289,8 +370,23 @@ export async function planMutations(
       }
       issues.push(...issuesForCharacterDevelopmentField(m.fields, { ...at("fields"), recordId }));
       issues.push(...issuesForDossierMarkdownArchiveField(m.fields, { ...at("fields"), recordId }));
+      issues.push(...issuesForTaxonomyField(m.fields, m.type, { ...at("fields"), recordId }));
+      issues.push(...issuesForWorldProfileField(m.fields, m.type, { ...at("fields"), recordId }));
+      issues.push(...issuesForWorldMarkdownArchiveField(m.fields, { ...at("fields"), recordId }));
       if (m.draftId && !draftsInProject.has(m.draftId)) {
         issues.push(errorIssue("INVALID_CHANGE", `Draft ${m.draftId} does not exist in this project.`, at("draftId")));
+      }
+      let createWorldScope: WorldScope | null = null;
+      if (m.worldScope !== undefined && m.worldScope !== null) {
+        if (!isWorldScope(m.worldScope)) {
+          issues.push(errorIssue("INVALID_CHANGE", "World scope must be book or series.", at("worldScope")));
+        } else if (!isWorldRecordType(m.type)) {
+          issues.push(
+            errorIssue("INVALID_CHANGE", "World scope is only allowed on World reference records.", at("worldScope")),
+          );
+        } else {
+          createWorldScope = m.worldScope;
+        }
       }
       if (m.parentRecordId && trashed.has(m.parentRecordId)) {
         issues.push(inTrash(m.parentRecordId, at("parentRecordId")));
@@ -305,6 +401,7 @@ export async function planMutations(
         protected: m.protected === true || defaultProtectedFor(m.type),
         parentRecordId: m.parentRecordId ?? null,
         draftId: m.draftId ?? null,
+        worldScope: createWorldScope,
         before: null,
         beforeRevision: null,
         after: {
@@ -393,6 +490,9 @@ export async function planMutations(
         Object.assign(after.fields, set);
         issues.push(...issuesForCharacterDevelopmentField(set, { ...at("changes.fields.set"), recordId: record.id }));
         issues.push(...issuesForDossierMarkdownArchiveField(set, { ...at("changes.fields.set"), recordId: record.id }));
+        issues.push(...issuesForTaxonomyField(after.fields, record.type, { ...at("changes.fields"), recordId: record.id }));
+        issues.push(...issuesForWorldProfileField(after.fields, record.type, { ...at("changes.fields"), recordId: record.id }));
+        issues.push(...issuesForWorldMarkdownArchiveField(after.fields, { ...at("changes.fields"), recordId: record.id }));
       }
       if (m.authorityStatus !== undefined) {
         after.authorityStatus = m.authorityStatus;
@@ -451,6 +551,7 @@ export async function planMutations(
       protected: record.protected,
       parentRecordId: record.parentRecordId,
       draftId: null,
+      worldScope: null,
       before,
       beforeRevision: record.currentRevision,
       after,
@@ -527,6 +628,7 @@ export async function applyMutationsInTx(
           protected: p.protected,
           parentRecordId: p.parentRecordId,
           draftId: p.draftId,
+          worldScope: p.worldScope,
           currentRevision: newRevision,
           ...data,
         },
@@ -547,7 +649,7 @@ export async function applyMutationsInTx(
       }
     }
     await writeRevision(tx, p.recordId, newRevision, p.after, sourceId);
-    if (p.beforeRevision !== null) {
+    if (p.beforeRevision !== null && p.before && !isTaxonomyOnlySnapshotChange(p.before, p.after)) {
       await markEvidenceNeedsRecheckForSourceInTx(tx, ctx.projectId, p.recordId, newRevision);
       await markStoryEvidenceNeedsRecheckForSourceInTx(tx, ctx.projectId, p.recordId, newRevision);
       await markAnnotationNeedsRecheckForSourceInTx(tx, ctx.projectId, p.recordId, newRevision);

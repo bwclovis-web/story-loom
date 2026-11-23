@@ -52,12 +52,16 @@ import {
   SMART_COLLECTIONS,
   STYLE_CHECK,
   TEXT_APPEARANCE,
+  TAXONOMY_FIELDS,
+  TAXONOMY_ORGANIZE,
   THEME,
   TRASH,
   UPGRADE,
   WEAVE,
   WORLD,
   WORLD_KIND,
+  WORLD_PROFILE,
+  WORLD_PROFILE_UPGRADE,
   WRITE,
   WRITING,
   WRITING_GOALS,
@@ -1869,8 +1873,9 @@ export function HelpContent() {
           <p>
             Review is grouped by passage. Open a suggestion to see a little of the surrounding text. Each one shows
             what the passage says, what the analysis proposes, the existing record or New record, the uncertainty, and
-            what accepting it will change. <L>{ANALYZE.reviewIntro}</L> <L>{ANALYZE.saveExplain}</L> and{" "}
-            <L>{ANALYZE.rateExplain}</L> open beside those labels. <L>{ANALYZE.save}</L> is Use existing, Edit
+            what accepting it will change. <L>{ANALYZE.reviewIntro}</L> An info icon on the same line as{" "}
+            <L>{ANALYZE.save}</L> and <L>{ANALYZE.assessment}</L> opens a short explanation. <L>{ANALYZE.save}</L> is Use
+            existing, Edit
             suggestion, Create new, or Skip, and nothing is preselected. Use existing links a record already in the
             project. Edit suggestion changes the proposed details before saving and does not edit the manuscript.
             Create new adds the proposed item: a new reference record starts as a draft, and a new fact starts pending.
@@ -1937,26 +1942,22 @@ export function HelpContent() {
       <Section id="world">
         <p>
           <L>{SHELL.world}</L> holds the project&apos;s reference documents of these types:{" "}
-          {WORLD_TYPES.map((t) => RECORD_TYPE_LABELS[t]).join(", ")}. The World page is <L>{WORLD.references}</L>:
-          search, document-type filters, an optional worldbuilding-kind filter, recent references, and{" "}
-          <L>{WORLD.worldDirectory}</L>. The project column lists the same surfaces under <L>{WORLD.loreAndCodex}</L>,{" "}
-          <L>{WORLD.visualSpaces}</L>, <L>{WORLD.timeAndContinuity}</L>, and <L>{WORLD.toolsHeading}</L>:{" "}
-          <L>{WORLD.references}</L>, <L>{WORLD.relationships}</L>, <L>{WORLD.maps}</L>, <L>{WORLD.boards}</L>,{" "}
-          <L>{WORLD.storyTimeline}</L>, <L>{WORLD.worldCalendar}</L>, and <L>{WORLD.nameGenerator}</L>. Opening one
-          does not change records. <L>{WORLD.newReference}</L> opens one form: title, document type (Character,
-          Worldbuilding, Rules &amp; glossary, or Research note), an optional Worldbuilding kind, optional starting
-          headings that are added only after you confirm a preview, writing, and optional details. Document type is
-          the category the reference is stored as. Starting headings are an outline in the writing and do not set that
-          category or the kind. A Character reference stores name, aliases, and role in Details. Choosing a
-          Worldbuilding kind lists that kind&apos;s fields there too, such as parent place and climate. Those fields
-          do not rewrite the writing. Saving uses the
-          existing record revision. <L>{WORLD.allReferences}</L> and each category still list documents in a table with
-          type, canon status, saved version, and protection. Under <L>{WORLD.boards}</L> you can place references,
-          images and freeform notes on a
-          focused board (see <See anchor="world-boards" />). Under <L>{WORLD.maps}</L> you can create a map from an
-          uploaded image or an existing reference image (see <See anchor="world-maps" />). <L>{WORLD.storyTimeline}</L> lists events in an order you
-          set, separate from the manuscript (see <See anchor="story-events" />). Plot grids stay under{" "}
-          <L>{SHELL.plan}</L>.
+          {WORLD_TYPES.map((t) => RECORD_TYPE_LABELS[t]).join(", ")}. The World page is a hub: thematic categories
+          (see <See anchor="world-taxonomy" />), search, recently opened and recently updated references, list or card
+          discovery, and <L>{WORLD.toolsAndSpaces}</L> for maps, boards, timeline, calendar, relationships, and the name
+          generator. Opening a page does not change records. <L>{WORLD.organizeReferences}</L> opens an author-reviewed
+          bulk classifier (see <See anchor="world-organize" />). <L>{WORLD.newReference}</L> opens one form: title, any
+          World document type, optional Book/Series scope, World Hub classification, an optional Worldbuilding kind,
+          optional starting headings that are added only after you confirm a preview, writing, and optional details.
+          Document type is how the reference is stored. Hub categories are optional discovery labels and do not change
+          that type. Starting headings are an outline in the writing and do not set document type or kind. A Character
+          reference stores name, aliases, and role in Details. Choosing a Worldbuilding kind lists that kind&apos;s
+          fields there too. Saving uses the existing record revision. Filtered lists show type, classification badges,
+          canon status, saved version, and protection. Under <L>{WORLD.boards}</L> you can place references, images and
+          freeform notes on a focused board (see <See anchor="world-boards" />). Under <L>{WORLD.maps}</L> you can create
+          a map from an uploaded image or an existing reference image (see <See anchor="world-maps" />).{" "}
+          <L>{WORLD.storyTimeline}</L> lists events in an order you set, separate from the manuscript (see{" "}
+          <See anchor="story-events" />). Plot grids stay under <L>{SHELL.plan}</L>.
         </p>
         <p>
           <L>{WORLD.importReferences}</L> opens <L>{NAV.importMarkdown}</L> (see <See anchor="importing" />).{" "}
@@ -2371,13 +2372,68 @@ export function HelpContent() {
           </p>
         </Sub>
 
+        <Sub id="world-profile">
+          <p>
+            Worldbuilding, rules and glossary, research, canon decision, continuity, and reference notes can carry an
+            optional <L>{WORLD_PROFILE.heading}</L> panel. It stores structured fields and collections beside the
+            Markdown body; nothing in it is required, and the body is never discarded. Pick a{" "}
+            <L>{WORLD_PROFILE.definition}</L> if one fits (kind builtins, the 13 non-character Hub category
+            definitions, plus any you remembered with a kind template), or leave it as{" "}
+            <L>{WORLD_PROFILE.definitionNone}</L>. When more than one definition fits, the panel lists{" "}
+            <L>{WORLD_PROFILE.plausibleHeading}</L> and asks you to choose (
+            <L>{WORLD_PROFILE.chooseDefinition}</L>). Your choice and saved values stay put when you add a secondary
+            category or change tags. Characters keep their own Living Profile and do not use this panel.
+          </p>
+          <p>
+            Built-in kind fields stay in Details and are not copied into the profile (for example place climate, magic
+            source and limits). Category definitions reuse those flat fields and add only what Details does not own
+            (terrain, workings, costs, layout, and similar). Each profile field shows its{" "}
+            <L>{WORLD_PROFILE.approval}</L> and <L>{WORLD_PROFILE.provenance}</L>: draft, proposed, or approved, and
+            whether it came from you, an import, or extraction. Extracted or imported notes stay draft until you mark
+            them approved. The same summary appears in the reference infobox and the inspector. Custom categories
+            you add appear on the World hub beside the 14 built-in categories and only change how a reference is found.
+            A series-shared reference is read in sibling books and edited in its home book; the panel tells you which
+            book to open.
+          </p>
+          <p>
+            Optional <L>{WORLD_PROFILE.history}</L> records dated world-fact changes (for example access or climate)
+            anchored to a book, timeline event, chapter, or scene. Undated current values in Details or the profile
+            fields do not establish earlier story time — as-of an earlier point with no dated change shows{" "}
+            <L>{WORLD_PROFILE.unknownAtPoint}</L>. Approved as-of ignores draft, proposed, planned, and superseded
+            entries. You can compare two points, correct a prior change (supersede, recoverable via History/Revisions),
+            and mark a change series-wide or this-book-only. Flat kind fields stay edited in Details for the undated
+            current value; History only dates them.
+          </p>
+        </Sub>
+
+        <Sub id="world-profile-upgrade">
+          <p>
+            <L>{WORLD_PROFILE.openUpgrade}</L> (<code>/projects/&lt;project&gt;/records/&lt;record&gt;/world-upgrade</code>)
+            opens <L>{WORLD_PROFILE_UPGRADE.heading}</L>. <L>{WORLD_PROFILE_UPGRADE.preview}</L> classifies the
+            reference Markdown into profile destinations and shows each item with its source text, existing profile
+            content, and conflicts. Choose <L>{WORLD_PROFILE_UPGRADE.accept}</L>, <L>{WORLD_PROFILE_UPGRADE.keepExisting}</L>,{" "}
+            <L>{WORLD_PROFILE_UPGRADE.merge}</L>, <L>{WORLD_PROFILE_UPGRADE.modify}</L>,{" "}
+            <L>{WORLD_PROFILE_UPGRADE.reject}</L>, or <L>{WORLD_PROFILE_UPGRADE.defer}</L>. Nothing is written until you{" "}
+            <L>{WORLD_PROFILE_UPGRADE.apply}</L>.
+          </p>
+          <p>
+            The original Markdown body and revision history stay put, and an archive snapshot is stored on the
+            reference fields. Proposals never become approved canon automatically, even when the Markdown says approved,
+            and approved profile fields refuse a silent bulk replace. A protected reference needs an explicit unlock.
+            Series-shared references can be reviewed from any book but are applied only in the home book (
+            <L>{WORLD_PROFILE_UPGRADE.openHomeUpgrade}</L>). You can also analyze pasted Markdown or export the result
+            as a change package for Import package.
+          </p>
+        </Sub>
+
         <Sub id="world-nav">
           <p>
             The project column on World keeps every surface visible: <L>{WORLD.loreAndCodex}</L> (
             <L>{WORLD.references}</L>, <L>{WORLD.relationships}</L>), <L>{WORLD.visualSpaces}</L> (
             <L>{WORLD.maps}</L>, <L>{WORLD.boards}</L>), <L>{WORLD.timeAndContinuity}</L> (
             <L>{WORLD.storyTimeline}</L>, <L>{WORLD.worldCalendar}</L>), and <L>{WORLD.toolsHeading}</L> (
-            <L>{WORLD.nameGenerator}</L>). The same list is <L>{WORLD.worldSections}</L> on a narrow window. One surface
+            <L>{WORLD.nameGenerator}</L>). On the hub the same destinations appear under{" "}
+            <L>{WORLD.toolsAndSpaces}</L>. The same list is <L>{WORLD.worldSections}</L> on a narrow window. One surface
             is current. A map, a board, or a reference record keeps its parent surface current without listing every
             title in the column. Maps and boards are chosen on their own pages. Deeper pages show a breadcrumb trail
             back to World.
@@ -2390,19 +2446,50 @@ export function HelpContent() {
               change any record.
             </li>
             <li>
-              <L>{WORLD.allDocumentTypes}</L> and one filter per document type:{" "}
-              {WORLD_TYPES.map((t) => WORLD_CATEGORY_LABELS[t]).join(", ")}. The number beside each is how many documents
-              of that type the project has. Choose one to list those documents. While a search or a filter is active,
-              the directory is hidden and <L>{WORLD.clearFilters}</L> or <L>{WORLD.clearSearch}</L> returns to the hub.
+              Browse by thematic category, subcategory, tag, custom kind, or uncategorized (see{" "}
+              <See anchor="world-taxonomy" />). You can also filter by document type:{" "}
+              {WORLD_TYPES.map((t) => WORLD_CATEGORY_LABELS[t]).join(", ")}, Book/Series scope, canon status, and
+              protection. Sort by title, recently updated, or recently created. Switch between list and card views.
+              While a search or a filter is active, <L>{WORLD.clearFilters}</L> or <L>{WORLD.clearSearch}</L> returns to
+              the hub.
             </li>
           </ul>
           <p>
-            The categories are the document types you choose when importing or creating a record; the app never guesses
-            them. Places, religions, magic systems, and other setting notes stay{" "}
-            {RECORD_TYPE_LABELS.worldbuilding} records. On those records you can optionally choose a{" "}
-            <L>{WORLD_KIND.kindLabel}</L> (place, magic system, organization, and the rest) in structured fields. That kind
-            only filters the World list; it is never inferred from the title or text. See{" "}
-            <See anchor="world-kinds" />. A document that covers several subjects still has one document type.
+            Document types are what you choose when importing or creating a record; the app never guesses them. Places,
+            religions, magic systems, and other setting notes stay {RECORD_TYPE_LABELS.worldbuilding} records. On those
+            records you can optionally choose a <L>{WORLD_KIND.kindLabel}</L> in structured fields. That kind still
+            filters the World list and drives structured fields; it is never inferred from the title or text. See{" "}
+            <See anchor="world-kinds" />. A document that covers several subjects still has one document type and may
+            belong to more than one Hub category.
+          </p>
+        </Sub>
+
+        <Sub id="world-taxonomy">
+          <p>
+            World Hub categories (Characters, Geography, Locations, Magic, and the rest) are optional discovery labels
+            stored in <code>fields.taxonomy</code>. They do not change document type, structured kind, relationships, or
+            canon status. When you have not set a primary category, Story Loom may show a read-time default from document
+            type or built-in kind (for example a Character dossier under Characters, or kind place under Locations).
+            Custom kinds stay listed individually. Categories are not a checklist: empty ones stay quiet, and you can
+            create a reference in a category when you want one.
+          </p>
+          <p>
+            On create and edit, the classification controls set primary category and subcategory, additional memberships,
+            and tags. <L>{TAXONOMY_FIELDS.clear}</L> removes only the saved classification so the read-time default can
+            show again. Suggested kinds or outlines from a category are optional chips; they never overwrite your choices
+            until you click them.
+          </p>
+        </Sub>
+
+        <Sub id="world-organize">
+          <p>
+            <L>{TAXONOMY_ORGANIZE.title}</L> (<code>/projects/&lt;project&gt;/world/organize</code>) lets you classify
+            several local World references at once. Series-shared references from sibling books are not listed; edit
+            those in their home book. Choose references, set primary category, add or remove memberships and tags, then
+            preview. The preview shows what would change, notes when a saved primary would be replaced, and flags
+            protected records. Nothing is saved until you apply. Apply writes through the usual revision and protection
+            path and does not rewrite titles, prose, kind, or canon status. Taxonomy-only applies do not mark passage
+            evidence for recheck.
           </p>
         </Sub>
 
@@ -2436,10 +2523,15 @@ export function HelpContent() {
             other book. World lists it with <L>{SERIES.homeBadge("the home book")}</L> and{" "}
             <L>{SERIES.editIn("the home book")}</L>. Opening it there is read-only until you choose{" "}
             <L>{SERIES.editHereCrossBook}</L>, which opens a guarded editor with a continuity warning. Cross-book saves
-            still write through the home book (revision, protection, and audit). Linking and Trash stay on the book that
-            owns the record. A Book scope, or no scope, stays in its own book. Search on World and the
-            context rail beside a chapter can find these references. A context export includes them with{" "}
-            <code>seriesHome</code> and tells the reader not to update them in this book&apos;s change package.
+            still write through the home book (revision, protection, and audit). Trash stays on the book that owns the
+            record. Sibling books can pin that reference on maps, place it on boards, open it in inspectors, and use it
+            as a relationship endpoint without copying the record. Place and record relationships default to this book
+            only; you can mark a relationship Whole series when both ends are series-scoped. Custom kind field lists stay
+            home-book first; you can optionally share a template with the series without overriding a local template of
+            the same name. Unsharing or trashing a shared reference leaves pins and cards in place and marks them
+            unavailable. A Book scope, or no scope, stays in its own book. Search on World and the context rail beside a
+            chapter can find these references. A context export includes them with <code>seriesHome</code> and tells the
+            reader not to update them in this book&apos;s change package.
           </p>
         </Sub>
 
@@ -2458,10 +2550,11 @@ export function HelpContent() {
           </p>
           <p>
             Filter by category or severity. Each row deep-links to the chapter, scene, reference, timeline, or Weave
-            grid. <L>{CONTINUITY.markIntentional}</L> or <L>{CONTINUITY.markIgnored}</L> hides a finding (audited);{" "}
-            <L>{CONTINUITY.restore}</L> puts it back. Character findings resolve against the open chapter or scene when
-            present; they do not treat archetypes as rigid rules, and they never rewrite prose. The Write inspector shows
-            a Continuity count for the open chapter or scene.
+            grid, and character items show the applicable canon, story location, evidence, explanation, and suggestion.{" "}
+            <L>{CONTINUITY.markIntentional}</L>, <L>{CONTINUITY.markResolved}</L>, or <L>{CONTINUITY.markIgnored}</L>{" "}
+            hides a finding (audited); <L>{CONTINUITY.restore}</L> puts it back. Character findings resolve against the
+            open chapter or scene when present; they do not treat archetypes as rigid rules, and they never rewrite
+            prose. The Write inspector shows a Continuity count for the open chapter or scene.
           </p>
           <p>
             Characters, canon decisions, and continuity notes can also store <L>{REFERENCE_META.name}</L>,{" "}
@@ -3836,6 +3929,12 @@ export function HelpContent() {
           <p>
             A record whose headings carry status tags also lists them, word for word, and the export tells ChatGPT that
             those markings govern their own sections. See <See anchor="section-status" />.
+          </p>
+          <p>
+            When exporting character dossiers, choose <L>{EXPORT.characterModeLabel}</L> (Drafting, Editorial, or
+            Planning) and an optional <L>{EXPORT.storyPointLabel}</L> so point-scoped Living Profile slices match that
+            chapter or scene. Tick <L>{EXPORT.redactSpoilers}</L> when sharing a spoiler-safe bundle to strip hidden
+            secrets, lived-experience notes, and planned future items from raw dossier fields.
           </p>
           <p>
             An export is not a backup. It leaves out earlier saved versions and unticked records, and it cannot be

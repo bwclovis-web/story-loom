@@ -7,7 +7,7 @@ import { LandingHeader } from "@/components/library/LandingHeader";
 import { ProjectOnboarding } from "@/components/shell/ProjectOnboarding";
 import { ChevronRightIcon, ListRowsIcon, SearchIcon } from "@/components/shell/icons";
 import { OverflowDisclosure } from "@/components/shell/OverflowDisclosure";
-import { Button, ButtonLink } from "@/components/ui/Button";
+import { Button, ButtonLink } from "@/components/ui/Atoms/Button";
 import { HelpPopover } from "@/components/ui/HelpPopover";
 import { ANALYZE, NAV, SHELL, WEAVE, WORLD } from "@/ui/labels";
 import { weaveLibraryEntries, type WeaveLibraryGrid } from "@/ui/weaveLibrary";
@@ -136,8 +136,10 @@ export function WeaveLibrary({
                     <div className="weave-card-copy">
                       <h3>{entry.grid.title}</h3>
                       <div className="weave-card-meta">
-                        <span>{WEAVE.scopeLine(entry.grid.viewLabel, WEAVE.beatsCount(entry.grid.beatCount))}</span>
-                        <HelpPopover label={WEAVE.scopeHelpLabel(entry.grid.viewLabel)}>{SCOPE_HELP[entry.grid.viewKind]}</HelpPopover>
+                        <span>
+                          {WEAVE.scopeLine(entry.grid.viewLabel, WEAVE.beatsCount(entry.grid.beatCount))}
+                          <HelpPopover label={WEAVE.scopeHelpLabel(entry.grid.viewLabel)}>{SCOPE_HELP[entry.grid.viewKind]}</HelpPopover>
+                        </span>
                       </div>
                     </div>
                     <div className="weave-card-action">
@@ -157,8 +159,10 @@ export function WeaveLibrary({
                     <GridMotif missing />
                     <div className="weave-card-copy">
                       <div className="weave-card-title">
-                        <h3>{entry.viewLabel}</h3>
-                        <HelpPopover label={WEAVE.scopeHelpLabel(entry.viewLabel)}>{SCOPE_HELP[entry.viewKind]}</HelpPopover>
+                        <h3>
+                          {entry.viewLabel}
+                          <HelpPopover label={WEAVE.scopeHelpLabel(entry.viewLabel)}>{SCOPE_HELP[entry.viewKind]}</HelpPopover>
+                        </h3>
                       </div>
                       <p className="weave-card-meta">{WEAVE.notCreated}</p>
                     </div>
@@ -179,8 +183,10 @@ export function WeaveLibrary({
             )}
           </ul>
           <div className="weave-note">
-            <p>{WEAVE.movingBeatsNote}</p>
-            <HelpPopover label={WEAVE.movingBeatsHelp}>{WEAVE.dragBeatHint}</HelpPopover>
+            <p>
+              {WEAVE.movingBeatsNote}
+              <HelpPopover label={WEAVE.movingBeatsHelp}>{WEAVE.dragBeatHint}</HelpPopover>
+            </p>
           </div>
           <StarterBeatSheets projectId={projectId} compact />
         </section>

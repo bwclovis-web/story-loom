@@ -3,12 +3,13 @@ import { ProjectPageHeader } from "@/components/library/ProjectPageHeader";
 import { ProjectOnboarding } from "@/components/shell/ProjectOnboarding";
 import { getDb } from "@/server/db";
 import { NotFoundError } from "@/server/services/errors";
-import { listRecords } from "@/server/services/recordService";
+import { listAvailableReferences } from "@/server/services/seriesBibleService";
 import { loadProjectRelationshipGraph } from "@/server/services/relationshipGraphService";
 import { getWorldMap, listWorldMaps } from "@/server/services/worldMapService";
 import { buildMapGeographyTree } from "@/world/mapGeography";
-import { isLinkableReferenceType, RECORD_TYPE_LABELS } from "@/domain/recordTypes";
-import { isWorldType } from "@/ui/world";
+import { RECORD_TYPE_LABELS } from "@/domain/recordTypes";
+import { SERIES } from "@/ui/labels";
+import { seriesBookLabel } from "@/world/seriesHome";
 import { worldSurfaceCrumbs } from "@/ui/worldDestinations";
 import { MapCanvas } from "../MapCanvas";
 
@@ -32,9 +33,7 @@ export default async function WorldMapPage({
     throw error;
   }
 
-  const records = (await listRecords(db, projectId)).filter(
-    (r) => isWorldType(r.type) || isLinkableReferenceType(r.type),
-  );
+  const available = await listAvailableReferences(db, projectId, { linkableOnly: true });
   const otherMaps = (await listWorldMaps(db, projectId).catch(() => []))
     .filter((item) => item.id !== map.id)
     .map((item) => ({ id: item.id, title: item.title }));
@@ -60,10 +59,12 @@ export default async function WorldMapPage({
       <MapCanvas
         projectId={projectId}
         map={map}
-        records={records.map((r) => ({
-          id: r.id,
-          title: r.title,
-          typeLabel: RECORD_TYPE_LABELS[r.type],
+        records={available.map((entry) => ({
+          id: entry.record.id,
+          title: entry.record.title,
+          typeLabel: RECORD_TYPE_LABELS[entry.record.type],
+          homeLabel: entry.home ? SERIES.homeBadge(seriesBookLabel(entry.home)) : null,
+          worldScope: entry.worldScope,
         }))}
         otherMaps={otherMaps}
         initialPinId={query.pin ?? null}

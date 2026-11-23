@@ -1,19 +1,24 @@
 import { newId } from "@/domain/ids";
 import { errorIssue } from "@/domain/issues";
 import { isMarkerGroup, MARKER_GROUPS, type MarkerGroup } from "@/world/mapMarkers";
+import {
+  layerStrokeColor,
+  markerGroupFromLayer,
+  resolvePinLayerId,
+  type WorldMapLayerView,
+} from "@/world/mapLayers";
 import type { DbOrTx, Tx } from "../db";
 import { MutationRejectedError } from "./errors";
 
+export {
+  layerStrokeColor,
+  markerGroupFromLayer,
+  resolvePinLayerId,
+  type WorldMapLayerView,
+};
+
 const TITLE_MAX = 80;
 const MAX_LAYERS = 16;
-
-export interface WorldMapLayerView {
-  id: string;
-  mapId: string;
-  position: number;
-  title: string;
-  legacyGroup: MarkerGroup | null;
-}
 
 export const DEFAULT_LAYER_SPECS: readonly { legacyGroup: MarkerGroup; title: string; position: number }[] = [
   { legacyGroup: "places", title: "Places", position: 1 },
@@ -24,27 +29,6 @@ export const DEFAULT_LAYER_SPECS: readonly { legacyGroup: MarkerGroup; title: st
 
 function rejected(message: string): MutationRejectedError {
   return new MutationRejectedError([errorIssue("INVALID_CHANGE", message)]);
-}
-
-export function layerStrokeColor(index: number): string {
-  const palette = [
-    "var(--color-accent)",
-    "var(--color-ok, #2f6f4e)",
-    "var(--color-warn, #a15c12)",
-    "var(--color-violet, #5b4b8a)",
-    "var(--color-text-muted)",
-    "var(--color-accent)",
-  ];
-  return palette[index % palette.length]!;
-}
-
-export function resolvePinLayerId(
-  pin: { layerId: string | null; markerGroup: MarkerGroup },
-  layers: readonly WorldMapLayerView[],
-): string | null {
-  if (pin.layerId && layers.some((layer) => layer.id === pin.layerId)) return pin.layerId;
-  const match = layers.find((layer) => layer.legacyGroup === pin.markerGroup);
-  return match?.id ?? layers[0]?.id ?? null;
 }
 
 export async function listWorldMapLayers(db: DbOrTx, mapId: string): Promise<WorldMapLayerView[]> {
@@ -93,11 +77,6 @@ export async function resolveLayerForWrite(
   const group = isMarkerGroup(markerGroup) ? markerGroup : "places";
   const layer = layers.find((row) => row.legacyGroup === group) ?? layers[0]!;
   return { layerId: layer.id, markerGroup: layer.legacyGroup ?? group };
-}
-
-export function markerGroupFromLayer(layer: WorldMapLayerView | undefined, fallback: MarkerGroup = "places"): MarkerGroup {
-  if (layer?.legacyGroup) return layer.legacyGroup;
-  return fallback;
 }
 
 export function validateLayerTitles(

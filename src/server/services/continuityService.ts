@@ -34,7 +34,7 @@ export type ContinuityKind =
 
 export type ContinuityCategory = "bible" | "manuscript" | "timeline" | "weave" | "stale";
 export type ContinuitySeverity = "info" | "warn" | "error";
-export type ContinuitySuppressReason = "intentional" | "ignored";
+export type ContinuitySuppressReason = "intentional" | "resolved" | "ignored";
 
 export interface ContinuityItem {
   key: string;
@@ -47,6 +47,11 @@ export interface ContinuityItem {
   recordId: string | null;
   suppressed: boolean;
   suppressReason: ContinuitySuppressReason | null;
+  evidence?: string;
+  applicableCanon?: string;
+  storyLocation?: string;
+  explanation?: string;
+  suggestion?: string;
 }
 
 function recordHref(projectId: string, recordId: string, find?: string): string {
@@ -460,9 +465,14 @@ export async function listContinuityLedger(
         key: finding.key,
         kind: finding.kind,
         title: finding.title,
-        detail: `${finding.detail} ${finding.explanation}${finding.suggestion ? ` Suggestion: ${finding.suggestion}` : ""}`,
+        detail: finding.detail,
         href: recordHref(projectId, finding.characterRecordId),
         recordId: options.recordId && options.recordId !== finding.characterRecordId ? options.recordId : finding.characterRecordId,
+        evidence: finding.evidence,
+        applicableCanon: finding.applicableCanon,
+        storyLocation: finding.storyLocation,
+        explanation: finding.explanation,
+        suggestion: finding.suggestion,
       }),
     );
   }
@@ -500,8 +510,8 @@ export async function suppressContinuityIssue(
 ): Promise<void> {
   const key = input.issueKey.trim();
   if (!key || key.length > 500) throw new MutationRejectedError([errorIssue("INVALID_CHANGE", "Choose a continuity issue to mark.")]);
-  if (input.reason !== "intentional" && input.reason !== "ignored") {
-    throw new MutationRejectedError([errorIssue("INVALID_CHANGE", "Choose intentional or ignored.")]);
+  if (input.reason !== "intentional" && input.reason !== "resolved" && input.reason !== "ignored") {
+    throw new MutationRejectedError([errorIssue("INVALID_CHANGE", "Choose intentional, resolved, or ignored.")]);
   }
   const actor = input.actor ?? "author";
   const note = (input.note ?? "").trim().slice(0, 2000);

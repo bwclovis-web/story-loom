@@ -24,7 +24,7 @@ function revalidateRecords(projectId: string, recordIds: string[]) {
 
 export async function addRecordRelationAction(
   projectId: string,
-  input: { fromRecordId: string; toRecordId: string; kind: string; customLabel?: string },
+  input: { fromRecordId: string; toRecordId: string; kind: string; customLabel?: string; scope?: string | null },
 ) {
   try {
     if (!isRecordRelationKind(input.kind)) {
@@ -35,6 +35,7 @@ export async function addRecordRelationAction(
       toRecordId: input.toRecordId,
       kind: input.kind as RecordRelationKind,
       customLabel: input.customLabel,
+      scope: input.scope,
     });
     revalidateRecords(projectId, [input.fromRecordId, input.toRecordId]);
     return { ok: true as const, relation };
