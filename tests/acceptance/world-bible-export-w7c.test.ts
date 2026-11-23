@@ -341,7 +341,8 @@ describe("W7C world bible taxonomy + point-scoped exports", () => {
     const docxZip = await JSZip.loadAsync(docx.bytes);
     const documentXml = await docxZip.file("word/document.xml")!.async("string");
     expect(documentXml).toContain("Saltmarsh Station");
-    expect(documentXml).toContain(`rec-saltmarsh-station-${STATION}`);
+    expect(documentXml).toContain(`wb_${STATION.replace(/[^A-Za-z0-9]/g, "_")}`);
+    expect(documentXml).toContain(`saltmarsh-station-${STATION}`);
 
     expect(pdf.bytes.subarray(0, 5).toString("ascii")).toBe("%PDF-");
     expect(pdf.documentCount).toBe(5);

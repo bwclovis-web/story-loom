@@ -1,5 +1,5 @@
 import "server-only";
-import { Bookmark, Document, HeadingLevel, Packer, Paragraph, TextRun } from "docx";
+import { Bookmark, Document, HeadingLevel, InternalHyperlink, Packer, Paragraph, TextRun } from "docx";
 import JSZip from "jszip";
 import type { DbOrTx } from "../db";
 import { imageDataByIds, imagesByRecord, type RecordImageView } from "./imageService";
@@ -7,16 +7,18 @@ import { bodyToEpubSectionHtml, escapeHtml } from "./manuscriptExportMarkdown";
 import { exportDateStamp, exportSlug } from "./manuscriptExportModel";
 import {
   buildWorldBibleExportModel,
+  pointScopedEligibleImageNames,
+  worldBibleDocxBookmarkId,
   type WorldBibleEntry,
   type WorldBibleExportModel,
   type WorldBiblePolicy,
   type WorldBibleSelection,
 } from "./worldBibleModel";
 import {
+  renderWorldBibleEntryMetaLine,
   renderWorldBibleGroupHeading,
   renderWorldBibleIndexMarkdown,
   renderWorldBibleProfileMarkdown,
-  renderWorldBibleProfilePlainLines,
   worldBibleLegacyBodyNote,
 } from "./worldBibleProfileRender";
 import {
@@ -25,6 +27,8 @@ import {
   WIKI_SCRIPT,
   WIKI_STYLES,
   wikiImageZipPath,
+  wikiPageHrefFromIndex,
+  wikiPageHrefFromPage,
   type WikiExportContext,
   type WikiImageRef,
 } from "./wikiExportHtml";
@@ -88,6 +92,19 @@ function stripUnresolvedWikiLinks(body: string, linkTerms: Map<string, string>):
   });
 }
 
+/** Turn included [[wiki]] targets into Markdown links for EPUB/MD body pipelines. */
+function wikiLinksToMarkdown(body: string, linkTerms: Map<string, string>, ext: "xhtml" | "md"): string {
+  return body.replace(/\[\[([^\]]+)\]\]/g, (_whole, inner: string) => {
+    const raw = String(inner).trim();
+    const pipe = raw.indexOf("|");
+    const target = (pipe >= 0 ? raw.slice(0, pipe) : raw).trim();
+    const label = (pipe >= 0 ? raw.slice(pipe + 1) : raw).trim() || target;
+    const page = linkTerms.get(target.toLocaleLowerCase());
+    if (!page) return label;
+    return `[${label}](${page}.${ext})`;
+  });
+}
+
 async function loadWikiImages(
   db: DbOrTx,
   model: WorldBibleExportModel,
@@ -106,9 +123,22 @@ async function loadWikiImages(
       ),
     ),
   );
+  const eligibleByRecord = new Map(
+    model.entries.map((entry) => [
+      entry.record.id,
+      pointScopedEligibleImageNames(entry, model.mode),
+    ] as const),
+  );
+
   const imagesMeta = new Map<string, RecordImageView[]>();
   for (const map of imageMaps) {
-    for (const [id, value] of map) imagesMeta.set(id, value);
+    for (const [id, value] of map) {
+      const eligible = eligibleByRecord.get(id);
+      imagesMeta.set(
+        id,
+        eligible ? value.filter((img) => eligible.has(img.name)) : value,
+      );
+    }
   }
 
   const wikiImagesByRecord = new Map<string, Map<string, WikiImageRef>>();
@@ -125,21 +155,11 @@ async function loadWikiImages(
     if (byName.size) wikiImagesByRecord.set(recordId, byName);
   }
 
-  const embeddableIds = [...wikiImagesByRecord.values()]
-    .flatMap((m) => [...m.keys()])
-    .flatMap((name) => {
-      for (const [recordId, images] of imagesMeta) {
-        const img = images.find((i) => i.name === name);
-        if (img && isEmbeddableWikiImage(img.mimeType)) return [img.id];
-      }
-      return [];
-    });
-  // Resolve bytes by known image ids from meta.
+  // Resolve bytes by known image ids from meta (already point-filtered).
   const allIds = [...imagesMeta.values()]
     .flat()
     .filter((img) => isEmbeddableWikiImage(img.mimeType) && model.allowedRecordIds.has(img.recordId))
     .map((img) => img.id);
-  void embeddableIds;
   const imageBytes = new Map<string, Uint8Array>();
   for (const homeId of homeIds) {
     const homeIdsForFetch = allIds.filter((id) =>
@@ -159,14 +179,14 @@ function wikiProfileInfobox(entry: WorldBibleEntry, pageById: Map<string, string
       let value = escapeHtml(field.value);
       if (field.hrefRecordId) {
         const page = pageById.get(field.hrefRecordId);
-        if (page) value = `<a class="wiki-link" href="pages/${escapeHtml(page)}.html">${value}</a>`;
+        if (page) value = `<a class="wiki-link" href="${escapeHtml(wikiPageHrefFromPage(page))}">${value}</a>`;
       }
       return `<dt>${escapeHtml(field.label)}</dt><dd>${value}</dd>`;
     }),
     ...entry.relations.map((rel) => {
       const page = pageById.get(rel.targetRecordId);
       const value = page
-        ? `<a class="wiki-link" href="pages/${escapeHtml(page)}.html">${escapeHtml(rel.targetTitle)}</a>`
+        ? `<a class="wiki-link" href="${escapeHtml(wikiPageHrefFromPage(page))}">${escapeHtml(rel.targetTitle)}</a>`
         : escapeHtml(rel.targetTitle);
       return `<dt>${escapeHtml(rel.label)}</dt><dd>${value}</dd>`;
     }),
@@ -188,10 +208,9 @@ function buildWikiPageFromEntry(entry: WorldBibleEntry, ctx: WikiExportContext, 
     ? `<h2>Character</h2><pre class="character-slice">${escapeHtml(entry.characterSlice.trim())}</pre>`
     : "";
   const body = bodyToWikiSectionHtml(bodySource, entry.record.id, ctx);
-  const status =
-    entry.record.authorityStatus === "approved"
-      ? "Approved (canon)"
-      : `${entry.record.authorityStatus} (not canon)`;
+  const scope = ctx.spoilerNote
+    ? `<aside class="wiki-ceiling" role="note"><p>${escapeHtml(ctx.spoilerNote)}</p></aside>`
+    : "";
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -203,10 +222,9 @@ function buildWikiPageFromEntry(entry: WorldBibleEntry, ctx: WikiExportContext, 
 <body class="wiki-page">
   <header class="wiki-top">
     <a class="wiki-home" href="../index.html">${escapeHtml(ctx.projectTitle)}</a>
-    <p class="wiki-meta">${escapeHtml(entry.categoryLabel)}${
-      entry.subcategoryLabel ? ` · ${escapeHtml(entry.subcategoryLabel)}` : ""
-    } · ${escapeHtml(status)}${entry.homeLabel ? ` · Home: ${escapeHtml(entry.homeLabel)}` : ""}</p>
+    <p class="wiki-meta">${escapeHtml(renderWorldBibleEntryMetaLine(entry))}</p>
   </header>
+  ${scope}
   <main class="wiki-main">
     <h1>${escapeHtml(entry.record.title)}</h1>
     ${wikiProfileInfobox(entry, ctx.pageById)}
@@ -225,11 +243,11 @@ function buildWikiIndexFromModel(model: WorldBibleExportModel, ctx: WikiExportCo
       const items = [
         ...group.entries.map((entry) => {
           const search = `${entry.record.title} ${entry.categoryLabel}`.toLocaleLowerCase();
-          return `<li data-search="${escapeHtml(search)}"><a href="pages/${escapeHtml(entry.pageId)}.html">${escapeHtml(entry.record.title)}</a></li>`;
+          return `<li data-search="${escapeHtml(search)}"><a href="${escapeHtml(wikiPageHrefFromIndex(entry.pageId))}">${escapeHtml(entry.record.title)}</a></li>`;
         }),
         ...group.seeAlso.map((see) => {
           const search = `see ${see.title}`.toLocaleLowerCase();
-          return `<li data-search="${escapeHtml(search)}" class="wiki-see">See also: <a href="pages/${escapeHtml(see.pageId)}.html">${escapeHtml(see.title)}</a></li>`;
+          return `<li data-search="${escapeHtml(search)}" class="wiki-see">See also: <a href="${escapeHtml(wikiPageHrefFromIndex(see.pageId))}">${escapeHtml(see.title)}</a></li>`;
         }),
       ].join("\n");
       return `<section class="wiki-group"><h2>${escapeHtml(heading)}</h2><ul class="wiki-index">${items}</ul></section>`;
@@ -347,6 +365,29 @@ export async function buildReferencesMarkdownBundle(
   };
 }
 
+function docxLinkedOrPlain(
+  label: string,
+  title: string,
+  targetRecordId: string | null | undefined,
+  pageById: Map<string, string>,
+  recordIdByPageId: Map<string, string>,
+): Paragraph {
+  const page = targetRecordId ? pageById.get(targetRecordId) : undefined;
+  const anchorRecordId = page ? recordIdByPageId.get(page) : undefined;
+  if (page && anchorRecordId) {
+    return new Paragraph({
+      children: [
+        new TextRun(`${label}: `),
+        new InternalHyperlink({
+          anchor: worldBibleDocxBookmarkId(anchorRecordId),
+          children: [new TextRun({ text: title, style: "Hyperlink" })],
+        }),
+      ],
+    });
+  }
+  return new Paragraph({ children: [new TextRun(`${label}: ${title}`)] });
+}
+
 export async function buildReferencesDocx(
   db: DbOrTx,
   projectId: string,
@@ -357,6 +398,7 @@ export async function buildReferencesDocx(
   const selection = normalizeSelection(recordIdsOrSelection);
   const { policy, now } = resolvePolicyAndNow(policyOrNow, nowArg);
   const model = await buildWorldBibleExportModel(db, projectId, selection, policy);
+  const recordIdByPageId = new Map(model.entries.map((e) => [e.pageId, e.record.id] as const));
   const children: Paragraph[] = [
     new Paragraph({
       text: model.projectTitle,
@@ -375,30 +417,78 @@ export async function buildReferencesDocx(
       }),
     );
     for (const entry of group.entries) {
+      const bookmarkId = worldBibleDocxBookmarkId(entry.record.id);
       children.push(
         new Paragraph({
           heading: HeadingLevel.HEADING_2,
           children: [
             new Bookmark({
-              id: `rec-${entry.pageId}`,
+              id: bookmarkId,
               children: [new TextRun(entry.record.title)],
             }),
           ],
         }),
       );
-      for (const line of renderWorldBibleProfilePlainLines(entry)) {
-        children.push(new Paragraph({ children: [new TextRun(line)] }));
+      children.push(
+        new Paragraph({
+          children: [new TextRun({ text: renderWorldBibleEntryMetaLine(entry), italics: true })],
+        }),
+      );
+      for (const field of entry.fields) {
+        children.push(
+          docxLinkedOrPlain(field.label, field.value, field.hrefRecordId, model.pageById, recordIdByPageId),
+        );
       }
-      const body = worldBibleLegacyBodyNote(entry.body, model.mode).trim();
+      for (const rel of entry.relations) {
+        children.push(
+          docxLinkedOrPlain(rel.label, rel.targetTitle, rel.targetRecordId, model.pageById, recordIdByPageId),
+        );
+      }
+      for (const fact of entry.facts) {
+        children.push(new Paragraph({ children: [new TextRun(`Fact: ${fact}`)] }));
+      }
+      if (entry.characterSlice?.trim()) {
+        children.push(new Paragraph({ children: [new TextRun({ text: "Character", bold: true })] }));
+        children.push(new Paragraph({ children: [new TextRun(entry.characterSlice.trim())] }));
+      }
+      const body = wikiLinksToMarkdown(
+        worldBibleLegacyBodyNote(entry.body, model.mode),
+        model.linkTerms,
+        "md",
+      )
+        // DOCX notes are plain runs; keep readable labels without Markdown link syntax.
+        .replace(/\[([^\]]+)\]\(([^)]+)\)/g, "$1")
+        .trim();
       if (body) children.push(new Paragraph({ children: [new TextRun(body)] }));
       children.push(new Paragraph({ children: [new TextRun("")] }));
     }
     for (const see of group.seeAlso) {
-      children.push(
-        new Paragraph({
-          children: [new TextRun({ text: `See also: ${see.title}`, italics: true })],
-        }),
-      );
+      const anchorRecordId = recordIdByPageId.get(see.pageId);
+      if (anchorRecordId) {
+        children.push(
+          new Paragraph({
+            children: [
+              new TextRun({ text: "See also: ", italics: true }),
+              new InternalHyperlink({
+                anchor: worldBibleDocxBookmarkId(anchorRecordId),
+                children: [
+                  new TextRun({
+                    text: `${see.title} (${see.pageId})`,
+                    italics: true,
+                    style: "Hyperlink",
+                  }),
+                ],
+              }),
+            ],
+          }),
+        );
+      } else {
+        children.push(
+          new Paragraph({
+            children: [new TextRun({ text: `See also: ${see.title} (${see.pageId})`, italics: true })],
+          }),
+        );
+      }
     }
   }
 
@@ -481,21 +571,30 @@ export async function buildReferencesEpub(
   <spine>${spine}</spine>
 </package>`,
   );
+  const scopeNote = model.spoilerNote
+    ? `<p class="scope-note"><em>${escapeHtml(model.spoilerNote)}</em></p>`
+    : "";
   zip.file(
     "OEBPS/nav.xhtml",
     `<?xml version="1.0" encoding="utf-8"?>
 <html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
-  <body><nav epub:type="toc"><ol>${navGroups}</ol></nav></body>
+  <body>${scopeNote}<nav epub:type="toc"><ol>${navGroups}</ol></nav></body>
 </html>`,
   );
 
   for (const doc of docs) {
     const entry = doc.entry;
-    const profileLines = renderWorldBibleProfilePlainLines(entry)
-      .map((line) => `<p>${escapeHtml(line)}</p>`)
-      .join("\n");
+    const fields = entry.fields
+      .map((field) => {
+        const page = field.hrefRecordId ? model.pageById.get(field.hrefRecordId) : undefined;
+        const value = page
+          ? `<a href="${escapeHtml(page)}.xhtml">${escapeHtml(field.value)}</a>`
+          : escapeHtml(field.value);
+        return `<li><strong>${escapeHtml(field.label)}:</strong> ${value}</li>`;
+      })
+      .join("");
     const body = bodyToEpubSectionHtml(
-      stripUnresolvedWikiLinks(worldBibleLegacyBodyNote(entry.body, model.mode), model.linkTerms),
+      wikiLinksToMarkdown(worldBibleLegacyBodyNote(entry.body, model.mode), model.linkTerms, "xhtml"),
     );
     const relations = entry.relations
       .map((rel) => {
@@ -506,16 +605,17 @@ export async function buildReferencesEpub(
         return `<li><strong>${escapeHtml(rel.label)}:</strong> ${target}</li>`;
       })
       .join("");
+    const facts = entry.facts.map((f) => `<li>${escapeHtml(f)}</li>`).join("");
     zip.file(
       `OEBPS/${doc.href}`,
       `<?xml version="1.0" encoding="utf-8"?>
 <html xmlns="http://www.w3.org/1999/xhtml"><head><title>${escapeHtml(entry.record.title)}</title></head><body>
-<h1 id="rec-${escapeHtml(entry.pageId)}">${escapeHtml(entry.record.title)}</h1>
-<p><em>${escapeHtml(entry.categoryLabel)}${
-        entry.subcategoryLabel ? ` · ${escapeHtml(entry.subcategoryLabel)}` : ""
-      }</em></p>
-${profileLines}
+${scopeNote}
+<h1 id="${escapeHtml(worldBibleDocxBookmarkId(entry.record.id))}">${escapeHtml(entry.record.title)}</h1>
+<p><em>${escapeHtml(renderWorldBibleEntryMetaLine(entry))}</em></p>
+${fields ? `<h2>Profile</h2><ul>${fields}</ul>` : ""}
 ${relations ? `<h2>Relationships</h2><ul>${relations}</ul>` : ""}
+${facts ? `<h2>Established facts</h2><ul>${facts}</ul>` : ""}
 ${entry.characterSlice?.trim() ? `<h2>Character</h2><pre>${escapeHtml(entry.characterSlice.trim())}</pre>` : ""}
 ${body}
 </body></html>`,

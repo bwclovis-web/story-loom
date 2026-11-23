@@ -1,36 +1,53 @@
-import Link from "next/link";
+import { cookies } from "next/headers";
 import { HelpHint } from "@/components/HelpHint";
-import { ButtonLink } from "@/components/ui/Atoms/Button";
-import { EmptyState } from "@/components/ui/EmptyState";
 import { ProjectOnboarding } from "@/components/shell/ProjectOnboarding";
+import { MAPS_VIEW_COOKIE, parseMapsViewPreference } from "@/components/shell/preferences";
 import { WorldToolHeader } from "@/components/world/WorldToolHeader";
 import { getDb } from "@/server/db";
-import { listRecordImages } from "@/server/services/imageService";
+import { listRecordImages, recordImagePublicPath } from "@/server/services/imageService";
 import { listAvailableReferences } from "@/server/services/seriesBibleService";
 import { listWorldMaps } from "@/server/services/worldMapService";
 import { SERIES, WORLD } from "@/ui/labels";
 import { seriesBookLabel } from "@/world/seriesHome";
 import { worldSurfaceCrumbs } from "@/ui/worldDestinations";
+import type { MapLibraryItem } from "@/world/mapLibrary";
 import { ClearMapTrail } from "./ClearMapTrail";
-import { CreateMapForm } from "./CreateMapForm";
+import { MapsLanding } from "./MapsLanding";
 
 export const dynamic = "force-dynamic";
 
 export default async function WorldMapsPage({ params }: { params: Promise<{ projectId: string }> }) {
   const { projectId } = await params;
   const db = getDb();
-  const maps = await listWorldMaps(db, projectId).catch(() => []);
+  const cookieStore = await cookies();
+  const initialView = parseMapsViewPreference(cookieStore.get(MAPS_VIEW_COOKIE)?.value);
+  const mapsRaw = await listWorldMaps(db, projectId).catch(() => []);
+  const maps: MapLibraryItem[] = mapsRaw.map((m) => ({
+    id: m.id,
+    title: m.title,
+    imageId: m.imageId,
+    imageName: m.imageName,
+    hostRecordId: m.hostRecordId,
+    hostRecordTitle: m.hostRecordTitle,
+    classification: m.classification,
+    pinCount: m.pinCount,
+    createdAt: m.createdAt.toISOString(),
+    updatedAt: m.updatedAt.toISOString(),
+  }));
   const available = await listAvailableReferences(db, projectId, { linkableOnly: true });
-  const images: Array<{ id: string; label: string }> = [];
+  const images: Array<{ id: string; label: string; previewUrl: string }> = [];
   for (const entry of available) {
     const homeProjectId = entry.home?.projectId ?? projectId;
     const imgs = await listRecordImages(db, homeProjectId, entry.record.id);
     const homeSuffix = entry.home ? ` (${SERIES.homeBadge(seriesBookLabel(entry.home))})` : "";
     for (const img of imgs ?? []) {
-      images.push({ id: img.id, label: `${entry.record.title} — ${img.name}${homeSuffix}` });
+      images.push({
+        id: img.id,
+        label: `${entry.record.title} — ${img.name}${homeSuffix}`,
+        previewUrl: recordImagePublicPath(projectId, img.id),
+      });
     }
   }
-  const base = `/projects/${encodeURIComponent(projectId)}`;
 
   return (
     <>
@@ -48,47 +65,19 @@ export default async function WorldMapsPage({ params }: { params: Promise<{ proj
         }
       />
       <ClearMapTrail projectId={projectId} />
-
-      <section className="panel world-create-panel" aria-labelledby="new-map-heading">
-        <header className="world-create-intro">
-          <h2 id="new-map-heading">{WORLD.newMap}</h2>
-          <p className="small muted">{WORLD.newMapLead}</p>
-        </header>
-        <CreateMapForm
-          projectId={projectId}
-          images={images}
-          hosts={available
-            .filter((entry) => !entry.isShared)
-            .map((entry) => ({
-              id: entry.record.id,
-              title: entry.record.title,
-              isProtected: entry.record.protected,
-            }))}
-        />
-      </section>
-
-      <section className="panel" aria-labelledby="maps-list-heading">
-        <h2 id="maps-list-heading">{WORLD.maps}</h2>
-        {maps.length === 0 ? (
-          <EmptyState>{WORLD.noMaps}</EmptyState>
-        ) : (
-          <ul className="stack">
-            {maps.map((m) => (
-              <li key={m.id} className="row" style={{ justifyContent: "space-between", gap: "1rem" }}>
-                <div>
-                  <Link href={`${base}/world/maps/${encodeURIComponent(m.id)}`}>{m.title}</Link>{" "}
-                  <span className="small muted">
-                    {m.imageName} · {WORLD.pinsCount(m.pinCount)} · on {m.hostRecordTitle}
-                  </span>
-                </div>
-                <ButtonLink href={`${base}/world/maps/${encodeURIComponent(m.id)}`} variant="secondary" size="sm">
-                  {WORLD.openMap}
-                </ButtonLink>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+      <MapsLanding
+        projectId={projectId}
+        maps={maps}
+        images={images}
+        hosts={available
+          .filter((entry) => !entry.isShared)
+          .map((entry) => ({
+            id: entry.record.id,
+            title: entry.record.title,
+            isProtected: entry.record.protected,
+          }))}
+        initialView={initialView}
+      />
     </>
   );
 }

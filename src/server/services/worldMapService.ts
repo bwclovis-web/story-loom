@@ -19,6 +19,7 @@ import {
   seedDefaultMapLayers,
   type WorldMapLayerView,
 } from "./worldMapLayerService";
+import { parseMapClassification, type MapClassification } from "@/world/mapClassification";
 import { isMapReferenceType, type MapReferenceType } from "@/world/mapReference";
 import type { Db, DbOrTx, Tx } from "../db";
 import { writeAudit } from "./auditService";
@@ -55,6 +56,8 @@ export interface WorldMapSummary {
   imageName: string;
   hostRecordId: string;
   hostRecordTitle: string;
+  /** Optional author scale; null when unset. */
+  classification: MapClassification | null;
   pinCount: number;
   createdAt: Date;
   updatedAt: Date;
@@ -109,6 +112,7 @@ export interface WorldMapView {
   imageHeight: number;
   hostRecordId: string;
   hostRecordTitle: string;
+  classification: MapClassification | null;
   createdAt: Date;
   updatedAt: Date;
   scaleLabel: string;
@@ -127,10 +131,11 @@ async function persistMap(
   title: string,
   image: { id: string; name: string; recordId: string },
   summary: string,
+  classification: MapClassification | null = null,
 ): Promise<WorldMapView> {
   const id = newId("wmp");
   await tx.worldMap.create({
-    data: { id, projectId, title, imageId: image.id },
+    data: { id, projectId, title, imageId: image.id, classification },
   });
   await seedDefaultMapLayers(tx, projectId, id);
   await writeAudit(tx, {
@@ -138,7 +143,7 @@ async function persistMap(
     action: "world_map.create",
     actor: UI_ACTOR,
     summary,
-    details: { mapId: id, imageId: image.id, hostRecordId: image.recordId },
+    details: { mapId: id, imageId: image.id, hostRecordId: image.recordId, classification },
   });
   return getWorldMap(tx, projectId, id);
 }
@@ -189,6 +194,7 @@ export async function listWorldMaps(db: DbOrTx, projectId: string): Promise<Worl
     imageName: m.image.name,
     hostRecordId: m.image.recordId,
     hostRecordTitle: m.image.record.title,
+    classification: parseMapClassification(m.classification),
     pinCount: m._count.pins,
     createdAt: m.createdAt,
     updatedAt: m.updatedAt,
@@ -262,6 +268,7 @@ export async function getWorldMap(db: DbOrTx, projectId: string, mapId: string):
     imageHeight: map.image.height,
     hostRecordId: map.image.recordId,
     hostRecordTitle: map.image.record.title,
+    classification: parseMapClassification(map.classification),
     createdAt: map.createdAt,
     updatedAt: map.updatedAt,
     scaleLabel: map.scaleLabel ?? "",
@@ -320,10 +327,11 @@ export async function getWorldMap(db: DbOrTx, projectId: string, mapId: string):
 export async function createWorldMap(
   db: Db,
   projectId: string,
-  input: { title: string; imageId: string },
+  input: { title: string; imageId: string; classification?: string | null },
 ): Promise<WorldMapView> {
   const title = input.title.trim();
   if (!title) throw rejected("Give the map a title.");
+  const classification = parseMapClassification(input.classification);
 
   return db.$transaction(async (tx) => {
     const project = await tx.project.findFirst({ where: { id: projectId, trashedAt: null }, select: { id: true } });
@@ -340,6 +348,7 @@ export async function createWorldMap(
       title,
       { id: availableImage.id, name: availableImage.name, recordId: availableImage.recordId },
       `Created map "${title}" on image "${availableImage.name}"`,
+      classification,
     );
   });
 }
@@ -348,10 +357,17 @@ export async function createWorldMap(
 export async function createWorldMapWithUpload(
   db: Db,
   projectId: string,
-  input: { title: string; recordId: string; confirmProtected: boolean; file: { filename: string; bytes: Uint8Array } },
+  input: {
+    title: string;
+    recordId: string;
+    confirmProtected: boolean;
+    file: { filename: string; bytes: Uint8Array };
+    classification?: string | null;
+  },
 ): Promise<WorldMapView> {
   const title = input.title.trim();
   if (!title) throw rejected("Give the map a title.");
+  const classification = parseMapClassification(input.classification);
   const { validateImageFiles, insertRecordImagesInTx } = await import("./imageService");
   const { issues, infos } = validateImageFiles([input.file]);
   if (issues.length) throw new MutationRejectedError(issues);
@@ -372,6 +388,7 @@ export async function createWorldMapWithUpload(
       title,
       image,
       `Created map "${title}" on uploaded image "${image.name}"`,
+      classification,
     );
   });
 }
@@ -390,6 +407,7 @@ export async function createWorldMapWithNewReference(
     type: string;
     authorityStatus: string;
     file: { filename: string; bytes: Uint8Array };
+    classification?: string | null;
   },
 ): Promise<WorldMapView> {
   const title = input.title.trim();
@@ -403,6 +421,7 @@ export async function createWorldMapWithNewReference(
   if (!isAuthorityStatus(authorityStatus)) {
     throw rejected("Choose a canon status. A reference is not approved unless you choose approved.");
   }
+  const classification = parseMapClassification(input.classification);
   const { validateImageFiles, insertRecordImagesInTx } = await import("./imageService");
   const { issues, infos } = validateImageFiles([input.file]);
   if (issues.length) throw new MutationRejectedError(issues);
@@ -450,22 +469,43 @@ export async function createWorldMapWithNewReference(
       title,
       image,
       `Created map "${title}" on uploaded image "${image.name}"`,
+      classification,
     );
   });
 }
 
 export async function renameWorldMap(db: Db, projectId: string, mapId: string, title: string): Promise<WorldMapView> {
-  const next = title.trim();
-  if (!next) throw rejected("Give the map a title.");
+  return updateWorldMapDetails(db, projectId, mapId, { title });
+}
+
+/** Updates map title and/or optional classification. Does not touch the image or host reference. */
+export async function updateWorldMapDetails(
+  db: Db,
+  projectId: string,
+  mapId: string,
+  input: { title?: string; classification?: string | null },
+): Promise<WorldMapView> {
+  const hasTitle = typeof input.title === "string";
+  const nextTitle = hasTitle ? input.title!.trim() : null;
+  if (hasTitle && !nextTitle) throw rejected("Give the map a title.");
+  const classification =
+    input.classification === undefined ? undefined : parseMapClassification(input.classification);
+  if (!hasTitle && classification === undefined) throw rejected("Nothing to update.");
   return db.$transaction(async (tx) => {
     await requireLiveMap(tx, projectId, mapId);
-    await tx.worldMap.update({ where: { id: mapId }, data: { title: next } });
+    await tx.worldMap.update({
+      where: { id: mapId },
+      data: {
+        ...(nextTitle ? { title: nextTitle } : {}),
+        ...(classification !== undefined ? { classification } : {}),
+      },
+    });
     await writeAudit(tx, {
       projectId,
       action: "world_map.rename",
       actor: UI_ACTOR,
-      summary: `Renamed map to "${next}"`,
-      details: { mapId, title: next },
+      summary: nextTitle ? `Updated map details for "${nextTitle}"` : "Updated map classification",
+      details: { mapId, title: nextTitle, classification: classification ?? null },
     });
     return getWorldMap(tx, projectId, mapId);
   });

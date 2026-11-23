@@ -22,6 +22,7 @@ import {
   removeWorldMapPin,
   renameWorldMap,
   setWorldMapPinGeometry,
+  updateWorldMapDetails,
   updateWorldMapPin,
   updateWorldMapScale,
   saveWorldMapLayers,
@@ -42,7 +43,7 @@ function revalidateMaps(projectId: string, mapId?: string) {
 
 export async function createWorldMapAction(
   projectId: string,
-  input: { title: string; imageId: string },
+  input: { title: string; imageId: string; classification?: string | null },
 ): Promise<{ ok: true; mapId: string } | { ok: false; issues: Issue[] }> {
   try {
     const map = await createWorldMap(getDb(), projectId, input);
@@ -67,11 +68,13 @@ export async function createWorldMapUploadAction(
   const bytes = new Uint8Array(await file.arrayBuffer());
   const checked = validateImageFiles([{ filename: file.name, bytes }]);
   if (checked.issues.length) return { ok: false, issues: checked.issues };
+  const classification = String(formData.get("classification") ?? "");
   try {
     const map = await createWorldMapWithUpload(getDb(), projectId, {
       title,
       recordId,
       confirmProtected,
+      classification,
       file: { filename: file.name, bytes },
     });
     revalidateMaps(projectId, map.id);
@@ -89,6 +92,7 @@ export async function createWorldMapWithNewReferenceAction(
   const referenceTitle = String(formData.get("referenceTitle") ?? "");
   const type = String(formData.get("type") ?? "");
   const authorityStatus = String(formData.get("authorityStatus") ?? "");
+  const classification = String(formData.get("classification") ?? "");
   const file = formData.get("file");
   if (!(file instanceof File) || file.size === 0) {
     return { ok: false, issues: [errorIssue("IMAGE_INVALID", "Choose an image to upload.")] };
@@ -102,6 +106,7 @@ export async function createWorldMapWithNewReferenceAction(
       referenceTitle,
       type,
       authorityStatus,
+      classification,
       file: { filename: file.name, bytes },
     });
     revalidateMaps(projectId, map.id);
@@ -119,6 +124,20 @@ export async function renameWorldMapAction(
 ): Promise<{ ok: true } | { ok: false; issues: Issue[] }> {
   try {
     await renameWorldMap(getDb(), projectId, mapId, title);
+    revalidateMaps(projectId, mapId);
+    return { ok: true };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+export async function updateWorldMapDetailsAction(
+  projectId: string,
+  mapId: string,
+  input: { title: string; classification?: string | null },
+): Promise<{ ok: true } | { ok: false; issues: Issue[] }> {
+  try {
+    await updateWorldMapDetails(getDb(), projectId, mapId, input);
     revalidateMaps(projectId, mapId);
     return { ok: true };
   } catch (error) {

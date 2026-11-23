@@ -259,9 +259,23 @@ function inlineToHtml(
       case "del":
         chunks.push(`<del>${inlineToHtml(node.children, images, sink)}</del>`);
         break;
-      case "link":
-        chunks.push(inlineToHtml(node.children, images, sink));
+      case "link": {
+        const inner = inlineToHtml(node.children, images, sink);
+        const href = node.href?.trim() ?? "";
+        if (
+          href.startsWith("http://") ||
+          href.startsWith("https://") ||
+          href.startsWith("mailto:") ||
+          href.endsWith(".xhtml") ||
+          href.endsWith(".html") ||
+          href.startsWith("#")
+        ) {
+          chunks.push(`<a href="${escapeAttr(href)}">${inner}</a>`);
+        } else {
+          chunks.push(inner);
+        }
         break;
+      }
       case "image": {
         const attached = images?.get(node.name);
         if (attached?.data && sink && PDF_IMAGE_TYPES.includes(attached.mimeType)) {

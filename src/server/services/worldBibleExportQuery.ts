@@ -20,9 +20,13 @@ export function parseWorldBibleExportQuery(searchParams: URLSearchParams): {
   const tag = searchParams.get("tag");
   const customKind = searchParams.get("customKind");
   const unclassified = searchParams.get("unclassified") === "1" || searchParams.get("unclassified") === "true";
+  const selectionOverride =
+    searchParams.get("selectionOverride") === "1" || searchParams.get("selectionOverride") === "true";
 
   const selection: WorldBibleSelection = {
-    recordIds: recordIds.length ? recordIds : undefined,
+    // Keep an empty array when the author explicitly overrode a collection to zero.
+    recordIds: recordIds.length || selectionOverride ? recordIds : undefined,
+    selectionOverride: selectionOverride || undefined,
     types: types.length ? types : undefined,
     collectionId: collectionId || null,
     category: category || null,
@@ -56,6 +60,7 @@ export function parseWorldBibleExportQuery(searchParams: URLSearchParams): {
 export function worldBibleSelectionHasScope(selection: WorldBibleSelection): boolean {
   return Boolean(
     selection.recordIds?.length ||
+      selection.selectionOverride ||
       selection.types?.length ||
       selection.collectionId ||
       selection.category ||

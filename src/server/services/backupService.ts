@@ -22,6 +22,7 @@ import { validateDictionaryWord, wordKey } from "@/spelling/dictionary";
 import { parseBookTheme } from "@/writing/bookThemes";
 import type { Db, DbOrTx, Tx } from "../db";
 import { writeAudit } from "./auditService";
+import { remapRecordFields, remapSmartCollectionFilterJson } from "./backupIdRemap";
 import { NotFoundError } from "./errors";
 
 /*
@@ -571,6 +572,11 @@ async function worldCategoryDefinitionRows(db: DbOrTx, projectIds: string[]) {
   }
 }
 
+/**
+ * Continuity suppressions: table missing (pre-`20261122090000`) is an empty
+ * read. Any other failure must abort the backup so deploy does not proceed
+ * with an incomplete snapshot.
+ */
 async function continuitySuppressionRows(db: DbOrTx, projectIds: string[]) {
   if (!("continuitySuppression" in db) || !(db as { continuitySuppression?: { findMany: unknown } }).continuitySuppression) {
     return [];
@@ -586,6 +592,10 @@ async function continuitySuppressionRows(db: DbOrTx, projectIds: string[]) {
   }
 }
 
+/**
+ * World contradiction checks: table missing (pre-`20261123140000`) is empty.
+ * Unexpected read errors surface; never silently omit rows mid-backup.
+ */
 async function worldContradictionCheckRows(db: DbOrTx, projectIds: string[]) {
   if (
     !("worldContradictionCheck" in db) ||
@@ -613,7 +623,42 @@ async function compileProfileRows(db: DbOrTx, projectIds: string[]) {
     });
   } catch (error) {
     if (isMissingSchemaError(error, "P2021")) return [];
-    if (isMissingSchemaError(error, "P2022")) {
+    if (!isMissingSchemaError(error, "P2022")) throw error;
+    // Layout columns exist (`20261121210000`) but bookTheme may not (`20261122190000`).
+    try {
+      const rows = await db.compileProfile.findMany({
+        where: { projectId: { in: projectIds } },
+        orderBy: [{ projectId: "asc" }, { id: "asc" }],
+        select: {
+          id: true,
+          projectId: true,
+          titlePageBody: true,
+          copyrightPageBody: true,
+          dedicationBody: true,
+          acknowledgementsBody: true,
+          sceneBreakGlyph: true,
+          chapterHeadingStyle: true,
+          includeSynopses: true,
+          includeMarginComments: true,
+          trimSize: true,
+          marginInches: true,
+          runningHeader: true,
+          runningFooter: true,
+          fontPreset: true,
+          spacingPreset: true,
+          firstParagraphNoIndent: true,
+          dropCap: true,
+          includeToc: true,
+          backMatterBody: true,
+          excludedRecordIds: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      });
+      return rows.map((row) => ({ ...row, bookTheme: null as string | null }));
+    } catch (inner) {
+      if (!isMissingSchemaError(inner, "P2022")) throw inner;
+      // Pre-layout CompileProfile: core matter columns only.
       const rows = await db.compileProfile.findMany({
         where: { projectId: { in: projectIds } },
         orderBy: [{ projectId: "asc" }, { id: "asc" }],
@@ -645,9 +690,9 @@ async function compileProfileRows(db: DbOrTx, projectIds: string[]) {
         includeToc: true,
         backMatterBody: "",
         excludedRecordIds: "[]",
+        bookTheme: null as string | null,
       }));
     }
-    throw error;
   }
 }
 
@@ -687,12 +732,31 @@ async function worldMapRows(db: DbOrTx, projectIds: string[]) {
   } catch (error) {
     if (isMissingSchemaError(error, "P2021")) return [];
     if (isMissingSchemaError(error, "P2022")) {
-      const rows = await db.worldMap.findMany({
-        where: { projectId: { in: projectIds } },
-        orderBy: [{ projectId: "asc" }, { id: "asc" }],
-        select: { id: true, projectId: true, title: true, imageId: true, createdAt: true, updatedAt: true },
-      });
-      return rows.map((row) => ({ ...row, scaleLabel: "", scaleBarLength: null }));
+      try {
+        const rows = await db.worldMap.findMany({
+          where: { projectId: { in: projectIds } },
+          orderBy: [{ projectId: "asc" }, { id: "asc" }],
+          select: {
+            id: true,
+            projectId: true,
+            title: true,
+            imageId: true,
+            scaleLabel: true,
+            scaleBarLength: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+        });
+        return rows.map((row) => ({ ...row, classification: null }));
+      } catch (inner) {
+        if (!isMissingSchemaError(inner, "P2022")) throw inner;
+        const rows = await db.worldMap.findMany({
+          where: { projectId: { in: projectIds } },
+          orderBy: [{ projectId: "asc" }, { id: "asc" }],
+          select: { id: true, projectId: true, title: true, imageId: true, createdAt: true, updatedAt: true },
+        });
+        return rows.map((row) => ({ ...row, scaleLabel: "", scaleBarLength: null, classification: null }));
+      }
     }
     throw error;
   }
@@ -1291,6 +1355,8 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
     characterAnalyses,
     worldKindTemplates,
     worldCategoryDefinitions,
+    continuitySuppressions,
+    worldContradictionChecks,
   ] = await Promise.all([
     recordRows(db, projectIds),
     db.source.findMany({ where: inProjects, orderBy: { id: "asc" } }),
@@ -1340,11 +1406,9 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
     characterAnalysisRows(db, projectIds),
     worldKindTemplateRows(db, projectIds),
     worldCategoryDefinitionRows(db, projectIds),
+    continuitySuppressionRows(db, projectIds),
+    worldContradictionCheckRows(db, projectIds),
   ]);
-  const continuitySuppressions = await continuitySuppressionRows(db, projectIds).catch(() => [] as Awaited<ReturnType<typeof continuitySuppressionRows>>);
-  const worldContradictionChecks = await worldContradictionCheckRows(db, projectIds).catch(
-    () => [] as Awaited<ReturnType<typeof worldContradictionCheckRows>>,
-  );
   const weaveTemplateBeats = await weaveTemplateBeatRows(
     db,
     weaveTemplates.map((t) => t.id),
@@ -1819,6 +1883,16 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
             projectId: m.projectId,
             title: m.title,
             imageId: m.imageId,
+            ...(m.classification === "world" ||
+            m.classification === "region" ||
+            m.classification === "city" ||
+            m.classification === "district" ||
+            m.classification === "site" ||
+            m.classification === "building" ||
+            m.classification === "interior" ||
+            m.classification === "other"
+              ? { classification: m.classification }
+              : {}),
             ...(m.scaleLabel ? { scaleLabel: m.scaleLabel } : {}),
             ...(m.scaleBarLength != null ? { scaleBarLength: m.scaleBarLength } : {}),
             createdAt: iso(m.createdAt),
@@ -3844,27 +3918,30 @@ export async function restoreWorkspaceBackup(db: Db, input: string | unknown, op
           });
         }
         await tx.record.createMany({
-          data: b.records.map((r) => ({
-            id: m(r.id),
-            projectId: m(r.projectId),
-            type: r.type,
-            title: r.title,
-            body: r.body,
-            fields: stableStringify(r.fields),
-            authorityStatus: r.authorityStatus,
-            supersededByRecordId: mn(r.supersededByRecordId),
-            protected: r.protected,
-            parentRecordId: mn(r.parentRecordId ?? null),
-            position: r.position ?? null,
-            groupId: r.groupId ? m(r.groupId) : null,
-            draftId: r.draftId ? m(r.draftId) : null,
-            worldScope: r.worldScope ?? null,
-            currentRevision: r.currentRevision,
-            trashedAt: dateOrNull(r.trashedAt),
-            trashBatchId: r.trashBatchId ?? null,
-            createdAt: new Date(r.createdAt),
-            updatedAt: new Date(r.updatedAt),
-          })),
+          data: b.records.map((r) => {
+            const fields = remap ? remapRecordFields(r.fields, map) : r.fields;
+            return {
+              id: m(r.id),
+              projectId: m(r.projectId),
+              type: r.type,
+              title: r.title,
+              body: r.body,
+              fields: stableStringify(fields),
+              authorityStatus: r.authorityStatus,
+              supersededByRecordId: mn(r.supersededByRecordId),
+              protected: r.protected,
+              parentRecordId: mn(r.parentRecordId ?? null),
+              position: r.position ?? null,
+              groupId: r.groupId ? m(r.groupId) : null,
+              draftId: r.draftId ? m(r.draftId) : null,
+              worldScope: r.worldScope ?? null,
+              currentRevision: r.currentRevision,
+              trashedAt: dateOrNull(r.trashedAt),
+              trashBatchId: r.trashBatchId ?? null,
+              createdAt: new Date(r.createdAt),
+              updatedAt: new Date(r.updatedAt),
+            };
+          }),
         });
         for (const p of b.projects) {
           if (!p.defaultReadingDraftId && !p.defaultExportDraftId) continue;
@@ -3879,10 +3956,11 @@ export async function restoreWorkspaceBackup(db: Db, input: string | unknown, op
         await tx.revision.createMany({
           data: b.revisions.map((r) => {
             const supersededByRecordId = mn(r.supersededByRecordId);
+            const fields = remap ? remapRecordFields(r.fields, map) : r.fields;
             const snapshot: RecordSnapshot = {
               title: r.title,
               body: r.body,
-              fields: r.fields,
+              fields,
               authorityStatus: r.authorityStatus,
               supersededByRecordId,
             };
@@ -3892,7 +3970,7 @@ export async function restoreWorkspaceBackup(db: Db, input: string | unknown, op
               revisionNumber: r.revisionNumber,
               title: r.title,
               body: r.body,
-              fields: stableStringify(r.fields),
+              fields: stableStringify(fields),
               authorityStatus: r.authorityStatus,
               supersededByRecordId,
               contentHash: snapshotHash(snapshot),
@@ -4031,7 +4109,7 @@ export async function restoreWorkspaceBackup(db: Db, input: string | unknown, op
               projectId: m(row.projectId),
               title: row.title,
               scope: row.scope,
-              filterJson: row.filterJson,
+              filterJson: remap ? remapSmartCollectionFilterJson(row.filterJson, map) : row.filterJson,
               position: row.position,
               createdAt: new Date(row.createdAt),
               updatedAt: new Date(row.updatedAt),
@@ -4185,7 +4263,7 @@ export async function restoreWorkspaceBackup(db: Db, input: string | unknown, op
               dropCap: p.dropCap ?? false,
               includeToc: p.includeToc ?? true,
               backMatterBody: p.backMatterBody ?? "",
-              excludedRecordIds: JSON.stringify(p.excludedRecordIds ?? []),
+              excludedRecordIds: JSON.stringify((p.excludedRecordIds ?? []).map((id) => m(id))),
               createdAt: new Date(p.createdAt),
               updatedAt: new Date(p.updatedAt),
             })),
@@ -4298,6 +4376,7 @@ export async function restoreWorkspaceBackup(db: Db, input: string | unknown, op
               projectId: m(map.projectId),
               title: map.title,
               imageId: m(map.imageId),
+              classification: map.classification ?? null,
               scaleLabel: map.scaleLabel ?? "",
               scaleBarLength: map.scaleBarLength ?? null,
               createdAt: new Date(map.createdAt),

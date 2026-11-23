@@ -224,12 +224,45 @@ export default async function ExportPdfPage({
   const groups: PdfPickerGroup[] = [...byTaxonomy.values()].sort((a, b) => a.label.localeCompare(b.label));
 
   const showManuscript = !hasDrafts || !!selectedDraftId;
-  const spoilerChapters = [
-    ...tree.chapters.map((chapter) => ({ id: chapter.id, title: chapter.title })),
-    ...tree.chapters.flatMap((chapter) =>
-      chapter.scenes.map((scene) => ({ id: scene.id, title: `${chapter.title} · ${scene.title}` })),
-    ),
-  ];
+  const spoilerBooks =
+    seriesBooks.length > 0
+      ? seriesBooks
+      : [{ id: projectId, title: "This book", bookName: null as string | null }];
+  const seriesSpoilers = await Promise.all(
+    spoilerBooks.map(async (book) => {
+      if (book.id === projectId) {
+        return { book, tree };
+      }
+      const bookDrafts = await listManuscriptDrafts(db, book.id);
+      const bookDefaults = await getDraftDefaults(db, book.id);
+      const bookHasDrafts = bookDrafts.length > 0;
+      const bookDraftId = resolveExportDraftId(bookDrafts, bookDefaults, null);
+      const bookNav = await listRecordNav(db, book.id, {
+        hasDrafts: bookHasDrafts,
+        draftId: bookDraftId,
+      });
+      return { book, tree: buildManuscriptTree(bookNav) };
+    }),
+  );
+  const spoilerChapters = seriesSpoilers.flatMap(({ book, tree: bookTree }) => {
+    const bookTitle = book.bookName?.trim() || book.title || "Book";
+    return [
+      ...bookTree.chapters.map((chapter) => ({
+        id: chapter.id,
+        title: chapter.title,
+        bookId: book.id,
+        bookTitle,
+      })),
+      ...bookTree.chapters.flatMap((chapter) =>
+        chapter.scenes.map((scene) => ({
+          id: scene.id,
+          title: `${chapter.title} · ${scene.title}`,
+          bookId: book.id,
+          bookTitle,
+        })),
+      ),
+    ];
+  });
   const previewChapter = tree.chapters[0];
   const previewChapterRecord = previewChapter ? records.find((r) => r.id === previewChapter.id) : undefined;
   const previewSampleBody = previewChapterRecord?.body.trim() ?? "";
@@ -351,7 +384,10 @@ export default async function ExportPdfPage({
             markdownAction={markdownHref}
             wikiAction={wikiHref}
             spoilerChapters={spoilerChapters}
-            seriesBooks={seriesBooks.map((book) => ({ id: book.id, title: book.title }))}
+            seriesBooks={seriesBooks.map((book) => ({
+              id: book.id,
+              title: book.bookName?.trim() || book.title,
+            }))}
             groups={groups}
             initialSelection={initialSelection}
             collectionId={collectionId}

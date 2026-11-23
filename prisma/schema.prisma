@@ -639,6 +639,9 @@ model WorldMap {
   title      String
   imageId    String
   image      RecordImage   @relation(fields: [imageId], references: [id])
+  /// Optional author scale: world | region | city | district | site | building | interior | other.
+  /// Never inferred from the title. Null means unset.
+  classification String?
   /// Author-written scale caption for the labelled bar (not computed distance).
   scaleLabel     String   @default("")
   /// Bar length as a fraction of image width (0–1), when set with scaleLabel.

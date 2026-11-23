@@ -1,4 +1,5 @@
 import Database from "better-sqlite3";
+import { createHash, randomUUID } from "node:crypto";
 import { mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -9,12 +10,50 @@ import { createRecord } from "@/server/services/recordService";
 
 const MIGRATIONS_DIR = path.resolve(__dirname, "..", "prisma", "migrations");
 
-function migrationSql(): string[] {
+export interface MigrationDir {
+  name: string;
+  sql: string;
+  checksum: string;
+}
+
+export function listMigrationDirs(): MigrationDir[] {
   return readdirSync(MIGRATIONS_DIR, { withFileTypes: true })
     .filter((d) => d.isDirectory())
     .map((d) => d.name)
     .sort()
-    .map((name) => readFileSync(path.join(MIGRATIONS_DIR, name, "migration.sql"), "utf8"));
+    .map((name) => {
+      const sql = readFileSync(path.join(MIGRATIONS_DIR, name, "migration.sql"), "utf8");
+      return { name, sql, checksum: createHash("sha256").update(sql).digest("hex") };
+    });
+}
+
+function ensurePrismaMigrationsTable(sqlite: Database.Database) {
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS "_prisma_migrations" (
+      "id" TEXT PRIMARY KEY NOT NULL,
+      "checksum" TEXT NOT NULL,
+      "finished_at" DATETIME,
+      "migration_name" TEXT NOT NULL,
+      "logs" TEXT,
+      "rolled_back_at" DATETIME,
+      "started_at" DATETIME NOT NULL DEFAULT current_timestamp,
+      "applied_steps_count" INTEGER NOT NULL DEFAULT 0
+    );
+  `);
+}
+
+function applyMigrations(sqlite: Database.Database, migrations: MigrationDir[]) {
+  ensurePrismaMigrationsTable(sqlite);
+  const insert = sqlite.prepare(
+    `INSERT INTO "_prisma_migrations"
+      ("id", "checksum", "finished_at", "migration_name", "logs", "rolled_back_at", "started_at", "applied_steps_count")
+     VALUES (?, ?, ?, ?, NULL, NULL, ?, 1)`,
+  );
+  for (const migration of migrations) {
+    sqlite.exec(migration.sql);
+    const now = new Date().toISOString();
+    insert.run(randomUUID(), migration.checksum, now, migration.name, now);
+  }
 }
 
 export interface TestDb {
@@ -26,10 +65,26 @@ export interface TestDb {
 
 /** Fresh SQLite file with all migrations applied. */
 export async function createTestDb(): Promise<TestDb> {
+  return createTestDbThrough(undefined);
+}
+
+/**
+ * Fresh SQLite with migrations applied through `throughInclusive` (inclusive).
+ * When omitted, applies every migration. Records `_prisma_migrations` so
+ * `prisma migrate deploy` can continue from that point on an isolated file.
+ */
+export async function createTestDbThrough(throughInclusive?: string): Promise<TestDb> {
+  const all = listMigrationDirs();
+  const migrations = throughInclusive
+    ? all.filter((m) => m.name <= throughInclusive)
+    : all;
+  if (throughInclusive && !migrations.some((m) => m.name === throughInclusive)) {
+    throw new Error(`Unknown migration cutoff: ${throughInclusive}`);
+  }
   const dir = mkdtempSync(path.join(tmpdir(), "wordly-test-"));
   const file = path.join(dir, "test.db");
   const sqlite = new Database(file);
-  for (const sql of migrationSql()) sqlite.exec(sql);
+  applyMigrations(sqlite, migrations);
   sqlite.close();
   const db = createDb(`file:${file.replace(/\\/g, "/")}`);
   return {

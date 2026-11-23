@@ -145,6 +145,7 @@ export async function buildReferencesPdf(
   const model = await buildWorldBibleExportModel(db, projectId, selection, policy);
   const project = model.projectTitle;
 
+  const { pointScopedEligibleImageNames } = await import("./worldBibleModel");
   const homeIds = [...new Set(model.entries.map((e) => e.record.projectId))];
   const imageMaps = await Promise.all(
     homeIds.map((homeId) =>
@@ -157,7 +158,19 @@ export async function buildReferencesPdf(
   );
   const images = new Map<string, Map<string, PdfImage>>();
   for (const map of imageMaps) {
-    for (const [id, value] of map) images.set(id, value);
+    for (const [id, value] of map) {
+      const entry = model.entries.find((e) => e.record.id === id);
+      const eligible = entry ? pointScopedEligibleImageNames(entry, model.mode) : null;
+      if (!eligible) {
+        images.set(id, value);
+        continue;
+      }
+      const filtered = new Map<string, PdfImage>();
+      for (const [name, img] of value) {
+        if (eligible.has(name)) filtered.set(name, img);
+      }
+      images.set(id, filtered);
+    }
   }
 
   const single = model.entries.length === 1 ? model.entries[0]!.record : null;

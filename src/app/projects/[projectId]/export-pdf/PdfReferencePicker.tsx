@@ -25,6 +25,13 @@ export interface PdfPickerBook {
   title: string;
 }
 
+export interface PdfPickerStoryPoint {
+  id: string;
+  title: string;
+  bookId: string;
+  bookTitle: string;
+}
+
 /** A plain GET form, so the browser downloads the file and the page stays as it is. */
 export function PdfReferencePicker({
   action,
@@ -46,7 +53,7 @@ export function PdfReferencePicker({
   epubAction: string;
   markdownAction: string;
   wikiAction: string;
-  spoilerChapters?: { id: string; title: string }[];
+  spoilerChapters?: PdfPickerStoryPoint[];
   seriesBooks?: PdfPickerBook[];
   groups: PdfPickerGroup[];
   initialSelection: string[];
@@ -63,26 +70,39 @@ export function PdfReferencePicker({
   };
 }) {
   const [selected, setSelected] = useState<Set<string>>(() => new Set(initialSelection));
+  /** Once the author changes ticks under a collection, submit an explicit override. */
+  const [selectionEdited, setSelectionEdited] = useState(false);
   const [exportMode, setExportMode] = useState<"full" | "point">("full");
   const [approvedOnly, setApprovedOnly] = useState(false);
   const [spoilerBefore, setSpoilerBefore] = useState("");
   const [bookId, setBookId] = useState(seriesBooks[0]?.id ?? "");
 
-  const toggle = (ids: string[], on: boolean) =>
+  const toggle = (ids: string[], on: boolean) => {
+    if (collectionId) setSelectionEdited(true);
     setSelected((prev) => {
       const next = new Set(prev);
       ids.forEach((id) => (on ? next.add(id) : next.delete(id)));
       return next;
     });
+  };
+
+  const submitCollectionLive = Boolean(collectionId) && !selectionEdited;
+  const submitSelectionOverride = Boolean(collectionId) && selectionEdited;
 
   const scopeSummary = useMemo(() => {
     const parts: string[] = [];
     if (collectionTitle) {
-      parts.push(
-        collectionMatchCount === 0
-          ? `Collection “${collectionTitle}” currently matches 0 references`
-          : `Collection “${collectionTitle}” (${collectionMatchCount ?? "live"} matches)`,
-      );
+      if (collectionMatchCount === 0) {
+        parts.push(`Collection “${collectionTitle}” currently matches 0 references`);
+      } else if (submitSelectionOverride) {
+        parts.push(
+          selected.size === 0
+            ? `Collection “${collectionTitle}” · explicit empty selection`
+            : `Collection “${collectionTitle}” · ${selected.size} of ${collectionMatchCount ?? "live"} selected`,
+        );
+      } else {
+        parts.push(`Collection “${collectionTitle}” (${collectionMatchCount ?? "live"} matches)`);
+      }
     }
     if (hiddenScope.category) {
       parts.push(
@@ -97,10 +117,13 @@ export function PdfReferencePicker({
     if (exportMode === "full") {
       parts.push(approvedOnly ? "Full author export · approved only" : "Full author export");
     } else {
-      const point = spoilerChapters.find((c) => c.id === spoilerBefore)?.title ?? "unanchored story point";
+      const point = spoilerChapters.find((c) => c.id === spoilerBefore);
+      const pointLabel = point
+        ? `${point.bookTitle} · ${point.title}`
+        : "unanchored story point";
       const book = seriesBooks.find((b) => b.id === bookId)?.title;
       parts.push(
-        `Point-scoped as of “${point}”${book ? ` · viewing ${book}` : ""}${
+        `Point-scoped as of “${pointLabel}”${book ? ` · viewing ${book}` : ""}${
           approvedOnly || exportMode === "point" ? " · approved only" : ""
         }`,
       );
@@ -113,18 +136,29 @@ export function PdfReferencePicker({
     collectionTitle,
     exportMode,
     hiddenScope,
+    selected.size,
     seriesBooks,
     spoilerBefore,
     spoilerChapters,
+    submitSelectionOverride,
   ]);
 
+  const liveCollectionOk = submitCollectionLive && (collectionMatchCount ?? 0) > 0;
   const canDownload =
-    selected.size > 0 || Boolean(collectionId) || Boolean(hiddenScope.category) || Boolean(hiddenScope.unclassified);
+    selected.size > 0 ||
+    liveCollectionOk ||
+    Boolean(hiddenScope.category) ||
+    Boolean(hiddenScope.unclassified);
+
+  const downloadCount = submitCollectionLive
+    ? collectionMatchCount || 0
+    : selected.size || collectionMatchCount || 0;
 
   return (
     <form method="get" action={action} className="stack pdf-picker">
       <input type="hidden" name="kind" value="references" />
       {collectionId ? <input type="hidden" name="collection" value={collectionId} /> : null}
+      {submitSelectionOverride ? <input type="hidden" name="selectionOverride" value="1" /> : null}
       {hiddenScope.category ? <input type="hidden" name="category" value={hiddenScope.category} /> : null}
       {hiddenScope.subcategory ? (
         <input type="hidden" name="subcategory" value={hiddenScope.subcategory} />
@@ -147,7 +181,11 @@ export function PdfReferencePicker({
         <Banner tone={collectionMatchCount === 0 ? "warn" : "info"}>
           {collectionMatchCount === 0
             ? PDF.collectionEmpty(collectionTitle)
-            : PDF.collectionBanner(collectionTitle, collectionMatchCount ?? 0)}
+            : submitSelectionOverride
+              ? selected.size === 0
+                ? PDF.collectionOverrideEmpty(collectionTitle)
+                : PDF.collectionOverrideBanner(collectionTitle, selected.size, collectionMatchCount ?? 0)
+              : PDF.collectionBanner(collectionTitle, collectionMatchCount ?? 0)}
         </Banner>
       ) : null}
 
@@ -192,7 +230,7 @@ export function PdfReferencePicker({
                   <option value="">{PDF.wikiSpoilerBeforeNone}</option>
                   {spoilerChapters.map((chapter) => (
                     <option key={chapter.id} value={chapter.id}>
-                      {chapter.title}
+                      {chapter.bookTitle} · {chapter.title}
                     </option>
                   ))}
                 </select>
@@ -233,8 +271,7 @@ export function PdfReferencePicker({
               {group.records.map((r) => (
                 <Checkbox
                   key={r.id}
-                  name="record"
-                  value={r.id}
+                  {...(submitCollectionLive ? {} : { name: "record", value: r.id })}
                   checked={selected.has(r.id)}
                   onChange={(e) => toggle([r.id], e.target.checked)}
                   label={
@@ -253,29 +290,24 @@ export function PdfReferencePicker({
         );
       })}
       <div className="row">
-        <button type="submit" disabled={!canDownload && selected.size === 0}>
-          {PDF.downloadReferences(selected.size || collectionMatchCount || 0)}
+        <button type="submit" disabled={!canDownload}>
+          {PDF.downloadReferences(downloadCount)}
         </button>
-        <button type="submit" formAction={docxAction} formMethod="get" disabled={selected.size === 0 && !canDownload}>
-          {PDF.downloadReferencesDocx(selected.size || collectionMatchCount || 0)}
+        <button type="submit" formAction={docxAction} formMethod="get" disabled={!canDownload}>
+          {PDF.downloadReferencesDocx(downloadCount)}
         </button>
-        <button type="submit" formAction={epubAction} formMethod="get" disabled={selected.size === 0 && !canDownload}>
-          {PDF.downloadReferencesEpub(selected.size || collectionMatchCount || 0)}
+        <button type="submit" formAction={epubAction} formMethod="get" disabled={!canDownload}>
+          {PDF.downloadReferencesEpub(downloadCount)}
         </button>
-        <button
-          type="submit"
-          formAction={markdownAction}
-          formMethod="get"
-          disabled={selected.size === 0 && !canDownload}
-        >
-          {PDF.downloadReferencesMarkdown(selected.size || collectionMatchCount || 0)}
+        <button type="submit" formAction={markdownAction} formMethod="get" disabled={!canDownload}>
+          {PDF.downloadReferencesMarkdown(downloadCount)}
         </button>
-        <button type="submit" formAction={wikiAction} formMethod="get" disabled={selected.size === 0 && !canDownload}>
-          {PDF.downloadReferencesWiki(selected.size || collectionMatchCount || 0)}
+        <button type="submit" formAction={wikiAction} formMethod="get" disabled={!canDownload}>
+          {PDF.downloadReferencesWiki(downloadCount)}
         </button>
-        {selected.size === 0 && !canDownload ? (
+        {!canDownload ? (
           <span className="small muted" role="status">
-            {PDF.nothingSelected}
+            {submitSelectionOverride && selected.size === 0 ? PDF.nothingSelectedOverride : PDF.nothingSelected}
           </span>
         ) : null}
       </div>

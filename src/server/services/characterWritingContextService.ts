@@ -93,10 +93,16 @@ export async function narrativePointForManuscript(
   };
 }
 
-export async function loadFocusManuscript(db: DbOrTx, projectId: string, recordId: string | null | undefined): Promise<FocusManuscript | null> {
+export async function loadFocusManuscript(
+  db: DbOrTx,
+  projectId: string,
+  recordId: string | null | undefined,
+  options?: { bookIds?: readonly string[] },
+): Promise<FocusManuscript | null> {
   if (!recordId) return null;
+  const bookIds = options?.bookIds?.length ? [...options.bookIds] : [projectId];
   const row = await db.record.findFirst({
-    where: { id: recordId, projectId, ...LIVE_RECORD },
+    where: { id: recordId, projectId: { in: bookIds }, ...LIVE_RECORD },
     select: { id: true, type: true, title: true, parentRecordId: true, projectId: true, draftId: true },
   });
   if (!row) return null;

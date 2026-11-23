@@ -1,5 +1,60 @@
 # Progress
 
+## World Maps Landing Redesign (Nov 23, 2026)
+
+Atlas-style Maps landing under the existing World header (nav, crumbs, cover, Getting started unchanged):
+
+- **Library UI:** Intro row, search / type filter / sort / grid–list toolbar, “Your atlas” count, visual cards (thumbnail, optional type badge, linked reference, marker count, open + overflow), list view, dashed Add a map tile, empty / no-match states.
+- **Create:** Inline create panel removed; same upload / existing-image / new-reference flow opens in a dialog with live preview; post-create still navigates to the map.
+- **Classification:** Nullable `WorldMap.classification` (`world`…`other`); optional on create and Edit details; never inferred. Delete from the card menu confirms and keeps the host reference and image. Grid/list preference via `wordly-maps-view` cookie.
+- **Verify:** `tests/unit/map-library.test.ts`, `tests/acceptance/maps-landing-library.test.ts`; Help `#world-maps` / `#optional-maps` updated.
+
+### Rollback
+
+Revert maps landing components / CSS / labels / Help / PROGRESS; drop `classification` only after confirming backups do not need it (`ALTER TABLE … DROP COLUMN` on a disposable copy). Working DB: additive column only.
+
+## W8C — World Bible Format Links, Labels & Character Slices (Nov 23, 2026)
+
+Shared world-bible model unchanged for eligibility; writers consume resolved labels and page ids:
+
+- **Wiki:** Relative hrefs from the emitting file (`pages/…` on the index; peer `….html` inside articles). Infobox, relations, See also, and `[[wiki]]` body links resolve; excluded targets stay plain labels.
+- **PDF / EPUB:** Each character slice renders once. EPUB adds scope note, home/authority meta, and internal `.xhtml` links for profile fields, relations, and body wiki links.
+- **DOCX:** Category / subcategory / home / authority on each entry; See also, relations, and record-ref fields use Word-safe bookmarks (`wb_*`) and internal hyperlinks; same-title records stay distinguishable via page id text.
+- **Markdown:** Secondary “Also listed under” uses resolved labels; each standalone `.md` file includes the scope note.
+- **Verify:** `tests/acceptance/world-bible-export-w8c.test.ts` (Saltmarsh fixture, all five formats, distinctive character phrase once).
+
+### Rollback
+
+Revert `wikiExportHtml` / `worldBibleExport` / `worldBibleProfileRender` / `worldBibleModel` (secondaryListings + bookmark helper) / EPUB link handling in `manuscriptExportMarkdown` / Help / this note / W8C test. W8A model eligibility stays.
+
+## W8B — Backup / db:deploy Hardening (Nov 23, 2026)
+
+Disposable-DB fixes so pre-migrate backups stay complete and remap restores keep typed links:
+
+- **CompileProfile:** when `bookTheme` is missing (`P2022`) but layout columns exist, the backup keeps `trimSize`, `marginInches`, `backMatterBody`, `excludedRecordIds`, and the other layout fields instead of resetting them to defaults.
+- **Continuity / contradiction:** missing tables (`P2021`) read as empty; unexpected read errors abort the backup so `db:deploy` does not migrate after an incomplete snapshot.
+- **Remap:** `idStrategy: "remap"` rewires typed IDs in `worldProfile` history/values, `characterDevelopment`, SmartCollection `filterJson` (`draftId` / `linkedRecordId`), and compile `excludedRecordIds`. Prose, archive holds, unknown extension keys, and literal strings that happen to equal an old ID are left alone.
+- **Verify:** `tests/unit/backupIdRemap.test.ts`, `tests/acceptance/backup-w8b.test.ts` (partial compile schema, reader failure, Saltmarsh preserve/remap behavior, pre-W4 → head via `pnpm db:deploy`). Working `prisma/dev.db` untouched.
+
+### Rollback
+
+Revert `backupService` / `backupIdRemap` / Help restore notes / this entry / W8B tests. Pre-migrate backups already written under the fixed readers remain valid. Working DB: no schema change in this milestone.
+
+## W8A — World Bible Export Selection, Facts, Anchors & Images (Nov 23, 2026)
+
+Tightens which records and established facts enter world-bible exports (Wiki / Markdown / DOCX / EPUB / PDF):
+
+- **Facts:** series-shared subjects load `EstablishedFact` rows from the home book; point mode keeps only accepted facts with evidence at or before the story point (later / undated / incomparable stay out). Full-author exports keep visible accepted facts.
+- **Anchors:** story-point chapters/scenes resolve across authorized series books; viewing-book scope stays separate from the anchor’s home book. Invalid / out-of-series anchors throw instead of degrading to a full export. Export PDF lists each story point with its book title.
+- **Collections:** live SmartCollection when untouched; `selectionOverride` intersects explicit ticks with collection members and distinguishes an explicit empty selection.
+- **Labels:** custom category / subcategory labels (including secondary memberships) come from the record’s home book even when the viewing book redefines the same slug.
+- **Images:** point-scoped Wiki/PDF keep only images named in the redacted body; gallery-only assets (caption, filename, bytes) are omitted. Full-author keeps eligible gallery images.
+- **Verify:** `tests/acceptance/world-bible-export-w8a.test.ts` (Saltmarsh two-book fixture, PDFKit text extraction) plus `tests/unit/worldBibleExportQuery.test.ts`.
+
+### Rollback
+
+Revert `worldBibleModel` / `worldBibleExportQuery` / `worldBibleExport` / `pdfExportService` / `characterWritingContextService` (focus bookIds) / Export PDF picker+page / labels / Help / this note / W8A tests. W7C writers remain.
+
 ## W7C — Taxonomy-Organized, Point-Scoped World Bible & Wiki Exports (Nov 23, 2026)
 
 Shared world-bible model for HTML wiki, Markdown, DOCX, EPUB, and PDF:

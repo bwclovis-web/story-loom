@@ -564,6 +564,11 @@ export const workspaceBackupV1Schema = z
             projectId: id,
             title: z.string().min(1),
             imageId: id,
+            /** Optional author map scale; omitted / null → unset. */
+            classification: z
+              .enum(["world", "region", "city", "district", "site", "building", "interior", "other"])
+              .nullable()
+              .optional(),
             /** Author scale caption; omitted → empty (no bar). */
             scaleLabel: z.string().optional(),
             /** Bar length as fraction of image width when scaleLabel is set. */

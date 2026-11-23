@@ -31,6 +31,7 @@ import { WORLD_MARKDOWN_ARCHIVE_KEY } from "@/domain/worldProfileUpgrade";
 import { DOSSIER_MARKDOWN_ARCHIVE_KEY } from "@/domain/characterDossierUpgrade";
 import { CHARACTER_DEVELOPMENT_KEY } from "@/domain/characterDevelopment";
 import type { OrderEdge } from "@/world/storyOrder";
+import { orderRelation } from "@/world/storyOrder";
 import {
   getTaxonomyCategory,
   getTaxonomySubcategory,
@@ -47,7 +48,7 @@ import {
   narrativePointForManuscript,
 } from "./characterWritingContextService";
 import { listEstablishedFactsForSubject, type EstablishedFactView } from "./establishedFactService";
-import { listAvailableWorldCategories, type WorldCategoryView } from "./worldCategoryService";
+import { listWorldCategories, type WorldCategoryView } from "./worldCategoryService";
 import {
   listAvailableWorldKindTemplates,
   listWorldKindTemplates,
@@ -60,6 +61,7 @@ import {
   resolveAvailableReference,
   type AvailableReference,
 } from "./seriesBibleService";
+import { listSeriesBookProjects } from "./projectService";
 import { getSmartCollection } from "./smartCollectionService";
 import { LIVE_PROJECT } from "./trashFilters";
 import { booksFromIds } from "./worldWritingContextService";
@@ -70,11 +72,18 @@ import {
   type WorldProfileFieldDef,
 } from "@/world/worldProfileRegistry";
 import { withSeriesBookOrderFallback } from "@/domain/characterWritingContext";
+import { imageNamesInText } from "@/images/imageFormat";
 
 export type WorldBibleExportMode = "full" | "point";
 
 export interface WorldBibleSelection {
   recordIds?: readonly string[];
+  /**
+   * When true with `collectionId`, `recordIds` (including an empty list) are an
+   * explicit author override intersected with live collection members.
+   * When false/absent, the live SmartCollection filter is used unchanged.
+   */
+  selectionOverride?: boolean;
   types?: readonly RecordType[];
   collectionId?: string | null;
   category?: string | null;
@@ -107,12 +116,21 @@ export interface WorldBibleRelationRow {
   targetTitle: string;
 }
 
+export interface WorldBibleSecondaryListing {
+  categoryId: string;
+  categoryLabel: string;
+  subcategoryId: string | null;
+  subcategoryLabel: string | null;
+}
+
 export interface WorldBibleEntry {
   record: RecordView;
   home: SeriesHomeRef | null;
   homeLabel: string | null;
   primary: TaxonomyPlacement | null;
   secondary: TaxonomyPlacement[];
+  /** Resolved secondary labels for writers (Markdown “Also listed under”, etc.). */
+  secondaryListings: WorldBibleSecondaryListing[];
   categoryLabel: string;
   subcategoryLabel: string | null;
   /** Stable basename without extension: slug-id */
@@ -221,7 +239,13 @@ async function resolveSelectionIds(
     if (collection.scope !== "world") {
       throw new NotFoundError("That collection is not a World Hub collection.");
     }
-    return applyWorldCollectionFilter(hubRecords, collection.filter).map((r) => r.id);
+    const members = applyWorldCollectionFilter(hubRecords, collection.filter).map((r) => r.id);
+    if (selection.selectionOverride) {
+      const allowed = new Set(members);
+      const picked = [...new Set(selection.recordIds ?? [])].filter((id) => allowed.has(id));
+      return picked;
+    }
+    return members;
   }
 
   if (selection.recordIds?.length) {
@@ -429,18 +453,108 @@ function fieldRowsFromDefinition(
   return rows;
 }
 
+type EvidencePlacement = "at_or_before" | "after" | "unresolved";
+
+function bookNarrativeIndex(books: ReturnType<typeof booksFromIds>, projectId: string | null | undefined): number | null {
+  if (!projectId) return null;
+  const book = books.find((item) => item.projectId === projectId);
+  return book?.narrativeIndex ?? null;
+}
+
+/**
+ * Place a manuscript/plan evidence source against the export story point using
+ * story-event order, then book narrative index. Undated / incomparable → unresolved.
+ */
+function placeEvidenceSourceAgainstPoint(
+  source: { id: string; projectId: string; parentRecordId: string | null; type: string },
+  eventIdByManuscript: ReadonlyMap<string, string>,
+  point: NarrativePoint,
+  edges: readonly OrderEdge[],
+  books: ReturnType<typeof booksFromIds>,
+): EvidencePlacement {
+  if (point.sceneRecordId && source.id === point.sceneRecordId) return "at_or_before";
+  if (
+    point.chapterRecordId &&
+    (source.id === point.chapterRecordId || source.parentRecordId === point.chapterRecordId) &&
+    source.type !== "manuscript_scene"
+  ) {
+    return "at_or_before";
+  }
+
+  const eventId =
+    eventIdByManuscript.get(source.id) ??
+    (source.parentRecordId ? eventIdByManuscript.get(source.parentRecordId) : undefined) ??
+    null;
+
+  if (eventId && point.storyEventId) {
+    if (eventId === point.storyEventId) return "at_or_before";
+    const relation = orderRelation(edges, eventId, point.storyEventId);
+    if (relation === "before") return "at_or_before";
+    if (relation === "after") return "after";
+    return "unresolved";
+  }
+
+  const sourceBook = bookNarrativeIndex(books, source.projectId);
+  const pointBook = bookNarrativeIndex(books, point.bookProjectId);
+  if (sourceBook !== null && pointBook !== null && sourceBook !== pointBook) {
+    return sourceBook < pointBook ? "at_or_before" : "after";
+  }
+
+  return "unresolved";
+}
+
+function acceptedFactStatementsForExport(
+  facts: readonly EstablishedFactView[],
+  mode: WorldBibleExportMode,
+  point: NarrativePoint | null,
+  edges: readonly OrderEdge[],
+  books: ReturnType<typeof booksFromIds>,
+  sourceById: ReadonlyMap<string, { id: string; projectId: string; parentRecordId: string | null; type: string }>,
+  eventIdByManuscript: ReadonlyMap<string, string>,
+): string[] {
+  const accepted = facts.filter((f) => f.status === "accepted");
+  if (mode !== "point" || !point) {
+    return accepted
+      .map((f) => f.statement.trim())
+      .filter(Boolean)
+      .slice(0, 12);
+  }
+
+  return accepted
+    .flatMap((fact) => {
+      if (fact.evidenceKind === "planned") return [];
+      let eligible = false;
+      for (const evidence of fact.evidence) {
+        if (evidence.evidenceKind === "planned") continue;
+        const source = sourceById.get(evidence.sourceRecordId);
+        if (!source) continue;
+        const placement = placeEvidenceSourceAgainstPoint(source, eventIdByManuscript, point, edges, books);
+        if (placement === "at_or_before") {
+          eligible = true;
+          break;
+        }
+      }
+      if (!eligible) return [];
+      const statement = fact.statement.trim();
+      return statement ? [statement] : [];
+    })
+    .slice(0, 12);
+}
+
+/**
+ * Include every live relation. Writers link only when the target is in the
+ * export (`pageById`); excluded targets stay as plain titles (no broken href,
+ * no body of the excluded record).
+ */
 function relationRowsFor(
   place: { outgoing: PlaceRelationView[]; incoming: PlaceRelationView[] },
   recordRels: { outgoing: RecordRelationView[]; incoming: RecordRelationView[] },
-  allowedRecordIds: ReadonlySet<string>,
 ): WorldBibleRelationRow[] {
   const out: WorldBibleRelationRow[] = [];
   for (const row of place.outgoing) {
-    if (!allowedRecordIds.has(row.toRecordId)) continue;
     out.push({ label: row.kindLabel, targetRecordId: row.toRecordId, targetTitle: row.toTitle });
   }
   for (const row of place.incoming) {
-    if (!allowedRecordIds.has(row.fromRecordId)) continue;
     out.push({
       label: `${row.kindLabel} (incoming)`,
       targetRecordId: row.fromRecordId,
@@ -448,11 +562,9 @@ function relationRowsFor(
     });
   }
   for (const row of recordRels.outgoing) {
-    if (!allowedRecordIds.has(row.toRecordId)) continue;
     out.push({ label: row.kindLabel, targetRecordId: row.toRecordId, targetTitle: row.toTitle });
   }
   for (const row of recordRels.incoming) {
-    if (!allowedRecordIds.has(row.fromRecordId)) continue;
     out.push({
       label: `${row.kindLabel} (incoming)`,
       targetRecordId: row.fromRecordId,
@@ -493,33 +605,65 @@ export async function buildWorldBibleExportModel(
 
   if (!resolvedEntries.length) {
     throw new NotFoundError(
-      selection.collectionId
-        ? "No reference documents match that World Hub collection under the current export visibility rules."
-        : "No reference documents were selected.",
+      selection.collectionId && selection.selectionOverride
+        ? selectedIds.length === 0
+          ? "No reference documents were selected from that World Hub collection."
+          : "No selected collection members remain under the current export visibility rules."
+        : selection.collectionId
+          ? "No reference documents match that World Hub collection under the current export visibility rules."
+          : "No reference documents were selected.",
     );
   }
 
-  const customs = await listAvailableWorldCategories(db, projectId);
   const homeTemplateCache = new Map<string, Awaited<ReturnType<typeof listWorldKindTemplates>>>();
+  const homeCategoryCache = new Map<string, WorldCategoryView[]>();
   const availableTemplates = await listAvailableWorldKindTemplates(db, projectId);
+  const customsForHome = async (homeId: string): Promise<WorldCategoryView[]> => {
+    let cached = homeCategoryCache.get(homeId);
+    if (!cached) {
+      cached = await listWorldCategories(db, homeId);
+      homeCategoryCache.set(homeId, cached);
+    }
+    return cached;
+  };
+
+  const seriesBooks = await listSeriesBookProjects(db, projectId);
+  const authorizedBookIds = seriesBooks.length ? seriesBooks.map((book) => book.id) : [projectId];
+  const viewingProjectId =
+    policy.bookProjectId && authorizedBookIds.includes(policy.bookProjectId)
+      ? policy.bookProjectId
+      : projectId;
 
   let point: NarrativePoint | null = null;
   let edges: OrderEdge[] = [];
-  let bookIds: string[] = [projectId];
+  let bookIds: string[] = authorizedBookIds;
   let storyPointLabel: string | null = null;
 
   if (mode === "point") {
-    const focus = await loadFocusManuscript(db, projectId, policy.storyPointRecordId ?? null);
-    const narrative = await narrativePointForManuscript(db, projectId, focus);
-    point = narrative.point;
-    if (policy.bookProjectId) {
-      point = { ...point, bookProjectId: policy.bookProjectId };
-    }
-    edges = narrative.edges;
-    bookIds = narrative.bookIds;
-    if (focus) {
-      storyPointLabel = focus.title;
+    const requestedAnchor = policy.storyPointRecordId?.trim() || null;
+    if (requestedAnchor) {
+      const focus = await loadFocusManuscript(db, projectId, requestedAnchor, {
+        bookIds: authorizedBookIds,
+      });
+      if (!focus) {
+        throw new NotFoundError(
+          "That story point chapter or scene is not in this series, so the export cannot use it as an anchor.",
+        );
+      }
+      const narrative = await narrativePointForManuscript(db, projectId, focus);
+      // Keep the anchor's book identity; viewing-book scope is applied separately.
+      point = narrative.point;
+      edges = narrative.edges;
+      bookIds = narrative.bookIds;
+      const homeBook = seriesBooks.find((book) => book.id === focus.projectId);
+      storyPointLabel = homeBook
+        ? `${homeBook.bookName?.trim() || homeBook.title} · ${focus.title}`
+        : focus.title;
     } else {
+      const narrative = await narrativePointForManuscript(db, projectId, null);
+      point = { ...narrative.point, bookProjectId: viewingProjectId };
+      edges = narrative.edges;
+      bookIds = narrative.bookIds;
       storyPointLabel = "unanchored story point";
     }
   }
@@ -548,7 +692,7 @@ export async function buildWorldBibleExportModel(
         point,
         edges,
         books,
-        viewingProjectId: projectId,
+        viewingProjectId,
       });
       body = filterBodyForPolicy(body, fields, mode);
     } else if (mode === "point" && available.record.type === "character_dossier") {
@@ -564,7 +708,7 @@ export async function buildWorldBibleExportModel(
           body: available.record.body,
           profile: effective,
           slice: worldPolicy.slice,
-          bookProjectId: point?.bookProjectId ?? projectId,
+          bookProjectId: point?.bookProjectId ?? viewingProjectId,
           point: point ?? undefined,
           edges,
           knowledgeHolders: worldPolicy.knowledgeHolders,
@@ -594,12 +738,59 @@ export async function buildWorldBibleExportModel(
   const titleById = new Map(prepared.map((p) => [p.record.id, p.record.title] as const));
   const entries: WorldBibleEntry[] = [];
 
-  for (const item of prepared) {
-    const homeId = item.available.home?.projectId ?? item.record.projectId;
+  const factLoads = await Promise.all(
+    prepared.map(async (item) => {
+      const homeId = item.available.home?.projectId ?? item.record.projectId;
+      const facts = await listEstablishedFactsForSubject(db, homeId, item.record.id).catch(
+        () => [] as EstablishedFactView[],
+      );
+      return { item, homeId, facts };
+    }),
+  );
+
+  const evidenceSourceIds = [
+    ...new Set(
+      factLoads.flatMap(({ facts }) =>
+        facts.flatMap((fact) => fact.evidence.map((evidence) => evidence.sourceRecordId)),
+      ),
+    ),
+  ];
+  const evidenceSources =
+    evidenceSourceIds.length === 0
+      ? []
+      : await db.record.findMany({
+          where: { id: { in: evidenceSourceIds }, projectId: { in: bookIds }, trashedAt: null },
+          select: { id: true, projectId: true, parentRecordId: true, type: true },
+        });
+  const sourceById = new Map(evidenceSources.map((row) => [row.id, row] as const));
+  const manuscriptIdsForEvents = [
+    ...new Set(
+      evidenceSources.flatMap((row) =>
+        row.parentRecordId ? [row.id, row.parentRecordId] : [row.id],
+      ),
+    ),
+  ];
+  const eventLinks =
+    manuscriptIdsForEvents.length === 0
+      ? []
+      : await db.storyEventScene.findMany({
+          where: { projectId: { in: bookIds }, manuscriptRecordId: { in: manuscriptIdsForEvents } },
+          select: { manuscriptRecordId: true, eventId: true },
+          orderBy: { id: "asc" },
+        });
+  const eventIdByManuscript = new Map<string, string>();
+  for (const link of eventLinks) {
+    if (!eventIdByManuscript.has(link.manuscriptRecordId)) {
+      eventIdByManuscript.set(link.manuscriptRecordId, link.eventId);
+    }
+  }
+
+  for (const { item, homeId, facts } of factLoads) {
     if (!homeTemplateCache.has(homeId)) {
       homeTemplateCache.set(homeId, await listWorldKindTemplates(db, homeId));
     }
     const homeTemplates = homeTemplateCache.get(homeId) ?? [];
+    const homeCustoms = await customsForHome(homeId);
     const taxonomy = resolveRecordTaxonomy({ type: item.record.type, fields: item.fields });
     const categorySlugs = [
       ...(taxonomy.primary?.category ? [taxonomy.primary.category] : []),
@@ -616,25 +807,38 @@ export async function buildWorldBibleExportModel(
           })
         : null;
 
-    const [place, recordRels, facts] = await Promise.all([
+    const [place, recordRels] = await Promise.all([
       listPlaceRelationsForRecord(db, projectId, item.record.id),
       listRecordRelationsForRecord(db, projectId, item.record.id),
-      listEstablishedFactsForSubject(db, projectId, item.record.id).catch(() => [] as EstablishedFactView[]),
     ]);
 
-    const acceptedFacts = facts
-      .filter((f) => f.status === "accepted")
-      .map((f) => f.statement.trim())
-      .filter(Boolean)
-      .slice(0, 12);
+    const acceptedFacts = acceptedFactStatementsForExport(
+      facts,
+      mode,
+      point,
+      edges,
+      books,
+      sourceById,
+      eventIdByManuscript,
+    );
 
-    const labels = placementLabel(taxonomy.primary, customs);
+    const labels = placementLabel(taxonomy.primary, homeCustoms);
+    const secondaryListings = taxonomy.secondary.map((secondary) => {
+      const secondaryLabels = placementLabel(secondary, homeCustoms);
+      return {
+        categoryId: secondary.category,
+        categoryLabel: secondaryLabels.categoryLabel,
+        subcategoryId: secondary.subcategory ?? null,
+        subcategoryLabel: secondaryLabels.subcategoryLabel,
+      };
+    });
     entries.push({
       record: item.record,
       home: item.available.home,
       homeLabel: item.available.home ? seriesBookLabel(item.available.home) : null,
       primary: taxonomy.primary,
       secondary: taxonomy.secondary,
+      secondaryListings,
       categoryLabel: labels.categoryLabel,
       subcategoryLabel: labels.subcategoryLabel,
       pageId: pageIdOf(item.record),
@@ -646,11 +850,11 @@ export async function buildWorldBibleExportModel(
             point,
             edges,
             books,
-            projectId,
+            viewingProjectId,
             titleById,
           )
         : [],
-      relations: relationRowsFor(place, recordRels, allowedRecordIds),
+      relations: relationRowsFor(place, recordRels),
       body: item.body,
       characterSlice: item.characterSlice,
       facts: acceptedFacts,
@@ -669,7 +873,11 @@ export async function buildWorldBibleExportModel(
   const { linkTerms, pageById } = buildLinkIndex(entries);
   const groupMap = new Map<string, WorldBibleGroup>();
 
-  const ensureGroup = (categoryId: string, subcategoryId: string | null): WorldBibleGroup => {
+  const ensureGroup = (
+    categoryId: string,
+    subcategoryId: string | null,
+    customs: readonly WorldCategoryView[],
+  ): WorldBibleGroup => {
     const key = groupKey(categoryId, subcategoryId);
     let group = groupMap.get(key);
     if (!group) {
@@ -691,17 +899,20 @@ export async function buildWorldBibleExportModel(
   };
 
   for (const entry of entries) {
+    const homeId = entry.home?.projectId ?? entry.record.projectId;
+    const homeCustoms = await customsForHome(homeId);
     const categoryId = entry.primary?.category ?? "__uncategorized__";
     const subcategoryId = entry.primary?.subcategory ?? null;
-    ensureGroup(categoryId, subcategoryId).entries.push(entry);
+    ensureGroup(categoryId, subcategoryId, homeCustoms).entries.push(entry);
 
     for (const secondary of entry.secondary) {
-      const seeGroup = ensureGroup(secondary.category, secondary.subcategory ?? null);
+      const secondaryLabels = placementLabel(secondary, homeCustoms);
+      const seeGroup = ensureGroup(secondary.category, secondary.subcategory ?? null, homeCustoms);
       seeGroup.seeAlso.push({
         categoryId: secondary.category,
-        categoryLabel: seeGroup.categoryLabel,
+        categoryLabel: secondaryLabels.categoryLabel,
         subcategoryId: secondary.subcategory ?? null,
-        subcategoryLabel: seeGroup.subcategoryLabel,
+        subcategoryLabel: secondaryLabels.subcategoryLabel,
         recordId: entry.record.id,
         title: entry.record.title,
         pageId: entry.pageId,
@@ -744,21 +955,47 @@ export async function buildWorldBibleExportModel(
     allowedRecordIds,
     pageById,
     linkTerms,
-    customCategories: customs,
+    customCategories: await customsForHome(viewingProjectId),
   };
 }
 
-export function worldBibleEntryHref(entry: Pick<WorldBibleEntry, "pageId">, format: "wiki" | "md" | "epub" | "anchor"): string {
+/** DOCX bookmark names: letter/digit/underscore only, unique per record, Word-safe length. */
+export function worldBibleDocxBookmarkId(recordId: string): string {
+  const safe = `wb_${recordId.replace(/[^A-Za-z0-9]/g, "_")}`;
+  return safe.length <= 40 ? safe : safe.slice(0, 40);
+}
+
+export function worldBibleEntryHref(
+  entry: Pick<WorldBibleEntry, "pageId" | "record">,
+  format: "wiki-index" | "wiki-page" | "md" | "epub" | "anchor" | "docx",
+): string {
   switch (format) {
-    case "wiki":
+    case "wiki-index":
       return `pages/${entry.pageId}.html`;
+    case "wiki-page":
+      return `${entry.pageId}.html`;
     case "md":
       return `${entry.pageId}.md`;
     case "epub":
       return `${entry.pageId}.xhtml`;
     case "anchor":
-      return `#rec-${entry.pageId}`;
+      return `#${worldBibleDocxBookmarkId(entry.record.id)}`;
+    case "docx":
+      return worldBibleDocxBookmarkId(entry.record.id);
   }
+}
+
+/**
+ * Point-scoped exports only keep images named in the (already redacted) body.
+ * Gallery-only images have no chronology evidence and are omitted with their
+ * captions, filenames, and archive bytes. Full mode returns null (= all images).
+ */
+export function pointScopedEligibleImageNames(
+  entry: Pick<WorldBibleEntry, "body">,
+  mode: WorldBibleExportMode,
+): Set<string> | null {
+  if (mode !== "point") return null;
+  return new Set(imageNamesInText(entry.body));
 }
 
 export { RECORD_TYPE_LABELS, getTaxonomyCategory };

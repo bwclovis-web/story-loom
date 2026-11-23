@@ -1,5 +1,5 @@
 /**
- * Human-readable Living World Profile rendering for W7C world-bible exports.
+ * Human-readable Living World Profile rendering for W7C/W8C world-bible exports.
  * Format writers consume these strings; field ownership lives in worldBibleModel.
  */
 
@@ -12,18 +12,31 @@ export function worldBibleLegacyBodyNote(body: string, mode: "full" | "point"): 
   return `**Legacy background (uncertain chronology)**\n\n${body}`;
 }
 
+export function worldBibleAuthorityLabel(status: string): string {
+  return status === "approved" ? "Approved (canon)" : `${status} (not canon)`;
+}
+
+export function renderWorldBibleEntryMetaLine(entry: WorldBibleEntry): string {
+  const parts = [
+    entry.categoryLabel + (entry.subcategoryLabel ? ` · ${entry.subcategoryLabel}` : ""),
+    worldBibleAuthorityLabel(entry.record.authorityStatus),
+  ];
+  if (entry.homeLabel) parts.push(`Home: ${entry.homeLabel}`);
+  return parts.join(" · ");
+}
+
 export function renderWorldBibleProfileMarkdown(
   entry: WorldBibleEntry,
-  model: Pick<WorldBibleExportModel, "pageById" | "mode">,
+  model: Pick<WorldBibleExportModel, "pageById" | "mode" | "spoilerNote">,
 ): string {
   const lines: string[] = [];
   lines.push(`# ${entry.record.title}`);
   lines.push("");
-  lines.push(
-    `*${entry.categoryLabel}${entry.subcategoryLabel ? ` · ${entry.subcategoryLabel}` : ""}*${
-      entry.homeLabel ? ` · Home: ${entry.homeLabel}` : ""
-    }`,
-  );
+  if (model.spoilerNote) {
+    lines.push(`> ${model.spoilerNote}`);
+    lines.push("");
+  }
+  lines.push(`*${renderWorldBibleEntryMetaLine(entry)}*`);
   lines.push("");
 
   if (entry.fields.length) {
@@ -81,13 +94,13 @@ export function renderWorldBibleProfileMarkdown(
     lines.push("");
   }
 
-  if (entry.secondary.length) {
+  if (entry.secondaryListings.length) {
     lines.push("## Also listed under");
     lines.push("");
-    for (const secondary of entry.secondary) {
-      const label = secondary.subcategory
-        ? `${secondary.category} / ${secondary.subcategory}`
-        : secondary.category;
+    for (const secondary of entry.secondaryListings) {
+      const label = secondary.subcategoryLabel
+        ? `${secondary.categoryLabel} / ${secondary.subcategoryLabel}`
+        : secondary.categoryLabel;
       lines.push(`- ${label}`);
     }
     lines.push("");
@@ -119,6 +132,10 @@ export function renderWorldBibleIndexMarkdown(model: WorldBibleExportModel): str
   return lines.join("\n");
 }
 
+/**
+ * Profile / relation / fact lines for key-value tables.
+ * Character slices are rendered separately so PDF/EPUB do not duplicate them.
+ */
 export function renderWorldBibleProfilePlainLines(entry: WorldBibleEntry): string[] {
   const lines: string[] = [];
   for (const field of entry.fields) {
@@ -130,22 +147,20 @@ export function renderWorldBibleProfilePlainLines(entry: WorldBibleEntry): strin
   for (const fact of entry.facts) {
     lines.push(`Fact: ${fact}`);
   }
-  if (entry.characterSlice?.trim()) lines.push(entry.characterSlice.trim());
   return lines;
 }
 
 export function renderWorldBibleProfileHtml(
   entry: WorldBibleEntry,
-  model: Pick<WorldBibleExportModel, "pageById" | "mode" | "linkTerms">,
+  model: Pick<WorldBibleExportModel, "pageById" | "mode" | "linkTerms" | "spoilerNote">,
   opts: { linkHref: (pageId: string) => string; wikiLinkify?: (html: string) => string },
 ): string {
   const parts: string[] = [];
   parts.push(`<h1>${escapeHtml(entry.record.title)}</h1>`);
-  parts.push(
-    `<p class="meta">${escapeHtml(entry.categoryLabel)}${
-      entry.subcategoryLabel ? ` · ${escapeHtml(entry.subcategoryLabel)}` : ""
-    }${entry.homeLabel ? ` · Home: ${escapeHtml(entry.homeLabel)}` : ""}</p>`,
-  );
+  if (model.spoilerNote) {
+    parts.push(`<p class="scope-note"><em>${escapeHtml(model.spoilerNote)}</em></p>`);
+  }
+  parts.push(`<p class="meta">${escapeHtml(renderWorldBibleEntryMetaLine(entry))}</p>`);
 
   if (entry.fields.length) {
     parts.push("<h2>Profile</h2><dl class=\"profile\">");

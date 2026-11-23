@@ -350,8 +350,9 @@ export function HelpContent() {
 
         <Sub id="optional-maps">
           <p>
-            <L>{WORLD.maps}</L> use an uploaded image or an existing reference image as a backdrop. Markers can be points,
-            routes, areas, or labels; they can link a reference, another map, or both. Author-defined{" "}
+            <L>{WORLD.maps}</L> lists an atlas of cards (or a list view) and creates maps from a dialog. Use an uploaded
+            image or an existing reference image as a backdrop. Optional map type is author-chosen only. Markers can be
+            points, routes, areas, or labels; they can link a reference, another map, or both. Author-defined{" "}
             <L>{WORLD.mapLayers}</L>, an optional <L>{WORLD.mapScale}</L> bar, and a{" "}
             <L>{WORLD.mapGeography}</L> list from place relationships are optional.{" "}
             <L>{WORLD.mapModeBrowse}</L> pans; <L>{WORLD.mapModeEdit}</L> places and edits markers. Details:{" "}
@@ -2063,17 +2064,21 @@ export function HelpContent() {
 
         <Sub id="world-maps">
           <p>
-            <L>{WORLD.maps}</L> use a reference image as a backdrop. <L>{WORLD.newMap}</L> offers{" "}
-            <L>{WORLD.mapSourceUpload}</L> or <L>{WORLD.mapSourceExisting}</L>. An upload uses{" "}
-            <L>{WORLD.mapSaveWithReference}</L>: <L>{WORLD.mapUseExistingReference}</L>, including the protection tick
-            when that reference is protected, or <L>{WORLD.mapCreateNewReference}</L>. A new reference asks for its
-            title, document type, and <L>{REFERENCE_FORM.canonStatus}</L>. It does not set a worldbuilding kind, and it
-            is not approved unless you choose approved. {WORLD.mapReferenceStoresImage}{" "}
-            <L>{WORLD.createMap}</L> is the button when the image already has a reference.{" "}
-            <L>{WORLD.createReferenceAndMap}</L> is the button when you are creating both.{" "}
+            <L>{WORLD.maps}</L> opens your atlas of map cards (or a compact list). Search by map title or linked
+            reference, filter by optional map type, and sort by updated, created, or name.{" "}
+            <L>{WORLD.mapsNewButton}</L> and the <L>{WORLD.mapsAddTile}</L> tile open a create dialog—there is no
+            permanent create form on the page. Choose <L>{WORLD.mapSourceUpload}</L> or{" "}
+            <L>{WORLD.mapSourceExisting}</L>. An upload uses <L>{WORLD.mapSaveWithReference}</L>:{" "}
+            <L>{WORLD.mapUseExistingReference}</L>, including the protection tick when that reference is protected, or{" "}
+            <L>{WORLD.mapCreateNewReference}</L>. A new reference asks for its title, document type, and{" "}
+            <L>{REFERENCE_FORM.canonStatus}</L>. Optional <L>{WORLD.mapClassification}</L> (world, region, city, and so
+            on) is never inferred from the title. It does not set a worldbuilding kind, and it is not approved unless
+            you choose approved. {WORLD.mapReferenceStoresImage} <L>{WORLD.createMap}</L> is the button when the image
+            already has a reference. <L>{WORLD.createReferenceAndMap}</L> is the button when you are creating both.{" "}
             <L>{REFERENCE_FORM.cancel}</L> creates nothing. A failure keeps the values you entered and does not leave
-            the new reference or image behind. Marker positions are fractions of the image width and height (0–1), so
-            they stay aligned when the map is resized.
+            the new reference or image behind. Deleting a map from the card menu keeps the reference and its image.
+            Marker positions are fractions of the image width and height (0–1), so they stay aligned when the map is
+            resized.
           </p>
           <ul>
             <li>
@@ -3089,15 +3094,30 @@ export function HelpContent() {
         </p>
         <p>
           Under <L>{PDF.exportScopeHeading}</L>, choose a full author export or a point-scoped export (viewing book,
-          chapter/scene story point, and approved-only). Point-scoped redaction runs once for the whole artifact before
-          any format is written: planned changes, Markdown archives, sibling book-local facts, unsettled status-tagged
-          sections, and links to excluded records are omitted from the index, articles, captions, and filenames. Legacy
-          prose whose chronology cannot be established is labeled as uncertain background when it is retained.
+          chapter/scene story point, and approved-only). Story-point options name the chapter&apos;s home book so a
+          flashback in another book stays distinct from the viewing book. An out-of-series anchor is refused; it never
+          silently becomes a full author export. Point-scoped redaction runs once for the whole artifact before any
+          format is written: planned changes, Markdown archives, sibling book-local facts, later or undated established
+          facts, unsettled status-tagged sections, and links to excluded records are omitted from the index, articles,
+          captions, and filenames. Images without a body reference (no chronology evidence) are omitted from
+          point-scoped Wiki and PDF output. Legacy prose whose chronology cannot be established is labeled as uncertain
+          background when it is retained. Category labels come from each record&apos;s home book, even when the viewing
+          book defines a different label for the same slug.
+        </p>
+        <p>
+          Arriving from a World Hub collection exports that collection&apos;s live matches. Changing the ticks submits an
+          explicit selection intersected with those matches (including an empty selection). Leaving the ticks alone keeps
+          the live SmartCollection filter.
         </p>
         <p>
           The HTML wiki zip remains searchable offline with one page per document, profile infoboxes, cross-links, and
-          embedded PNG or JPEG images. The PDF starts with a taxonomy index; each document starts on a new page. Bookmarks
-          list every document.
+          embedded PNG or JPEG images. Links inside article pages stay relative to that page (not nested under a second{" "}
+          <code>pages/</code> folder). The PDF starts with a taxonomy index; each document starts on a new page.
+          Bookmarks list every document. Character dossier slices appear once in PDF and EPUB. DOCX and EPUB include the
+          export&apos;s scope note plus each entry&apos;s category, home book, and authority; See also, relation, and
+          profile references use internal links when the target is in the export (plain labels when it is not). Markdown
+          entry files repeat the scope note and list secondary categories with resolved labels so a single chapter file
+          stays meaningful on its own.
         </p>
         <h4>The manuscript</h4>
         <ol>
@@ -4448,7 +4468,14 @@ export function HelpContent() {
           </ol>
           <p>
             The restored workspace appears on the home page beside your existing ones. Its records get new IDs, so export
-            context again from the restored copy before using ChatGPT with it.
+            context again from the restored copy before using ChatGPT with it. Typed links inside Living World Profiles,
+            character development, and saved collection filters are rewired to those new IDs; archive notes and other
+            prose that merely mention an old id stay as written.
+          </p>
+          <p>
+            Applying migrations with <code>pnpm db:deploy</code> takes a full backup first. That snapshot keeps compile
+            layout choices even when a newer column such as book theme is not on the database yet, and it stops if a
+            continuity or world-contradiction table cannot be read for an unexpected reason.
           </p>
           <details>
             <summary>Checking a backup from the terminal</summary>

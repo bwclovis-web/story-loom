@@ -1,12 +1,11 @@
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { createDb } from "@/server/db";
-import { databaseFilePath, fileUrl } from "@/server/dbLocation";
 import { fileGrantSource, isMcpDisabled, resolveGrantPath } from "./grant";
-import { createWordlyMcpServer } from "./server";
 
 /**
  * Speaks MCP on stdin/stdout. Refuses to write protocol messages when the
  * adapter is disabled or the grant is missing, invalid, or revoked.
+ *
+ * Grant checks run before the MCP SDK, database, and handler modules load so
+ * disabled / revoked / unconfigured children exit without that cold-start cost.
  */
 export async function main(): Promise<void> {
   if (isMcpDisabled(process.env)) {
@@ -24,6 +23,15 @@ export async function main(): Promise<void> {
     process.stderr.write(`Story Loom MCP adapter grant "${loaded.grant.label}" is revoked. No protocol output was started.\n`);
     process.exit(1);
   }
+
+  const [{ StdioServerTransport }, { createDb }, { databaseFilePath, fileUrl }, { createWordlyMcpServer }] =
+    await Promise.all([
+      import("@modelcontextprotocol/sdk/server/stdio.js"),
+      import("@/server/db"),
+      import("@/server/dbLocation"),
+      import("./server"),
+    ]);
+
   const db = createDb(fileUrl(databaseFilePath()));
   const server = createWordlyMcpServer({ db, grants, disabled: () => isMcpDisabled(process.env) });
   await server.connect(new StdioServerTransport());

@@ -30,8 +30,22 @@ export function wikiPageBasename(record: Pick<RecordView, "id" | "title">): stri
   return `${exportSlug(record.title)}-${record.id}`;
 }
 
-export function wikiPageHref(basename: string): string {
+/** Href to a wiki article from the zip root (`index.html`). */
+export function wikiPageHrefFromIndex(basename: string): string {
   return `pages/${basename}.html`;
+}
+
+/** Href to a peer wiki article from inside `pages/*.html`. */
+export function wikiPageHrefFromPage(basename: string): string {
+  return `${basename}.html`;
+}
+
+/**
+ * @deprecated Prefer wikiPageHrefFromIndex / wikiPageHrefFromPage so relative
+ * links match the emitting file. Defaults to index-relative for older callers.
+ */
+export function wikiPageHref(basename: string): string {
+  return wikiPageHrefFromIndex(basename);
 }
 
 export interface WikiImageRef {
@@ -82,19 +96,28 @@ export function buildWikiLinkIndex(records: readonly Pick<RecordView, "id" | "ti
   return { linkTerms, pageById };
 }
 
-function resolveWikiTarget(term: string, linkTerms: Map<string, string>): string | null {
+function resolveWikiTarget(
+  term: string,
+  linkTerms: Map<string, string>,
+  from: "index" | "page",
+): string | null {
   const basename = linkTerms.get(term.trim().toLocaleLowerCase());
-  return basename ? wikiPageHref(basename) : null;
+  if (!basename) return null;
+  return from === "page" ? wikiPageHrefFromPage(basename) : wikiPageHrefFromIndex(basename);
 }
 
-function preprocessWikiLinks(body: string, linkTerms: Map<string, string>): string {
+function preprocessWikiLinks(
+  body: string,
+  linkTerms: Map<string, string>,
+  from: "index" | "page" = "page",
+): string {
   return body.replace(/\[\[([^\]]+)\]\]/g, (whole, inner: string) => {
     const raw = inner.trim();
     const pipe = raw.indexOf("|");
     const target = (pipe >= 0 ? raw.slice(0, pipe) : raw).trim();
     const label = (pipe >= 0 ? raw.slice(pipe + 1) : raw).trim() || target;
-    const href = resolveWikiTarget(target, linkTerms);
-    return href ? `[${label}](${href})` : whole;
+    const href = resolveWikiTarget(target, linkTerms, from);
+    return href ? `[${label}](${href})` : label;
   });
 }
 
@@ -201,7 +224,8 @@ function infoboxRelationshipHref(href: string, pageById: Map<string, string>): s
   const match = /\/records\/([^/?#]+)/.exec(href);
   if (!match) return null;
   const basename = pageById.get(match[1]!);
-  return basename ? wikiPageHref(basename) : null;
+  // Infobox HTML is emitted inside pages/*.html.
+  return basename ? wikiPageHrefFromPage(basename) : null;
 }
 
 function infoboxToHtml(model: ReferenceInfoboxModel, pageById: Map<string, string>): string {

@@ -11,6 +11,14 @@ export const PROJECT_COOKIE = "wordly-project";
 export const LAYOUT_COOKIE = "wordly-layout";
 /** Active Write manuscript draft for this browser (draft id, or empty when unset). */
 export const WRITE_DRAFT_COOKIE = "wordly-write-draft";
+/** World Maps landing grid vs list preference for this browser. */
+export const MAPS_VIEW_COOKIE = "wordly-maps-view";
+
+export type MapsViewPreference = "grid" | "list";
+
+export function parseMapsViewPreference(value: string | undefined): MapsViewPreference {
+  return value === "list" ? "list" : "grid";
+}
 
 /**
  * Optional guided walkthrough. Cookie values (this browser only):
