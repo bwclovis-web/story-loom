@@ -1,7 +1,8 @@
 # Dependencies and build output
 node_modules/
-.next/
-.next-ux-verify/
+# Next build output, including disposable WORDLY_DIST_DIR dirs
+# (.next-weave-ui, .next-w5g-ui, .next-ux-verify, …)
+.next*/
 out/
 build/
 dist/
