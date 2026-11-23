@@ -104,10 +104,16 @@ export interface WorldProfileQuantity {
   qualifier?: WorldQuantityQualifier;
 }
 
-/** One sample utterance kept with its gloss. Order in the array is the author's order. */
+/**
+ * One paired note. Dialects use line + gloss. Buildings and rooms use the same
+ * shape for an opening and where it leads, or a viewpoint and what is visible.
+ * `recordId` is optional and is a Record.id, not a new graph relation.
+ * Order in the array is the author's order.
+ */
 export interface WorldProfileGlossedLine {
   line: string;
   gloss: string;
+  recordId?: string;
 }
 
 export type WorldProfileFieldValue =
@@ -418,14 +424,19 @@ function readGlossedLineArray(raw: unknown[]): WorldProfileGlossedLine[] | null 
     sawPairKey = true;
     const line = typeof row.line === "string" ? text(row.line, 500) : "";
     const gloss = typeof row.gloss === "string" ? text(row.gloss, 500) : "";
-    if (!line && !gloss) continue;
-    lines.push({ line, gloss });
+    const recordId = typeof row.recordId === "string" ? row.recordId.trim().slice(0, 80) : "";
+    if (!line && !gloss && !recordId) continue;
+    lines.push(recordId ? { line, gloss, recordId } : { line, gloss });
     if (lines.length >= MAX_LIST) break;
   }
   return sawPairKey ? lines : null;
 }
 
-/** History text box: one `line | gloss` pair per line. The profile editor stores the pairs as objects. */
+/**
+ * Fallback for a glossed value stored as text: one `line | gloss` pair per line.
+ * A `|` inside the line is ambiguous here. The profile and history editors commit
+ * {@link glossedLinesFromEditorRows} instead, so a literal `|` survives.
+ */
 export function parseGlossedLinesText(raw: string): WorldProfileGlossedLine[] {
   const lines: WorldProfileGlossedLine[] = [];
   for (const row of raw.split(/\r?\n/)) {
@@ -441,13 +452,42 @@ export function parseGlossedLinesText(raw: string): WorldProfileGlossedLine[] {
   return lines;
 }
 
-export function formatGlossedLines(lines: readonly WorldProfileGlossedLine[]): string {
+/**
+ * Commit path for the paired line/gloss editor, including dated history.
+ * Does not split on `|`.
+ */
+export function glossedLinesFromEditorRows(
+  rows: readonly WorldProfileGlossedLine[],
+): WorldProfileGlossedLine[] | null {
+  const lines: WorldProfileGlossedLine[] = [];
+  for (const row of rows) {
+    const line = row.line.trim().slice(0, 500);
+    const gloss = row.gloss.trim().slice(0, 500);
+    const recordId = row.recordId?.trim().slice(0, 80) ?? "";
+    if (!line && !gloss && !recordId) continue;
+    lines.push(recordId ? { line, gloss, recordId } : { line, gloss });
+    if (lines.length >= MAX_LIST) break;
+  }
+  return lines.length ? lines : null;
+}
+
+export function formatGlossedLines(
+  lines: readonly WorldProfileGlossedLine[],
+  titles?: ReadonlyMap<string, string>,
+): string {
   return lines
     .map((item) => {
       const line = item.line.trim();
       const gloss = item.gloss.trim();
-      if (line && gloss) return `${line} — ${gloss}`;
-      return line || gloss;
+      const recordId = item.recordId?.trim() ?? "";
+      let linked = "";
+      if (recordId) {
+        if (titles) linked = titles.get(recordId) ?? "";
+        else linked = recordId;
+      }
+      const destination = gloss && linked ? `${gloss} (${linked})` : gloss || linked;
+      if (line && destination) return `${line} — ${destination}`;
+      return line || destination;
     })
     .filter(Boolean)
     .join("; ");

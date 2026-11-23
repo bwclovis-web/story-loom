@@ -37,8 +37,15 @@ import {
   type WeaveThreadView,
 } from "@/server/services/weaveService";
 import { previewRewriteSourceAction } from "@/app/projects/[projectId]/drafts/actions";
-import { DRAFT, SHELL, WEAVE, WRITE } from "@/ui/labels";
-import { beatMatchesLinkFilter, type WeaveLinkFilter } from "@/weave/beatLinkFilter";
+import { WeaveBeatBadges } from "@/components/weave/WeaveBeatBadges";
+import { DRAFT, SCENE_META, SHELL, WEAVE, WRITE } from "@/ui/labels";
+import { MANUSCRIPT_SCENE_STATUSES } from "@/writing/manuscriptStructure";
+import { type WeaveLinkFilter } from "@/weave/beatLinkFilter";
+import {
+  beatMatchesBoardFilters,
+  beatSignals,
+  type WeaveBoardExtraFilter,
+} from "@/weave/beatCardSignals";
 import { CreateSceneFromBeat } from "./CreateSceneFromBeat";
 import {
   addWeaveBeatAction,
@@ -106,7 +113,9 @@ export interface WorldChoice {
 export interface SeriesBeatChoice {
   id: string;
   title: string;
+  gridId: string;
   gridTitle: string;
+  projectId: string;
   projectTitle: string;
   bookName: string | null;
 }
@@ -150,6 +159,7 @@ export function WeaveCanvas({
   otherDraftRowByRecordId = {},
   worldChoices,
   seriesBeats,
+  continuityByRecord = {},
 }: {
   projectId: string;
   grid: WeaveGridView;
@@ -165,7 +175,9 @@ export function WeaveCanvas({
   otherDraftRowByRecordId?: Record<string, string>;
   worldChoices: WorldChoice[];
   seriesBeats: SeriesBeatChoice[];
+  continuityByRecord?: Record<string, number>;
 }) {
+  const continuityMap = useMemo(() => new Map(Object.entries(continuityByRecord)), [continuityByRecord]);
   const router = useRouter();
   const idPrefix = useId();
   const railId = `${idPrefix}-weave-rail`;
@@ -185,6 +197,9 @@ export function WeaveCanvas({
   const [decisionFilter, setDecisionFilter] = useState<string>("all");
   const [linkKind, setLinkKind] = useState<WeaveLinkFilter["kind"]>("all");
   const [linkPov, setLinkPov] = useState("");
+  const [sceneStatusFilter, setSceneStatusFilter] = useState<WeaveBoardExtraFilter["sceneStatus"]>("all");
+  const [continuityFilter, setContinuityFilter] = useState<WeaveBoardExtraFilter["continuity"]>("all");
+  const [showSeriesPanel, setShowSeriesPanel] = useState(false);
   const [density, setDensity] = useState<PlotDensity>("compact");
   const [hiddenThreadIds, setHiddenThreadIds] = useState<string[]>([]);
   const [mobileThreadId, setMobileThreadId] = useState<string | null>(null);
@@ -248,6 +263,10 @@ export function WeaveCanvas({
   const selected = beats.find((b) => b.id === selectedId) ?? null;
 
   const linkFilter: WeaveLinkFilter = linkKind === "pov" ? { kind: "pov", pov: linkPov } : { kind: linkKind };
+  const extraFilter: WeaveBoardExtraFilter = {
+    sceneStatus: sceneStatusFilter,
+    continuity: continuityFilter,
+  };
   const povChoices = useMemo(() => {
     const names = new Set<string>();
     for (const beat of beats) {
@@ -257,13 +276,15 @@ export function WeaveCanvas({
     return [...names].sort((a, b) => a.localeCompare(b));
   }, [beats]);
   const visibleBeats = useMemo(() => {
-    return beats.filter((beat) => {
-      if (!beatMatchesLinkFilter(beat, linkFilter)) return false;
-      if (decisionFilter === "all") return true;
-      if (decisionFilter === "unset") return !beat.decision;
-      return beat.decision === decisionFilter;
-    });
-  }, [beats, decisionFilter, linkKind, linkPov]);
+    return beats.filter((beat) =>
+      beatMatchesBoardFilters(beat, {
+        decisionFilter,
+        linkFilter,
+        extra: extraFilter,
+        signals: beatSignals(beat, grid.setupPayoffs, continuityMap),
+      }),
+    );
+  }, [beats, decisionFilter, linkKind, linkPov, sceneStatusFilter, continuityFilter, grid.setupPayoffs, continuityMap]);
 
   const canvasSize = useMemo(() => {
     let width = 960;
@@ -681,6 +702,48 @@ export function WeaveCanvas({
             ) : null}
             {isPlotGrid ? (
               <label className="small board-toolbar-select">
+                <span className="sr-only">{WEAVE.filterStatus}</span>
+                <select
+                  value={sceneStatusFilter}
+                  aria-label={WEAVE.filterStatus}
+                  onChange={(e) => setSceneStatusFilter(e.target.value as WeaveBoardExtraFilter["sceneStatus"])}
+                >
+                  <option value="all">{WEAVE.filterStatusAll}</option>
+                  <option value="unset">{WEAVE.filterStatusUnset}</option>
+                  {MANUSCRIPT_SCENE_STATUSES.map((status) => (
+                    <option key={status} value={status}>
+                      {SCENE_META[status]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
+            {isPlotGrid ? (
+              <label className="small board-toolbar-select">
+                <span className="sr-only">{WEAVE.filterContinuity}</span>
+                <select
+                  value={continuityFilter}
+                  aria-label={WEAVE.filterContinuity}
+                  onChange={(e) => setContinuityFilter(e.target.value as WeaveBoardExtraFilter["continuity"])}
+                >
+                  <option value="all">{WEAVE.filterContinuityAll}</option>
+                  <option value="open">{WEAVE.filterContinuityOpen}</option>
+                  <option value="clear">{WEAVE.filterContinuityClear}</option>
+                </select>
+              </label>
+            ) : null}
+            {seriesBeats.length ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                onClick={() => setShowSeriesPanel((open) => !open)}
+              >
+                {showSeriesPanel ? WEAVE.seriesPanelHide : WEAVE.seriesPanelToggle}
+              </Button>
+            ) : null}
+            {isPlotGrid ? (
+              <label className="small board-toolbar-select">
                 <span className="sr-only">{WEAVE.density}</span>
                 <select
                   value={density}
@@ -885,6 +948,9 @@ export function WeaveCanvas({
             selectedId={selectedId}
             decisionFilter={decisionFilter}
             linkFilter={linkFilter}
+            extraFilter={extraFilter}
+            setupPayoffs={grid.setupPayoffs}
+            continuityByRecord={continuityMap}
             density={density}
             hiddenThreadIds={hiddenThreadIds}
             mobileThreadId={narrow ? mobileThreadId ?? threads[0]?.id ?? null : null}
@@ -896,6 +962,35 @@ export function WeaveCanvas({
             onBeatsChange={setBeats}
             onThreadsChange={setThreads}
           />
+        ) : null}
+
+        {showSeriesPanel ? (
+          <section className="panel weave-series-panel" aria-labelledby={`${idPrefix}-series`}>
+            <h2 id={`${idPrefix}-series`}>{WEAVE.seriesPanelHeading}</h2>
+            <p className="small muted">{WEAVE.seriesPanelLead}</p>
+            {seriesBeats.filter((beat) => beat.projectId !== projectId).length === 0 ? (
+              <p className="small muted">{WEAVE.seriesPanelEmpty}</p>
+            ) : (
+              <ul className="stack" style={{ listStyle: "none", padding: 0, margin: 0, gap: "0.35rem" }}>
+                {seriesBeats
+                  .filter((beat) => beat.projectId !== projectId)
+                  .map((beat) => (
+                    <li key={beat.id} className="row" style={{ flexWrap: "wrap", gap: "0.35rem", alignItems: "baseline" }}>
+                      <strong className="small">{beat.title}</strong>
+                      <span className="small muted">
+                        {beat.bookName || beat.projectTitle} · {beat.gridTitle}
+                      </span>
+                      <Link
+                        className="small"
+                        href={`/projects/${encodeURIComponent(beat.projectId)}/plan/weave/${encodeURIComponent(beat.gridId)}`}
+                      >
+                        {WEAVE.seriesOpenGrid}
+                      </Link>
+                    </li>
+                  ))}
+              </ul>
+            )}
+          </section>
         ) : null}
 
         {layoutMode === "freeform" ? (
@@ -995,15 +1090,11 @@ export function WeaveCanvas({
               >
                 <p className="board-card-kind">{beat.decisionLabel || WEAVE.decisionUnset}</p>
                 <p className="board-card-title">{beat.title}</p>
+                <WeaveBeatBadges signals={beatSignals(beat, grid.setupPayoffs, continuityMap)} />
                 {beat.manuscriptTitle ? (
                   <p className="board-card-meta">
                     {beat.manuscriptTitle}
                     {beat.manuscriptUnavailable ? " (Trash)" : ""}
-                  </p>
-                ) : null}
-                {beat.worldRefs.length ? (
-                  <p className="board-card-meta">
-                    {beat.worldRefs.length} World cite{beat.worldRefs.length === 1 ? "" : "s"}
                   </p>
                 ) : null}
               </div>

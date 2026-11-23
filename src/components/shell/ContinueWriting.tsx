@@ -26,9 +26,15 @@ export function ContinueWriting({
         <div className="stack">
           <p className="muted">{CONTINUE_WRITING.empty}</p>
           <p className="small muted">{CONTINUE_WRITING.emptyHint}</p>
-          <ButtonLink href={`${base}/import-chapters`}>
-            {CONTINUE_WRITING.importChapters}
-          </ButtonLink>
+          <div className="row" style={{ flexWrap: "wrap", gap: "0.5rem" }}>
+            <ButtonLink href={`${base}/import-chapters`}>{CONTINUE_WRITING.importChapters}</ButtonLink>
+            <ButtonLink variant="secondary" href={`${base}/world`}>
+              {CONTINUE_WRITING.openWorld}
+            </ButtonLink>
+            <ButtonLink variant="secondary" href={`${base}/plan/weave`}>
+              {CONTINUE_WRITING.openWeave}
+            </ButtonLink>
+          </div>
         </div>
       ) : (
         <ul className="continue-writing-list">

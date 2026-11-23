@@ -2,11 +2,18 @@
 
 import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
+import { StoryHealthSummary } from "@/components/continuity";
 import { Banner } from "@/components/ui/Banner";
-import { Button } from "@/components/ui/Atoms/Button";
+import { Button, ButtonLink } from "@/components/ui/Atoms/Button";
 import { Checkbox } from "@/components/ui/Atoms/Checkbox";
 import { EmptyState } from "@/components/ui/EmptyState";
-import type { ContinuityCategory, ContinuityItem, ContinuityKind, ContinuitySeverity } from "@/server/services/continuityService";
+import {
+  summarizeStoryHealth,
+  type ContinuityCategory,
+  type ContinuityItem,
+  type ContinuityKind,
+  type ContinuitySeverity,
+} from "@/domain/storyHealth";
 import { CONTINUITY } from "@/ui/labels";
 import { clearContinuitySuppressionAction, suppressContinuityAction } from "./actions";
 
@@ -51,18 +58,38 @@ function kindHeading(kind: ContinuityKind): string {
   return CONTINUITY.kinds[kind];
 }
 
+function parseCategory(value: string | undefined): ContinuityCategory | "all" {
+  if (value === "bible" || value === "manuscript" || value === "timeline" || value === "weave" || value === "stale") {
+    return value;
+  }
+  return "all";
+}
+
+function parseSeverity(value: string | undefined): ContinuitySeverity | "all" {
+  if (value === "error" || value === "warn" || value === "info") return value;
+  return "all";
+}
+
 export function ContinuityLedgerClient({
   projectId,
   items,
+  initialCategory,
+  initialSeverity,
+  initialShowSuppressed = false,
 }: {
   projectId: string;
   items: ContinuityItem[];
+  initialCategory?: string;
+  initialSeverity?: string;
+  initialShowSuppressed?: boolean;
 }) {
-  const [category, setCategory] = useState<ContinuityCategory | "all">("all");
-  const [severity, setSeverity] = useState<ContinuitySeverity | "all">("all");
-  const [showSuppressed, setShowSuppressed] = useState(false);
+  const [category, setCategory] = useState<ContinuityCategory | "all">(() => parseCategory(initialCategory));
+  const [severity, setSeverity] = useState<ContinuitySeverity | "all">(() => parseSeverity(initialSeverity));
+  const [showSuppressed, setShowSuppressed] = useState(initialShowSuppressed);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+
+  const health = useMemo(() => summarizeStoryHealth(items), [items]);
 
   const visible = useMemo(() => {
     return items.filter((item) => {
@@ -96,7 +123,20 @@ export function ContinuityLedgerClient({
 
   return (
     <div className="stack">
+      <StoryHealthSummary
+        health={health}
+        onFilterSeverity={(value) => {
+          setSeverity(value);
+          setShowSuppressed(false);
+        }}
+        onFilterCategory={(value) => {
+          setCategory(value);
+          setShowSuppressed(false);
+        }}
+      />
+
       <div className="panel stack">
+        <h2 style={{ margin: 0, fontSize: "1rem" }}>{CONTINUITY.ledgerTitle}</h2>
         <div className="row" style={{ flexWrap: "wrap", gap: "0.75rem" }}>
           <label className="inline">
             {CONTINUITY.filterCategory}
@@ -143,7 +183,23 @@ export function ContinuityLedgerClient({
       {error ? <Banner tone="error">{error}</Banner> : null}
 
       {grouped.length === 0 ? (
-        <EmptyState>{CONTINUITY.none}</EmptyState>
+        <EmptyState as="div" className="continuity-empty">
+          <p>{showSuppressed ? CONTINUITY.noneSuppressed : CONTINUITY.none}</p>
+          {!showSuppressed ? (
+            <>
+              <p className="small muted">{CONTINUITY.noneLead}</p>
+              <div className="row" style={{ flexWrap: "wrap", gap: "0.5rem" }}>
+                <ButtonLink href={`/projects/${encodeURIComponent(projectId)}/write`}>{CONTINUITY.noneWrite}</ButtonLink>
+                <ButtonLink variant="secondary" href={`/projects/${encodeURIComponent(projectId)}/world`}>
+                  {CONTINUITY.noneWorld}
+                </ButtonLink>
+                <ButtonLink variant="secondary" href={`/projects/${encodeURIComponent(projectId)}/world/events`}>
+                  {CONTINUITY.noneEvents}
+                </ButtonLink>
+              </div>
+            </>
+          ) : null}
+        </EmptyState>
       ) : (
         grouped.map((group) => (
           <section key={group.kind} className="panel" aria-labelledby={`continuity-${group.kind}`}>

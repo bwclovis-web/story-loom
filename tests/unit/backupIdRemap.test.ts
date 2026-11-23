@@ -21,6 +21,7 @@ describe("backupIdRemap", () => {
           values: {
             access: "rec_old",
             outlet: { recordId: "rec_old" },
+            doorways: [{ line: "Door to rec_old", gloss: "the shop", recordId: "rec_old" }],
           },
           fieldHistory: [
             {
@@ -62,6 +63,11 @@ describe("backupIdRemap", () => {
     expect(history.note).toBe("Mentioned rec_old in the archive note");
     expect((profile.values as Record<string, unknown>).access).toBe("rec_old");
     expect(((profile.values as Record<string, unknown>).outlet as { recordId: string }).recordId).toBe("rec_new");
+    expect((profile.values as { doorways: Array<{ line: string; recordId: string }> }).doorways[0]).toEqual({
+      line: "Door to rec_old",
+      gloss: "the shop",
+      recordId: "rec_new",
+    });
     expect((profile.migrationHold as Array<Record<string, string>>)[0]!.text).toBe("Keep rec_old as literal archive text");
     expect((profile.customExtension as { mysteryId: string }).mysteryId).toBe("rec_old");
     expect(fields.note).toBe("rec_old lives in the quay prose");

@@ -16,7 +16,9 @@ import type { JsonObject } from "@/domain/json";
 import type { RecordView } from "@/domain/records";
 import { isManuscriptType, RECORD_TYPE_LABELS, type RecordType } from "@/domain/recordTypes";
 import {
+  formatGlossedLines,
   formatWorldProfileFieldValue,
+  isWorldProfileGlossedLines,
   isWorldProfileRecordType,
   readWorldProfile,
   WORLD_PROFILE_KEY,
@@ -353,6 +355,11 @@ function displayFieldValue(
   titleById: ReadonlyMap<string, string>,
 ): { text: string; hrefRecordId: string | null } | null {
   if (raw === null || raw === undefined || raw === "") return null;
+  if (isWorldProfileGlossedLines(raw)) {
+    const text = formatGlossedLines(raw, titleById).trim();
+    if (!text) return null;
+    return { text, hrefRecordId: null };
+  }
   if (raw && typeof raw === "object" && !Array.isArray(raw) && "recordId" in raw && !("freeText" in raw)) {
     const id = String((raw as { recordId: string }).recordId);
     if (!titleById.has(id)) return null;
@@ -796,6 +803,7 @@ export async function buildWorldBibleExportModel(
       ...(taxonomy.primary?.category ? [taxonomy.primary.category] : []),
       ...taxonomy.secondary.map((s) => s.category),
     ];
+    const storedProfile = isWorldProfileRecordType(item.record.type) ? readWorldProfile(item.fields) : null;
     const definition =
       isWorldProfileRecordType(item.record.type)
         ? resolveProfileDefinitionForRecord({
@@ -803,6 +811,7 @@ export async function buildWorldBibleExportModel(
             recordProjectId: homeId,
             homeTemplates,
             availableTemplates,
+            definitionId: storedProfile?.ok ? storedProfile.profile.definitionId : null,
             categorySlugs,
           })
         : null;

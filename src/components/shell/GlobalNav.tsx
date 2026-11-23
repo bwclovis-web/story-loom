@@ -57,6 +57,7 @@ export function GlobalNav({
   active,
   projects,
   current,
+  navProjectId,
   theme,
   onChangeTheme,
   collapsed,
@@ -67,12 +68,14 @@ export function GlobalNav({
   active: GlobalNavId | null;
   projects: ProjectSummary[];
   current: ProjectSummary | null;
+  /** Manuscript Write, Weave, World, and Assistant open. Set once a manuscript exists. */
+  navProjectId: string | null;
   theme: Theme;
   onChangeTheme: (theme: Theme) => void;
   collapsed?: boolean;
   onToggleCollapsed?: () => void;
 }) {
-  const items = authoringItems(current?.id ?? null);
+  const items = authoringItems(navProjectId);
   const utilities = utilityItems();
   const tip = variant === "rail" ? "rail-tip" : "";
   const themeName = THEME.names[theme];
@@ -120,7 +123,7 @@ export function GlobalNav({
           );
         })}
       </ul>
-      {current ? null : (
+      {navProjectId ? null : (
         <p className="label nav-note" aria-hidden="true">
           Open a project to use {SHELL.write}, {SHELL.plan}, {SHELL.world} and {SHELL.assistant}.
         </p>

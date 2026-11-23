@@ -10,8 +10,9 @@ import { HelpHint } from "@/components/HelpHint";
 import { Corkboard, type CorkboardCard, type CorkboardGroup } from "@/components/write/Corkboard";
 import { Outliner, type OutlinerRow } from "@/components/write/Outliner";
 import { Button, ButtonLink } from "@/components/ui/Atoms/Button";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { RECORD_TYPE_LABELS } from "@/domain/recordTypes";
-import { MANUSCRIPT_ANNOTATIONS, MANUSCRIPT_SEARCH, NAV, WRITE } from "@/ui/labels";
+import { CONTINUE_WRITING, MANUSCRIPT_ANNOTATIONS, MANUSCRIPT_SEARCH, NAV, WRITE } from "@/ui/labels";
 
 export type OutlineNote = { id: string; title: string };
 
@@ -261,7 +262,28 @@ export function ManuscriptOutline({
           </p>
         ) : null}
         {visibleChapters.length === 0 && visibleUnplaced.length === 0 && visibleLoose.length === 0 ? (
-          <p className="outline-empty">{filtering ? WRITE.noMatches : WRITE.noChapters}</p>
+          filtering ? (
+            <p className="outline-empty">{WRITE.noMatches}</p>
+          ) : (
+            <EmptyState as="div" className="outline-empty outline-empty-rich">
+              <p>{WRITE.noChapters}</p>
+              <p className="small muted">{CONTINUE_WRITING.emptyHint}</p>
+              <div className="row" style={{ flexWrap: "wrap", gap: "0.5rem" }}>
+                <Button type="button" size="sm" onClick={() => setCreating("chapter")}>
+                  {CONTINUE_WRITING.createChapter}
+                </Button>
+                <ButtonLink size="sm" variant="secondary" href={`${base}/import-chapters`}>
+                  {CONTINUE_WRITING.importChapters}
+                </ButtonLink>
+                <ButtonLink size="sm" variant="secondary" href={`${base}/world`}>
+                  {CONTINUE_WRITING.openWorld}
+                </ButtonLink>
+                <ButtonLink size="sm" variant="secondary" href={`${base}/plan/weave`}>
+                  {CONTINUE_WRITING.openWeave}
+                </ButtonLink>
+              </div>
+            </EmptyState>
+          )
         ) : (
           <ol className="outline-chapters">
             {visibleChapters.map((chapter) => {

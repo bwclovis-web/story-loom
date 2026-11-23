@@ -8,6 +8,7 @@ import { getDb } from "@/server/db";
 import { clearProjectCover, setProjectCover } from "@/server/services/coverService";
 import { MutationRejectedError, NotFoundError } from "@/server/services/errors";
 import { createProject, createWorkspace, renameProject, renameWorkspace } from "@/server/services/projectService";
+import { applyProjectTemplate } from "@/server/services/projectTemplateService";
 import { trashWorkspace } from "@/server/services/trashService";
 
 export type CoverResult = { ok: true } | { ok: false; message: string };
@@ -20,15 +21,18 @@ function coverFailure(error: unknown): CoverResult | null {
 
 export async function createWorkspaceAction(formData: FormData) {
   await createWorkspace(getDb(), { name: String(formData.get("name") ?? "") });
-  revalidatePath("/");
+  revalidatePath("/", "layout");
 }
 
 export async function createProjectAction(formData: FormData) {
-  const project = await createProject(getDb(), {
+  const db = getDb();
+  const project = await createProject(db, {
     workspaceId: String(formData.get("workspaceId") ?? ""),
     title: String(formData.get("title") ?? ""),
   });
-  redirect(`/projects/${project.id}`);
+  await applyProjectTemplate(db, project.id, String(formData.get("template") ?? ""));
+  revalidatePath("/", "layout");
+  redirect(`/projects/${project.id}/write`);
 }
 
 export async function setCoverAction(projectId: string, formData: FormData): Promise<CoverResult> {

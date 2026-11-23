@@ -48,8 +48,12 @@ export function ManuscriptSynopsisPanel({
 
   return (
     <section className="panel manuscript-synopsis" aria-labelledby={`synopsis-${recordId}`}>
-      <h2 id={`synopsis-${recordId}`}>{MANUSCRIPT_ANNOTATIONS.synopsis}</h2>
+      <div className="named-snapshots-head">
+        <h2 id={`synopsis-${recordId}`}>{MANUSCRIPT_ANNOTATIONS.synopsis}</h2>
+        <span className="non-canon-badge">{MANUSCRIPT_ANNOTATIONS.nonCanonBadge}</span>
+      </div>
       <p className="small muted">{MANUSCRIPT_ANNOTATIONS.synopsisLead}</p>
+      <p className="small muted">{MANUSCRIPT_ANNOTATIONS.nonCanonNote}</p>
       <textarea
         className="manuscript-synopsis-field"
         rows={4}
@@ -141,9 +145,13 @@ export function MarginCommentsPanel({
   const open = comments.filter((c) => !c.resolvedAt);
 
   return (
-    <section className="panel manuscript-comments" aria-labelledby={`comments-${recordId}`}>
-      <h2 id={`comments-${recordId}`}>{MANUSCRIPT_ANNOTATIONS.marginComments}</h2>
+    <section className="panel manuscript-comments" id="margin-comments" aria-labelledby={`comments-${recordId}`}>
+      <div className="named-snapshots-head">
+        <h2 id={`comments-${recordId}`}>{MANUSCRIPT_ANNOTATIONS.marginComments}</h2>
+        <span className="non-canon-badge">{MANUSCRIPT_ANNOTATIONS.nonCanonBadge}</span>
+      </div>
       <p className="small muted">{MANUSCRIPT_ANNOTATIONS.marginLead}</p>
+      <p className="small muted">{MANUSCRIPT_ANNOTATIONS.nonCanonNote}</p>
       <div className="row" style={{ gap: "0.5rem", flexWrap: "wrap", alignItems: "flex-end" }}>
         <label className="stack" style={{ flex: "1 1 12rem", minWidth: 0 }}>
           <span className="small">{MANUSCRIPT_ANNOTATIONS.commentNote}</span>

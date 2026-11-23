@@ -1,9 +1,11 @@
 import { cookies } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { StoryHealthSummary } from "@/components/continuity";
 import { WritingProgressStrip } from "@/components/writing/WritingProgressStrip";
 import { WritingSessionInit } from "@/components/writing/WritingSessionInit";
 import { MarkRewriteCompleteButton, StartAuthorRewriteButton, WriteDraftSwitcher } from "@/components/drafts/DraftControls";
+import { ContinueWriting } from "@/components/shell/ContinueWriting";
 import { ProjectOnboarding } from "@/components/shell/ProjectOnboarding";
 import { type CorkboardCard, type CorkboardGroup } from "@/components/write/Corkboard";
 import {
@@ -16,7 +18,7 @@ import {
 import { RECORD_TYPE_LABELS } from "@/domain/recordTypes";
 import { getDb } from "@/server/db";
 import { readWriteDraftCookie, resolveWriteDraftId } from "@/server/draftSelection";
-import { listContinuityLedger } from "@/server/services/continuityService";
+import { listContinuityLedger, summarizeStoryHealth } from "@/server/services/continuityService";
 import { listProjectCoverHashes } from "@/server/services/coverService";
 import { listManuscriptDrafts } from "@/server/services/draftService";
 import { listSynopsesForRecords } from "@/server/services/manuscriptAnnotationService";
@@ -26,7 +28,7 @@ import { countOpenReviewItems } from "@/server/services/reviewService";
 import { searchManuscript, type ManuscriptHit } from "@/server/services/searchService";
 import { listChapterWritingGoals } from "@/server/services/writingGoalService";
 import { buildWritingProgress } from "@/server/services/writingProgressService";
-import { MANUSCRIPT_REPLACE, MANUSCRIPT_SEARCH, NAV, SHELL, SMART_COLLECTIONS, STYLE_CHECK, WRITE, WRITING_GOALS } from "@/ui/labels";
+import { CONTINUITY, MANUSCRIPT_REPLACE, MANUSCRIPT_SEARCH, NAV, SHELL, SMART_COLLECTIONS, STYLE_CHECK, WRITE, WRITING_GOALS } from "@/ui/labels";
 import { manuscriptEyebrow } from "@/ui/library";
 import { buildManuscriptTree } from "@/ui/manuscriptTree";
 import type { RecordNavEntry } from "@/ui/navigation";
@@ -71,7 +73,7 @@ export default async function WritePage({
         sessionSince: sessionSince && !Number.isNaN(sessionSince.getTime()) ? sessionSince : null,
       }),
       listChapterWritingGoals(db, projectId),
-      listContinuityLedger(db, projectId).catch(() => []),
+      listContinuityLedger(db, projectId, { includeSuppressed: true }).catch(() => []),
       db.sceneLocation.findMany({
         where: { projectId, isPrimary: true },
         select: {
@@ -119,9 +121,10 @@ export default async function WritePage({
   );
   const continuityByRecord = new Map<string, number>();
   for (const item of continuityItems) {
-    if (!item.recordId) continue;
+    if (item.suppressed || !item.recordId) continue;
     continuityByRecord.set(item.recordId, (continuityByRecord.get(item.recordId) ?? 0) + 1);
   }
+  const storyHealth = summarizeStoryHealth(continuityItems);
   const locationByRecord = new Map<string, string>();
   for (const row of primaryLocations) {
     if (row.location.trashedAt) continue;
@@ -147,7 +150,20 @@ export default async function WritePage({
       eyebrow={manuscriptEyebrow(project.seriesName, project.workspace.name)}
       coverSrc={coverHash ? `${base}/cover?v=${coverHash}` : null}
       description={WRITE.landingLead}
-      afterLead={<WritingProgressStrip projectId={projectId} progress={progress} />}
+      afterLead={
+        <>
+          <WritingProgressStrip projectId={projectId} progress={progress} />
+          <StoryHealthSummary health={storyHealth} compact reviewHref={`${base}/continuity`} />
+          <ContinueWriting
+            projectId={projectId}
+            items={outline.chapters.slice(0, 3).map((chapter) => ({
+              id: chapter.id,
+              title: chapter.title,
+              kind: "chapter" as const,
+            }))}
+          />
+        </>
+      }
       chapters={outline.chapters}
       unplaced={outline.unplaced}
       looseNotes={outline.looseNotes}
@@ -185,7 +201,7 @@ export default async function WritePage({
             <h2>{SHELL.bookOrder}</h2>
             <BookOrder projectId={projectId} chapters={chapters} unplaced={unplaced} bookWords={bookWords} />
           </section>
-          <ProjectTools base={base} openReviewItems={openReviewItems} />
+          <ProjectTools base={base} openReviewItems={openReviewItems} openContinuity={storyHealth.openCount} />
         </>
       }
       results={
@@ -323,7 +339,15 @@ function buildOutline(nav: readonly RecordNavEntry[]): {
   return { chapters, unplaced, looseNotes };
 }
 
-function ProjectTools({ base, openReviewItems }: { base: string; openReviewItems: number }) {
+function ProjectTools({
+  base,
+  openReviewItems,
+  openContinuity,
+}: {
+  base: string;
+  openReviewItems: number;
+  openContinuity: number;
+}) {
   const groups = [
     {
       heading: SHELL.toolsBringIn,
@@ -342,6 +366,7 @@ function ProjectTools({ base, openReviewItems }: { base: string; openReviewItems
     {
       heading: SHELL.toolsMaintain,
       items: [
+        { href: `${base}/continuity`, label: CONTINUITY.nav, count: openContinuity },
         { href: `${base}/history`, label: NAV.history, count: openReviewItems },
         { href: `${base}/dictionary`, label: NAV.dictionary },
         { href: `${base}/search`, label: NAV.projectSearch },

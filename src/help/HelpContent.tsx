@@ -256,6 +256,30 @@ export function HelpContent() {
           dossiers, worldbuilding, canon decisions, continuity notes, and reference notes. Each item is called a{" "}
           <em>record</em>. Every time you save a record, the earlier saved versions are kept.
         </p>
+        <Sub id="project-templates">
+          <p>
+            On the library home, <L>{HOME.newManuscript}</L> asks for a title and a{" "}
+            <L>{HOME.templateLegend}</L>: novel, series, fantasy, science fiction, mystery, romance, or screenplay-style.
+            Templates add invented starter records into that new manuscript only (a first chapter, and for some genres a
+            Weave beat sheet or draft World place and character). They never rewrite other projects. After create, Story
+            Loom opens Write so you can keep going.
+          </p>
+        </Sub>
+        <Sub id="guided-tasks">
+          <p>
+            <L>{ONBOARDING.gettingStarted}</L> and <L>{ONBOARDING.heading}</L> walk through Write, chapter import, pinning
+            references, Weave, World, maps, boards, Story Health, the assistant, and compile/backup. Tasks are cookie-only
+            in this browser; Skip for now pauses, and Don&apos;t show again dismisses until the tour version changes.
+            Empty Write and Story Health screens also point to the next useful action instead of only saying nothing is
+            there.
+          </p>
+        </Sub>
+        <Sub id="sample-manuscript">
+          <p>
+            {HOME.exampleLead} It appears under <L>{HOME.examples}</L> on the library home when present. Your own
+            workspaces stay separate.
+          </p>
+        </Sub>
         <h3>Where your work is stored</h3>
         <p>
           Everything is stored in one database file on this computer. By default it is <code>prisma/dev.db</code>{" "}
@@ -595,8 +619,10 @@ export function HelpContent() {
         <h3>Open a project</h3>
         <p>
           On the home page, choose <L>{HOME.open}</L> beside the manuscript, or <L>{HOME.openManuscript}</L> on the
-          featured one. You can also choose it from <L>{SHELL.settings}</L> at the bottom of the left navigation. The
-          project&apos;s pages are listed in the second column. See <See anchor="navigation" />.
+          featured one. <L>{SHELL.write}</L>, <L>{SHELL.plan}</L>, <L>{SHELL.world}</L>, and <L>{SHELL.assistant}</L> in
+          the left navigation open that featured manuscript as soon as it exists. You can also choose a manuscript from{" "}
+          <L>{SHELL.settings}</L> at the bottom of the left navigation. The project&apos;s pages are listed in the second
+          column. See <See anchor="navigation" />.
         </p>
         <p>
           The invented demo workspace, when it is present, is grouped under <L>{HOME.examples}</L>. Each of those
@@ -1180,8 +1206,12 @@ export function HelpContent() {
         <Sub id="manuscript-annotations">
           <p>
             Each chapter and scene can have a <L>{MANUSCRIPT_ANNOTATIONS.synopsis}</L> and open{" "}
-            <L>{MANUSCRIPT_ANNOTATIONS.marginComments}</L>. Neither is manuscript body text; saving them does not create a new
-            revision or need the protection tick.
+            <L>{MANUSCRIPT_ANNOTATIONS.marginComments}</L>. Both are marked{" "}
+            <L>{MANUSCRIPT_ANNOTATIONS.nonCanonBadge}</L>: they are private planning metadata, not manuscript body text,
+            not canon status, and not AI review proposals. Saving them does not create a new revision or need the
+            protection tick. Scene notes in the Reference Companion Notes tab are separate linked records with the same
+            non-manuscript role. More actions on Write opens Notes, margin comments, named snapshots, and{" "}
+            <L>{MANUSCRIPT_SEARCH.replaceAcross}</L> without leaving the chapter.
           </p>
           <p>
             Edit the synopsis under the text on a chapter or scene, or on the{" "}
@@ -1743,9 +1773,14 @@ export function HelpContent() {
 
         <Sub id="named-snapshots">
           <p>
-            In <L>{RECORD.historyHeading}</L>, <L>{WRITE.nameSnapshot}</L> labels an existing revision without rewriting
-            its title or text. Named labels travel in workspace backups when present. <L>{RECORD.compareHeading}</L>{" "}
-            still shows a word-level diff and lists snapshot names in the revision pickers.
+            <L>{WRITE.takeSnapshot}</L> in the writing toolbar (also under More actions) names the current tip. Unsaved
+            changes are saved as a new revision first — protected text still needs <L>{WRITE.enableEditing}</L> — then
+            the label is stored on that revision. When the tip already matches the editor, only the name is written.
+            <L>{WRITE.namedSnapshots}</L> under the text lists labelled revisions with links into{" "}
+            <L>{RECORD.compareHeading}</L> so you can diff or restore without hunting History first. In{" "}
+            <L>{RECORD.historyHeading}</L>, <L>{WRITE.nameSnapshot}</L> can still rename any existing revision without
+            rewriting its title or text. Named labels travel in workspace backups when present. Compare pickers list
+            snapshot names beside revision numbers.
           </p>
           <p>
             <L>{WRITE.readAloud}</L> in the editor toolbar uses this browser&apos;s speech voice on the current selection,
@@ -1794,15 +1829,17 @@ export function HelpContent() {
             The collapsible Unplaced beats tray holds beats with no scene link, or a link that is neither this draft
             nor its rewrite pair. <L>{WEAVE.filterLinks}</L> keeps beats that cite a character dossier, cite a place, or
             carry a <L>{WEAVE.filterPov}</L> saved on the linked scene. <L>{WEAVE.filterPovAny}</L> shows every beat
-            that has one; choosing a name keeps that name. A character cite, a place cite, and a point of view also mark
-            the beat. One toolbar sits above the grid: Grid / Freeform, Threads visibility, decision filter,{" "}
-            <L>{WEAVE.filterLinks}</L>, density, and gold <L>{WEAVE.addBeatPrimary}</L>. Compact scope chips show the
-            project name as plain text; book switches
-            among series siblings when more than one exists; plan switches the Write draft when drafts exist. On narrow
-            screens the grid becomes a single-thread scene list. Switching layout keeps freeform positions and never
-            reorders the manuscript — use Book order on Write for that.{" "}
-            <L>{WEAVE.openSceneInWrite}</L> opens the linked scene; Write&apos;s <L>{WRITE.plot}</L> tab shows the same
-            beats.
+            that has one; choosing a name keeps that name. <L>{WEAVE.filterStatus}</L> uses the linked scene&apos;s draft
+            status; <L>{WEAVE.filterContinuity}</L> keeps beats whose linked manuscript has open Story Health findings (or
+            none). Beat cards show setup/payoff, World cites, draft status, and open continuity counts without writing.
+            <L>{WEAVE.seriesPanelToggle}</L> lists beats from sibling books (read-only; open that book&apos;s grid to
+            edit). One toolbar sits above the grid: Grid / Freeform, Threads visibility, decision filter,{" "}
+            <L>{WEAVE.filterLinks}</L>, status and continuity filters, density, and gold <L>{WEAVE.addBeatPrimary}</L>.
+            Compact scope chips show the project name as plain text; book switches among series siblings when more than
+            one exists; plan switches the Write draft when drafts exist. On narrow screens the grid becomes a
+            single-thread scene list. Switching layout keeps freeform positions and never reorders the manuscript — use
+            Book order on Write for that. <L>{WEAVE.openSceneInWrite}</L> opens the linked scene; Write&apos;s{" "}
+            <L>{WRITE.plot}</L> tab shows the same beats.
           </p>
           <p>
             Soft-trashed linked records stay on the beat as unavailable until restore or permanent delete. Selecting a
@@ -1811,10 +1848,11 @@ export function HelpContent() {
             Zero-draft sources (a chooser appears when several are pinned). On the freeform canvas, filter by decision,
             use <L>{WEAVE.fitSelection}</L> / <L>{WEAVE.fitAll}</L>, and move between beats with the arrow keys. Setup→payoff
             links draw as lines between the beat cards, with an arrow toward the payoff. Moving a beat moves its line and
-            does not change the link or the manuscript. On the plot grid, arrow keys move between cells; Enter selects or
-            adds in a blank cell; drag relocates beats
-            without changing book order. Unsaved title and notes stay across refreshes and draft switches on this grid.
-            Older projects open in freeform with their existing canvas intact.
+            does not change the link or the manuscript. On the plot grid, arrow keys move between cells; Shift+Arrow moves
+            the selected beat into the neighbouring cell; Enter selects or adds in a blank cell; drag relocates beats
+            without changing book order. Create scene from beat still goes through the usual manuscript create path.
+            Unsaved title and notes stay across refreshes and draft switches on this grid. Older projects open in freeform
+            with their existing canvas intact.
           </p>
         </Sub>
 
@@ -2415,9 +2453,12 @@ export function HelpContent() {
           </p>
           <p>
             Optional <L>{WORLD_PROFILE.subcategorySections}</L> add Geography details for cities and settlements,
-            regions, or waterways, and the same kind of detail for guilds, rituals, and dialects, without changing the
+            regions, or waterways, and the same kind of detail for guilds, rituals, dialects, buildings, and rooms,
+            without changing the
             profile definition. Taxonomy can suggest a section; you can also add any shipped section before tagging.
-            Enable Guilds when membership notes do not say who may join or how apprenticeship proceeds. Hiding a
+            Enable Guilds when membership notes do not say who may join or how apprenticeship proceeds. Enable
+            Buildings when a scene uses a street door and a rear exit, or Rooms when a viewpoint needs the doorway
+            and what the window shows. Hiding a
             section keeps saved values. Qualified quantities (population
             estimate, land area, length) distinguish a blank unknown from a documented zero, and waterway outlet can
             reuse an existing Place relationship (<code>flows_into</code>). Changing primary or secondary categories
@@ -2593,9 +2634,15 @@ export function HelpContent() {
 
         <Sub id="world-continuity">
           <p>
-            World → <L>{CONTINUITY.nav}</L> (<code>/projects/&lt;project&gt;/continuity</code>) is the Continuity Ledger:
-            a read-only audit. It includes <L>{CONTINUITY.kinds.continuity_note}</L> (draft, proposed, or unresolved),
-            pending facts as well as facts whose evidence needs a recheck, <L>{CONTINUITY.unresolved}</L>, sections titled{" "}
+            World → <L>{CONTINUITY.nav}</L> (<code>/projects/&lt;project&gt;/continuity</code>) is Story Health: a
+            project overview built on the Continuity Ledger. The summary shows open counts by severity and category, how
+            many records are touched, and a <L>{CONTINUITY.healthNext}</L> deep link. Summary chips set the ledger
+            filters; they do not write. Write also shows a compact Story Health strip and a count under More actions.
+            Opening the page changes nothing.
+          </p>
+          <p>
+            The ledger includes <L>{CONTINUITY.kinds.continuity_note}</L> (draft, proposed, or unresolved), pending facts
+            as well as facts whose evidence needs a recheck, <L>{CONTINUITY.unresolved}</L>, sections titled{" "}
             <L>{INFOBOX.openQuestions}</L>, draft or unsettled citations in the manuscript, citations with no matching
             record, timeline vs book order, conflicting timeline constraints, Weave setups without a manuscript payoff,{" "}
             <L>{CONTINUITY.storyEvidence}</L>, <L>{CONTINUITY.comments}</L>, <L>{CONTINUITY.reviews}</L>, Living Profile
@@ -2603,18 +2650,19 @@ export function HelpContent() {
             <L>{CONTINUITY.kinds.character_knowledge}</L>, <L>{CONTINUITY.kinds.character_limitation}</L>,{" "}
             <L>{CONTINUITY.kinds.forgotten_arc}</L>, and <L>{CONTINUITY.kinds.character_identity}</L>, and{" "}
             <L>{CONTINUITY.kinds.world_contradiction}</L> from an explicit world-fact review. The timeline check runs when
-            the project has story events. Opening the page changes nothing.
+            the project has story events.
           </p>
           <p>
-            Filter by category or severity. Each row deep-links to the chapter, scene, reference, timeline, or Weave
-            grid, and character or world-fact items show the applicable canon, story location, evidence, explanation, and
-            suggestion. <L>{CONTINUITY.markIntentional}</L>, <L>{CONTINUITY.markResolved}</L>, or{" "}
-            <L>{CONTINUITY.markIgnored}</L> hides a finding (audited); <L>{CONTINUITY.restore}</L> puts it back. Character
-            findings resolve against the open chapter or scene when present; they do not treat archetypes as rigid rules,
-            and they never rewrite prose. On Write → References, <L>{CONTINUITY.checkWorldFacts}</L> compares the chapter
-            or scene against approved, dated Living World facts at that story point (belief, hope, and dialogue that do
-            not assert objective state stay quiet). Planned changes, undated values, and sibling book-local facts stay
-            out of the review. Findings never rewrite manuscript prose or canon.
+            Filter by category or severity (also via <code>?category=</code> / <code>?severity=</code> on the URL). Each
+            row deep-links to the chapter, scene, reference, timeline, or Weave grid, and character or world-fact items
+            show the applicable canon, story location, evidence, explanation, and suggestion.{" "}
+            <L>{CONTINUITY.markIntentional}</L>, <L>{CONTINUITY.markResolved}</L>, or <L>{CONTINUITY.markIgnored}</L> hides
+            a finding (audited); <L>{CONTINUITY.restore}</L> puts it back. Character findings resolve against the open
+            chapter or scene when present; they do not treat archetypes as rigid rules, and they never rewrite prose. On
+            Write → References, <L>{CONTINUITY.checkWorldFacts}</L> compares the chapter or scene against approved, dated
+            Living World facts at that story point (belief, hope, and dialogue that do not assert objective state stay
+            quiet). Planned changes, undated values, and sibling book-local facts stay out of the review. Findings never
+            rewrite manuscript prose or canon.
           </p>
           <p>
             Characters, canon decisions, and continuity notes can also store <L>{REFERENCE_META.name}</L>,{" "}

@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import type { RecordType } from "@/domain/recordTypes";
 import { NAV, SHELL } from "@/ui/labels";
-import { activeGlobalItem, parseProjectPath, type ProjectSummary } from "@/ui/navigation";
+import { activeGlobalItem, parseProjectPath, resolveNavProjectId, type ProjectSummary } from "@/ui/navigation";
 import { THEME_COOKIE, type Theme } from "@/ui/theme";
 import { StoryLoomMark } from "@/components/library/StoryLoomMark";
 import { IconButton } from "@/components/ui/IconButton";
@@ -84,7 +84,8 @@ export function AppShell({
     }
   }, [knownPathProject, lastProjectId]);
 
-  const current = projects.find((p) => p.id === (knownPathProject ?? lastProjectId)) ?? null;
+  const navProjectId = resolveNavProjectId(pathname, projects, knownPathProject ?? lastProjectId);
+  const current = projects.find((p) => p.id === navProjectId) ?? null;
   const typeOf = useMemo(() => {
     const types = new Map(recordTypes);
     return (id: string) => types.get(id);
@@ -121,7 +122,7 @@ export function AppShell({
     writePreference(THEME_COOKIE, next);
   }
 
-  const navProps = { pathname, active, projects, current, theme, onChangeTheme: changeTheme };
+  const navProps = { pathname, active, projects, current, navProjectId, theme, onChangeTheme: changeTheme };
   const style = {
     [WIDTH_VARIABLES.secondaryWidth]: `${layout.secondaryWidth}px`,
     [WIDTH_VARIABLES.contextWidth]: `${layout.contextWidth}px`,

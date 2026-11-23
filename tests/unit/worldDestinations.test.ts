@@ -10,7 +10,7 @@ import {
 describe("world destination registry", () => {
   it("lists each surface once, in the four groups", () => {
     const keys = WORLD_DESTINATION_GROUPS.flatMap((group) => group.keys);
-    expect(keys).toEqual(["references", "relationships", "development", "maps", "boards", "events", "calendar", "continuity", "names"]);
+    expect(keys).toEqual(["references", "relationships", "development", "maps", "boards", "continuity", "events", "calendar", "names"]);
     expect(new Set(keys).size).toBe(WORLD_DESTINATIONS.length);
     expect(WORLD_DESTINATION_GROUPS.map((group) => group.heading)).toEqual([
       "Lore & Codex",

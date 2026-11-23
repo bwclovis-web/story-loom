@@ -106,7 +106,7 @@ export const WORLD_DESTINATIONS: readonly WorldDestination[] = DESTINATIONS;
 export const WORLD_DESTINATION_GROUPS: readonly WorldDestinationGroup[] = [
   { id: "lore", heading: WORLD.loreAndCodex, keys: ["references", "relationships", "development"] },
   { id: "visual", heading: WORLD.visualSpaces, keys: ["maps", "boards"] },
-  { id: "time", heading: WORLD.timeAndContinuity, keys: ["events", "calendar", "continuity"] },
+  { id: "time", heading: WORLD.timeAndContinuity, keys: ["continuity", "events", "calendar"] },
   { id: "tools", heading: WORLD.toolsHeading, keys: ["names"] },
 ];
 

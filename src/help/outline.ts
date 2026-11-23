@@ -17,7 +17,15 @@ export const HELP_SECTIONS = [
     title: "Quick start",
     children: [{ id: "whats-new", title: "What's new" }],
   },
-  { id: "getting-started", title: "Getting started" },
+  {
+    id: "getting-started",
+    title: "Getting started",
+    children: [
+      { id: "project-templates", title: "Project templates" },
+      { id: "guided-tasks", title: "Guided tasks" },
+      { id: "sample-manuscript", title: "Example manuscript" },
+    ],
+  },
   {
     id: "optional-features",
     title: "Optional features (skippable)",
@@ -126,7 +134,7 @@ export const HELP_SECTIONS = [
       { id: "world-organize", title: "Organize references" },
       { id: "world-kinds", title: "Worldbuilding kinds" },
       { id: "world-series", title: "Series references" },
-      { id: "world-continuity", title: "Continuity Ledger" },
+      { id: "world-continuity", title: "Story Health" },
       { id: "world-names", title: "Name generator" },
       { id: "reference-page", title: "Reading a reference (incl. At a glance)" },
       { id: "reference-context", title: "Context beside a reference" },

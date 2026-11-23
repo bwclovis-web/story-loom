@@ -51,6 +51,17 @@ export interface WorldProfileQuantityConfig {
   allowQualifiers?: boolean;
 }
 
+/** Labels for a glossed_lines editor. recordLabel enables an optional Record.id on each row. */
+export interface WorldProfileGlossedConfig {
+  lineLabel: string;
+  glossLabel: string;
+  addLabel: string;
+  removeLabel: string;
+  moveUpLabel: string;
+  moveDownLabel: string;
+  recordLabel?: string;
+}
+
 export interface WorldProfileFieldDef {
   key: string;
   label: string;
@@ -63,6 +74,7 @@ export interface WorldProfileFieldDef {
   options?: readonly WorldProfileFieldOption[];
   placeholder?: string;
   quantityConfig?: WorldProfileQuantityConfig;
+  glossedConfig?: WorldProfileGlossedConfig;
   /**
    * descriptive = prose or a sample utterance. Continuity may show it, but it
    * is not an assertable contradiction rule.
@@ -787,6 +799,79 @@ export const WORLD_SUBCATEGORY_SECTIONS: readonly WorldSubcategorySectionDef[] =
           "Sample lines, each kept with its gloss.",
         ),
         continuity: "descriptive",
+      },
+    ],
+  },
+  {
+    id: "locations:buildings",
+    categoryId: "locations",
+    subcategoryId: "buildings",
+    label: "Buildings",
+    description:
+      "Entrances and exits, and where each one leads. Layout, access, uses, atmosphere, and distinctive features stay on the Locations profile. Containment stays a Part of place relationship.",
+    fields: [
+      {
+        ...profileField(
+          "entrances",
+          "Entrances and exits",
+          "glossed_lines",
+          "Name each opening and where it leads. An alley, landing, or street can stay a description. Add a record id when the destination is an existing place.",
+        ),
+        continuity: "descriptive",
+        glossedConfig: {
+          lineLabel: "Entrance",
+          glossLabel: "Leads to",
+          addLabel: "Add entrance",
+          removeLabel: "Remove entrance",
+          moveUpLabel: "Move entrance up",
+          moveDownLabel: "Move entrance down",
+          recordLabel: "Place record id",
+        },
+      },
+    ],
+  },
+  {
+    id: "locations:rooms",
+    categoryId: "locations",
+    subcategoryId: "rooms",
+    label: "Rooms",
+    description:
+      "Doorways and what a viewpoint can see. Layout, access, uses, atmosphere, and distinctive features stay on the Locations profile. Containment stays a Part of place relationship.",
+    fields: [
+      {
+        ...profileField(
+          "doorways",
+          "Doorways and connections",
+          "glossed_lines",
+          "Name each doorway and where it connects. A landing or passage can stay a description. Add a record id when it opens onto an existing place.",
+        ),
+        continuity: "descriptive",
+        glossedConfig: {
+          lineLabel: "Doorway",
+          glossLabel: "Connects to",
+          addLabel: "Add doorway",
+          removeLabel: "Remove doorway",
+          moveUpLabel: "Move doorway up",
+          moveDownLabel: "Move doorway down",
+          recordLabel: "Place record id",
+        },
+      },
+      {
+        ...profileField(
+          "sightlines",
+          "Sightlines",
+          "glossed_lines",
+          "A viewpoint and what is visible from it.",
+        ),
+        continuity: "descriptive",
+        glossedConfig: {
+          lineLabel: "Viewpoint",
+          glossLabel: "Visible",
+          addLabel: "Add sightline",
+          removeLabel: "Remove sightline",
+          moveUpLabel: "Move sightline up",
+          moveDownLabel: "Move sightline down",
+        },
       },
     ],
   },

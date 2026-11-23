@@ -8,7 +8,7 @@ import {
   type RecordType,
 } from "@/domain/recordTypes";
 import { isAuthorityStatus, type AuthorityStatus } from "@/domain/statuses";
-import { readManuscriptMeta } from "@/writing/manuscriptStructure";
+import { readManuscriptMeta, type ManuscriptSceneStatus } from "@/writing/manuscriptStructure";
 import { readThreadLine, withThreadLine } from "@/world/weaveBeatPresets";
 import { worldbuildingKindFromFields } from "@/world/worldKinds";
 import type { Db, DbOrTx, Tx } from "../db";
@@ -112,6 +112,8 @@ export interface WeaveBeatView {
   manuscriptUnavailable: boolean;
   /** Point of view saved on the linked chapter or scene, when that record still exists. */
   manuscriptPov: string;
+  /** Draft status on the linked chapter or scene, when set. */
+  manuscriptSceneStatus: ManuscriptSceneStatus | "";
   threadId: string | null;
   cellOrder: number;
   x: number;
@@ -260,6 +262,7 @@ function beatViewOf(b: {
     manuscriptTypeLabel: ms && isRecordType(ms.type) ? RECORD_TYPE_LABELS[ms.type] : null,
     manuscriptUnavailable: Boolean(ms?.trashedAt),
     manuscriptPov: ms ? povOf(ms.fields) : "",
+    manuscriptSceneStatus: ms ? sceneStatusOf(ms.fields) : "",
     threadId: b.threadId,
     cellOrder: b.cellOrder,
     x: b.x,
@@ -284,14 +287,24 @@ function beatViewOf(b: {
   };
 }
 
-function povOf(fields: string): string {
+function manuscriptMetaOf(fields: string) {
   try {
     const parsed: unknown = JSON.parse(fields);
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return "";
-    return readManuscriptMeta(parsed as Record<string, unknown>).pov;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return { pov: "", sceneStatus: "" as const };
+    }
+    return readManuscriptMeta(parsed as Record<string, unknown>);
   } catch {
-    return "";
+    return { pov: "", sceneStatus: "" as const };
   }
+}
+
+function povOf(fields: string): string {
+  return manuscriptMetaOf(fields).pov;
+}
+
+function sceneStatusOf(fields: string): ManuscriptSceneStatus | "" {
+  return manuscriptMetaOf(fields).sceneStatus;
 }
 
 function worldKindOf(fields: string): string | null {

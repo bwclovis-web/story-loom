@@ -30,13 +30,14 @@ export function parseMapsViewPreference(value: string | undefined): MapsViewPref
  */
 export const ONBOARDING_COOKIE = "wordly-onboarding";
 /** Bump when walkthrough tasks change so a previous dismissal shows the new guide once. */
-export const ONBOARDING_VERSION = "storyloom-tour-2026-11-21";
+export const ONBOARDING_VERSION = "storyloom-tour-2026-11-23";
 const EARLIER_ONBOARDING = new Set([
   "dismissed",
   "done",
   "storyloom-simple-2026-11",
   "storyloom-walk-2026-11",
   "storyloom-2026-11",
+  "storyloom-tour-2026-11-21",
 ]);
 
 export type WalkthroughState =

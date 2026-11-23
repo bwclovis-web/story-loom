@@ -12,10 +12,16 @@ import {
 } from "react";
 import { useRouter } from "next/navigation";
 import type { Issue } from "@/domain/issues";
-import type { WeaveBeatView, WeaveThreadView } from "@/server/services/weaveService";
+import { WeaveBeatBadges } from "@/components/weave/WeaveBeatBadges";
+import type { WeaveBeatView, WeaveSetupPayoffView, WeaveThreadView } from "@/server/services/weaveService";
 import { WEAVE } from "@/ui/labels";
 import { plotRowForManuscript } from "@/ui/plotGridPlacement";
-import { beatLinkTagClass, beatMatchesLinkFilter, type WeaveLinkFilter } from "@/weave/beatLinkFilter";
+import { beatLinkTagClass, type WeaveLinkFilter } from "@/weave/beatLinkFilter";
+import {
+  beatMatchesBoardFilters,
+  beatSignals,
+  type WeaveBoardExtraFilter,
+} from "@/weave/beatCardSignals";
 import { CreateSceneFromBeat } from "./CreateSceneFromBeat";
 import {
   addWeaveBeatAction,
@@ -102,6 +108,9 @@ export function WeavePlotGrid({
   selectedId,
   decisionFilter,
   linkFilter,
+  extraFilter,
+  setupPayoffs,
+  continuityByRecord,
   density,
   hiddenThreadIds = [],
   mobileThreadId,
@@ -120,6 +129,9 @@ export function WeavePlotGrid({
   selectedId: string | null;
   decisionFilter: string;
   linkFilter: WeaveLinkFilter;
+  extraFilter: WeaveBoardExtraFilter;
+  setupPayoffs: WeaveSetupPayoffView[];
+  continuityByRecord: ReadonlyMap<string, number>;
   density: PlotDensity;
   hiddenThreadIds?: string[];
   /** When set (narrow), only this thread column is shown as a scene list. */
@@ -193,12 +205,15 @@ export function WeavePlotGrid({
     return base;
   }, [threads, mobileThreadId, hiddenThreadIds]);
 
-  const matchesFilter = (beat: WeaveBeatView) => {
-    if (!beatMatchesLinkFilter(beat, linkFilter)) return false;
-    if (decisionFilter === "all") return true;
-    if (decisionFilter === "unset") return !beat.decision;
-    return beat.decision === decisionFilter;
-  };
+  const signalsFor = (beat: WeaveBeatView) => beatSignals(beat, setupPayoffs, continuityByRecord);
+
+  const matchesFilter = (beat: WeaveBeatView) =>
+    beatMatchesBoardFilters(beat, {
+      decisionFilter,
+      linkFilter,
+      extra: extraFilter,
+      signals: signalsFor(beat),
+    });
 
   const cellBeats = (row: PlotGridRow, thread: WeaveThreadView) => {
     const list = beats.filter(
@@ -215,7 +230,7 @@ export function WeavePlotGrid({
         return plotRowForManuscript(b.manuscriptRecordId, rowIds, otherDraftRows) === null;
       })
       .sort((a, b) => a.zIndex - b.zIndex || a.id.localeCompare(b.id));
-  }, [beats, rowIds, otherDraftRows, decisionFilter, linkFilter]);
+  }, [beats, rowIds, otherDraftRows, decisionFilter, linkFilter, extraFilter, setupPayoffs, continuityByRecord]);
 
   const addInCell = (row: PlotGridRow, thread: WeaveThreadView) => {
     startTransition(async () => {
@@ -401,6 +416,34 @@ export function WeavePlotGrid({
     onSelectBeat(beat);
   };
 
+  const relocateSelectedToFocus = (row: number, col: number) => {
+    const beat = beats.find((b) => b.id === selectedId);
+    const targetRow = flatRows[row];
+    const targetThread = visibleThreads[col];
+    if (!beat || !targetRow || !targetThread) return;
+    const already =
+      beat.threadId === targetThread.id &&
+      plotRowForManuscript(beat.manuscriptRecordId, rowIds, otherDraftRows) === targetRow.id;
+    if (already) return;
+    const siblings = cellBeats(targetRow, targetThread).filter((b) => b.id !== beat.id);
+    startTransition(async () => {
+      const result = await relocateWeaveBeatAction(projectId, gridId, beat.id, {
+        threadId: targetThread.id,
+        manuscriptRecordId: targetRow.id,
+        cellOrder: siblings.length,
+      });
+      if (!result.ok) {
+        onIssues(result.issues);
+        return;
+      }
+      onIssues([]);
+      onBeatsChange?.(result.beats);
+      const next = result.beats.find((b) => b.id === beat.id) ?? null;
+      if (next) onSelectBeat(next);
+      router.refresh();
+    });
+  };
+
   const onGridKeyDown = (e: ReactKeyboardEvent<HTMLElement>) => {
     if (!visibleThreads.length || !flatRows.length) return;
     if (e.key === "Escape") {
@@ -409,14 +452,13 @@ export function WeavePlotGrid({
     }
     if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(e.key)) {
       e.preventDefault();
-      setFocus((f) => {
-        let { row, col } = f;
-        if (e.key === "ArrowLeft") col = Math.max(0, col - 1);
-        if (e.key === "ArrowRight") col = Math.min(visibleThreads.length - 1, col + 1);
-        if (e.key === "ArrowUp") row = Math.max(0, row - 1);
-        if (e.key === "ArrowDown") row = Math.min(flatRows.length - 1, row + 1);
-        return { row, col };
-      });
+      let { row, col } = focus;
+      if (e.key === "ArrowLeft") col = Math.max(0, col - 1);
+      if (e.key === "ArrowRight") col = Math.min(visibleThreads.length - 1, col + 1);
+      if (e.key === "ArrowUp") row = Math.max(0, row - 1);
+      if (e.key === "ArrowDown") row = Math.min(flatRows.length - 1, row + 1);
+      setFocus({ row, col });
+      if (e.shiftKey && selectedId) relocateSelectedToFocus(row, col);
       return;
     }
     if (e.key === "Enter") {
@@ -716,6 +758,7 @@ export function WeavePlotGrid({
                         )
                         .sort((a, b) => a.cellOrder - b.cellOrder || a.id.localeCompare(b.id))
                     }
+                    signalsFor={signalsFor}
                   />
                 );
               })}
@@ -752,6 +795,7 @@ export function WeavePlotGrid({
                   >
                     <span className="plot-grid-beat-bar" aria-hidden="true" />
                     <span className="plot-grid-beat-title">{beat.title}</span>
+                    <WeaveBeatBadges signals={signalsFor(beat)} compact />
                   </button>
                   {threads.length && !beat.threadId ? (
                     <label className="small">
@@ -814,6 +858,7 @@ function ChapterBlock({
   onBeatClick,
   onAddInCell,
   mirroredBeats,
+  signalsFor,
 }: {
   chapter: PlotGridChapter;
   chapterIndex: number;
@@ -835,6 +880,7 @@ function ChapterBlock({
   onBeatClick: (e: React.MouseEvent, beat: WeaveBeatView) => void;
   onAddInCell: (row: PlotGridRow, thread: WeaveThreadView) => void;
   mirroredBeats: (row: PlotGridRow, thread: WeaveThreadView) => WeaveBeatView[];
+  signalsFor: (beat: WeaveBeatView) => ReturnType<typeof beatSignals>;
 }) {
   const chapterHeading = (() => {
     const stripped = chapter.title.replace(/^chapter\s+\d+\s*[:·.—-]?\s*/i, "").trim();
@@ -929,6 +975,7 @@ function ChapterBlock({
                               >
                                 <span className="plot-grid-beat-bar" aria-hidden="true" />
                                 <span className="plot-grid-beat-title">{beat.title}</span>
+                                <WeaveBeatBadges signals={signalsFor(beat)} compact />
                               </button>
                             </li>
                           ))}

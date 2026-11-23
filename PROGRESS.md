@@ -1,5 +1,81 @@
 # Progress
 
+## Home navigation after a manuscript exists (Nov 23, 2026)
+
+Write, Weave, World, and Assistant in the left navigation open the featured manuscript from the home page as soon as one exists. They no longer stay disabled until that manuscript is opened. A project address still wins, including before the shell list refreshes. An empty library leaves those items unavailable.
+
+- **Verify:** `tests/unit/navigation.test.ts` (`resolveNavProjectId`). Working DB untouched.
+- **Rollback:** revert `resolveNavProjectId`, the shell wiring, the Help sentence under workspaces, and this entry.
+
+## Market roadmap Phase 4 — Onboarding and discovery (Nov 23, 2026)
+
+Makes existing capabilities discoverable without seeding the author's working DB unexpectedly.
+
+- **Project templates:** New manuscript dialog offers novel / series / fantasy / SF / mystery / romance / screenplay-style scaffolds via `applyProjectTemplate` (invented starter chapter; genre Weave presets; fantasy/SF draft place + dossier; series creates Book Two). Create redirects to Write.
+- **Guided tasks:** Walkthrough version bumped; steps add import, maps, boards, Story Health, and assistant (cookie-only).
+- **Empty states:** Write outline and Continue writing point to create/import/World/Weave; Story Health empty offers Write / World / timeline; empty Weave library mounts `WorkspaceToolsChooser`.
+- **Sample:** Examples section explains The Salt Archive is invented demo content created only when missing.
+- **Help:** `#project-templates`, `#guided-tasks`, `#sample-manuscript` under Getting started.
+- **Verify:** `tests/unit/project-templates.test.ts`, help + onboarding cookie tests. Working DB untouched (no schema change; templates only on explicit create).
+
+### Rollback
+
+Revert template domain/service, create action redirect, Library dialog radios, onboarding step/version changes, empty-state CTAs, Help/PROGRESS/labels/CSS, and this entry. Manuscripts already created from a template keep their records.
+
+## Market roadmap Phase 3 — Writing workspace polish (Nov 23, 2026)
+
+Polishes the Markdown writing surface without changing the persisted text model.
+
+- **Take snapshot:** `takeNamedSnapshot` saves a tip revision when the editor differs from the tip (same protection / stale-revision gates as Save), then labels that revision; clean tip → label only. Toolbar button, More-actions entry, and dialog on Write.
+- **Named snapshots strip:** Lists labelled revisions under the text with Compare / Compare & restore deep links into the existing compare panel. History still renames any revision.
+- **Non-canon clarity:** Synopsis, margin comments, and Companion Notes show a “Not manuscript text” badge and note separating them from body, canon, and AI proposals.
+- **Discoverability:** More menu opens Notes (Companion), margin comments, named snapshots, and Replace across manuscript. Save status appends protected · read only when protected text is dirty without Enable editing.
+- **Verify:** `tests/unit/named-snapshot.test.ts`; Help `#named-snapshots` / `#manuscript-annotations` updated. Working DB untouched (no schema change).
+
+### Rollback
+
+Revert `revisionLabelService` take-snapshot path, action, NamedSnapshots UI, WriteEditor/page wiring, annotation badges, labels/CSS/help, and this entry. Existing `Revision.label` values remain valid.
+
+## Market roadmap Phase 2 — Visual Weave planning (Nov 23, 2026)
+
+Deepens Weave without a schema change and without moving manuscript order.
+
+- **Card signals:** Beat cards show setup/payoff, World cites, linked draft status, and open Story Health counts (`beatSignals` / `WeaveBeatBadges`). Continuity counts come from a read-only ledger pass on the grid page.
+- **Filters:** Plot grid adds draft-status and continuity filters beside decision / character / place / POV. Filtering never writes.
+- **Series panel:** Optional read-only list of sibling-book beats with links to those grids; setup→payoff may already span books.
+- **Keyboard:** Shift+Arrow relocates the selected beat to the neighbouring cell via `relocateWeaveBeat` (still never `moveInBook`).
+- **Verify:** `tests/unit/beat-card-signals.test.ts`; Help `#plan-weave` updated. Working DB untouched.
+
+### Rollback
+
+Revert Weave canvas/plot-grid signal wiring, `beatCardSignals`, badges, labels/CSS/help, and this entry. Existing Weave data stays valid.
+
+## Market roadmap Phase 1 — Story Health dashboard (Nov 23, 2026)
+
+Turns the Continuity Ledger into a visible Story Health overview without a second issue system or manuscript/canon writes.
+
+- **Summary:** `summarizeStoryHealth` rolls up open/suppressed counts, severity and category tallies, affected records, status (`healthy` / `attention` / `critical`), and next-best-action (highest severity, then kind priority).
+- **UI:** Continuity page title/nav is Story Health; summary chips set ledger filters; next action deep-links; URL `?category=` / `?severity=` / `?suppressed=1`. Write landing shows a compact strip and a More-actions count. World directory lists Story Health first under Time & continuity.
+- **Safety:** Suppress / restore stay audited ContinuitySuppression rows only. Loading and filtering write nothing.
+- **Verify:** `tests/unit/story-health.test.ts`, `tests/acceptance/story-health.test.ts`; Help `#world-continuity` and destination order test updated. Working DB untouched.
+
+### Rollback
+
+Revert Story Health labels/UI/CSS/help/`summarizeStoryHealth`/tests and this entry. Continuity Ledger data and suppressions remain valid.
+
+## Market roadmap Phase 0 — Baseline and measurement (Nov 23, 2026)
+
+Documents the product baseline before Story Health and later market phases. No schema, route, or working-database change.
+
+- **Inventory:** [docs/market-baseline.md](docs/market-baseline.md) lists current manuscript, planning, world, continuity, AI, import/export, backup, and desktop capabilities from live routes/services; maps marketplace gaps to Phases 1–6; marks stale “missing feature” claims as non-authoritative.
+- **Metrics:** Local-only definitions for time to first chapter/reference, continuity triage, feature discovery, import/restore/export success — measured with invented fixtures and isolated DBs, not remote telemetry.
+- **Fixtures:** `tests/helpers/roadmapFixture.ts` seeds a two-book Saltmarsh series on `createTestDb()` only; `tests/unit/roadmap-fixture.test.ts` checks structure and read-only Continuity Ledger load.
+- **Working DB:** `pnpm db:info` left `prisma/dev.db` untouched (no reset/reseed).
+
+### Rollback
+
+Delete `docs/market-baseline.md`, `tests/helpers/roadmapFixture.ts`, `tests/unit/roadmap-fixture.test.ts`, and this entry. No product behavior to revert.
+
 ## W8 Close-Out — MCP stdio cold start + final gates (Nov 23, 2026)
 
 Closes the remaining W8 release gate on the final tree:
@@ -98,6 +174,18 @@ Author-triggered, story-point-scoped comparison of manuscript passages against a
 
 Revert domain/service/Prisma migration/backup/continuity/Write/Help/PROGRESS for this milestone. Drop `WorldContradictionCheck` only after confirming no needed review rows in backups.
 
+## W5D — Optional Subcategory Sections (Buildings, Rooms) (Nov 23, 2026)
+
+Extends the same optional-section registry to Locations. Taxonomy suggests Buildings or Rooms; the author enables the section. Hiding keeps values. `definitionId` stays sticky.
+
+- **Reused:** Locations profile fields `layout`, `atmosphere`, `access`, `uses`, and `distinctiveFeatures`. Place relationship `part_of` for containment. `glossed_lines` (`{ line, gloss, recordId? }`) for paired notes. Record.id is optional free text on a row, not a new graph relation.
+- **Added:** Buildings `entrances` (opening and where it leads). Rooms `doorways` (opening and where it connects, optional place record id) and `sightlines` (viewpoint and what is visible). An alley, landing, or street stays a description.
+- **History:** Dated glossed changes use the paired editor. A literal `|` in a line or gloss round-trips. A later dated doorway stays out of an earlier scene’s drafting context and point-scoped export. These fields are descriptive, so they are not contradiction rules.
+- **Export:** A linked record is shown by title when that record is in the export set. Layout, access, and Part of are not repeated on the new sections.
+- **Tests:** `tests/unit/worldSubcategorySections.test.ts`, `tests/acceptance/world-subcategory-sections-w5f.test.ts`.
+
+Revert the buildings/rooms registry entries, glossed `recordId`, history paired editor, heading map, Help sentence, and this note.
+
 ## W5D — Optional Subcategory Sections (Guilds, Rituals, Dialects) (Nov 23, 2026)
 
 Extends the Geography optional-section pattern. Matching taxonomy suggests a section; the author enables it. Hiding keeps values. `definitionId` stays sticky.
@@ -105,7 +193,7 @@ Extends the Geography optional-section pattern. Matching taxonomy suggests a sec
 - **Reused:** Organizations `membership` (who belongs). `record_ref` for dialect parent language (`{ recordId }`). `ordered_list` for apprenticeship stages, credentials, participant roles, ritual steps, and distinctive expressions. No language relation kind exists (Record relations are characters, organizations, and places; Place relations are `part_of`, `flows_into`, `governed_by`).
 - **Added:** Guilds `admissionRequirements`, `apprenticeshipStages`, `credentialsIssued`. Rituals `ritualOccasion`, `participantRoles`, `ritualSteps`, `ritualVariations` (the Religion profile `rituals` notes field is unchanged). Dialects `parentLanguage`, `regionalSoundChanges`, `distinctiveExpressions`, `exampleLines` (`glossed_lines`: `{ line, gloss }[]`).
 - **Continuity:** Those new prose, stage, step, and sample fields are descriptive. Structuring them does not create a contradiction rule. Undated current values stay unknown at an earlier point. Parent language follows the existing record-reference export rule (title when the target is in the export set).
-- **Limitation:** Sections are not gated by profile definition, including custom home-book kind templates. A custom subcategory slug does not suggest these sections. Membership appears in the editor only on a definition that includes it (`category:organizations`). The history value box for example lines uses `line | gloss` per line.
+- **Limitation:** Sections are not gated by profile definition, including custom home-book kind templates. A custom subcategory slug does not suggest these sections. Membership appears in the editor only on a definition that includes it (`category:organizations`). Dated example lines use the same paired inputs as the profile, so a literal `|` in a line or gloss is kept.
 - **Tests:** `tests/unit/worldSubcategorySections.test.ts`, `tests/acceptance/world-subcategory-sections-w5e.test.ts`.
 
 Revert the guild/ritual/dialect registry, glossed-line reader, panel editor, heading map, contradiction guard, Help, and this note. Profiles without `enabledSections` still read as `[]`.

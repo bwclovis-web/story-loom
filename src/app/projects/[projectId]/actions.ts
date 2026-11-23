@@ -36,7 +36,7 @@ import {
   setProtection,
   updateRecord,
 } from "@/server/services/recordService";
-import { labelRevision } from "@/server/services/revisionLabelService";
+import { labelRevision, takeNamedSnapshot } from "@/server/services/revisionLabelService";
 import { resolveReviewItem } from "@/server/services/reviewService";
 import { trashProject } from "@/server/services/trashService";
 import { groupOfType } from "@/ui/navigation";
@@ -215,6 +215,51 @@ export async function labelRevisionAction(projectId: string, recordId: string, f
     label: label || null,
   });
   revalidatePath(`/projects/${projectId}`, "layout");
+}
+
+/**
+ * Takes a named snapshot of the current editor tip: saves a revision when the
+ * text differs from the tip, then labels that revision. Clean tip → label only.
+ */
+export async function takeNamedSnapshotAction(
+  projectId: string,
+  recordId: string,
+  input: {
+    expectedRevision: number;
+    title: string;
+    body: string;
+    fields: string;
+    authorityStatus?: string;
+    unlockProtected?: boolean;
+    label: string;
+  },
+): Promise<FormResult & { label?: string; createdRevision?: boolean }> {
+  try {
+    const existing = await getRecord(getDb(), projectId, recordId);
+    const status = input.authorityStatus;
+    const result = await takeNamedSnapshot(getDb(), projectId, {
+      recordId,
+      expectedRevision: input.expectedRevision,
+      title: input.title,
+      body: input.body,
+      fields: parseFields(input.fields, existing.type),
+      authorityStatus: status && isAuthorityStatus(status) ? status : undefined,
+      unlockProtected: input.unlockProtected,
+      label: input.label,
+    });
+    revalidatePath(`/projects/${projectId}`, "layout");
+    return {
+      ok: true,
+      revision: result.revision,
+      label: result.label,
+      createdRevision: result.createdRevision,
+      message: result.createdRevision
+        ? `Saved and named snapshot “${result.label}” (revision ${result.revision}).`
+        : `Named snapshot “${result.label}” on revision ${result.revision}.`,
+    };
+  } catch (error) {
+    return failure(error);
+  }
 }
 
 /** Turns protection on or off. Removing protection is confirmed in the UI first. */

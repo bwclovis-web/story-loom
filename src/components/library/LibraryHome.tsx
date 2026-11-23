@@ -88,6 +88,7 @@ export function LibraryHome({
             <summary>
               <span className="library-examples-title">{HOME.examples}</span>
             </summary>
+            <p className="small muted library-examples-lead">{HOME.exampleLead}</p>
             {examples.map((workspace) => (
               <WorkspaceBlock key={workspace.id} workspace={workspace} example />
             ))}

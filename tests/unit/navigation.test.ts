@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { RECORD_TYPES, type RecordType } from "@/domain/recordTypes";
-import { activeGlobalItem, groupOfType, parseProjectPath, RECORD_GROUP_IDS, RECORD_GROUPS } from "@/ui/navigation";
+import { activeGlobalItem, groupOfType, parseProjectPath, RECORD_GROUP_IDS, RECORD_GROUPS, resolveNavProjectId } from "@/ui/navigation";
 
 const types = new Map<string, RecordType>([
   ["rec_ch1", "manuscript_chapter"],
@@ -33,6 +33,28 @@ describe("parseProjectPath", () => {
     expect(parseProjectPath("/projects/prj_a/records/rec_1")).toEqual({ projectId: "prj_a", rest: ["records", "rec_1"] });
     expect(parseProjectPath("/backup")).toBeNull();
     expect(parseProjectPath("/projectsx/prj_a")).toBeNull();
+  });
+});
+
+describe("resolveNavProjectId", () => {
+  const projects = [
+    { id: "prj_demo", workspaceId: "wsp_demo" },
+    { id: "prj_own", workspaceId: "wsp_own" },
+  ];
+
+  it("opens the featured manuscript from the home page", () => {
+    expect(resolveNavProjectId("/", projects, null)).toBe("prj_own");
+    expect(resolveNavProjectId("/", projects, "prj_demo")).toBe("prj_demo");
+  });
+
+  it("follows the manuscript in the address even before the shell list includes it", () => {
+    expect(resolveNavProjectId("/projects/prj_new/world", projects, null)).toBe("prj_new");
+    expect(resolveNavProjectId("/projects/prj_own/plan", projects, "prj_demo")).toBe("prj_own");
+  });
+
+  it("stays empty until a manuscript exists", () => {
+    expect(resolveNavProjectId("/", [], null)).toBeNull();
+    expect(resolveNavProjectId("/settings", [], null)).toBeNull();
   });
 });
 

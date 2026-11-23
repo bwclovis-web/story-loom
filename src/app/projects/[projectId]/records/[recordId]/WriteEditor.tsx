@@ -58,15 +58,16 @@ import {
   ManuscriptSynopsisPanel,
   MarginCommentsPanel,
 } from "@/components/writing/ManuscriptAnnotationPanels";
+import { NamedSnapshotsStrip, TakeSnapshotDialog, type NamedSnapshotItem } from "@/components/writing/NamedSnapshots";
 import type { MarginCommentView } from "@/server/services/manuscriptAnnotationService";
-import { ASSISTANT, MANUSCRIPT_STRUCTURE, NAV, RECORD, SHELL, tidySummary, WRITE, WRITING } from "@/ui/labels";
+import { ASSISTANT, MANUSCRIPT_SEARCH, MANUSCRIPT_STRUCTURE, NAV, RECORD, SHELL, tidySummary, WRITE, WRITING } from "@/ui/labels";
 import type { WriteMode } from "@/writing/writeMode";
 import { invertEdit } from "@/writing/findReplace";
 import { minimalEdit, toggleInline } from "@/writing/markdownFormat";
 import { tidyText } from "@/writing/tidy";
 import { styleRangeHighlightEnd } from "@/writing/styleCheck";
 import type { SpellChecker, SpellingLanguage } from "@/writing/spelling";
-import { autosaveRecordAction, saveRecordAction, type FormResult } from "../../actions";
+import { autosaveRecordAction, saveRecordAction, takeNamedSnapshotAction, type FormResult } from "../../actions";
 import { linkReferenceAction, splitManuscriptAction } from "../../write/actions";
 import { ManuscriptMetaFields } from "@/components/writing/ManuscriptMetaFields";
 import { CodexSuggestBox } from "@/components/writing/CodexSuggestBox";
@@ -142,6 +143,8 @@ export function WriteEditor(props: {
   styleCheckNames: readonly string[];
   synopsisBody: string;
   marginComments: MarginCommentView[];
+  /** Author-named tip markers for the focused compare / restore strip. */
+  namedSnapshots: NamedSnapshotItem[];
   /** Status, protection, history and compare, rendered by the server below the text. */
   details: ReactNode;
 }) {
@@ -195,6 +198,10 @@ export function WriteEditor(props: {
   const [spellOpen, setSpellOpen] = useState(false);
   const [styleOpen, setStyleOpen] = useState(props.initialStyleRange !== null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [snapshotOpen, setSnapshotOpen] = useState(false);
+  const [snapshotPending, setSnapshotPending] = useState(false);
+  const [snapshotError, setSnapshotError] = useState<string | null>(null);
+  const [namedSnapshots, setNamedSnapshots] = useState(props.namedSnapshots);
   const [splitTitle, setSplitTitle] = useState("");
   const [splitError, setSplitError] = useState<string | null>(null);
   const [splitPending, setSplitPending] = useState(false);
@@ -251,18 +258,21 @@ export function WriteEditor(props: {
         : autosave.status === "error"
           ? WRITE.autosaveError
           : dirty
-            ? WRITE.unsaved
+            ? props.isProtected && !unlocked
+              ? `${WRITE.unsaved} · ${WRITE.protectedReadOnly}`
+              : WRITE.unsaved
             : autosave.status === "saved"
               ? WRITE.autosaved
               : WRITE.savedRevision(knownRevision);
   const statusTone =
-    pending || autosave.status === "saving" || autosave.status === "scheduled"
+    pending || autosave.status === "saving" || autosave.status === "scheduled" || snapshotPending
       ? "busy"
       : !state.ok || autosave.status === "error"
         ? "error"
         : dirty
           ? "dirty"
           : "saved";
+
 
   const unsavedKey = `editor-${props.recordId}`;
   const splitPeers = props.manuscriptSplitOptions.filter((o) => o.id !== props.recordId);
@@ -432,6 +442,62 @@ export function WriteEditor(props: {
     if (mode !== "focus") returnMode.current = mode;
     setWriteMode(mode);
   };
+
+  useEffect(() => {
+    if (snapshotPending) return;
+    setNamedSnapshots(props.namedSnapshots);
+  }, [props.namedSnapshots, snapshotPending]);
+
+  const openNotesPanel = () => {
+    updateLayout({ contextTab: "notes", contextHidden: false });
+    selectMode("companion");
+  };
+
+  const openSnapshotDialog = () => {
+    setSnapshotError(null);
+    setSnapshotOpen(true);
+  };
+
+  const takeSnapshot = async (label: string) => {
+    if (dirty && props.isProtected && !unlocked) {
+      setSnapshotError(WRITE.takeSnapshotProtected);
+      return;
+    }
+    setSnapshotPending(true);
+    setSnapshotError(null);
+    try {
+      const result = await takeNamedSnapshotAction(props.projectId, props.recordId, {
+        expectedRevision: knownRevision,
+        title,
+        body: text,
+        fields,
+        authorityStatus: props.authorityStatus,
+        unlockProtected: unlocked,
+        label,
+      });
+      if (!result.ok) {
+        setSnapshotError(result.issues?.map((i) => i.message).join(" ") || result.message || WRITE.notSaved);
+        return;
+      }
+      if (result.revision) {
+        setKnownRevision(result.revision);
+        setServerBaseline({ title, body: text, fields });
+      }
+      if (result.label && result.revision) {
+        setNamedSnapshots((prev) => {
+          const without = prev.filter((s) => s.revisionNumber !== result.revision);
+          return [{ revisionNumber: result.revision!, label: result.label! }, ...without].sort(
+            (a, b) => b.revisionNumber - a.revisionNumber,
+          );
+        });
+      }
+      setSnapshotOpen(false);
+      setLoadNote({ tone: "notice", text: result.message ?? WRITE.snapshotSaved });
+      router.refresh();
+    } finally {
+      setSnapshotPending(false);
+    }
+  };
   useLayoutEffect(() => {
     setWriteScreen(true);
     return () => setWriteScreen(false);
@@ -587,6 +653,16 @@ export function WriteEditor(props: {
                 <Button type="submit" disabled={pending} aria-keyshortcuts="Control+S" title={`${WRITE.save} (${shortcutHint("S")})`} size="sm">
                   {WRITE.save}
                 </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  disabled={pending || snapshotPending}
+                  onClick={openSnapshotDialog}
+                  title={WRITE.takeSnapshot}
+                >
+                  {WRITE.takeSnapshot}
+                </Button>
                 <IconAnchor tip="tip" href="#history" aria-label={WRITE.versionHistory}>
                   <HistoryIcon />
                 </IconAnchor>
@@ -624,6 +700,16 @@ export function WriteEditor(props: {
                       </a>
                     </li>
                     <li>
+                      <button type="button" className="menu-item" onClick={openSnapshotDialog}>
+                        {WRITE.takeSnapshot}
+                      </button>
+                    </li>
+                    <li>
+                      <a className="menu-item" href="#named-snapshots">
+                        {WRITE.openNamedSnapshots}
+                      </a>
+                    </li>
+                    <li>
                       <a className="menu-item" href="#history">
                         {RECORD.historyHeading}
                       </a>
@@ -631,6 +717,24 @@ export function WriteEditor(props: {
                     <li>
                       <a className="menu-item" href="#compare">
                         {RECORD.compareHeading}
+                      </a>
+                    </li>
+                    <li>
+                      <button type="button" className="menu-item" onClick={openNotesPanel}>
+                        {WRITE.openNotes}
+                      </button>
+                    </li>
+                    <li>
+                      <a className="menu-item" href="#margin-comments">
+                        {WRITE.openMarginComments}
+                      </a>
+                    </li>
+                    <li>
+                      <a
+                        className="menu-item"
+                        href={`/projects/${encodeURIComponent(props.projectId)}/write/replace`}
+                      >
+                        {MANUSCRIPT_SEARCH.replaceAcross}
                       </a>
                     </li>
                     <li>
@@ -1051,14 +1155,34 @@ export function WriteEditor(props: {
             </div>
           </form>
         </dialog>
+        <NamedSnapshotsStrip
+          projectId={props.projectId}
+          recordId={props.recordId}
+          currentRevision={knownRevision}
+          snapshots={namedSnapshots}
+          actions={
+            <Button type="button" size="sm" variant="secondary" disabled={pending || snapshotPending} onClick={openSnapshotDialog}>
+              {WRITE.takeSnapshot}
+            </Button>
+          }
+        />
         <ManuscriptSynopsisPanel projectId={props.projectId} recordId={props.recordId} initialBody={props.synopsisBody} />
         <MarginCommentsPanel
           projectId={props.projectId}
           recordId={props.recordId}
-          revision={props.revision}
+          revision={knownRevision}
           dirty={dirty}
           textareaRef={bodyRef}
           initialComments={props.marginComments}
+        />
+        <TakeSnapshotDialog
+          open={snapshotOpen}
+          onClose={() => {
+            if (!snapshotPending) setSnapshotOpen(false);
+          }}
+          onSubmit={takeSnapshot}
+          pending={snapshotPending}
+          error={snapshotError}
         />
         <div className="write-details">{props.details}</div>
       </div>

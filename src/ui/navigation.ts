@@ -1,4 +1,5 @@
 import type { RecordType } from "@/domain/recordTypes";
+import { pickFeaturedProject } from "@/ui/library";
 import type { WorldKindKey } from "@/world/referenceTemplates";
 import type { TaxonomyNavSummary } from "@/world/taxonomy";
 
@@ -95,6 +96,22 @@ export function groupForProjectPath(rest: readonly string[], recordType: (id: st
     return type ? groupOfType(type) : null;
   }
   return null;
+}
+
+/**
+ * Which manuscript Write, Weave, World, and Assistant should open.
+ * A project URL wins, including one the shell list has not refreshed yet.
+ * Otherwise the featured manuscript (last opened, else the first real book).
+ * An empty library returns null and those items stay unavailable.
+ */
+export function resolveNavProjectId(
+  pathname: string,
+  projects: readonly { id: string; workspaceId: string }[],
+  rememberedId: string | null,
+): string | null {
+  const pathProjectId = parseProjectPath(pathname)?.projectId ?? null;
+  if (pathProjectId) return pathProjectId;
+  return pickFeaturedProject(projects, rememberedId)?.id ?? null;
 }
 
 export function activeGlobalItem(pathname: string, recordType: (id: string) => RecordType | undefined): GlobalNavId | null {

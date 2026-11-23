@@ -5,6 +5,7 @@ import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { FileSearch, Layers, LayoutTemplate, Map, Plus } from "lucide-react";
 import { LandingHeader } from "@/components/library/LandingHeader";
 import { ProjectOnboarding } from "@/components/shell/ProjectOnboarding";
+import { WorkspaceToolsChooser } from "@/components/shell/WorkspaceToolsChooser";
 import { ChevronRightIcon, ListRowsIcon, SearchIcon } from "@/components/shell/icons";
 import { OverflowDisclosure } from "@/components/shell/OverflowDisclosure";
 import { Button, ButtonLink } from "@/components/ui/Atoms/Button";
@@ -189,6 +190,7 @@ export function WeaveLibrary({
             </p>
           </div>
           <StarterBeatSheets projectId={projectId} compact />
+          {grids.length === 0 ? <WorkspaceToolsChooser projectId={projectId} emphasize="weave" /> : null}
         </section>
 
         <PlanningReferences base={base} projectId={projectId} references={references} spellingLanguage={spellingLanguage} />

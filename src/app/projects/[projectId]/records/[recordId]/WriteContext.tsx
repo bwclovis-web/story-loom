@@ -33,7 +33,7 @@ import { RECORD_TYPE_LABELS, type RecordType } from "@/domain/recordTypes";
 import type { AuthorityStatus } from "@/domain/statuses";
 import { DevelopmentCues } from "@/components/world/CharacterDevelopment";
 import type { DevelopmentCue } from "@/domain/characterDevelopment";
-import { ASSISTANT, CHARACTER_DEVELOPMENT, CONTINUITY, DRAFT, RECORD, SERIES, WEAVE, WRITE } from "@/ui/labels";
+import { ASSISTANT, CHARACTER_DEVELOPMENT, CONTINUITY, DRAFT, MANUSCRIPT_ANNOTATIONS, RECORD, SERIES, WEAVE, WRITE } from "@/ui/labels";
 import { seriesBookLabel, seriesRecordHref } from "@/world/seriesHome";
 import {
   clearContinuitySuppressionAction,
@@ -1421,7 +1421,11 @@ function Notes({
   return (
     <div className="stack">
       <section aria-labelledby={`${idPrefix}-notes`}>
-        <h3 id={`${idPrefix}-notes`}>{WRITE.notesFor(recordTitle)}</h3>
+        <div className="named-snapshots-head">
+          <h3 id={`${idPrefix}-notes`}>{WRITE.notesFor(recordTitle)}</h3>
+          <span className="non-canon-badge">{MANUSCRIPT_ANNOTATIONS.nonCanonBadge}</span>
+        </div>
+        <p className="small muted">{WRITE.notesLead}</p>
         {notes.length === 0 ? (
           <p className="small muted">{WRITE.noNotes}</p>
         ) : (

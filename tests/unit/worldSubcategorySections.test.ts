@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import { writingContextPolicy } from "@/domain/characterWritingContext";
 import {
   emptyWorldProfile,
+  formatGlossedLines,
   formatWorldProfileFieldValue,
+  glossedLinesFromEditorRows,
   readWorldProfile,
   readWorldProfileFieldValue,
   WORLD_PROFILE_KEY,
@@ -73,6 +75,8 @@ describe("W5D subcategory sections and quantity fields", () => {
       "organizations:guilds",
       "religion:rituals",
       "languages:dialects",
+      "locations:buildings",
+      "locations:rooms",
     ]);
   });
 
@@ -131,6 +135,52 @@ describe("W5D subcategory sections and quantity fields", () => {
     expect(read.profile.values.exampleLines).toEqual(pairs);
     expect(read.profile.values.parentLanguage).toEqual({ recordId: "rec_parent" });
     expect(validateSubcategorySectionValues(read.profile)).toEqual([]);
+  });
+
+  it("keeps a literal pipe in a glossed history row and an optional place record id", () => {
+    const stored = glossedLinesFromEditorRows([
+      { line: "dock|side call", gloss: "tide | turns" },
+      { line: "Workshop door", gloss: "the adjoining workshop", recordId: " rec_shop " },
+    ]);
+    expect(stored).toEqual([
+      { line: "dock|side call", gloss: "tide | turns" },
+      { line: "Workshop door", gloss: "the adjoining workshop", recordId: "rec_shop" },
+    ]);
+    expect(readWorldProfileFieldValue(stored)).toEqual(stored);
+    expect(formatWorldProfileFieldValue(stored)).toBe(
+      "dock|side call — tide | turns; Workshop door — the adjoining workshop (rec_shop)",
+    );
+    expect(formatGlossedLines(stored ?? [], new Map([["rec_shop", "Copper Lane Workshop"]]))).toBe(
+      "dock|side call — tide | turns; Workshop door — the adjoining workshop (Copper Lane Workshop)",
+    );
+    expect(formatGlossedLines(stored ?? [], new Map())).toBe(
+      "dock|side call — tide | turns; Workshop door — the adjoining workshop",
+    );
+  });
+
+  it("adds building entrances and room doorways without copying location owners", () => {
+    const locations = getBuiltinWorldProfileDefinition("category:locations");
+    const owned = ["layout", "atmosphere", "access", "uses", "distinctiveFeatures"];
+    for (const key of owned) {
+      expect(locations?.fields.some((field) => field.key === key)).toBe(true);
+    }
+    const buildings = getSubcategorySection("locations:buildings");
+    const rooms = getSubcategorySection("locations:rooms");
+    expect(buildings?.fields.map((field) => field.key)).toEqual(["entrances"]);
+    expect(rooms?.fields.map((field) => field.key)).toEqual(["doorways", "sightlines"]);
+    for (const field of [...(buildings?.fields ?? []), ...(rooms?.fields ?? [])]) {
+      expect(owned).not.toContain(field.key);
+      expect(field.type).toBe("glossed_lines");
+      expect(field.continuity).toBe("descriptive");
+    }
+    expect(buildings?.fields[0]?.glossedConfig?.recordLabel).toBe("Place record id");
+    expect(rooms?.fields[0]?.glossedConfig?.recordLabel).toBe("Place record id");
+    expect(rooms?.fields[1]?.glossedConfig?.recordLabel).toBeUndefined();
+    expect(isDescriptiveSubcategoryField("entrances")).toBe(true);
+    expect(isDescriptiveSubcategoryField("doorways")).toBe(true);
+    expect(isDescriptiveSubcategoryField("sightlines")).toBe(true);
+    expect(isDescriptiveSubcategoryField("layout")).toBe(false);
+    expect(isDescriptiveSubcategoryField("access")).toBe(false);
   });
 
   it("reads an older profile without enabledSections as an empty list", () => {

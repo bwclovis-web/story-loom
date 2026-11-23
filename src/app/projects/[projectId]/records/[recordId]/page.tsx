@@ -316,6 +316,9 @@ export default async function RecordPage({
         styleCheckNames={styleCheckNameTerms(crossRefs)}
         synopsisBody={synopsis?.body ?? ""}
         marginComments={marginComments}
+        namedSnapshots={revisions
+          .filter((r) => r.label)
+          .map((r) => ({ revisionNumber: r.revisionNumber, label: r.label as string }))}
         details={
           <RecordDetails
             projectId={projectId}

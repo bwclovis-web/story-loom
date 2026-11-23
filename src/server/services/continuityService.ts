@@ -2,6 +2,24 @@ import { newId } from "@/domain/ids";
 import { errorIssue } from "@/domain/issues";
 import { isManuscriptType, isRecordType, RECORD_TYPE_LABELS } from "@/domain/recordTypes";
 import { isAuthorityStatus } from "@/domain/statuses";
+import type {
+  ContinuityCategory,
+  ContinuityItem,
+  ContinuityKind,
+  ContinuitySeverity,
+  ContinuitySuppressReason,
+} from "@/domain/storyHealth";
+
+export type {
+  ContinuityCategory,
+  ContinuityItem,
+  ContinuityKind,
+  ContinuitySeverity,
+  ContinuitySuppressReason,
+  StoryHealthStatus,
+  StoryHealthSummary,
+} from "@/domain/storyHealth";
+export { summarizeStoryHealth } from "@/domain/storyHealth";
 import { openQuestionsExcerpt } from "@/world/referenceInfobox";
 import { crossRefReport } from "@/writing/crossRefs";
 import { SERIES_REFERENCE_TYPES } from "@/server/services/seriesBibleService";
@@ -12,51 +30,6 @@ import { MutationRejectedError, NotFoundError } from "./errors";
 import { chapterEventSequence } from "./storyTimelineQuery";
 import { characterContinuityFindingsForProject } from "./characterWritingContextService";
 import { LIVE_PROJECT } from "./trashFilters";
-
-export type ContinuityKind =
-  | "unresolved"
-  | "open_question"
-  | "fact"
-  | "story_evidence"
-  | "comment"
-  | "review"
-  | "draft_in_canon"
-  | "missing_ref"
-  | "timeline_order"
-  | "timeline_cycle"
-  | "dangling_weave"
-  | "continuity_note"
-  | "character_state_conflict"
-  | "character_knowledge"
-  | "character_limitation"
-  | "forgotten_arc"
-  | "character_identity"
-  | "world_contradiction";
-
-export type ContinuityCategory = "bible" | "manuscript" | "timeline" | "weave" | "stale";
-export type ContinuitySeverity = "info" | "warn" | "error";
-export type ContinuitySuppressReason = "intentional" | "resolved" | "ignored";
-
-export interface ContinuityItem {
-  key: string;
-  kind: ContinuityKind;
-  title: string;
-  detail: string;
-  href: string;
-  category: ContinuityCategory;
-  severity: ContinuitySeverity;
-  recordId: string | null;
-  suppressed: boolean;
-  suppressReason: ContinuitySuppressReason | null;
-  evidence?: string;
-  applicableCanon?: string;
-  storyLocation?: string;
-  explanation?: string;
-  suggestion?: string;
-  /** Secondary link to the world record when kind is world_contradiction. */
-  worldHref?: string;
-  needsRecheck?: boolean;
-}
 
 function recordHref(projectId: string, recordId: string, find?: string): string {
   const base = `/projects/${encodeURIComponent(projectId)}/records/${encodeURIComponent(recordId)}`;

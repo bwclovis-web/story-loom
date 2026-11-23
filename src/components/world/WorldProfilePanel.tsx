@@ -9,15 +9,12 @@ import { TextField } from "@/components/ui/TextField";
 import type {
   WorldProfile,
   WorldProfileFieldValue,
-  WorldProfileGlossedLine,
   WorldProfileQuantity,
   WorldQuantityQualifier,
 } from "@/domain/worldProfile";
 import {
   emptyWorldProfile,
   formatWorldProfileFieldValue,
-  isWorldProfileGlossedLines,
-  parseGlossedLinesText,
   WORLD_QUANTITY_QUALIFIERS,
   worldFieldMetaOf,
 } from "@/domain/worldProfile";
@@ -34,6 +31,7 @@ import {
 } from "@/world/worldProfileRegistry";
 import type { PlaceRelationView } from "@/world/placeRelations";
 import { seriesBookLabel, type SeriesHomeRef } from "@/world/seriesHome";
+import { GlossedLinesEditor } from "@/components/world/GlossedLinesEditor";
 import {
   WorldProfileHistorySection,
   type WorldHistoryCatalog,
@@ -237,97 +235,6 @@ function QuantityFieldEditor({
   );
 }
 
-function glossedRows(value: WorldProfileFieldValue): WorldProfileGlossedLine[] {
-  if (isWorldProfileGlossedLines(value)) return value.map((item) => ({ line: item.line, gloss: item.gloss }));
-  if (typeof value === "string" && value.trim()) return parseGlossedLinesText(value);
-  return [];
-}
-
-function GlossedLinesEditor({
-  value,
-  disabled,
-  onChange,
-}: {
-  value: WorldProfileFieldValue;
-  disabled: boolean;
-  onChange: (next: WorldProfileFieldValue) => void;
-}) {
-  const rows = glossedRows(value);
-  const write = (next: WorldProfileGlossedLine[]) => {
-    onChange(next.length ? next : null);
-  };
-  const update = (index: number, partial: Partial<WorldProfileGlossedLine>) => {
-    write(rows.map((row, i) => (i === index ? { ...row, ...partial } : row)));
-  };
-  const move = (index: number, delta: number) => {
-    const target = index + delta;
-    if (target < 0 || target >= rows.length) return;
-    const next = [...rows];
-    const [item] = next.splice(index, 1);
-    next.splice(target, 0, item!);
-    write(next);
-  };
-
-  return (
-    <div className="stack" style={{ gap: "0.5rem" }}>
-      {rows.map((row, index) => (
-        <div key={index} className="stack" style={{ gap: "0.35rem" }}>
-          <label className="small">
-            {WORLD_PROFILE.exampleLine}
-            <input
-              type="text"
-              value={row.line}
-              disabled={disabled}
-              onChange={(event) => update(index, { line: event.target.value })}
-            />
-          </label>
-          <label className="small">
-            {WORLD_PROFILE.exampleGloss}
-            <input
-              type="text"
-              value={row.gloss}
-              disabled={disabled}
-              onChange={(event) => update(index, { gloss: event.target.value })}
-            />
-          </label>
-          <div className="row" style={{ flexWrap: "wrap", gap: "0.35rem" }}>
-            <Button type="button" variant="secondary" size="sm" disabled={disabled || index === 0} onClick={() => move(index, -1)}>
-              {WORLD_PROFILE.moveExampleUp}
-            </Button>
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              disabled={disabled || index === rows.length - 1}
-              onClick={() => move(index, 1)}
-            >
-              {WORLD_PROFILE.moveExampleDown}
-            </Button>
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              disabled={disabled}
-              onClick={() => write(rows.filter((_, i) => i !== index))}
-            >
-              {WORLD_PROFILE.removeExampleLine}
-            </Button>
-          </div>
-        </div>
-      ))}
-      <Button
-        type="button"
-        variant="secondary"
-        size="sm"
-        disabled={disabled}
-        onClick={() => write([...rows, { line: "", gloss: "" }])}
-      >
-        {WORLD_PROFILE.addExampleLine}
-      </Button>
-    </div>
-  );
-}
-
 function ProfileFieldRow({
   field,
   value,
@@ -363,7 +270,12 @@ function ProfileFieldRow({
           onChange={onValueChange}
         />
       ) : field.type === "glossed_lines" ? (
-        <GlossedLinesEditor value={value} disabled={!editable || pending} onChange={onValueChange} />
+        <GlossedLinesEditor
+          value={value}
+          disabled={!editable || pending}
+          config={field.glossedConfig}
+          onChange={onValueChange}
+        />
       ) : listLike ? (
         <textarea
           rows={field.type === "long_text" || field.multiline ? 3 : 2}

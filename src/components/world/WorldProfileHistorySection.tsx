@@ -15,10 +15,16 @@ import type {
   WorldFieldHistoryChange,
   WorldProfile,
   WorldProfileFieldValue,
+  WorldProfileGlossedLine,
   WorldProfileQuantity,
   WorldQuantityQualifier,
 } from "@/domain/worldProfile";
-import { formatWorldProfileFieldValue, parseGlossedLinesText, WORLD_QUANTITY_QUALIFIERS } from "@/domain/worldProfile";
+import {
+  formatWorldProfileFieldValue,
+  glossedLinesFromEditorRows,
+  isWorldProfileGlossedLines,
+  WORLD_QUANTITY_QUALIFIERS,
+} from "@/domain/worldProfile";
 import {
   appendWorldFieldChange,
   compareWorldFieldsAtPoints,
@@ -26,6 +32,7 @@ import {
   supersedeWorldFieldChange,
   type WorldHistoryBookOrder,
 } from "@/domain/worldProfileHistory";
+import { GlossedLinesEditor } from "@/components/world/GlossedLinesEditor";
 import { WORLD_PROFILE } from "@/ui/labels";
 import type { OrderEdge } from "@/world/storyOrder";
 import type { WorldProfileDefinition, WorldProfileFieldDef } from "@/world/worldProfileRegistry";
@@ -107,10 +114,6 @@ function parseHistoryValue(field: WorldProfileFieldDef | null, raw: string): Wor
       .map((line) => line.trim())
       .filter(Boolean)
       .slice(0, 64);
-  }
-  if (field.type === "glossed_lines") {
-    const lines = parseGlossedLinesText(raw);
-    return lines.length ? lines : null;
   }
   if (field.type === "record_ref") {
     const trimmed = raw.trim();
@@ -242,6 +245,8 @@ export function WorldProfileHistorySection({
   const [calendarLabel, setCalendarLabel] = useState("");
   const [correctingId, setCorrectingId] = useState<string | null>(null);
   const [correctionText, setCorrectionText] = useState("");
+  const [glossedDraft, setGlossedDraft] = useState<WorldProfileGlossedLine[]>([]);
+  const [glossedCorrection, setGlossedCorrection] = useState<WorldProfileGlossedLine[]>([]);
   const [correctionNote, setCorrectionNote] = useState("");
   const [localError, setLocalError] = useState<string | null>(null);
 
@@ -274,6 +279,10 @@ export function WorldProfileHistorySection({
 
   const selectedOption = fieldOptions.find((item) => item.path === fieldPath) ?? fieldOptions[0];
   const selectedFieldDef = findFieldDef(definition, enabledSectionIds, selectedOption?.path ?? fieldPath);
+  const correctingChange = profile.fieldHistory.find((change) => change.id === correctingId) ?? null;
+  const correctingField = correctingChange
+    ? findFieldDef(definition, enabledSectionIds, correctingChange.fieldPath)
+    : null;
 
   const addChange = () => {
     setLocalError(null);
@@ -287,7 +296,12 @@ export function WorldProfileHistorySection({
       definitionId: profile.definitionId,
       storage: selectedOption.storage,
       presence,
-      value: presence === "unknown" ? null : parseHistoryValue(selectedFieldDef, valueText),
+      value:
+        presence === "unknown"
+          ? null
+          : selectedFieldDef?.type === "glossed_lines"
+            ? glossedLinesFromEditorRows(glossedDraft)
+            : parseHistoryValue(selectedFieldDef, valueText),
       approval,
       planned,
       provenance: { origin: "author", note: "" },
@@ -305,6 +319,7 @@ export function WorldProfileHistorySection({
     if (calendarLabel.trim()) change.calendarLabel = calendarLabel.trim();
     onProfileChange(appendWorldFieldChange(profile, change));
     setValueText("");
+    setGlossedDraft([]);
     setNote("");
     setCalendarLabel("");
     setApproval("draft");
@@ -327,7 +342,10 @@ export function WorldProfileHistorySection({
         definitionId: prior.definitionId ?? profile.definitionId,
         storage: prior.storage,
         presence: "set",
-        value: parseHistoryValue(findFieldDef(definition, enabledSectionIds, prior.fieldPath), correctionText),
+        value:
+          correctingField?.type === "glossed_lines"
+            ? glossedLinesFromEditorRows(glossedCorrection)
+            : parseHistoryValue(correctingField, correctionText),
         approval: "draft",
         planned: false,
         provenance: { origin: "author", note: "" },
@@ -528,23 +546,30 @@ export function WorldProfileHistorySection({
               </select>
             </label>
             {presence === "set" ? (
-              <label>
-                {WORLD_PROFILE.changeValue}
-                {selectedFieldDef?.type === "glossed_lines" ||
-                selectedFieldDef?.type === "ordered_list" ||
-                selectedFieldDef?.type === "long_text" ? (
-                  <textarea
-                    rows={selectedFieldDef.type === "long_text" ? 3 : 4}
-                    value={valueText}
-                    placeholder={
-                      selectedFieldDef.type === "glossed_lines" ? WORLD_PROFILE.exampleLinesHistory : undefined
-                    }
-                    onChange={(event) => setValueText(event.target.value)}
+              selectedFieldDef?.type === "glossed_lines" ? (
+                <div className="stack" style={{ gap: "0.35rem" }}>
+                  <span className="small">{WORLD_PROFILE.changeValue}</span>
+                  <GlossedLinesEditor
+                    value={glossedDraft.length ? glossedDraft : null}
+                    disabled={pending}
+                    config={selectedFieldDef.glossedConfig}
+                    onChange={(next) => setGlossedDraft(isWorldProfileGlossedLines(next) ? next : [])}
                   />
-                ) : (
-                  <input value={valueText} onChange={(event) => setValueText(event.target.value)} />
-                )}
-              </label>
+                </div>
+              ) : (
+                <label>
+                  {WORLD_PROFILE.changeValue}
+                  {selectedFieldDef?.type === "ordered_list" || selectedFieldDef?.type === "long_text" ? (
+                    <textarea
+                      rows={selectedFieldDef.type === "long_text" ? 3 : 4}
+                      value={valueText}
+                      onChange={(event) => setValueText(event.target.value)}
+                    />
+                  ) : (
+                    <input value={valueText} onChange={(event) => setValueText(event.target.value)} />
+                  )}
+                </label>
+              )
             ) : null}
             <label>
               {WORLD_PROFILE.changeApproval}
@@ -592,7 +617,12 @@ export function WorldProfileHistorySection({
               {WORLD_PROFILE.priorChange}
               <select
                 value={correctingId ?? ""}
-                onChange={(event) => setCorrectingId(event.target.value || null)}
+                onChange={(event) => {
+                  const id = event.target.value || null;
+                  setCorrectingId(id);
+                  const prior = profile.fieldHistory.find((change) => change.id === id);
+                  setGlossedCorrection(prior && isWorldProfileGlossedLines(prior.value) ? prior.value.map((row) => ({ ...row })) : []);
+                }}
               >
                 <option value="">—</option>
                 {profile.fieldHistory
@@ -606,10 +636,22 @@ export function WorldProfileHistorySection({
                   ))}
               </select>
             </label>
-            <label>
-              {WORLD_PROFILE.changeValue}
-              <textarea rows={3} value={correctionText} onChange={(event) => setCorrectionText(event.target.value)} />
-            </label>
+            {correctingField?.type === "glossed_lines" ? (
+              <div className="stack" style={{ gap: "0.35rem" }}>
+                <span className="small">{WORLD_PROFILE.changeValue}</span>
+                <GlossedLinesEditor
+                  value={glossedCorrection.length ? glossedCorrection : null}
+                  disabled={pending}
+                  config={correctingField.glossedConfig}
+                  onChange={(next) => setGlossedCorrection(isWorldProfileGlossedLines(next) ? next : [])}
+                />
+              </div>
+            ) : (
+              <label>
+                {WORLD_PROFILE.changeValue}
+                <textarea rows={3} value={correctionText} onChange={(event) => setCorrectionText(event.target.value)} />
+              </label>
+            )}
             <label>
               {WORLD_PROFILE.correctionNote}
               <input value={correctionNote} onChange={(event) => setCorrectionNote(event.target.value)} />
