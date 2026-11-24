@@ -7,7 +7,7 @@ import { mapRanges } from "@/spelling/ranges";
 import type { SpellingLanguage } from "@/writing/spelling";
 
 /** Pause in typing before the text is checked again. */
-export const CHECK_DELAY_MS = 300;
+export const CHECK_DELAY_MS = 450;
 
 export type SpellcheckStatus = "off" | "loading" | "ready" | "error";
 

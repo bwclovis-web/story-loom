@@ -952,10 +952,10 @@ export function HelpContent() {
         <h3>Manuscript chapters and scenes</h3>
         <p>
           Chapters and scenes open on their own writing page, with a <L>{WRITE.save}</L> button instead of{" "}
-          <L>{RECORD.saveAsRevision("N")}</L>. Saving works the same way. See <See anchor="write" />. A chapter’s
-          main editor includes the text of the scenes nested under it, each one after the next scene break
-          (<L>---</L>, <L>***</L>, or <L>* * *</L>), in book order. That scene text is not saved into the chapter.
-          Edit a scene on its own page.
+          <L>{RECORD.saveAsRevision("N")}</L>. Saving works the same way. See <See anchor="write" />. On a chapter,
+          turn on <L>{WRITE.nestedScenes}</L> to show each scene’s text after the next scene break (<L>---</L>,{" "}
+          <L>***</L>, or <L>* * *</L>), in book order. Nested scene text is off by default so long chapters stay
+          quicker to edit, and it is never saved into the chapter. Edit a scene on its own page.
         </p>
       </Section>
 

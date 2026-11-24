@@ -28,6 +28,8 @@ describe("parseLayoutPreference writeMode", () => {
     expect(parsed.typewriterScroll).toBe(true);
     expect(parseLayoutPreference(JSON.stringify({ writeSplitRecordId: "  " })).writeSplitRecordId).toBeNull();
     expect(parseLayoutPreference(undefined).typewriterScroll).toBe(false);
+    expect(parseLayoutPreference(undefined).showNestedScenes).toBe(false);
+    expect(parseLayoutPreference(JSON.stringify({ showNestedScenes: true })).showNestedScenes).toBe(true);
   });
 });
 

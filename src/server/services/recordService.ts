@@ -199,6 +199,81 @@ export async function listRecords(db: DbOrTx, projectId: string): Promise<Record
   return rows.map(toRecordView);
 }
 
+/** Manuscript chapters, scenes, and scene notes for Write outline / corkboard / book order — not the whole project library. */
+export async function listManuscriptRecordsForWrite(
+  db: DbOrTx,
+  projectId: string,
+  options?: { draftId?: string | null; hasDrafts?: boolean },
+): Promise<
+  Array<{
+    id: string;
+    title: string;
+    type: RecordType;
+    body: string;
+    fields: JsonObject;
+    protected: boolean;
+    currentRevision: number;
+    authorityStatus: AuthorityStatus;
+    parentRecordId: string | null;
+  }>
+> {
+  const hasDrafts = options?.hasDrafts === true;
+  const draftId = options?.draftId ?? null;
+  const manuscriptTypes = ["manuscript_chapter", "manuscript_scene"] as const;
+  const where = hasDrafts
+    ? {
+        projectId,
+        trashedAt: null,
+        OR: [
+          { type: "scene_note" as const },
+          draftId
+            ? { type: { in: [...manuscriptTypes] }, draftId }
+            : { type: { in: [...manuscriptTypes] }, id: { in: [] as string[] } },
+        ],
+      }
+    : {
+        projectId,
+        trashedAt: null,
+        type: { in: [...manuscriptTypes, "scene_note"] },
+      };
+  const rows = await db.record.findMany({
+    where,
+    select: {
+      id: true,
+      title: true,
+      type: true,
+      body: true,
+      fields: true,
+      protected: true,
+      currentRevision: true,
+      authorityStatus: true,
+      parentRecordId: true,
+    },
+  });
+  return rows.flatMap((row) => {
+    if (!isRecordType(row.type) || !isAuthorityStatus(row.authorityStatus)) return [];
+    let fields: JsonObject = {};
+    try {
+      fields = parseJsonObject(row.fields);
+    } catch {
+      fields = {};
+    }
+    return [
+      {
+        id: row.id,
+        title: row.title,
+        type: row.type,
+        body: row.body,
+        fields,
+        protected: row.protected,
+        currentRevision: row.currentRevision,
+        authorityStatus: row.authorityStatus,
+        parentRecordId: row.parentRecordId,
+      },
+    ];
+  });
+}
+
 /** IDs, titles and types for navigation, without loading record text. All projects when no ID is given. */
 /**
  * Navigation records for a project (or all projects). When `hasDrafts` is true,

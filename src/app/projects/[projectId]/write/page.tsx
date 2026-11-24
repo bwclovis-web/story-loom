@@ -23,7 +23,7 @@ import { listProjectCoverHashes } from "@/server/services/coverService";
 import { listManuscriptDrafts } from "@/server/services/draftService";
 import { listSynopsesForRecords } from "@/server/services/manuscriptAnnotationService";
 import { findProject } from "@/server/services/projectService";
-import { listRecordNav, listRecords } from "@/server/services/recordService";
+import { listManuscriptRecordsForWrite, listRecordNav } from "@/server/services/recordService";
 import { countOpenReviewItems } from "@/server/services/reviewService";
 import { searchManuscript, type ManuscriptHit } from "@/server/services/searchService";
 import { listChapterWritingGoals } from "@/server/services/writingGoalService";
@@ -62,7 +62,7 @@ export default async function WritePage({
   const [nav, records, search, coverHashes, openReviewItems, progress, chapterGoals, continuityItems, primaryLocations] =
     await Promise.all([
       listRecordNav(db, projectId, { hasDrafts, draftId: activeDraftId }),
-      listRecords(db, projectId),
+      listManuscriptRecordsForWrite(db, projectId, { hasDrafts, draftId: activeDraftId }),
       q ? searchManuscript(db, { projectId, query: q, matchCase, hasDrafts, draftId: activeDraftId }) : null,
       listProjectCoverHashes(db, [projectId]),
       countOpenReviewItems(db, projectId),
@@ -152,9 +152,15 @@ export default async function WritePage({
       description={WRITE.landingLead}
       afterLead={
         <>
-          <WritingProgressStrip projectId={projectId} progress={progress} />
-          <StoryHealthSummary health={storyHealth} compact reviewHref={`${base}/continuity`} />
+          <WritingProgressStrip key="write-progress" projectId={projectId} progress={progress} />
+          <StoryHealthSummary
+            key="write-story-health"
+            health={storyHealth}
+            compact
+            reviewHref={`${base}/continuity`}
+          />
           <ContinueWriting
+            key="write-continue"
             projectId={projectId}
             items={outline.chapters.slice(0, 3).map((chapter) => ({
               id: chapter.id,
@@ -176,6 +182,7 @@ export default async function WritePage({
       headerActions={
         hasDrafts ? (
           <WriteDraftSwitcher
+            key="write-draft-switcher"
             projectId={projectId}
             drafts={drafts.map((draft) => ({
               id: draft.id,
@@ -189,27 +196,42 @@ export default async function WritePage({
       }
       overflow={
         <>
-          {showStart ? <StartAuthorRewriteButton projectId={projectId} /> : null}
+          {showStart ? <StartAuthorRewriteButton key="write-start-rewrite" projectId={projectId} /> : null}
           {authorDraft ? (
             <MarkRewriteCompleteButton
+              key="write-mark-rewrite"
               projectId={projectId}
               draftId={authorDraft.id}
               completed={!!authorDraft.completedAt}
             />
           ) : null}
-          <section className="outline-tool" aria-label={SHELL.bookOrder}>
+          <section key="write-book-order" className="outline-tool" aria-label={SHELL.bookOrder}>
             <h2>{SHELL.bookOrder}</h2>
             <BookOrder projectId={projectId} chapters={chapters} unplaced={unplaced} bookWords={bookWords} />
           </section>
-          <ProjectTools base={base} openReviewItems={openReviewItems} openContinuity={storyHealth.openCount} />
+          <ProjectTools
+            key="write-project-tools"
+            base={base}
+            openReviewItems={openReviewItems}
+            openContinuity={storyHealth.openCount}
+          />
         </>
       }
       results={
         search ? (
-          <SearchResults base={base} query={q} matchCase={matchCase} hits={search.hits} totalMatches={search.totalMatches} />
+          <SearchResults
+            key="write-search-results"
+            base={base}
+            query={q}
+            matchCase={matchCase}
+            hits={search.hits}
+            totalMatches={search.totalMatches}
+          />
         ) : null
       }
-      gettingStarted={<ProjectOnboarding projectId={projectId} quiet marked empty={empty} />}
+      gettingStarted={
+        <ProjectOnboarding key="write-getting-started" projectId={projectId} quiet marked empty={empty} />
+      }
     />
     </>
   );

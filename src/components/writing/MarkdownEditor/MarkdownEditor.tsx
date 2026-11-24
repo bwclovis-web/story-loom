@@ -322,6 +322,7 @@ export const MarkdownEditor = forwardRef<EditorSurface, MarkdownEditorProps>(fun
   useLayoutEffect(() => {
     const host = hostRef.current;
     if (!host) return;
+    let selectionRaf = 0;
 
     const state = EditorState.create({
       doc: initialDoc,
@@ -372,9 +373,15 @@ export const MarkdownEditor = forwardRef<EditorSurface, MarkdownEditorProps>(fun
           if (update.docChanged) onChangeRef.current?.(chapterWithoutScenes(update.state.doc.toString(), ranges));
           if (update.selectionSet || update.docChanged) {
             const sel = update.state.selection.main;
-            onSelectionRef.current?.({
+            const next = {
               start: docOffsetToChapter(sel.from, ranges),
               end: docOffsetToChapter(sel.to, ranges),
+            };
+            // Coalesce selection chatter while dragging so React work stays off the hot path.
+            if (selectionRaf) cancelAnimationFrame(selectionRaf);
+            selectionRaf = requestAnimationFrame(() => {
+              selectionRaf = 0;
+              onSelectionRef.current?.(next);
             });
           }
         }),
@@ -395,6 +402,7 @@ export const MarkdownEditor = forwardRef<EditorSurface, MarkdownEditorProps>(fun
     });
 
     return () => {
+      if (selectionRaf) cancelAnimationFrame(selectionRaf);
       view.destroy();
       viewRef.current = null;
       surfaceRef.current = null;

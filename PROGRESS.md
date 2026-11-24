@@ -1,5 +1,18 @@
 # Progress
 
+## Write performance (Nov 24, 2026)
+
+Lightens Write landing and chapter editing without changing saved manuscript text.
+
+- **Nested scenes:** Chapter editor leaves scene bodies out of the composed document by default (`showNestedScenes` layout cookie). Toggle **Nested scenes** when you want them inlined after breaks.
+- **Write landing:** Loads manuscript chapters/scenes/notes only (`listManuscriptRecordsForWrite`), not the full project library.
+- **Typing path:** Spellcheck delay 450ms; selection updates coalesced with `requestAnimationFrame`; codex suggest uses deferred cursor.
+- **Verify:** unit nestedSceneTail + manuscriptStructure; typecheck. Judge feel on production `pnpm build` + `pnpm start` (dev is slower). Working DB untouched.
+
+### Rollback
+
+Revert preferences/WriteEditor/MarkdownEditor/write page/recordService/labels/Help/PROGRESS.
+
 ## Extract selection as scene (Nov 24, 2026)
 
 Write can turn a selected chapter passage into a nested `manuscript_scene`.

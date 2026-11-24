@@ -942,6 +942,11 @@ export const WRITE = {
   splitDiffHint: "Word changes between this text and the chapter or scene beside it.",
   liveMarkdown: "Live Markdown",
   liveMarkdownCaption: "Hide markers outside the line you are editing. The saved text stays Markdown.",
+  nestedScenes: "Nested scenes",
+  nestedScenesHint:
+    "Show each scene’s text after its scene break in this chapter. Leave off for a lighter editor; open a scene to edit it.",
+  nestedScenesCount: (n: number) =>
+    n === 1 ? "1 nested scene is hidden" : `${n} nested scenes are hidden`,
   rawMarkdown: "Raw Markdown",
   scrivenings: "Scrivenings",
   scriveningsLead:

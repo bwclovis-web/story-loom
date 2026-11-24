@@ -113,6 +113,11 @@ export interface LayoutPreference {
   writeSplitRecordId: string | null;
   /** Keeps the cursor partway down the screen in focus layout. */
   typewriterScroll: boolean;
+  /**
+   * When true, a chapter editor nests each scene's prose after its scene break.
+   * Off by default so long chapters stay smaller and quicker to edit.
+   */
+  showNestedScenes: boolean;
 }
 
 export const DEFAULT_LAYOUT: LayoutPreference = {
@@ -124,6 +129,7 @@ export const DEFAULT_LAYOUT: LayoutPreference = {
   writeMode: "desk",
   writeSplitRecordId: null,
   typewriterScroll: false,
+  showNestedScenes: false,
 };
 
 export function clampWidth(value: number, limits: { min: number; max: number }): number {
@@ -152,5 +158,6 @@ export function parseLayoutPreference(value: string | undefined): LayoutPreferen
     writeMode: parseWriteMode(raw.writeMode),
     writeSplitRecordId: splitId,
     typewriterScroll: raw.typewriterScroll === true,
+    showNestedScenes: raw.showNestedScenes === true,
   };
 }

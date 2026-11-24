@@ -161,6 +161,7 @@ export function WriteEditor(props: {
   const styleId = `${idPrefix}-style`;
   const router = useRouter();
   const { layout, updateLayout, writeMode, setWriteMode, setWriteScreen, openMainMenu } = useLayout();
+  const showNestedScenes = layout.showNestedScenes;
   const chromeRef = useRef<HTMLElement>(null);
   const topbarRef = useRef<HTMLDivElement>(null);
   const insetRef = useRef<HTMLDivElement>(null);
@@ -178,9 +179,10 @@ export function WriteEditor(props: {
   // The text box reports line endings as "\n"; keep offsets in the same terms.
   const savedText = normalizeNewlines(props.body);
   const [sceneList, setSceneList] = useState(props.scenes ?? []);
+  const nestedScenesForEditor = props.kind === "chapter" && showNestedScenes ? sceneList : [];
   const composedChapter = useMemo(
-    () => composeChapterWithScenes(savedText, props.kind === "chapter" ? sceneList : []),
-    [savedText, props.kind, sceneList],
+    () => composeChapterWithScenes(savedText, nestedScenesForEditor),
+    [savedText, nestedScenesForEditor],
   );
   const [text, setText] = useState(savedText);
   const [title, setTitle] = useState(props.title);
@@ -233,6 +235,7 @@ export function WriteEditor(props: {
   const overlayFlags = useMemo(() => (appUnderlines ? flagsFor(overlayText) : []), [appUnderlines, flagsFor, overlayText]);
   const readAloud = useReadAloud(selection.start !== selection.end ? text.slice(selection.start, selection.end) : text);
   const selectionText = selection.start !== selection.end ? text.slice(selection.start, selection.end) : "";
+  const deferredSelection = useDeferredValue(selection);
 
   if (unlockedRevision !== props.revision) {
     setUnlockedRevision(props.revision);
@@ -918,6 +921,19 @@ export function WriteEditor(props: {
                     if (on) setEditorChrome("raw");
                   }}
                 />
+                {props.kind === "chapter" && sceneList.length > 0 ? (
+                  <LabeledSwitch
+                    label={WRITE.nestedScenes}
+                    hint={WRITE.nestedScenesHint}
+                    checked={showNestedScenes}
+                    onCheckedChange={(on) => {
+                      updateLayout({ showNestedScenes: on });
+                      const body = bodyRef.current;
+                      const nextScenes = on ? sceneList : [];
+                      if (body?.setComposedChapter) body.setComposedChapter(text, nextScenes);
+                    }}
+                  />
+                ) : null}
                 <WriteModeSwitch mode={writeMode} onChange={selectMode} />
               </div>
             </div>
@@ -1063,6 +1079,11 @@ export function WriteEditor(props: {
                 }}
               />
             </span>
+            {props.kind === "chapter" && sceneList.length > 0 && !showNestedScenes ? (
+              <p className="small muted" style={{ marginTop: "0.35rem" }}>
+                {WRITE.nestedScenesCount(sceneList.length)}
+              </p>
+            ) : null}
             <div className="row wrap" style={{ marginTop: "0.5rem", gap: "0.5rem", alignItems: "center" }}>
               <CreateReferenceFromSelection
                 projectId={props.projectId}
@@ -1093,7 +1114,7 @@ export function WriteEditor(props: {
             <CodexSuggestBox
               entries={props.codexEntries.filter((entry) => entry.id !== props.recordId)}
               text={text}
-              cursor={selection.start}
+              cursor={deferredSelection.start}
               onApply={(next) => {
                 const body = bodyRef.current;
                 if (!body) return;
@@ -1277,8 +1298,9 @@ export function WriteEditor(props: {
                   protected: true,
                 });
                 setSceneList(nextScenes);
-                if (body.setComposedChapter) body.setComposedChapter(chapterBody, nextScenes);
-                else body.value = chapterBody;
+                if (body.setComposedChapter) {
+                  body.setComposedChapter(chapterBody, showNestedScenes ? nextScenes : []);
+                } else body.value = chapterBody;
                 setText(chapterBody);
                 setKnownRevision(result.revision);
                 setServerBaseline((prev) => ({ ...prev, body: chapterBody }));

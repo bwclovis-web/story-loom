@@ -43,7 +43,7 @@ export function LandingHeader({
         <p className="outline-eyebrow">{eyebrow}</p>
         <h1 className="capitalize">{title}</h1>
         {description ? <p className="landing-lead">{description}</p> : null}
-        {gettingStarted}
+        {gettingStarted != null ? <div className="landing-getting-started">{gettingStarted}</div> : null}
       </div>
       {actions ? <div className="landing-header-actions-slot">{actions}</div> : null}
     </header>
