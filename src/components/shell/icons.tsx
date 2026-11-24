@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { Children, cloneElement, isValidElement, type ReactElement, type ReactNode } from "react";
 
 function Icon({ children }: { children: ReactNode }) {
   return (
@@ -15,7 +15,11 @@ function Icon({ children }: { children: ReactNode }) {
       aria-hidden="true"
       focusable="false"
     >
-      {children}
+      {Children.map(children, (child, index) =>
+        isValidElement(child)
+          ? cloneElement(child as ReactElement, { key: child.key ?? `icon-${index}` })
+          : child,
+      )}
     </svg>
   );
 }
