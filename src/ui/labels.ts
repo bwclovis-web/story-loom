@@ -2565,7 +2565,7 @@ export const WORLD = {
   chooseMap: "Map",
   noMarkerForPlace: "No marker for this place.",
   openDetailedMap: "Open detailed map",
-  mapDrillIn: "Drill in",
+  mapDrillIn: "Zoom In",
   mapLinkDetailMap: "Link detail map",
   targetMapUnavailable: "That detailed map is not available.",
   saveMarker: "Save marker",
