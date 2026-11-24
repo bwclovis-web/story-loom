@@ -1,5 +1,19 @@
 # Progress
 
+## World calendar extensions (Nov 24, 2026)
+
+Extends the project calendar beyond fixed months and forward eras.
+
+- **Schema:** Additive migration `20261124120000_world_calendar_extensions` — leap rules and week start on `WorldCalendar`; `countsDown` on eras; weekday / intercalary / festival child tables; `structIntercalaryPosition` on story events.
+- **Math:** Custom week names/lengths; intercalary periods with always / leap-only / non-leap-only; O(1) leap and weekday indexing; festival spans overlay months without adding days; countdown eras (`N BF` before epoch).
+- **UI / Help:** Calendar form sections for weeks, leap rules, intercalary days, festivals, countdown eras; timeline slot picker for month or intercalary; festival labels on events.
+- **Backups:** Additive optional fields on workspace backup v1; older backups restore without the new rows.
+- **Verify:** unit `calendar-date` + acceptance `world-calendar`; then `pnpm test`, `pnpm build`, `pnpm typecheck`. Working DB: `pnpm db:deploy` only.
+
+### Rollback
+
+Revert schema/migration/services/UI/Help/tests/PROGRESS on a disposable copy after confirming backups. Existing month+era calendars remain valid when new fields are empty.
+
 ## Weave framework library + planning UI (Nov 23, 2026)
 
 Completes beat-sheet-first planning UI and the curated framework catalog.
@@ -201,6 +215,39 @@ Author-triggered, story-point-scoped comparison of manuscript passages against a
 ### Rollback
 
 Revert domain/service/Prisma migration/backup/continuity/Write/Help/PROGRESS for this milestone. Drop `WorldContradictionCheck` only after confirming no needed review rows in backups.
+
+## W5D — Optional Subcategory Sections (Custom in practice) (Nov 24, 2026)
+
+Extends the optional-section registry to Cultures → Customs as **Custom in practice**. Taxonomy suggests the section; the author enables it on a culture overview or on one named custom. Hiding keeps values. `definitionId` stays sticky.
+
+- **Reused:** Cultures profile fields Customs (overview), Etiquette, Social structures, and Regional variation. Religion → Rituals for an ordered ceremony.
+- **Added:** `occasion`, `expectedConduct`, and `breachReading` (long text). All three are descriptive — a character may break, misunderstand, or omit a custom without that alone becoming a continuity finding or establishing intent. Observer readings may disagree.
+- **History / export:** Dated expected conduct follows existing story-point rules. Overview Customs is not copied onto the optional section.
+- **Tests:** `tests/unit/worldSubcategorySections.test.ts`, `tests/acceptance/world-subcategory-sections-w5j.test.ts`.
+
+Revert the customs registry entry, heading map, Help sentence, and this note.
+
+## W5D — Optional Subcategory Sections (Route and service) (Nov 23, 2026)
+
+Extends the optional-section registry to Technology → Transportation as **Route and service**. Taxonomy suggests the section; the author enables it on a train, ferry, coach, or other service. A station may keep a Locations profile when Transportation is only secondary. Hiding keeps values. `definitionId` stays sticky.
+
+- **Reused:** Technology profile fields Purpose, Operating requirements, Availability, and Limitations. `glossed_lines` with optional Place `recordId` for stops (same shape as Buildings/Rooms). Quantity with unit + qualifier for end-to-end journey time.
+- **Added:** `routeStops` (ordered stops; repeats allowed for loops; plain-text or linked place), `typicalJourneyTime` (blank = unknown; no per-leg invention), `servicePattern` (short descriptive text; author guidance, not a timetable).
+- **History / export:** Dated journey times follow existing story-point rules. Stops keep author order in Markdown. Linked stop titles resolve when the place is in the export set; `Record.id` is preserved on the service record.
+- **Tests:** `tests/unit/worldSubcategorySections.test.ts`, `tests/acceptance/world-subcategory-sections-w5i.test.ts`.
+
+Revert the transportation registry entry, heading map, Help sentence, and this note.
+
+## W5D — Optional Subcategory Sections (Objects Documents) (Nov 23, 2026)
+
+Extends the optional-section registry to Objects → Documents. Taxonomy suggests Documents; the author enables the section. Hiding keeps values. `definitionId` stays sticky.
+
+- **Reused:** Objects profile fields Origin, Current holder (`keeper`), Appearance (seals, signatures, alterations), Ownership, and Significance. Built-in `object` kind flats stay in Details.
+- **Added:** Documents `issuedBy`, `issuedTo` (short text names; no World record required), and `documentSays` (long text). `documentSays` is descriptive — an approved value establishes what the document claims; establishing that the described event happened needs separate evidence under existing canon rules.
+- **History / export:** Dated document text and a later established count (for example Significance) follow the existing story-point rules. Drafting and exports keep the document’s language attributed, including when a historical value is selected. Origin, keeper, appearance, ownership, and significance are not copied onto the optional section.
+- **Tests:** `tests/unit/worldSubcategorySections.test.ts`, `tests/acceptance/world-subcategory-sections-w5h.test.ts`.
+
+Revert the documents registry entry, heading map, Help sentence, and this note.
 
 ## W5D — Optional Subcategory Sections (Magic Workings) (Nov 23, 2026)
 

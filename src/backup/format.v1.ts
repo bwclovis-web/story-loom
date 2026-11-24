@@ -327,6 +327,11 @@ export const workspaceBackupV1Schema = z
             projectId: id,
             title: z.string().max(120).optional(),
             revision: z.number().int().min(0).optional(),
+            leapEveryYears: z.number().int().min(1).max(10_000).optional(),
+            leapSkipYears: z.number().int().min(1).max(10_000).optional(),
+            leapIncludeYears: z.number().int().min(1).max(10_000).optional(),
+            leapOffset: z.number().int().optional(),
+            weekStartOffset: z.number().int().min(0).max(30).optional(),
             months: z.array(
               z
                 .object({
@@ -347,6 +352,50 @@ export const workspaceBackupV1Schema = z
                     name: z.string().min(1).max(80),
                     shortLabel: z.string().max(20).optional(),
                     yearOffset: z.number().int().optional(),
+                    countsDown: z.boolean().optional(),
+                    createdAt: timestamp,
+                  })
+                  .strict(),
+              )
+              .optional(),
+            weekdays: z
+              .array(
+                z
+                  .object({
+                    id,
+                    position: z.number().int().min(1).max(31),
+                    name: z.string().min(1).max(80),
+                    createdAt: timestamp,
+                  })
+                  .strict(),
+              )
+              .optional(),
+            intercalaries: z
+              .array(
+                z
+                  .object({
+                    id,
+                    position: z.number().int().min(1).max(24),
+                    name: z.string().min(1).max(80),
+                    days: z.number().int().min(1).max(30),
+                    afterMonthPosition: z.number().int().min(0).max(24),
+                    leapMode: z.enum(["always", "leap_only", "non_leap_only"]).optional(),
+                    createdAt: timestamp,
+                  })
+                  .strict(),
+              )
+              .optional(),
+            festivals: z
+              .array(
+                z
+                  .object({
+                    id,
+                    position: z.number().int().min(1).max(32),
+                    name: z.string().min(1).max(80),
+                    startMonthPosition: z.number().int().min(1).max(24),
+                    startDay: z.number().int().min(1).max(100),
+                    endMonthPosition: z.number().int().min(1).max(24),
+                    endDay: z.number().int().min(1).max(100),
                     createdAt: timestamp,
                   })
                   .strict(),
@@ -721,6 +770,7 @@ export const workspaceBackupV1Schema = z
             structEraId: id.optional(),
             structYear: z.number().int().min(1).max(999_999).optional(),
             structMonthPosition: z.number().int().min(1).max(24).optional(),
+            structIntercalaryPosition: z.number().int().min(1).max(24).optional(),
             structDay: z.number().int().min(1).max(100).optional(),
             createdAt: timestamp,
             updatedAt: timestamp,

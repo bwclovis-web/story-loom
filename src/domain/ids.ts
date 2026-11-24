@@ -44,6 +44,9 @@ export type IdPrefix =
   | "wmh" // world profile migration hold
   | "wcmo" // world calendar month
   | "wcra" // world calendar era
+  | "wcwk" // world calendar weekday
+  | "wcin" // world calendar intercalary period
+  | "wcfv" // world calendar festival span
   | "wvg" // weave grid
   | "wvb" // weave beat
   | "wth" // weave story thread (plot-grid column)

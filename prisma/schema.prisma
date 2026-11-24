@@ -95,6 +95,9 @@ model Project {
   worldCalendar          WorldCalendar?
   worldCalendarMonths    WorldCalendarMonth[]
   worldCalendarEras      WorldCalendarEra[]
+  worldCalendarWeekdays  WorldCalendarWeekday[]
+  worldCalendarIntercalaries WorldCalendarIntercalary[]
+  worldCalendarFestivals WorldCalendarFestival[]
   worldKindTemplates       WorldKindTemplate[]
   worldCategoryDefinitions WorldCategoryDefinition[]
   continuitySuppressions   ContinuitySuppression[]
@@ -795,18 +798,32 @@ model SceneLocation {
   @@index([locationRecordId])
 }
 
-/// Author-defined in-world calendar for a project. Months, day counts, and eras.
+/// Author-defined in-world calendar for a project. Months, day counts, eras,
+/// optional weekdays, intercalary periods, leap rules, and festival spans.
 /// Not manuscript content. Optional structured dates on story events refer here.
 model WorldCalendar {
-  id        String   @id
-  projectId String   @unique
-  project   Project  @relation(fields: [projectId], references: [id])
-  title     String   @default("")
-  revision  Int      @default(0)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  months    WorldCalendarMonth[]
-  eras      WorldCalendarEra[]
+  id              String   @id
+  projectId       String   @unique
+  project         Project  @relation(fields: [projectId], references: [id])
+  title           String   @default("")
+  revision        Int      @default(0)
+  /// Leap every N absolute years when set (null = no leap years).
+  leapEveryYears  Int?
+  /// Skip leap years every M years when set (Gregorian-style century skip).
+  leapSkipYears   Int?
+  /// Restore leap years every R years when skip is set (Gregorian-style 400).
+  leapIncludeYears Int?
+  /// Absolute year used as leap-cycle origin (default 0).
+  leapOffset      Int      @default(0)
+  /// Weekday index (0-based) for absolute year 1, day 0.
+  weekStartOffset Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  months          WorldCalendarMonth[]
+  eras            WorldCalendarEra[]
+  weekdays        WorldCalendarWeekday[]
+  intercalaries   WorldCalendarIntercalary[]
+  festivals       WorldCalendarFestival[]
 }
 
 model WorldCalendarMonth {
@@ -825,6 +842,7 @@ model WorldCalendarMonth {
 }
 
 /// Era labels with optional short form. yearOffset is the absolute year when era year 1 begins.
+/// countsDown eras number years toward the epoch (year 1 is the year before yearOffset+1).
 model WorldCalendarEra {
   id         String        @id
   calendarId String
@@ -835,8 +853,62 @@ model WorldCalendarEra {
   name       String
   shortLabel String        @default("")
   yearOffset Int           @default(0)
+  countsDown Boolean       @default(false)
   createdAt  DateTime      @default(now())
   storyEvents StoryEvent[]
+
+  @@unique([calendarId, position])
+  @@index([projectId])
+}
+
+/// Named weekdays for the project calendar. Empty means weekdays are unused.
+model WorldCalendarWeekday {
+  id         String        @id
+  calendarId String
+  calendar   WorldCalendar @relation(fields: [calendarId], references: [id])
+  projectId  String
+  project    Project       @relation(fields: [projectId], references: [id])
+  position   Int
+  name       String
+  createdAt  DateTime      @default(now())
+
+  @@unique([calendarId, position])
+  @@index([projectId])
+}
+
+/// Named days outside months. afterMonthPosition 0 = before first month.
+/// leapMode: always | leap_only | non_leap_only.
+model WorldCalendarIntercalary {
+  id                 String        @id
+  calendarId         String
+  calendar           WorldCalendar @relation(fields: [calendarId], references: [id])
+  projectId          String
+  project            Project       @relation(fields: [projectId], references: [id])
+  position           Int
+  name               String
+  days               Int
+  afterMonthPosition Int
+  leapMode           String        @default("always")
+  createdAt          DateTime      @default(now())
+
+  @@unique([calendarId, position])
+  @@index([projectId])
+}
+
+/// Named festival spans that overlay months without adding days.
+model WorldCalendarFestival {
+  id                 String        @id
+  calendarId         String
+  calendar           WorldCalendar @relation(fields: [calendarId], references: [id])
+  projectId          String
+  project            Project       @relation(fields: [projectId], references: [id])
+  position           Int
+  name               String
+  startMonthPosition Int
+  startDay           Int
+  endMonthPosition   Int
+  endDay             Int
+  createdAt          DateTime      @default(now())
 
   @@unique([calendarId, position])
   @@index([projectId])
@@ -858,11 +930,13 @@ model StoryEvent {
   /// all | unscoped | a manuscript draft id
   draftScope String   @default("all")
   /// Optional structured in-world date (all parts optional; compare only when complete).
-  structEraId          String?
-  structEra            WorldCalendarEra? @relation(fields: [structEraId], references: [id])
-  structYear           Int?
-  structMonthPosition  Int?
-  structDay            Int?
+  structEraId               String?
+  structEra                 WorldCalendarEra? @relation(fields: [structEraId], references: [id])
+  structYear                Int?
+  structMonthPosition       Int?
+  /// Mutually exclusive with structMonthPosition: day within an intercalary period.
+  structIntercalaryPosition Int?
+  structDay                 Int?
   revision   Int      @default(0)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt

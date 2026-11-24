@@ -78,6 +78,9 @@ describe("W5D subcategory sections and quantity fields", () => {
       "locations:buildings",
       "locations:rooms",
       "magic:workings",
+      "objects:documents",
+      "technology:transportation",
+      "cultures:customs",
     ]);
   });
 
@@ -211,6 +214,149 @@ describe("W5D subcategory sections and quantity fields", () => {
         primary: { category: "magic", subcategory: "workings" },
       }).map((section) => section.id),
     ).toEqual(["magic:workings"]);
+  });
+
+  it("adds document issuer fields without copying origin, keeper, appearance, ownership, or significance", () => {
+    const objects = getBuiltinWorldProfileDefinition("category:objects");
+    const owned = ["origin", "keeper", "appearance", "ownership", "significance", "function"];
+    for (const key of owned) {
+      expect(objects?.fields.some((field) => field.key === key)).toBe(true);
+    }
+    const documents = getSubcategorySection("objects:documents");
+    expect(documents?.fields.map((field) => field.key)).toEqual([
+      "issuedBy",
+      "issuedTo",
+      "documentSays",
+    ]);
+    for (const field of documents?.fields ?? []) {
+      expect(owned).not.toContain(field.key);
+      expect(field.storage).toBe("profile");
+    }
+    expect(documents?.fields.find((field) => field.key === "issuedBy")?.type).toBe("short_text");
+    expect(documents?.fields.find((field) => field.key === "issuedTo")?.type).toBe("short_text");
+    expect(documents?.fields.find((field) => field.key === "documentSays")).toMatchObject({
+      type: "long_text",
+      continuity: "descriptive",
+    });
+    expect(isDescriptiveSubcategoryField("documentSays")).toBe(true);
+    expect(isDescriptiveSubcategoryField("issuedBy")).toBe(false);
+    expect(isDescriptiveSubcategoryField("issuedTo")).toBe(false);
+    expect(isDescriptiveSubcategoryField("appearance")).toBe(false);
+    expect(isDescriptiveSubcategoryField("keeper")).toBe(false);
+    expect(
+      listSubcategorySectionsForTaxonomy({
+        primary: { category: "objects", subcategory: "documents" },
+      }).map((section) => section.id),
+    ).toEqual(["objects:documents"]);
+  });
+
+  it("adds route and service fields without copying technology owners", () => {
+    const technology = getBuiltinWorldProfileDefinition("category:technology");
+    const owned = ["purpose", "operatingRequirements", "availability", "limitations"];
+    for (const key of owned) {
+      expect(technology?.fields.some((field) => field.key === key)).toBe(true);
+    }
+    const route = getSubcategorySection("technology:transportation");
+    expect(route?.label).toBe("Route and service");
+    expect(route?.fields.map((field) => field.key)).toEqual([
+      "routeStops",
+      "typicalJourneyTime",
+      "servicePattern",
+    ]);
+    for (const field of route?.fields ?? []) {
+      expect(owned).not.toContain(field.key);
+      expect(field.storage).toBe("profile");
+    }
+    expect(route?.fields.find((field) => field.key === "routeStops")).toMatchObject({
+      type: "glossed_lines",
+    });
+    expect(route?.fields.find((field) => field.key === "routeStops")?.glossedConfig?.recordLabel).toBe(
+      "Place record id",
+    );
+    expect(route?.fields.find((field) => field.key === "typicalJourneyTime")).toMatchObject({
+      type: "quantity",
+    });
+    expect(route?.fields.find((field) => field.key === "typicalJourneyTime")?.quantityConfig).toMatchObject({
+      allowUnit: true,
+      allowQualifiers: true,
+    });
+    expect(route?.fields.find((field) => field.key === "servicePattern")).toMatchObject({
+      type: "short_text",
+      continuity: "descriptive",
+    });
+    expect(isDescriptiveSubcategoryField("servicePattern")).toBe(true);
+    expect(isDescriptiveSubcategoryField("routeStops")).toBe(false);
+    expect(isDescriptiveSubcategoryField("typicalJourneyTime")).toBe(false);
+    expect(isDescriptiveSubcategoryField("purpose")).toBe(false);
+    expect(
+      listSubcategorySectionsForTaxonomy({
+        primary: { category: "technology", subcategory: "transportation" },
+      }).map((section) => section.id),
+    ).toEqual(["technology:transportation"]);
+    expect(
+      listSubcategorySectionsForTaxonomy({
+        primary: { category: "locations", subcategory: "buildings" },
+        secondary: [{ category: "technology", subcategory: "transportation" }],
+      }).map((section) => section.id),
+    ).toEqual(["locations:buildings", "technology:transportation"]);
+  });
+
+  it("adds custom-in-practice fields without copying customs overview or etiquette owners", () => {
+    const cultures = getBuiltinWorldProfileDefinition("category:cultures");
+    const owned = ["customs", "etiquette", "socialStructures", "regionalVariation", "values"];
+    for (const key of owned) {
+      expect(cultures?.fields.some((field) => field.key === key)).toBe(true);
+    }
+    const custom = getSubcategorySection("cultures:customs");
+    expect(custom?.label).toBe("Custom in practice");
+    expect(custom?.fields.map((field) => field.key)).toEqual([
+      "occasion",
+      "expectedConduct",
+      "breachReading",
+    ]);
+    for (const field of custom?.fields ?? []) {
+      expect(owned).not.toContain(field.key);
+      expect(field.type).toBe("long_text");
+      expect(field.continuity).toBe("descriptive");
+    }
+    expect(isDescriptiveSubcategoryField("occasion")).toBe(true);
+    expect(isDescriptiveSubcategoryField("expectedConduct")).toBe(true);
+    expect(isDescriptiveSubcategoryField("breachReading")).toBe(true);
+    expect(isDescriptiveSubcategoryField("customs")).toBe(false);
+    expect(isDescriptiveSubcategoryField("etiquette")).toBe(false);
+    expect(isDescriptiveSubcategoryField("regionalVariation")).toBe(false);
+    expect(
+      listSubcategorySectionsForTaxonomy({
+        primary: { category: "cultures", subcategory: "customs" },
+      }).map((section) => section.id),
+    ).toEqual(["cultures:customs"]);
+    expect(getSubcategorySection("religion:rituals")?.fields.some((field) => field.key === "ritualSteps")).toBe(
+      true,
+    );
+  });
+
+  it("keeps a loop stop and a plain-text stop through glossed read and format", () => {
+    const stops = [
+      { line: "Harbor Gate", gloss: "", recordId: "rec_harbor" },
+      { line: "Cliff Path Halt", gloss: "" },
+      { line: "Harbor Gate", gloss: "", recordId: "rec_harbor" },
+    ];
+    expect(readWorldProfileFieldValue(stops)).toEqual(stops);
+    expect(formatGlossedLines(stops, new Map([["rec_harbor", "Harbor Gate Station"]]))).toBe(
+      "Harbor Gate — Harbor Gate Station; Cliff Path Halt; Harbor Gate — Harbor Gate Station",
+    );
+    const profile: WorldProfile = {
+      ...emptyWorldProfile(),
+      definitionId: "category:technology",
+      enabledSections: ["technology:transportation"],
+      values: {
+        routeStops: stops,
+        typicalJourneyTime: { amount: 90, unit: "minutes", qualifier: "about" },
+        servicePattern: "twice on market mornings",
+      },
+    };
+    expect(formatWorldProfileFieldValue(profile.values.typicalJourneyTime!)).toBe("about 90 minutes");
+    expect(validateSubcategorySectionValues(profile)).toEqual([]);
   });
 
   it("reads an older profile without enabledSections as an empty list", () => {

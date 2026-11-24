@@ -2,8 +2,7 @@ import {
   compareStructuredDates,
   structuredDateFromRow,
   structuredDateIsComplete,
-  type CalendarEraDef,
-  type CalendarMonthDef,
+  type CalendarDefs,
   type StructuredDateParts,
 } from "./calendarDate";
 
@@ -23,12 +22,12 @@ export function dateConflictWarningsForEvent(
     structEraId: string | null;
     structYear: number | null;
     structMonthPosition: number | null;
+    structIntercalaryPosition?: number | null;
     structDay: number | null;
   }[],
-  months: readonly CalendarMonthDef[],
-  eras: readonly CalendarEraDef[],
+  defs: CalendarDefs,
 ): DateConflictWarning[] {
-  if (!structuredDateIsComplete(parts, months, eras)) return [];
+  if (!structuredDateIsComplete(parts, defs)) return [];
   const byId = new Map(
     peers.map((peer) => [
       peer.id,
@@ -48,7 +47,7 @@ export function dateConflictWarningsForEvent(
     } else continue;
     const other = byId.get(otherId);
     if (!other) continue;
-    const cmp = compareStructuredDates(parts, other.parts, months, eras);
+    const cmp = compareStructuredDates(parts, other.parts, defs);
     if (cmp == null) continue;
     if (thisMustBeEarlier && cmp > 0) {
       out.push({

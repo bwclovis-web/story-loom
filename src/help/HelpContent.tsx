@@ -2251,13 +2251,15 @@ export function HelpContent() {
 
         <Sub id="world-calendar">
           <p>
-            <L>{WORLD.worldCalendar}</L> on <L>{SHELL.world}</L> holds one calendar per project: month names, how many days
-            each month has, and optional eras with an abbreviation and a year offset for comparing dates across eras.{" "}
-            <L>{WORLD.worldCalendarAddMonth}</L> and <L>{WORLD.worldCalendarAddEra}</L> append a blank row (up to 24
-            months and 32 eras). A row with no name is left out of the save. <L>{WORLD.worldCalendarRemoveMonth}</L> and{" "}
-            <L>{WORLD.worldCalendarRemoveEra}</L> drop a row before you save; at least one month stays. Saving
-            a new calendar clears structured dates on story events so nothing points at removed months or eras. Calendar data
-            is included in workspace backups.
+            <L>{WORLD.worldCalendar}</L> on <L>{SHELL.world}</L> holds one calendar per project: month names and day counts,
+            optional weekday names and week length, intercalary days outside months, leap-year rules, festival spans that
+            label dates without adding days, and eras with an abbreviation and year offset. Mark an era as{" "}
+            <L>{WORLD.worldCalendarEraCountsDown}</L> when years count toward a foundational epoch (for example 3 BF before
+            1 AF). <L>{WORLD.worldCalendarAddMonth}</L>, <L>{WORLD.worldCalendarAddWeekday}</L>,{" "}
+            <L>{WORLD.worldCalendarAddIntercalary}</L>, <L>{WORLD.worldCalendarAddFestival}</L>, and{" "}
+            <L>{WORLD.worldCalendarAddEra}</L> append blank rows. A row with no name is left out of the save. At least one
+            month stays. Saving a calendar clears structured dates on story events so nothing points at removed months,
+            intercalary periods, or eras. Calendar data is included in workspace backups.
           </p>
         </Sub>
 
@@ -2270,8 +2272,10 @@ export function HelpContent() {
           </p>
           <p>
             Leave <L>{WORLD.storyEventTime}</L> blank when the time is unknown. The app does not invent a date. On{" "}
-            <L>{WORLD.worldCalendar}</L> you define months, day counts, and eras; on the timeline you can add an optional{" "}
-            <L>{WORLD.structuredDate}</L> alongside the free-text time. Incomplete or missing structured dates are fine.
+            <L>{WORLD.worldCalendar}</L> you define months, optional intercalary periods, weekdays, leap rules, festivals,
+            and eras; on the timeline you can add an optional <L>{WORLD.structuredDate}</L> alongside the free-text time
+            (month or intercalary day). Festival names that cover that date are shown as labels only. Incomplete or missing
+            structured dates are fine.
             If a full structured date disagrees with an explicit <L>{WORLD.recordOrder}</L> link, the timeline warns you;
             it never changes constraints for you. <L>{WORLD.recordOrder}</L> says which event happens first. That order is
             not the manuscript order, so a later chapter can reveal an earlier event. A circle is refused and nothing is saved.
@@ -2473,15 +2477,21 @@ export function HelpContent() {
           </p>
           <p>
             Optional <L>{WORLD_PROFILE.subcategorySections}</L> add Geography details for cities and settlements,
-            regions, or waterways, and the same kind of detail for guilds, rituals, dialects, buildings, rooms, and
-            magic workings, without changing the
+            regions, or waterways, and the same kind of detail for guilds, rituals, dialects, buildings, rooms,
+            magic workings, object documents, transportation routes, and culture customs, without changing the
             profile definition. Taxonomy can suggest a section; you can also add any shipped section before tagging.
             Enable Guilds when membership notes do not say who may join or how apprenticeship proceeds. Enable
             Buildings when a scene uses a street door and a rear exit, or Rooms when a viewpoint needs the doorway
             and what the window shows. Enable Workings when a ward needs a precondition, the sound it makes, and what
-            a crack would look like if it fails. Hiding a
+            a crack would look like if it fails. Enable Documents when a receipt names who issued it, who received it,
+            and what it says — seals and signatures stay under Appearance. Enable Route and service on a train or ferry
+            when you need stops in travel order and a whole-route journey time; a harbor station can stay a Locations
+            profile with Transportation only as a secondary tag. Enable Custom in practice on a named courtesy when you
+            need occasion, expected conduct, and how a breach may be read — the Customs overview stays on the culture
+            record, and walking in without waiting is allowed on the page even when the reference notes what that might
+            mean. Hiding a
             section keeps saved values. Qualified quantities (population
-            estimate, land area, length) distinguish a blank unknown from a documented zero, and waterway outlet can
+            estimate, land area, length, journey time) distinguish a blank unknown from a documented zero, and waterway outlet can
             reuse an existing Place relationship (<code>flows_into</code>). Changing primary or secondary categories
             never clears the definition, enabled sections, or saved values — sections with saved data stay under{" "}
             <L>{WORLD_PROFILE.subcategoryActive}</L>.

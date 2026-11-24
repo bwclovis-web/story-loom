@@ -317,6 +317,15 @@ async function deleteProjectRowsInTx(tx: Tx, projectId: string) {
     for (const calendar of calendars) {
       await tx.worldCalendarMonth.deleteMany({ where: { calendarId: calendar.id } }).catch(() => undefined);
       await tx.worldCalendarEra.deleteMany({ where: { calendarId: calendar.id } }).catch(() => undefined);
+      if ("worldCalendarWeekday" in tx) {
+        await tx.worldCalendarWeekday.deleteMany({ where: { calendarId: calendar.id } }).catch(() => undefined);
+      }
+      if ("worldCalendarIntercalary" in tx) {
+        await tx.worldCalendarIntercalary.deleteMany({ where: { calendarId: calendar.id } }).catch(() => undefined);
+      }
+      if ("worldCalendarFestival" in tx) {
+        await tx.worldCalendarFestival.deleteMany({ where: { calendarId: calendar.id } }).catch(() => undefined);
+      }
     }
     await tx.worldCalendar.deleteMany({ where: { projectId } }).catch(() => undefined);
   }

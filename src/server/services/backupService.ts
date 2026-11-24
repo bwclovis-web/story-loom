@@ -488,11 +488,29 @@ async function worldCalendarRows(db: DbOrTx, projectIds: string[]) {
       include: {
         months: { orderBy: { position: "asc" } },
         eras: { orderBy: { position: "asc" } },
+        weekdays: { orderBy: { position: "asc" } },
+        intercalaries: { orderBy: { position: "asc" } },
+        festivals: { orderBy: { position: "asc" } },
       },
       orderBy: [{ projectId: "asc" }, { id: "asc" }],
     });
   } catch (error) {
     if (isMissingSchemaError(error, "P2021")) return [];
+    if (isMissingSchemaError(error, "P2022")) {
+      try {
+        return await db.worldCalendar.findMany({
+          where: { projectId: { in: projectIds } },
+          include: {
+            months: { orderBy: { position: "asc" } },
+            eras: { orderBy: { position: "asc" } },
+          },
+          orderBy: [{ projectId: "asc" }, { id: "asc" }],
+        });
+      } catch (inner) {
+        if (isMissingSchemaError(inner, "P2021") || isMissingSchemaError(inner, "P2022")) return [];
+        throw inner;
+      }
+    }
     throw error;
   }
 }
@@ -1165,6 +1183,7 @@ async function storyEventRows(db: DbOrTx, projectIds: string[]) {
         structEraId: null,
         structYear: null,
         structMonthPosition: null,
+        structIntercalaryPosition: null,
         structDay: null,
       }));
     }
@@ -1801,29 +1820,113 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
       : {}),
     ...(worldCalendars.length
       ? {
-          worldCalendars: worldCalendars.map((calendar) => ({
-            id: calendar.id,
-            projectId: calendar.projectId,
-            ...(calendar.title ? { title: calendar.title } : {}),
-            revision: calendar.revision,
-            months: calendar.months.map((month) => ({
-              id: month.id,
-              position: month.position,
-              name: month.name,
-              daysInMonth: month.daysInMonth,
-              createdAt: iso(month.createdAt),
-            })),
-            eras: calendar.eras.map((era) => ({
-              id: era.id,
-              position: era.position,
-              name: era.name,
-              ...(era.shortLabel ? { shortLabel: era.shortLabel } : {}),
-              ...(era.yearOffset ? { yearOffset: era.yearOffset } : {}),
-              createdAt: iso(era.createdAt),
-            })),
-            createdAt: iso(calendar.createdAt),
-            updatedAt: iso(calendar.updatedAt),
-          })),
+          worldCalendars: worldCalendars.map((calendar) => {
+            const leapEveryYears =
+              "leapEveryYears" in calendar ? (calendar.leapEveryYears as number | null | undefined) : null;
+            const leapSkipYears =
+              "leapSkipYears" in calendar ? (calendar.leapSkipYears as number | null | undefined) : null;
+            const leapIncludeYears =
+              "leapIncludeYears" in calendar ? (calendar.leapIncludeYears as number | null | undefined) : null;
+            const leapOffset = "leapOffset" in calendar ? Number(calendar.leapOffset ?? 0) : 0;
+            const weekStartOffset = "weekStartOffset" in calendar ? Number(calendar.weekStartOffset ?? 0) : 0;
+            const weekdays =
+              "weekdays" in calendar && Array.isArray(calendar.weekdays)
+                ? (calendar.weekdays as { id: string; position: number; name: string; createdAt: Date }[])
+                : [];
+            const intercalaries =
+              "intercalaries" in calendar && Array.isArray(calendar.intercalaries)
+                ? (calendar.intercalaries as {
+                    id: string;
+                    position: number;
+                    name: string;
+                    days: number;
+                    afterMonthPosition: number;
+                    leapMode: string;
+                    createdAt: Date;
+                  }[])
+                : [];
+            const festivals =
+              "festivals" in calendar && Array.isArray(calendar.festivals)
+                ? (calendar.festivals as {
+                    id: string;
+                    position: number;
+                    name: string;
+                    startMonthPosition: number;
+                    startDay: number;
+                    endMonthPosition: number;
+                    endDay: number;
+                    createdAt: Date;
+                  }[])
+                : [];
+            return {
+              id: calendar.id,
+              projectId: calendar.projectId,
+              ...(calendar.title ? { title: calendar.title } : {}),
+              revision: calendar.revision,
+              ...(leapEveryYears != null ? { leapEveryYears } : {}),
+              ...(leapSkipYears != null ? { leapSkipYears } : {}),
+              ...(leapIncludeYears != null ? { leapIncludeYears } : {}),
+              ...(leapOffset ? { leapOffset } : {}),
+              ...(weekStartOffset ? { weekStartOffset } : {}),
+              months: calendar.months.map((month) => ({
+                id: month.id,
+                position: month.position,
+                name: month.name,
+                daysInMonth: month.daysInMonth,
+                createdAt: iso(month.createdAt),
+              })),
+              eras: calendar.eras.map((era) => ({
+                id: era.id,
+                position: era.position,
+                name: era.name,
+                ...(era.shortLabel ? { shortLabel: era.shortLabel } : {}),
+                ...(era.yearOffset ? { yearOffset: era.yearOffset } : {}),
+                ...("countsDown" in era && era.countsDown ? { countsDown: true as const } : {}),
+                createdAt: iso(era.createdAt),
+              })),
+              ...(weekdays.length
+                ? {
+                    weekdays: weekdays.map((day) => ({
+                      id: day.id,
+                      position: day.position,
+                      name: day.name,
+                      createdAt: iso(day.createdAt),
+                    })),
+                  }
+                : {}),
+              ...(intercalaries.length
+                ? {
+                    intercalaries: intercalaries.map((period) => ({
+                      id: period.id,
+                      position: period.position,
+                      name: period.name,
+                      days: period.days,
+                      afterMonthPosition: period.afterMonthPosition,
+                      ...(period.leapMode && period.leapMode !== "always"
+                        ? { leapMode: period.leapMode as "leap_only" | "non_leap_only" }
+                        : {}),
+                      createdAt: iso(period.createdAt),
+                    })),
+                  }
+                : {}),
+              ...(festivals.length
+                ? {
+                    festivals: festivals.map((festival) => ({
+                      id: festival.id,
+                      position: festival.position,
+                      name: festival.name,
+                      startMonthPosition: festival.startMonthPosition,
+                      startDay: festival.startDay,
+                      endMonthPosition: festival.endMonthPosition,
+                      endDay: festival.endDay,
+                      createdAt: iso(festival.createdAt),
+                    })),
+                  }
+                : {}),
+              createdAt: iso(calendar.createdAt),
+              updatedAt: iso(calendar.updatedAt),
+            };
+          }),
         }
       : {}),
     ...(manuscriptAnnotations.length
@@ -2150,6 +2253,9 @@ export async function createWorkspaceBackup(db: DbOrTx, workspaceId: string): Pr
             ...(event.structEraId ? { structEraId: event.structEraId } : {}),
             ...(event.structYear != null ? { structYear: event.structYear } : {}),
             ...(event.structMonthPosition != null ? { structMonthPosition: event.structMonthPosition } : {}),
+            ...("structIntercalaryPosition" in event && event.structIntercalaryPosition != null
+              ? { structIntercalaryPosition: event.structIntercalaryPosition as number }
+              : {}),
             ...(event.structDay != null ? { structDay: event.structDay } : {}),
             createdAt: iso(event.createdAt),
             updatedAt: iso(event.updatedAt),
@@ -4648,6 +4754,11 @@ export async function restoreWorkspaceBackup(db: Db, input: string | unknown, op
               projectId: m(calendar.projectId),
               title: calendar.title ?? "",
               revision: calendar.revision ?? 0,
+              leapEveryYears: calendar.leapEveryYears ?? null,
+              leapSkipYears: calendar.leapSkipYears ?? null,
+              leapIncludeYears: calendar.leapIncludeYears ?? null,
+              leapOffset: calendar.leapOffset ?? 0,
+              weekStartOffset: calendar.weekStartOffset ?? 0,
               createdAt: new Date(calendar.createdAt),
               updatedAt: new Date(calendar.updatedAt),
             },
@@ -4676,7 +4787,54 @@ export async function restoreWorkspaceBackup(db: Db, input: string | unknown, op
                 name: era.name,
                 shortLabel: era.shortLabel ?? "",
                 yearOffset: era.yearOffset ?? 0,
+                countsDown: era.countsDown ?? false,
                 createdAt: new Date(era.createdAt),
+              })),
+            });
+          }
+          const weekdays = calendar.weekdays ?? [];
+          if (weekdays.length) {
+            await tx.worldCalendarWeekday.createMany({
+              data: weekdays.map((day) => ({
+                id: m(day.id),
+                calendarId,
+                projectId: m(calendar.projectId),
+                position: day.position,
+                name: day.name,
+                createdAt: new Date(day.createdAt),
+              })),
+            });
+          }
+          const intercalaries = calendar.intercalaries ?? [];
+          if (intercalaries.length) {
+            await tx.worldCalendarIntercalary.createMany({
+              data: intercalaries.map((period) => ({
+                id: m(period.id),
+                calendarId,
+                projectId: m(calendar.projectId),
+                position: period.position,
+                name: period.name,
+                days: period.days,
+                afterMonthPosition: period.afterMonthPosition,
+                leapMode: period.leapMode ?? "always",
+                createdAt: new Date(period.createdAt),
+              })),
+            });
+          }
+          const festivals = calendar.festivals ?? [];
+          if (festivals.length) {
+            await tx.worldCalendarFestival.createMany({
+              data: festivals.map((festival) => ({
+                id: m(festival.id),
+                calendarId,
+                projectId: m(calendar.projectId),
+                position: festival.position,
+                name: festival.name,
+                startMonthPosition: festival.startMonthPosition,
+                startDay: festival.startDay,
+                endMonthPosition: festival.endMonthPosition,
+                endDay: festival.endDay,
+                createdAt: new Date(festival.createdAt),
               })),
             });
           }
@@ -4823,6 +4981,7 @@ export async function restoreWorkspaceBackup(db: Db, input: string | unknown, op
               structEraId: event.structEraId ? m(event.structEraId) : null,
               structYear: event.structYear ?? null,
               structMonthPosition: event.structMonthPosition ?? null,
+              structIntercalaryPosition: event.structIntercalaryPosition ?? null,
               structDay: event.structDay ?? null,
               revision: 0,
               createdAt: new Date(event.createdAt),

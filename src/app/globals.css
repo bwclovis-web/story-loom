@@ -3091,11 +3091,13 @@ textarea.sl-field:disabled {
   cursor: not-allowed;
   background: var(--color-surface-sunken);
 }
-.calendar-fields { align-items: end; }
+.calendar-fields { align-items: end; flex-wrap: wrap; }
 .calendar-fields > .sl-text-field { flex: 1 1 12rem; width: auto; }
 .calendar-fields > .calendar-short { flex: 0 1 8rem; }
 .calendar-fields > .calendar-days { flex: 0 1 7.5rem; }
 .calendar-fields > .calendar-remove { flex: 0 0 auto; align-self: end; }
+.calendar-fields > label { flex: 1 1 10rem; display: grid; gap: 0.25rem; }
+.calendar-intercalary { gap: 0.5rem; }
 .write-column {
   position: relative;
   flex: 1; width: 100%; max-width: calc(84ch * var(--text-measure) + 4rem); margin: 0 auto; padding: 1.5rem 2rem 2rem;

@@ -4,9 +4,11 @@ import { errorIssue } from "@/domain/issues";
 import { isLinkableReferenceType, isRecordType } from "@/domain/recordTypes";
 import {
   dateSortKey,
+  festivalsForStructuredDate,
   formatStructuredDate,
   structuredDateFromRow,
   structuredDateIsComplete,
+  type CalendarDefs,
   type StructuredDateParts,
 } from "@/world/calendarDate";
 import { buildTimelineBoard, referenceLane, type TimelineBoard } from "@/world/timelineBoard";
@@ -85,7 +87,10 @@ export interface StoryEventStructuredDate {
   eraId: string | null;
   year: number | null;
   monthPosition: number | null;
+  intercalaryPosition: number | null;
   day: number | null;
+  /** Festival names that cover this date (labels only; do not add days). */
+  festivals: string[];
   /** Formatted when complete; null when unset or incomplete. */
   formatted: string | null;
 }
@@ -177,17 +182,16 @@ function cleanTime(timeLabel: string): string {
   return value;
 }
 
-function structView(
-  parts: StructuredDateParts,
-  months: ReturnType<typeof calendarDefs>["months"],
-  eras: ReturnType<typeof calendarDefs>["eras"],
-): StoryEventStructuredDate {
+function structView(parts: StructuredDateParts, defs: CalendarDefs): StoryEventStructuredDate {
+  const complete = structuredDateIsComplete(parts, defs);
   return {
     eraId: parts.eraId,
     year: parts.year,
     monthPosition: parts.monthPosition,
+    intercalaryPosition: parts.intercalaryPosition,
     day: parts.day,
-    formatted: formatStructuredDate(parts, months, eras),
+    festivals: complete ? festivalsForStructuredDate(parts, defs) : [],
+    formatted: complete ? formatStructuredDate(parts, defs) : null,
   };
 }
 
@@ -196,14 +200,14 @@ function listStructuredTime(
     structEraId: string | null;
     structYear: number | null;
     structMonthPosition: number | null;
+    structIntercalaryPosition?: number | null;
     structDay: number | null;
   },
-  months: ReturnType<typeof calendarDefs>["months"],
-  eras: ReturnType<typeof calendarDefs>["eras"],
+  defs: CalendarDefs,
 ): string | null {
   const parts = structuredDateFromRow(event);
-  if (!structuredDateIsComplete(parts, months, eras)) return null;
-  return formatStructuredDate(parts, months, eras);
+  if (!structuredDateIsComplete(parts, defs)) return null;
+  return formatStructuredDate(parts, defs);
 }
 
 function structData(parts: ParsedStructuredDateInput) {
@@ -211,6 +215,7 @@ function structData(parts: ParsedStructuredDateInput) {
     structEraId: parts.eraId,
     structYear: parts.year,
     structMonthPosition: parts.monthPosition,
+    structIntercalaryPosition: parts.intercalaryPosition ?? null,
     structDay: parts.day,
   };
 }
@@ -252,7 +257,7 @@ export async function loadStoryTimeline(
   const draft = options?.draft || "all";
   await refreshStaleStoryEvidence(db, projectId);
   const calendar = await loadWorldCalendar(db, projectId);
-  const { months, eras } = calendarDefs(calendar);
+  const defs = calendarDefs(calendar);
   const [events, drafts, locations, scenes, sources, orders, eventLocations, eventScenes] = await Promise.all([
     db.storyEvent.findMany({ where: { projectId }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] }),
     db.manuscriptDraft.findMany({
@@ -311,7 +316,7 @@ export async function loadStoryTimeline(
         title: event.title,
         summary: event.summary,
         timeLabel: event.timeLabel,
-        structuredTime: listStructuredTime(event, months, eras),
+        structuredTime: listStructuredTime(event, defs),
         planned: event.planned,
         draftScope: event.draftScope,
         draftLabel: draftLabel(event.draftScope, draftNames),
@@ -337,7 +342,7 @@ export async function loadStoryTimeline(
       if (!isRecordType(record.type)) return [];
       return [{ id: record.id, title: record.title, bodyLength: record.body.length }];
     }),
-    board: timelineBoard(list, events, eventLocations, eventScenes, scenes, orders, months, eras),
+    board: timelineBoard(list, events, eventLocations, eventScenes, scenes, orders, defs),
   };
 }
 
@@ -359,8 +364,7 @@ function timelineBoard(
     draftId: string | null;
   }[],
   orders: { earlierEventId: string; laterEventId: string }[],
-  months: ReturnType<typeof calendarDefs>["months"],
-  eras: ReturnType<typeof calendarDefs>["eras"],
+  defs: CalendarDefs,
 ): TimelineBoard {
   const visible = new Set(list.map((event) => event.id));
   const orderIndex = new Map(list.map((event, index) => [event.id, index]));
@@ -393,7 +397,7 @@ function timelineBoard(
         id: event.id,
         title: event.title,
         summary: event.summary,
-        dateKey: parts ? dateSortKey(parts, months, eras) : null,
+        dateKey: parts ? dateSortKey(parts, defs) : null,
         orderIndex: orderIndex.get(event.id) ?? 0,
       };
     }),
@@ -439,13 +443,14 @@ async function eventDetail(
     structEraId: string | null;
     structYear: number | null;
     structMonthPosition: number | null;
+    structIntercalaryPosition?: number | null;
     structDay: number | null;
   }[],
   orders: { earlierEventId: string; laterEventId: string }[],
 ): Promise<StoryEventDetail | null> {
   const event = await db.storyEvent.findFirst({ where: { id: eventId, projectId } });
   if (!event) return null;
-  const { months, eras } = calendarDefs(calendar);
+  const defs = calendarDefs(calendar);
   const parts = structuredDateFromRow(event);
   const [locations, scenes, evidence, earlier, later] = await Promise.all([
     db.storyEventLocation.findMany({
@@ -492,8 +497,8 @@ async function eventDetail(
     title: event.title,
     summary: event.summary,
     timeLabel: event.timeLabel,
-    structuredDate: structView(parts, months, eras),
-    dateWarnings: dateConflictWarningsForEvent(event.id, parts, orders, peerEvents, months, eras),
+    structuredDate: structView(parts, defs),
+    dateWarnings: dateConflictWarningsForEvent(event.id, parts, orders, peerEvents, defs),
     planned: event.planned,
     draftScope: event.draftScope,
     draftLabel: draftLabel(event.draftScope, draftNames),
@@ -583,7 +588,13 @@ export async function createStoryEvent(
   const planned = input.planned === true;
   const structured =
     input.structuredDate ??
-    ({ eraId: null, year: null, monthPosition: null, day: null } satisfies ParsedStructuredDateInput);
+    ({
+      eraId: null,
+      year: null,
+      monthPosition: null,
+      intercalaryPosition: null,
+      day: null,
+    } satisfies ParsedStructuredDateInput);
   return db.$transaction(async (tx) => {
     const project = await tx.project.findFirst({ where: { id: projectId, trashedAt: null }, select: { id: true } });
     if (!project) throw new NotFoundError(`Project ${projectId} not found`);

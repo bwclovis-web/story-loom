@@ -590,6 +590,7 @@ export const POPULATION_ESTIMATE_FIELD: WorldProfileFieldDef = {
 
 const AREA_UNIT_SUGGESTIONS = ["sq mi", "km²", "acres", "hectares", "leagues²"] as const;
 const LENGTH_UNIT_SUGGESTIONS = ["miles", "km", "leagues"] as const;
+const TIME_UNIT_SUGGESTIONS = ["minutes", "hours", "days"] as const;
 
 export const WORLD_SUBCATEGORY_SECTIONS: readonly WorldSubcategorySectionDef[] = [
   {
@@ -907,6 +908,128 @@ export const WORLD_SUBCATEGORY_SECTIONS: readonly WorldSubcategorySectionDef[] =
           "Signs of failure",
           "long_text",
           "What someone might notice if the working fails or is interrupted.",
+        ),
+        continuity: "descriptive",
+      },
+    ],
+  },
+  {
+    id: "objects:documents",
+    categoryId: "objects",
+    subcategoryId: "documents",
+    label: "Documents",
+    description:
+      "Issuer, recipient, and what the document says. Origin, current holder, appearance (including seals, signatures, and alterations), ownership, and significance stay on the Objects profile.",
+    fields: [
+      {
+        ...profileField(
+          "issuedBy",
+          "Issued by",
+          "short_text",
+          "The person or institution identified as the issuer. Enter a name even when no World record exists.",
+        ),
+      },
+      {
+        ...profileField(
+          "issuedTo",
+          "Issued to",
+          "short_text",
+          "The named recipient. A document may name a recipient different from its current holder.",
+        ),
+      },
+      {
+        ...profileField(
+          "documentSays",
+          "What the document says",
+          "long_text",
+          "The author's transcription or summary of its contents. An approved value establishes what the document says; establishing that the described event happened needs separate evidence.",
+        ),
+        continuity: "descriptive",
+      },
+    ],
+  },
+  {
+    id: "technology:transportation",
+    categoryId: "technology",
+    subcategoryId: "transportation",
+    label: "Route and service",
+    description:
+      "Stops in travel order, typical end-to-end journey time, and how often this service runs. Purpose, operating requirements, availability, and limitations stay on the Technology profile. A station can keep a Locations profile when Transportation is only a secondary tag.",
+    fields: [
+      {
+        ...profileField(
+          "routeStops",
+          "Stops in travel order",
+          "glossed_lines",
+          "Stops in the order traveled. Repeat a stop for a loop. Leave the notes blank for a plain stop, or add a place record id when the stop is an existing place.",
+        ),
+        glossedConfig: {
+          lineLabel: "Stop",
+          glossLabel: "Notes (optional)",
+          addLabel: "Add stop",
+          removeLabel: "Remove stop",
+          moveUpLabel: "Move stop up",
+          moveDownLabel: "Move stop down",
+          recordLabel: "Place record id",
+        },
+      },
+      {
+        key: "typicalJourneyTime",
+        label: "Typical end-to-end journey time",
+        description:
+          "Qualified duration for the whole route. Leave blank for unknown. Does not invent times between individual stops.",
+        type: "quantity",
+        storage: "profile",
+        optional: true,
+        quantityConfig: {
+          allowUnit: true,
+          unitSuggestions: TIME_UNIT_SUGGESTIONS,
+          allowQualifiers: true,
+        },
+      },
+      {
+        ...profileField(
+          "servicePattern",
+          "Service pattern",
+          "short_text",
+          "How often this service runs, as author guidance (for example twice on market mornings). Not a timetable calculator.",
+        ),
+        continuity: "descriptive",
+      },
+    ],
+  },
+  {
+    id: "cultures:customs",
+    categoryId: "cultures",
+    subcategoryId: "customs",
+    label: "Custom in practice",
+    description:
+      "Occasion, expected conduct, and how a breach may be read for one named custom. The Customs overview, etiquette, social structures, and regional variation stay on the Cultures profile. Use Rituals for an ordered ceremony.",
+    fields: [
+      {
+        ...profileField(
+          "occasion",
+          "Occasion",
+          "long_text",
+          "When or where this expectation applies. Observers may disagree about the boundaries.",
+        ),
+        continuity: "descriptive",
+      },
+      {
+        ...profileField(
+          "expectedConduct",
+          "Expected conduct",
+          "long_text",
+          "What someone familiar with the custom would ordinarily do. A character may knowingly break it, misunderstand it, or omit it from dialogue without that alone becoming a continuity finding.",
+        ),
+        continuity: "descriptive",
+      },
+      {
+        ...profileField(
+          "breachReading",
+          "How a breach may be read",
+          "long_text",
+          "What others might infer if someone departs from it. Readings can differ among observers and do not establish the character's intent.",
         ),
         continuity: "descriptive",
       },

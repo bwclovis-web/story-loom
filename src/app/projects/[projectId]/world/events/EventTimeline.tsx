@@ -199,7 +199,7 @@ function CreateEvent({
     useStructured?: boolean;
     eraId?: string;
     structYear?: string;
-    structMonth?: string;
+    structSlot?: string;
     structDay?: string;
   }) => void;
 }) {
@@ -211,7 +211,7 @@ function CreateEvent({
   const [useStructured, setUseStructured] = useState(false);
   const [eraId, setEraId] = useState("");
   const [structYear, setStructYear] = useState("");
-  const [structMonth, setStructMonth] = useState("");
+  const [structSlot, setStructSlot] = useState("");
   const [structDay, setStructDay] = useState("");
   return (
     <form
@@ -227,7 +227,7 @@ function CreateEvent({
           useStructured,
           eraId,
           structYear,
-          structMonth,
+          structSlot,
           structDay,
         });
         setTitle("");
@@ -237,7 +237,7 @@ function CreateEvent({
         setUseStructured(false);
         setEraId("");
         setStructYear("");
-        setStructMonth("");
+        setStructSlot("");
         setStructDay("");
       }}
     >
@@ -262,8 +262,8 @@ function CreateEvent({
         onEraId={setEraId}
         structYear={structYear}
         onStructYear={setStructYear}
-        structMonth={structMonth}
-        onStructMonth={setStructMonth}
+        structSlot={structSlot}
+        onStructSlot={setStructSlot}
         structDay={structDay}
         onStructDay={setStructDay}
       />
@@ -281,6 +281,12 @@ function CreateEvent({
   );
 }
 
+function slotValue(monthPosition: number | null, intercalaryPosition: number | null): string {
+  if (intercalaryPosition != null) return `i:${intercalaryPosition}`;
+  if (monthPosition != null) return `m:${monthPosition}`;
+  return "";
+}
+
 function StructuredDateFields({
   calendar,
   useStructured,
@@ -289,10 +295,11 @@ function StructuredDateFields({
   onEraId,
   structYear,
   onStructYear,
-  structMonth,
-  onStructMonth,
+  structSlot,
+  onStructSlot,
   structDay,
   onStructDay,
+  festivals,
 }: {
   calendar: StoryTimeline["calendar"];
   useStructured: boolean;
@@ -301,10 +308,11 @@ function StructuredDateFields({
   onEraId: (value: string) => void;
   structYear: string;
   onStructYear: (value: string) => void;
-  structMonth: string;
-  onStructMonth: (value: string) => void;
+  structSlot: string;
+  onStructSlot: (value: string) => void;
   structDay: string;
   onStructDay: (value: string) => void;
+  festivals?: string[];
 }) {
   if (!calendar?.months.length) return null;
   return (
@@ -325,14 +333,25 @@ function StructuredDateFields({
               <input value={structDay} inputMode="numeric" onChange={(event) => onStructDay(event.target.value)} />
             </label>
             <label>
-              {WORLD.structuredDateMonth}
-              <select value={structMonth} onChange={(event) => onStructMonth(event.target.value)}>
+              {WORLD.structuredDateSlot}
+              <select value={structSlot} onChange={(event) => onStructSlot(event.target.value)}>
                 <option value="">—</option>
-                {calendar.months.map((month) => (
-                  <option key={month.id} value={String(month.position)}>
-                    {month.name}
-                  </option>
-                ))}
+                <optgroup label={WORLD.structuredDateMonth}>
+                  {calendar.months.map((month) => (
+                    <option key={month.id} value={`m:${month.position}`}>
+                      {month.name}
+                    </option>
+                  ))}
+                </optgroup>
+                {calendar.intercalaries.length ? (
+                  <optgroup label={WORLD.structuredDateIntercalaryGroup}>
+                    {calendar.intercalaries.map((period) => (
+                      <option key={period.id} value={`i:${period.position}`}>
+                        {period.name}
+                      </option>
+                    ))}
+                  </optgroup>
+                ) : null}
               </select>
             </label>
             <label>
@@ -348,10 +367,16 @@ function StructuredDateFields({
                 {calendar.eras.map((era) => (
                   <option key={era.id} value={era.id}>
                     {era.name}
+                    {era.countsDown ? " ↓" : ""}
                   </option>
                 ))}
               </select>
             </label>
+          ) : null}
+          {festivals?.length ? (
+            <p className="small muted">
+              {WORLD.structuredDateFestivals}: {festivals.join(", ")}
+            </p>
           ) : null}
         </>
       ) : null}
@@ -408,8 +433,8 @@ function EventRail({
   const [useStructured, setUseStructured] = useState(Boolean(event.structuredDate.formatted));
   const [eraId, setEraId] = useState(event.structuredDate.eraId ?? "");
   const [structYear, setStructYear] = useState(event.structuredDate.year != null ? String(event.structuredDate.year) : "");
-  const [structMonth, setStructMonth] = useState(
-    event.structuredDate.monthPosition != null ? String(event.structuredDate.monthPosition) : "",
+  const [structSlot, setStructSlot] = useState(
+    slotValue(event.structuredDate.monthPosition, event.structuredDate.intercalaryPosition),
   );
   const [structDay, setStructDay] = useState(event.structuredDate.day != null ? String(event.structuredDate.day) : "");
 
@@ -422,7 +447,7 @@ function EventRail({
     setUseStructured(Boolean(event.structuredDate.formatted));
     setEraId(event.structuredDate.eraId ?? "");
     setStructYear(event.structuredDate.year != null ? String(event.structuredDate.year) : "");
-    setStructMonth(event.structuredDate.monthPosition != null ? String(event.structuredDate.monthPosition) : "");
+    setStructSlot(slotValue(event.structuredDate.monthPosition, event.structuredDate.intercalaryPosition));
     setStructDay(event.structuredDate.day != null ? String(event.structuredDate.day) : "");
   }, [event.id, event.revision, event.title, event.summary, event.timeLabel, event.planned, event.draftScope, event.structuredDate]);
 
@@ -463,7 +488,7 @@ function EventRail({
               useStructured,
               eraId,
               structYear,
-              structMonth,
+              structSlot,
               structDay,
             }),
           );
@@ -472,6 +497,9 @@ function EventRail({
         {planned ? <p className="small">{WORLD.plannedEvent}</p> : null}
         <p className="small muted">
           {event.structuredDate.formatted || (timeLabel.trim() ? timeLabel : WORLD.timeUnknown)}
+          {event.structuredDate.festivals.length
+            ? ` · ${WORLD.structuredDateFestivals}: ${event.structuredDate.festivals.join(", ")}`
+            : ""}
         </p>
         <label>
           {WORLD.storyEventTitle}
@@ -493,10 +521,11 @@ function EventRail({
           onEraId={setEraId}
           structYear={structYear}
           onStructYear={setStructYear}
-          structMonth={structMonth}
-          onStructMonth={setStructMonth}
+          structSlot={structSlot}
+          onStructSlot={setStructSlot}
           structDay={structDay}
           onStructDay={setStructDay}
+          festivals={event.structuredDate.festivals}
         />
         <Checkbox
           className="scene-location-check"

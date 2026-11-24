@@ -30,6 +30,8 @@ type EventFormInput = {
   eraId?: string;
   structYear?: string;
   structMonth?: string;
+  structIntercalary?: string;
+  structSlot?: string;
   structDay?: string;
 };
 
