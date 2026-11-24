@@ -53,15 +53,31 @@ const replaceWholeDoc = Annotation.define<boolean>();
 
 const setLockedRanges = StateEffect.define<readonly LockedRange[]>();
 
+/** Map locked scene ranges through a doc change without throwing on stale positions. */
+export function mapLockedRangesThroughChange(
+  ranges: readonly LockedRange[],
+  changes: { length: number; mapPos: (pos: number, assoc?: number) => number },
+  nextLength: number,
+): LockedRange[] {
+  const fromLen = changes.length;
+  const out: LockedRange[] = [];
+  for (const range of ranges) {
+    if (range.end <= 0 || range.start >= fromLen) continue;
+    const from = Math.max(0, Math.min(range.start, fromLen));
+    const to = Math.max(from, Math.min(range.end, fromLen));
+    const start = Math.max(0, Math.min(changes.mapPos(from, 1), nextLength));
+    const end = Math.max(start, Math.min(changes.mapPos(to, -1), nextLength));
+    if (end > start) out.push({ start, end });
+  }
+  return out;
+}
+
 const lockedRangesField = StateField.define<readonly LockedRange[]>({
   create: () => [],
   update(value, tr) {
     for (const effect of tr.effects) if (effect.is(setLockedRanges)) return effect.value;
     if (!tr.docChanged) return value;
-    return value.map((range) => ({
-      start: tr.changes.mapPos(range.start),
-      end: tr.changes.mapPos(range.end),
-    }));
+    return mapLockedRangesThroughChange(value, tr.changes, tr.state.doc.length);
   },
 });
 
@@ -197,6 +213,20 @@ function createSurface(view: EditorView, host: HTMLElement): EditorSurface {
     },
     containsElement(el) {
       return el instanceof Node && host.contains(el);
+    },
+    setComposedChapter(chapter, scenes) {
+      const composed = composeChapterWithScenes(chapter, scenes);
+      const current = view.state.doc.toString();
+      if (composed.doc === current) {
+        view.dispatch({ effects: setLockedRanges.of(composed.locked) });
+        return;
+      }
+      view.dispatch({
+        changes: { from: 0, to: current.length, insert: composed.doc },
+        effects: setLockedRanges.of(composed.locked),
+        annotations: replaceWholeDoc.of(true),
+        userEvent: "input",
+      });
     },
   };
 }

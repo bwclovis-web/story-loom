@@ -30,13 +30,16 @@ export function ManuscriptTree({
   const tree = useMemo(() => buildManuscriptTree(records), [records]);
   const currentChapter = useMemo(() => chapterOf(records, currentRecordId), [records, currentRecordId]);
   const [query, setQuery] = useState("");
-  const [expanded, setExpanded] = useState<Set<string>>(() => new Set(currentChapter ? [currentChapter] : []));
+  const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   const [creating, setCreating] = useState<"chapter" | "scene" | null>(null);
 
-  // Opening a scene from elsewhere reveals it in the tree.
+  // Chapters with scenes start collapsed. Opening a scene (or its note) reveals that chapter.
   useEffect(() => {
-    if (currentChapter) setExpanded((prev) => (prev.has(currentChapter) ? prev : new Set(prev).add(currentChapter)));
-  }, [currentChapter]);
+    if (!currentChapter || !currentRecordId) return;
+    const current = records.find((record) => record.id === currentRecordId);
+    if (!current || current.type === "manuscript_chapter") return;
+    setExpanded((prev) => (prev.has(currentChapter) ? prev : new Set(prev).add(currentChapter)));
+  }, [currentChapter, currentRecordId, records]);
 
   const searching = query.trim() !== "";
   const shown = useMemo(() => filterManuscriptTree(tree, query), [tree, query]);

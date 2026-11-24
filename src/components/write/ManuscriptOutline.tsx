@@ -80,7 +80,7 @@ export function ManuscriptOutline({
   const base = `/projects/${encodeURIComponent(projectId)}`;
   const [tab, setTab] = useState<Tab>("chapters");
   const [titleQuery, setTitleQuery] = useState(initialQuery);
-  const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set(chapters[0] ? [chapters[0].id] : []));
+  const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set());
   const [creating, setCreating] = useState<"chapter" | "scene" | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(chapters[0]?.id ?? null);
 

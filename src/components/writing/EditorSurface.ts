@@ -25,6 +25,11 @@ export interface EditorSurface {
   redo?(): boolean;
   /** True when this surface is the document's active editor element. */
   containsElement?(el: EventTarget | null): boolean;
+  /**
+   * Replace the chapter body and the nested scene bodies shown in locked ranges.
+   * Used after structure edits so the nest at each break matches book order.
+   */
+  setComposedChapter?(chapter: string, scenes: readonly { body: string }[]): void;
 }
 
 export function isEditorSurface(value: unknown): value is EditorSurface {

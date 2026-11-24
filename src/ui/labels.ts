@@ -1100,6 +1100,17 @@ export const MANUSCRIPT_STRUCTURE = {
   splitSaveFirst: "Save this text before splitting.",
   splitEdge: "Put the cursor in the middle of the text, with words on both sides.",
   splitDone: (title: string) => `Split. “${title}” is the new part, placed just after this one.`,
+  extractScene: "Make scene from selection",
+  extractSceneHeading: "Make a scene from the selection",
+  extractSceneTitle: "Title of the new scene",
+  extractSceneNote:
+    "The selected text becomes a new scene under this chapter. A scene break stays at the cut so the scene nests here. Save first if this text has unsaved changes.",
+  extractSceneDo: "Make scene",
+  extractSceneWorking: "Extracting…",
+  extractSceneSaveFirst: "Save this text before making a scene from the selection.",
+  extractSceneNeedSelection: "Select a passage in this chapter first.",
+  extractSceneDone: (title: string) =>
+    `Scene “${title}” created under this chapter. A scene break marks where it nests.`,
   mergePrevious: "Merge into previous",
   makeChapter: "Make this a chapter",
   makeScene: "Make this a scene in",

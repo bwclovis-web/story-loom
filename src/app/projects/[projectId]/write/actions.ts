@@ -30,7 +30,12 @@ import {
   resolvePinScope,
   type ReadingPinView,
 } from "@/server/services/readingPinService";
-import { convertChapterScene, mergeManuscriptScenes, splitManuscriptRecord } from "@/server/services/mutationService";
+import {
+  convertChapterScene,
+  extractSelectionAsScene,
+  mergeManuscriptScenes,
+  splitManuscriptRecord,
+} from "@/server/services/mutationService";
 import { createRecord, getRecord, moveRecordInBook } from "@/server/services/recordService";
 import { searchContextReferences, type ContextSearchHit } from "@/server/services/searchService";
 import type { FormResult } from "../actions";
@@ -85,6 +90,37 @@ export async function splitManuscriptAction(
 ): Promise<{ ok: true; newRecordId: string; head: string; revision: number } | { ok: false; issues: Issue[] }> {
   try {
     const result = await splitManuscriptRecord(getDb(), { projectId, ...input });
+    revalidatePath(`/projects/${projectId}`, "layout");
+    return { ok: true, ...result };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+export async function extractSelectionAsSceneAction(
+  projectId: string,
+  input: {
+    recordId: string;
+    expectedRevision: number;
+    start: number;
+    end: number;
+    selectedText?: string;
+    newTitle: string;
+    unlockProtected: boolean;
+  },
+): Promise<
+  | {
+      ok: true;
+      newRecordId: string;
+      chapterBody: string;
+      sceneBody: string;
+      breakIndex: number;
+      revision: number;
+    }
+  | { ok: false; issues: Issue[] }
+> {
+  try {
+    const result = await extractSelectionAsScene(getDb(), { projectId, ...input });
     revalidatePath(`/projects/${projectId}`, "layout");
     return { ok: true, ...result };
   } catch (error) {

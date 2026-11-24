@@ -1089,12 +1089,17 @@ export function HelpContent() {
               <L>{MANUSCRIPT_STRUCTURE.makeSceneDo}</L> turns a chapter that has no scenes into a scene at the end of the
               chapter you pick. Neither changes the text or its saved version.
             </li>
+            <li>
+              On a chapter in Write, <L>{MANUSCRIPT_STRUCTURE.extractScene}</L> turns a selected passage into a new scene
+              under that chapter and leaves a <L>***</L> break at the cut so the scene nests there. Save first, and tick
+              protection when the chapter is locked. You stay on the chapter afterward.
+            </li>
           </ul>
           <p>
-            Moving changes no text and makes no new saved version, so it does not need the protection tick. Merging and
-            converting do, because they change protected records. Every move, split, merge, and conversion is listed in the{" "}
-            <L>{HISTORY.auditLog}</L> on <L>{NAV.history}</L>. A chapter you create or import later goes at the end of the book. Backups keep
-            the order.
+            Moving changes no text and makes no new saved version, so it does not need the protection tick. Merging,
+            converting, and extracting a selection into a scene do, because they change protected records. Every move,
+            split, merge, extract, and conversion is listed in the <L>{HISTORY.auditLog}</L> on <L>{NAV.history}</L>. A
+            chapter you create or import later goes at the end of the book. Backups keep the order.
           </p>
         </Sub>
 
@@ -1519,11 +1524,14 @@ export function HelpContent() {
           <p>
             <L>{MANUSCRIPT_STRUCTURE.split}</L> is in that same menu. Put the cursor in saved text, with words on both
             sides, then name the new part. The text before the cursor stays; the rest becomes a new chapter or scene just
-            after this one, with the same links and story-event reveals. Save unsaved typing first, and choose{" "}
-            <L>{WRITE.enableEditing}</L> when the record is protected. Under <L>{WRITE.structuredFields}</L>,{" "}
-            <L>{SCENE_META.pov}</L>, <L>{SCENE_META.status}</L> (<L>{SCENE_META.outline}</L>, <L>{SCENE_META.rough}</L>,{" "}
-            <L>{SCENE_META.revised}</L>, <L>{SCENE_META.final}</L>), and <L>{SCENE_META.storyDate}</L> are optional. They
-            are stored in the same JSON as any other fields, and a blank value removes only that field.
+            after this one, with the same links and story-event reveals. On a chapter,{" "}
+            <L>{MANUSCRIPT_STRUCTURE.extractScene}</L> (also beside Create reference from selection when text is selected)
+            turns the selection into a child scene and leaves a scene break at the cut; you stay on the chapter. Save
+            unsaved typing first, and choose <L>{WRITE.enableEditing}</L> when the record is protected. Under{" "}
+            <L>{WRITE.structuredFields}</L>, <L>{SCENE_META.pov}</L>, <L>{SCENE_META.status}</L> (<L>{SCENE_META.outline}</L>,{" "}
+            <L>{SCENE_META.rough}</L>, <L>{SCENE_META.revised}</L>, <L>{SCENE_META.final}</L>), and{" "}
+            <L>{SCENE_META.storyDate}</L> are optional. They are stored in the same JSON as any other fields, and a blank
+            value removes only that field.
           </p>
           <h4>Formatting toolbar</h4>
           <p>
@@ -4753,8 +4761,9 @@ export function HelpContent() {
           </li>
           <li>
             A chapter that still has scenes cannot
-            become a scene, and only two scenes in the same chapter and draft can be merged. Split, merge, and convert
-            need the protection tick. Split also needs saved text with words on both sides of the cursor.
+            become a scene, and only two scenes in the same chapter and draft can be merged. Split, merge, convert, and
+            extract-selection-as-scene need the protection tick. Split also needs saved text with words on both sides of
+            the cursor. Extract needs a non-empty selection on a chapter.
           </li>
           <li>
             Chapters, scenes, and references can store images. Use <code>![description](image:name)</code> in the text.

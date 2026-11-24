@@ -26,6 +26,7 @@ import { ContextRail, useContextRail } from "@/components/shell/ContextRail";
 import { Banner } from "@/components/ui/Banner";
 import { WritingSprint } from "@/components/writing/WritingSprint";
 import { LabeledSwitch } from "@/components/ui/LabeledSwitch";
+import { TextField } from "@/components/ui/TextField";
 import { IconAnchor, IconButton } from "@/components/ui/IconButton";
 import { HistoryIcon, MoreIcon } from "@/components/shell/icons";
 import { useLayout } from "@/components/shell/LayoutContext";
@@ -68,7 +69,11 @@ import { tidyText } from "@/writing/tidy";
 import { styleRangeHighlightEnd } from "@/writing/styleCheck";
 import type { SpellChecker, SpellingLanguage } from "@/writing/spelling";
 import { autosaveRecordAction, saveRecordAction, takeNamedSnapshotAction, type FormResult } from "../../actions";
-import { linkReferenceAction, splitManuscriptAction } from "../../write/actions";
+import {
+  extractSelectionAsSceneAction,
+  linkReferenceAction,
+  splitManuscriptAction,
+} from "../../write/actions";
 import { ManuscriptMetaFields } from "@/components/writing/ManuscriptMetaFields";
 import { CodexSuggestBox } from "@/components/writing/CodexSuggestBox";
 import type { CodexEntry } from "@/writing/codexSuggest";
@@ -172,9 +177,10 @@ export function WriteEditor(props: {
   const spokenPassRef = useRef("");
   // The text box reports line endings as "\n"; keep offsets in the same terms.
   const savedText = normalizeNewlines(props.body);
+  const [sceneList, setSceneList] = useState(props.scenes ?? []);
   const composedChapter = useMemo(
-    () => composeChapterWithScenes(savedText, props.kind === "chapter" ? (props.scenes ?? []) : []),
-    [savedText, props.kind, props.scenes],
+    () => composeChapterWithScenes(savedText, props.kind === "chapter" ? sceneList : []),
+    [savedText, props.kind, sceneList],
   );
   const [text, setText] = useState(savedText);
   const [title, setTitle] = useState(props.title);
@@ -206,6 +212,13 @@ export function WriteEditor(props: {
   const [splitError, setSplitError] = useState<string | null>(null);
   const [splitPending, setSplitPending] = useState(false);
   const splitDialogRef = useRef<HTMLDialogElement>(null);
+  const [extractTitle, setExtractTitle] = useState("");
+  const [extractError, setExtractError] = useState<string | null>(null);
+  const [extractPending, setExtractPending] = useState(false);
+  const [extractRange, setExtractRange] = useState<{ start: number; end: number; text: string } | null>(null);
+  const extractDialogRef = useRef<HTMLDialogElement>(null);
+  /** Last non-empty chapter selection — survives focus moves into menus/dialogs. */
+  const lastChapterSelectionRef = useRef<{ start: number; end: number; text: string } | null>(null);
   const [linkRequest, setLinkRequest] = useState<(LinkSeed & { id: number }) | null>(null);
   /** "notice" shows even with nothing unsaved and clears on the next keystroke. */
   const [loadNote, setLoadNote] = useState<{ tone: "info" | "error" | "notice"; text: string } | null>(null);
@@ -448,6 +461,10 @@ export function WriteEditor(props: {
     setNamedSnapshots(props.namedSnapshots);
   }, [props.namedSnapshots, snapshotPending]);
 
+  useEffect(() => {
+    setSceneList(props.scenes ?? []);
+  }, [props.scenes]);
+
   const openNotesPanel = () => {
     updateLayout({ contextTab: "notes", contextHidden: false });
     selectMode("companion");
@@ -616,6 +633,40 @@ export function WriteEditor(props: {
 
   const documentLabel = props.kind === "scene" ? WRITING.sceneCount : WRITING.chapterCount;
 
+  const rememberChapterSelection = (start: number, end: number, chapter: string) => {
+    if (start >= end) return;
+    lastChapterSelectionRef.current = { start, end, text: chapter.slice(start, end) };
+  };
+
+  const openExtractDialog = () => {
+    if (dirty) {
+      setLoadNote({ tone: "error", text: MANUSCRIPT_STRUCTURE.extractSceneSaveFirst });
+      return;
+    }
+    const surface = bodyRef.current;
+    const chapter = surface?.value ?? text;
+    let start = surface?.selectionStart ?? selection.start;
+    let end = surface?.selectionEnd ?? selection.end;
+    let selected = start < end ? chapter.slice(start, end) : "";
+    if (!selected.trim()) {
+      const last = lastChapterSelectionRef.current;
+      if (last?.text.trim()) {
+        start = last.start;
+        end = last.end;
+        selected = last.text;
+      }
+    }
+    if (!selected.trim()) {
+      setLoadNote({ tone: "error", text: MANUSCRIPT_STRUCTURE.extractSceneNeedSelection });
+      return;
+    }
+    rememberChapterSelection(start, end, chapter);
+    setExtractRange({ start, end, text: selected });
+    setExtractTitle("");
+    setExtractError(null);
+    extractDialogRef.current?.showModal();
+  };
+
   return (
     <div className="write-layout">
       <div className="write-main">
@@ -767,6 +818,26 @@ export function WriteEditor(props: {
                         {MANUSCRIPT_STRUCTURE.split}
                       </button>
                     </li>
+                    {props.kind === "chapter" ? (
+                      <li>
+                        <button
+                          type="button"
+                          className="menu-item"
+                          disabled={!editable || extractPending || selection.start >= selection.end}
+                          title={
+                            !editable
+                              ? WRITE.protectedReadOnly
+                              : selection.start >= selection.end
+                                ? MANUSCRIPT_STRUCTURE.extractSceneNeedSelection
+                                : MANUSCRIPT_STRUCTURE.extractScene
+                          }
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={openExtractDialog}
+                        >
+                          {MANUSCRIPT_STRUCTURE.extractScene}
+                        </button>
+                      </li>
+                    ) : null}
                     <li>
                       <button
                         type="button"
@@ -985,7 +1056,11 @@ export function WriteEditor(props: {
                 currentSpellFlag={appUnderlines ? flagAt(overlayFlags, selection) : null}
                 codexEntries={props.codexEntries}
                 onChange={onBodyChange}
-                onSelectionChange={setSelection}
+                onSelectionChange={(next) => {
+                  setSelection(next);
+                  const chapter = bodyRef.current?.value ?? text;
+                  rememberChapterSelection(next.start, next.end, chapter);
+                }}
               />
             </span>
             <div className="row wrap" style={{ marginTop: "0.5rem", gap: "0.5rem", alignItems: "center" }}>
@@ -995,6 +1070,19 @@ export function WriteEditor(props: {
                 draftScopeId={props.draftScopeId}
                 selectionText={selectionText}
               />
+              {props.kind === "chapter" && selection.start < selection.end ? (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  disabled={!editable || extractPending}
+                  title={!editable ? WRITE.protectedReadOnly : MANUSCRIPT_STRUCTURE.extractScene}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={openExtractDialog}
+                >
+                  {MANUSCRIPT_STRUCTURE.extractScene}
+                </Button>
+              ) : null}
               {readAloud.speaking ? (
                 <span className="small muted" role="status">
                   {WRITE.readAloudReading}
@@ -1151,6 +1239,78 @@ export function WriteEditor(props: {
               </Button>
               <Button type="submit" disabled={splitPending}>
                 {splitPending ? MANUSCRIPT_STRUCTURE.splitWorking : MANUSCRIPT_STRUCTURE.splitDo}
+              </Button>
+            </div>
+          </form>
+        </dialog>
+        <dialog ref={extractDialogRef} className="library-dialog" aria-labelledby={`${idPrefix}-extract-title`}>
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              const body = bodyRef.current;
+              const range = extractRange;
+              if (!body || !range) return;
+              setExtractPending(true);
+              setExtractError(null);
+              void extractSelectionAsSceneAction(props.projectId, {
+                recordId: props.recordId,
+                expectedRevision: knownRevision,
+                start: range.start,
+                end: range.end,
+                selectedText: range.text,
+                newTitle: extractTitle,
+                unlockProtected: unlocked,
+              }).then((result) => {
+                setExtractPending(false);
+                if (!result.ok) {
+                  setExtractError(result.issues.map((issue) => issue.message).join(" "));
+                  return;
+                }
+                const chapterBody = normalizeNewlines(result.chapterBody);
+                const nextScenes = [...sceneList];
+                nextScenes.splice(result.breakIndex, 0, {
+                  id: result.newRecordId,
+                  title: extractTitle.trim(),
+                  body: result.sceneBody,
+                  fieldsJson: "{}",
+                  revision: 1,
+                  protected: true,
+                });
+                setSceneList(nextScenes);
+                if (body.setComposedChapter) body.setComposedChapter(chapterBody, nextScenes);
+                else body.value = chapterBody;
+                setText(chapterBody);
+                setKnownRevision(result.revision);
+                setServerBaseline((prev) => ({ ...prev, body: chapterBody }));
+                body.setSelectionRange(0, 0);
+                setSelection({ start: 0, end: 0 });
+                lastChapterSelectionRef.current = null;
+                setExtractRange(null);
+                extractDialogRef.current?.close();
+                setLoadNote({
+                  tone: "notice",
+                  text: MANUSCRIPT_STRUCTURE.extractSceneDone(extractTitle.trim()),
+                });
+                router.refresh();
+              });
+            }}
+          >
+            <h2 id={`${idPrefix}-extract-title`}>{MANUSCRIPT_STRUCTURE.extractSceneHeading}</h2>
+            <p className="small">{MANUSCRIPT_STRUCTURE.extractSceneNote}</p>
+            <TextField
+              label={MANUSCRIPT_STRUCTURE.extractSceneTitle}
+              value={extractTitle}
+              onChange={(event) => setExtractTitle(event.target.value)}
+              required
+              autoFocus
+            />
+            {extractError ? <p className="small error-text">{extractError}</p> : null}
+            <div className="row">
+              <Button type="button" variant="secondary" onClick={() => extractDialogRef.current?.close()}>
+                {WRITE.close}
+              </Button>
+              <Button type="submit" disabled={extractPending}>
+                {extractPending ? MANUSCRIPT_STRUCTURE.extractSceneWorking : MANUSCRIPT_STRUCTURE.extractSceneDo}
               </Button>
             </div>
           </form>

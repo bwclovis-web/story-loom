@@ -1,7 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { buildManuscriptTree } from "@/ui/manuscriptTree";
 import { MutationRejectedError } from "@/server/services/errors";
-import { convertChapterScene, mergeManuscriptScenes, splitManuscriptRecord } from "@/server/services/mutationService";
+import {
+  convertChapterScene,
+  extractSelectionAsScene,
+  mergeManuscriptScenes,
+  splitManuscriptRecord,
+} from "@/server/services/mutationService";
 import { createRecord, getRecord, listNotes, listRecordNav, moveRecordInBook } from "@/server/services/recordService";
 import { CHAPTER_PROSE, createTestDb, IDS, seedProject, type TestDb } from "../helpers";
 
@@ -266,5 +271,79 @@ describe("manuscript structure", () => {
       [CHAPTER_TWO, []],
     ]);
     expect((await getRecord(t.db, IDS.project, SCENE_B)).currentRevision).toBe(before.currentRevision);
+  });
+
+  it("extracts a chapter selection into a nested scene at the break index", async () => {
+    const start = CHAPTER_PROSE.indexOf("Mara Venn");
+    const end = CHAPTER_PROSE.length;
+    const before = await getRecord(t.db, IDS.project, IDS.chapter);
+    expect(
+      await issueCodes(
+        extractSelectionAsScene(t.db, {
+          projectId: IDS.project,
+          recordId: IDS.chapter,
+          expectedRevision: before.currentRevision,
+          start,
+          end,
+          newTitle: "Morning check",
+          unlockProtected: false,
+        }),
+      ),
+    ).toEqual(["PROTECTED_RECORD"]);
+    expect((await getRecord(t.db, IDS.project, IDS.chapter)).body).toBe(CHAPTER_PROSE);
+
+    const extracted = await extractSelectionAsScene(t.db, {
+      projectId: IDS.project,
+      recordId: IDS.chapter,
+      expectedRevision: before.currentRevision,
+      start,
+      end,
+      newTitle: "Morning check",
+      unlockProtected: true,
+    });
+    const chapter = await getRecord(t.db, IDS.project, IDS.chapter);
+    const scene = await getRecord(t.db, IDS.project, extracted.newRecordId);
+    expect(chapter.body).toBe("The ledger had been dry for three hundred years.\n\n***");
+    expect(chapter.currentRevision).toBe(before.currentRevision + 1);
+    expect(scene.type).toBe("manuscript_scene");
+    expect(scene.parentRecordId).toBe(IDS.chapter);
+    expect(scene.title).toBe("Morning check");
+    expect(scene.body).toBe("Mara Venn knew this because she had checked it every morning.");
+    expect(await order()).toEqual([
+      [IDS.chapter, [extracted.newRecordId, SCENE_A, SCENE_B]],
+      [CHAPTER_TWO, []],
+    ]);
+
+    const withBreak = "Open.\n\n***\n\nKeep this.\n\nClose.";
+    const earlyScene = "rec_test_ch02_early";
+    await t.db.record.update({
+      where: { id: CHAPTER_TWO },
+      data: { body: withBreak, currentRevision: 2, protected: false },
+    });
+    await createRecord(t.db, IDS.project, {
+      recordId: earlyScene,
+      type: "manuscript_scene",
+      title: "Early scene",
+      body: "Already nested at the first break.",
+      authorityStatus: "draft",
+      parentRecordId: CHAPTER_TWO,
+    });
+    const keepStart = withBreak.indexOf("Keep this.");
+    const keepEnd = keepStart + "Keep this.".length;
+    const second = await extractSelectionAsScene(t.db, {
+      projectId: IDS.project,
+      recordId: CHAPTER_TWO,
+      expectedRevision: 2,
+      start: keepStart,
+      end: keepEnd,
+      newTitle: "Keep scene",
+      unlockProtected: false,
+    });
+    const chapterTwo = await getRecord(t.db, IDS.project, CHAPTER_TWO);
+    expect(chapterTwo.body).toBe("Open.\n\n***\n\n***\n\nClose.");
+    expect(await order()).toEqual([
+      [IDS.chapter, [extracted.newRecordId, SCENE_A, SCENE_B]],
+      [CHAPTER_TWO, [earlyScene, second.newRecordId]],
+    ]);
   });
 });

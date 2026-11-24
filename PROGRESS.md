@@ -1,5 +1,17 @@
 # Progress
 
+## Extract selection as scene (Nov 24, 2026)
+
+Write can turn a selected chapter passage into a nested `manuscript_scene`.
+
+- **Behavior:** More menu **Make scene from selection** (chapters only) and a control beside Create reference from selection when text is selected. Removes the passage, leaves `***` at the cut, creates the scene under the chapter at the break index, stays on the chapter. Protection unlock and clean save required (same gates as split).
+- **Service:** `extractSelectionAsScene` via `applyMutationsInTx` + `moveInBookInTx`; margin comments in the selection move onto the new scene (`needsRecheck`); later comments shift.
+- **Verify:** unit `manuscriptStructure` extract helper; acceptance `manuscript-structure` extract case. Working DB untouched (no schema change).
+
+### Rollback
+
+Revert helper/service/action/WriteEditor/labels/Help/PROGRESS/tests. Existing chapters and scenes remain valid.
+
 ## World calendar extensions (Nov 24, 2026)
 
 Extends the project calendar beyond fixed months and forward eras.

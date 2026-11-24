@@ -31,7 +31,11 @@ import {
 } from "@/domain/recordTypes";
 import type { AuthorityStatus, MutationScope, SourceKind } from "@/domain/statuses";
 import { RECORD_GROUPS } from "@/ui/navigation";
-import { mergeManuscriptBodies, splitManuscriptBody } from "@/writing/manuscriptStructure";
+import {
+  mergeManuscriptBodies,
+  resolveExtractSelection,
+  splitManuscriptBody,
+} from "@/writing/manuscriptStructure";
 import {
   isTaxonomyOnlyFieldsChange,
   TAXONOMY_FIELD_KEY,
@@ -1195,6 +1199,135 @@ export async function splitManuscriptRecord(
     await copySplitAttachments(tx, input.projectId, record.id, createdId, input.splitAt, parts.tailOffset);
     const updated = batch.outcomes.find((outcome) => outcome.recordId === record.id);
     return { newRecordId: createdId, head: parts.head, revision: updated?.newRevision ?? record.currentRevision + 1 };
+  });
+}
+
+async function reassignExtractComments(
+  tx: Tx,
+  projectId: string,
+  chapterId: string,
+  sceneId: string,
+  parts: {
+    originalBody: string;
+    selectionStart: number;
+    selectionEnd: number;
+    tailStartInChapter: number;
+  },
+) {
+  const { originalBody, selectionStart, selectionEnd, tailStartInChapter } = parts;
+  const rawAfter = originalBody.slice(selectionEnd);
+  const tailLead = rawAfter.length - rawAfter.replace(/^\s+/, "").length;
+  const comments = await tx.manuscriptAnnotation.findMany({
+    where: { projectId, recordId: chapterId, kind: ANNOTATION_KIND.comment },
+  });
+  for (const comment of comments) {
+    const start = comment.passageStart ?? 0;
+    const end = comment.passageEnd ?? start;
+    if (start >= selectionStart && start < selectionEnd) {
+      await tx.manuscriptAnnotation.update({
+        where: { id: comment.id },
+        data: {
+          recordId: sceneId,
+          passageStart: Math.max(0, start - selectionStart),
+          passageEnd: Math.max(0, Math.min(end, selectionEnd) - selectionStart),
+          needsRecheck: true,
+        },
+      });
+      continue;
+    }
+    if (start >= selectionEnd) {
+      const inTail = Math.max(0, start - selectionEnd - tailLead);
+      const endInTail = Math.max(0, end - selectionEnd - tailLead);
+      await tx.manuscriptAnnotation.update({
+        where: { id: comment.id },
+        data: {
+          passageStart: tailStartInChapter + inTail,
+          passageEnd: tailStartInChapter + endInTail,
+          needsRecheck: true,
+        },
+      });
+    }
+  }
+}
+
+/** Turn a selected chapter passage into a child scene; leave `***` at the cut. */
+export async function extractSelectionAsScene(
+  db: Db,
+  input: {
+    projectId: string;
+    recordId: string;
+    expectedRevision: number;
+    start: number;
+    end: number;
+    /** Exact chapter text captured in the editor; preferred when offsets drifted. */
+    selectedText?: string;
+    newTitle: string;
+    unlockProtected: boolean;
+  },
+) {
+  const title = input.newTitle.trim();
+  if (!title) rejectStructure("INVALID_CHANGE", "The new scene needs a title.", input.recordId);
+  return db.$transaction(async (tx) => {
+    const record = await tx.record.findFirst({ where: { id: input.recordId, projectId: input.projectId, trashedAt: null } });
+    if (!record) throw new NotFoundError(`Record ${input.recordId} not found`);
+    if (record.type !== "manuscript_chapter") {
+      rejectStructure("INVALID_CHANGE", "Only a chapter can turn a selection into a scene.", record.id);
+    }
+    if (record.currentRevision !== input.expectedRevision) {
+      rejectStructure("STALE_REVISION", "This chapter was saved elsewhere. Reload it, then extract again.", record.id);
+    }
+    requireStructureUnlock(record.protected, input.unlockProtected, record.title, record.id);
+    const originalBody = record.body.replace(/\r\n?/g, "\n");
+    const parts = resolveExtractSelection(originalBody, input.start, input.end, input.selectedText);
+    if (!parts) {
+      rejectStructure("INVALID_CHANGE", "Select a passage with words in this chapter.", record.id);
+    }
+    const createdId = newId("rec");
+    const batch = await applyMutationsInTx(
+      tx,
+      structureContext(input.projectId, [record.id]),
+      [
+        {
+          kind: "update_record",
+          recordId: record.id,
+          expectedRevision: record.currentRevision,
+          changes: { body: parts.chapterBody },
+        },
+        {
+          kind: "create_record",
+          recordId: createdId,
+          type: "manuscript_scene",
+          title,
+          body: parts.sceneBody,
+          fields: {},
+          authorityStatus: "draft",
+          parentRecordId: record.id,
+          draftId: record.draftId,
+        },
+      ],
+      { action: "record.extract_scene", summary: `Extracted "${title}" from "${record.title}"` },
+    );
+    await moveInBookInTx(tx, {
+      projectId: input.projectId,
+      recordId: createdId,
+      parentRecordId: record.id,
+      index: parts.breakIndex,
+      actor: STRUCTURE_ACTOR,
+    });
+    await reassignExtractComments(tx, input.projectId, record.id, createdId, {
+      originalBody,
+      selectionStart: parts.selectionStart,
+      selectionEnd: parts.selectionEnd,
+      tailStartInChapter: parts.tailStartInChapter,
+    });
+    const updated = batch.outcomes.find((outcome) => outcome.recordId === record.id);
+    return {
+      newRecordId: createdId,
+      chapterBody: parts.chapterBody,
+      sceneBody: parts.sceneBody,
+      breakIndex: parts.breakIndex,
+      revision: updated?.newRevision ?? record.currentRevision + 1,
+    };
   });
 }
 
