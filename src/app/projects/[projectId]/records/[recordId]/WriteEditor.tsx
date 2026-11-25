@@ -474,6 +474,14 @@ export function WriteEditor(props: {
     selectMode("companion");
   };
 
+  const [codexPreviewRequest, setCodexPreviewRequest] = useState<{ recordId: string; key: number } | null>(null);
+
+  const openCodexInRail = (entry: { id: string }) => {
+    updateLayout({ contextTab: "references", contextHidden: false });
+    selectMode("companion");
+    setCodexPreviewRequest((prev) => ({ recordId: entry.id, key: (prev?.key ?? 0) + 1 }));
+  };
+
   const openSnapshotDialog = () => {
     setSnapshotError(null);
     setSnapshotOpen(true);
@@ -1072,6 +1080,7 @@ export function WriteEditor(props: {
                 spellFlags={appUnderlines ? overlayFlags : []}
                 currentSpellFlag={appUnderlines ? flagAt(overlayFlags, selection) : null}
                 codexEntries={props.codexEntries}
+                onCodexOpen={openCodexInRail}
                 onChange={onBodyChange}
                 onSelectionChange={(next) => {
                   setSelection(next);
@@ -1389,6 +1398,7 @@ export function WriteEditor(props: {
           beatPresets={props.beatPresets ?? []}
           continuityFindings={props.continuityFindings}
           characterCues={props.characterCues}
+          previewRequest={codexPreviewRequest}
           editorText={text}
           editorDirty={dirty}
           editorSelection={selection}

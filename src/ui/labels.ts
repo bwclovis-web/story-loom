@@ -995,6 +995,8 @@ export const WRITE = {
   codexLink: "Also link this reference",
   codexLinked: "Linked",
   codexEmpty: "No matching reference",
+  codexPeekOpen: "Open beside editor",
+  codexPeekOpenHint: "Or Ctrl-click (Cmd-click on Mac) a recognized name in the text.",
   splitEditHere: "Edit here",
   splitLoading: "Loading…",
   splitLoadError: "Could not load that chapter or scene.",

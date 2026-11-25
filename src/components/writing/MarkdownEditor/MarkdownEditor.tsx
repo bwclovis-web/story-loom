@@ -11,7 +11,7 @@ import { forwardRef, useEffect, useImperativeHandle, useLayoutEffect, useRef } f
 import type { SpellFlag } from "@/spelling/dictionary";
 import type { CodexEntry } from "@/writing/codexSuggest";
 import type { EditorSurface } from "../EditorSurface";
-import { codexHoverExtension } from "./codexHover";
+import { buildCodexIndex, codexHoverExtension, findCodexHitInLine, type CodexOpenHandler } from "./codexHover";
 import { livePreviewExtension } from "./livePreview";
 import { setSpellFlagsEffect, spellDecorationExtension } from "./spellDecorations";
 import { manuscriptTheme } from "./theme";
@@ -44,6 +44,8 @@ export interface MarkdownEditorProps {
   spellFlags?: readonly SpellFlag[];
   currentSpellFlag?: SpellFlag | null;
   codexEntries?: readonly CodexEntry[];
+  /** Open a matched reference (hover tip button or Ctrl/Cmd-click on the name). */
+  onCodexOpen?: CodexOpenHandler;
   onChange?: (doc: string) => void;
   onSelectionChange?: (selection: { start: number; end: number }) => void;
   onDomKeyDown?: (event: KeyboardEvent) => void;
@@ -247,6 +249,7 @@ export const MarkdownEditor = forwardRef<EditorSurface, MarkdownEditorProps>(fun
     spellFlags = [],
     currentSpellFlag = null,
     codexEntries = [],
+    onCodexOpen,
     onChange,
     onSelectionChange,
     onDomKeyDown,
@@ -263,9 +266,13 @@ export const MarkdownEditor = forwardRef<EditorSurface, MarkdownEditorProps>(fun
   const onChangeRef = useRef(onChange);
   const onSelectionRef = useRef(onSelectionChange);
   const onKeyDownRef = useRef(onDomKeyDown);
+  const onCodexOpenRef = useRef(onCodexOpen);
+  const codexEntriesRef = useRef(codexEntries);
   onChangeRef.current = onChange;
   onSelectionRef.current = onSelectionChange;
   onKeyDownRef.current = onDomKeyDown;
+  onCodexOpenRef.current = onCodexOpen;
+  codexEntriesRef.current = codexEntries;
 
   useImperativeHandle(ref, () => {
     const live = () => surfaceRef.current;
@@ -353,7 +360,11 @@ export const MarkdownEditor = forwardRef<EditorSurface, MarkdownEditorProps>(fun
           return allowed;
         }),
         chromeCompartment.current.of(livePreviewExtension(chrome === "live")),
-        codexCompartment.current.of(codexHoverExtension(codexEntries)),
+        codexCompartment.current.of(
+          codexHoverExtension(codexEntries, {
+            onOpen: (entry) => onCodexOpenRef.current?.(entry),
+          }),
+        ),
         editableCompartment.current.of(EditorView.editable.of(editable)),
         attrsCompartment.current.of(
           EditorView.contentAttributes.of({
@@ -390,6 +401,19 @@ export const MarkdownEditor = forwardRef<EditorSurface, MarkdownEditorProps>(fun
           keydown(event) {
             onKeyDownRef.current?.(event);
             return false;
+          },
+          click(event, view) {
+            if (!(event.metaKey || event.ctrlKey) || !onCodexOpenRef.current) return false;
+            const pos = view.posAtCoords({ x: event.clientX, y: event.clientY });
+            if (pos == null) return false;
+            const entries = codexEntriesRef.current;
+            if (!entries.length) return false;
+            const line = view.state.doc.lineAt(pos);
+            const hit = findCodexHitInLine(line.text, pos - line.from, buildCodexIndex(entries));
+            if (!hit) return false;
+            event.preventDefault();
+            onCodexOpenRef.current(hit.entry);
+            return true;
           },
         }),
       ],
@@ -457,7 +481,11 @@ export const MarkdownEditor = forwardRef<EditorSurface, MarkdownEditorProps>(fun
     const view = viewRef.current;
     if (!view) return;
     view.dispatch({
-      effects: codexCompartment.current.reconfigure(codexHoverExtension(codexEntries)),
+      effects: codexCompartment.current.reconfigure(
+        codexHoverExtension(codexEntries, {
+          onOpen: (entry) => onCodexOpenRef.current?.(entry),
+        }),
+      ),
     });
   }, [codexEntries]);
 

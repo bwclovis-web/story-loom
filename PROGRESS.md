@@ -1,5 +1,13 @@
 # Progress
 
+## Codex peek opens reference rail (Nov 25, 2026)
+
+Editor name hover tip keeps its short peek and adds **Open beside editor**; Ctrl/Cmd-click on a matched name does the same. Opens Companion + References and loads the existing rail preview (`previewReferenceAction`). Working manuscript DB untouched.
+
+### Rollback
+
+Revert `codexHover` / `MarkdownEditor` open wiring, WriteEditor/WriteContext `previewRequest`, labels, Help, CSS, PROGRESS.
+
 ## Image lightbox with zoom (Nov 25, 2026)
 
 Attached and preview images open in a shared lightbox with zoom (buttons, scroll wheel, drag when zoomed), previous/next in galleries, and Escape to close. Wired on reading cards, reference preview, identity thumb, Images gallery, Markdown body images, Write context thumbs, inspector Images tab, and board rail/summary images. Map canvas / library navigation and decorative covers stay as before. Working manuscript DB untouched.

@@ -1,20 +1,27 @@
 import { hoverTooltip, tooltips } from "@codemirror/view";
 import type { CodexEntry } from "@/writing/codexSuggest";
 import { nameFromTitle } from "@/writing/crossRefs";
+import { WRITE } from "@/ui/labels";
+
+export type CodexOpenHandler = (entry: CodexEntry) => void;
 
 /**
  * Hover tip for recognized codex names and [[wiki]] links. Read-only peek;
- * does not write records.
+ * optional Open opens the reference beside the editor.
  *
  * Matches full titles, the bare name from "Title — Kind" headings, aliases,
  * and (for multi-word names) first/last name parts — same idea as manuscript
  * cross-ref scanning. Tooltips mount on document.body so write-mode overflow
  * does not clip them.
  */
-export function codexHoverExtension(entries: readonly CodexEntry[]) {
+export function codexHoverExtension(
+  entries: readonly CodexEntry[],
+  options?: { onOpen?: CodexOpenHandler },
+) {
   if (!entries.length) return [];
 
   const index = buildCodexIndex(entries);
+  const onOpen = options?.onOpen;
 
   return [
     tooltips({ parent: typeof document !== "undefined" ? document.body : undefined }),
@@ -42,6 +49,22 @@ export function codexHoverExtension(entries: readonly CodexEntry[]) {
               kind.className = "cm-codex-peek-kind";
               kind.textContent = hit.entry.title;
               dom.appendChild(kind);
+            }
+            if (onOpen) {
+              const open = document.createElement("button");
+              open.type = "button";
+              open.className = "cm-codex-peek-open";
+              open.textContent = WRITE.codexPeekOpen;
+              open.addEventListener("mousedown", (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+              });
+              open.addEventListener("click", (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                onOpen(hit.entry);
+              });
+              dom.appendChild(open);
             }
             return { dom };
           },

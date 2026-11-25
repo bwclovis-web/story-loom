@@ -169,6 +169,7 @@ export function WriteContext({
   beatPresets = [],
   continuityFindings = [],
   characterCues = [],
+  previewRequest = null,
   editorText,
   editorDirty,
   editorSelection,
@@ -203,6 +204,8 @@ export function WriteContext({
   /** Open Continuity Ledger findings that touch this chapter or scene. */
   continuityFindings?: ContinuityFindingItem[];
   characterCues?: DevelopmentCue[];
+  /** Request from the editor to preview a codex hit in this rail. */
+  previewRequest?: { recordId: string; key: number } | null;
   /** Current editor text (may be unsaved). */
   editorText: string;
   editorDirty: boolean;
@@ -320,6 +323,7 @@ export function WriteContext({
           choices={choices}
           draftScopeId={draftScopeId}
           initialPins={initialPins}
+          previewRequest={previewRequest}
         />
       </div>
       <div role="tabpanel" id={`${idPrefix}-panel-notes`} aria-labelledby={`${idPrefix}-tab-notes`} hidden={tab !== "notes"} className="context-body">
@@ -990,6 +994,7 @@ function References({
   choices,
   draftScopeId,
   initialPins,
+  previewRequest = null,
 }: {
   projectId: string;
   recordId: string;
@@ -999,6 +1004,7 @@ function References({
   choices: ChoiceItem[];
   draftScopeId: string | null;
   initialPins: ReadingPinView[];
+  previewRequest?: { recordId: string; key: number } | null;
 }) {
   const idPrefix = useId();
   const [query, setQuery] = useState("");
@@ -1071,6 +1077,13 @@ function References({
     setPreview(result);
     setJumpSectionId(sectionId ?? null);
   };
+
+  useEffect(() => {
+    if (!previewRequest) return;
+    void open(previewRequest.recordId);
+    // Only react to a new editor request (key), not to open's identity.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: keyed preview requests
+  }, [previewRequest?.key, previewRequest?.recordId]);
 
   useEffect(() => {
     if (preview) previewRef.current?.focus();

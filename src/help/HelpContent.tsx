@@ -1771,11 +1771,13 @@ export function HelpContent() {
             <code>[^id]</code> in the text and <code>[^id]: note</code> on their own lines.
           </p>
           <p>
-            Hover a known character or place name (including common name forms) for a short peek.{" "}
-            <L>{WRITE.createReferenceFromSelection}</L> turns selected text into a draft reference and can link or pin it
-            without changing the manuscript. <L>{WRITE.scrivenings}</L> (from Write project tools or a chapter header)
-            opens a chapter and its scenes in one continuous scroll; each block keeps its own protection, revision, and
-            autosave. <L>{WRITE.readAloud}</L> is in the editor toolbar — see <See anchor="named-snapshots" />.
+            Hover a known character or place name (including common name forms) for a short peek, then choose{" "}
+            <L>{WRITE.codexPeekOpen}</L> to load that reference in the side panel (Companion / References).{" "}
+            {WRITE.codexPeekOpenHint} <L>{WRITE.createReferenceFromSelection}</L> turns selected text into a draft
+            reference and can link or pin it without changing the manuscript. <L>{WRITE.scrivenings}</L> (from Write
+            project tools or a chapter header) opens a chapter and its scenes in one continuous scroll; each block keeps
+            its own protection, revision, and autosave. <L>{WRITE.readAloud}</L> is in the editor toolbar — see{" "}
+            <See anchor="named-snapshots" />.
           </p>
         </Sub>
 
