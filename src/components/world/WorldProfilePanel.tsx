@@ -8,6 +8,7 @@ import { HelpPopover } from "@/components/ui/HelpPopover";
 import { Button, ButtonLink } from "@/components/ui/Atoms/Button";
 import { TextField } from "@/components/ui/TextField";
 import { setUnsaved } from "@/components/shell/unsaved";
+import { useReferenceProfileEditRequest } from "@/components/world/ReferenceProfileEditContext";
 import type {
   WorldProfile,
   WorldProfileFieldValue,
@@ -533,11 +534,24 @@ export function WorldProfilePanel({
   };
 
   const startEdit = () => {
+    if (mode === "edit") return;
     setError(null);
     setMessage(null);
     setProfile(cloneProfile(saved));
     setMode("edit");
   };
+
+  const profileEditRequest = useReferenceProfileEditRequest();
+  const lastProfileEditKey = useRef(0);
+  useEffect(() => {
+    const key = profileEditRequest?.requestKey ?? 0;
+    if (!key || key === lastProfileEditKey.current) return;
+    lastProfileEditKey.current = key;
+    if (!editable) return;
+    startEdit();
+    // Intentionally keyed only on strip requests; startEdit closes over current mode/saved.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profileEditRequest?.requestKey, editable]);
 
   const cancelEdit = () => {
     setError(null);

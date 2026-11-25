@@ -2379,9 +2379,12 @@ export function HelpContent() {
             Markdown body you already have. Name, aliases, images, and relationship edges stay on their existing panels;
             the profile does not replace them. Leaving the profile blank changes nothing. The Character profile tab opens
             as a readable view of saved notes (optional empties hidden until you choose{" "}
-            <L>{CHARACTER_DEVELOPMENT.showEmptyFields}</L>). Use <L>{CHARACTER_DEVELOPMENT.editProfile}</L> or{" "}
-            <L>{CHARACTER_DEVELOPMENT.addProfileDetails}</L> for a draft form, then <L>{CHARACTER_DEVELOPMENT.save}</L> or{" "}
-            <L>{CHARACTER_DEVELOPMENT.cancel}</L>. Saving the profile does not change dossier Markdown.{" "}
+            <L>{CHARACTER_DEVELOPMENT.showEmptyFields}</L>). On that tab the identity strip offers{" "}
+            <L>{CHARACTER_DEVELOPMENT.editProfile}</L> (document editing stays under{" "}
+            <L>{REFERENCE_FORM.editDocument}</L> on the Document tab). You can also use{" "}
+            <L>{CHARACTER_DEVELOPMENT.addProfileDetails}</L> in the panel. Then{" "}
+            <L>{CHARACTER_DEVELOPMENT.save}</L> or <L>{CHARACTER_DEVELOPMENT.cancel}</L>. Saving the profile does not
+            change dossier Markdown.{" "}
             <L>{CHARACTER_DEVELOPMENT.importance}</L> suggests which sections to open first (
             <L>{CHARACTER_DEVELOPMENT.importanceLevels.protagonist}</L>,{" "}
             <L>{CHARACTER_DEVELOPMENT.importanceLevels.major}</L>,{" "}
@@ -2800,7 +2803,7 @@ export function HelpContent() {
           <h4>Editing</h4>
           <ol>
             <li>
-              Choose <L>{REFERENCE_FORM.editReference}</L> (or <L>{WORLD.edit}</L>). The editor described in{" "}
+              Choose <L>{REFERENCE_FORM.editDocument}</L> (or <L>{WORLD.edit}</L>). The editor described in{" "}
               <See anchor="editing" /> opens on the <L>{REFERENCE_FORM.tabDocument}</L> tab in place of the formatted
               text.
             </li>
@@ -2831,12 +2834,15 @@ export function HelpContent() {
         <Sub id="reference-context">
           <p>
             A reference page is a tabbed workspace. Type, kind, canon status, saved version, and protection appear in the
-            identity strip. <L>{REFERENCE_FORM.editReference}</L> opens the Markdown editor on the{" "}
-            <L>{REFERENCE_FORM.tabDocument}</L> tab. <L>{REFERENCE_FORM.moreActions}</L> reaches history, status,
-            import, export, and PDF. Arrow keys move between tabs. The <code>tab</code> query in the address bar records
-            the active tab so Back and Forward restore it. Legacy hashes such as <code>#images</code> and{" "}
-            <code>#world-profile</code> still open the matching tab. Unsaved document or profile drafts stay mounted when
-            you change tabs; leaving the page still asks when something is unsaved.
+            identity strip. On the <L>{REFERENCE_FORM.tabDocument}</L> tab (and other non-profile tabs),{" "}
+            <L>{REFERENCE_FORM.editDocument}</L> opens the Markdown editor. On{" "}
+            <L>{REFERENCE_FORM.tabCharacterProfile}</L> or <L>{REFERENCE_FORM.tabProfile}</L>, the strip button becomes{" "}
+            <L>{CHARACTER_DEVELOPMENT.editProfile}</L> or <L>{WORLD_PROFILE.editProfile}</L> and starts that profile
+            draft instead. <L>{REFERENCE_FORM.moreActions}</L> reaches history, status, import, export, and PDF. Arrow
+            keys move between tabs. The <code>tab</code> query in the address bar records the active tab so Back and
+            Forward restore it. Legacy hashes such as <code>#images</code> and <code>#world-profile</code> still open
+            the matching tab. Unsaved document or profile drafts stay mounted when you change tabs; leaving the page
+            still asks when something is unsaved.
           </p>
           <ul>
             <li>
@@ -2849,8 +2855,10 @@ export function HelpContent() {
               <L>{REFERENCE_FORM.tabProfile}</L> when this record type supports a Living World Profile, or{" "}
               <L>{REFERENCE_FORM.tabCharacterProfile}</L> on a character dossier. Types without a profile omit the tab.
               Both profile tabs open as a readable view of saved fields (empty optional fields hidden; Show empty fields
-              reveals them). Edit profile or Add profile details opens a draft form with Save profile and Cancel. Saving
-              the profile never rewrites the Markdown body, and editing the document never changes the profile.
+              reveals them). The strip <L>{CHARACTER_DEVELOPMENT.editProfile}</L> /{" "}
+              <L>{WORLD_PROFILE.editProfile}</L> action (or Add profile details in the panel) opens a draft form with
+              Save profile and Cancel. Saving the profile never rewrites the Markdown body, and editing the document
+              never changes the profile.
             </li>
             <li>
               <L>{REFERENCE_FORM.tabImages}</L>: images attached to this record. See <See anchor="images" />.

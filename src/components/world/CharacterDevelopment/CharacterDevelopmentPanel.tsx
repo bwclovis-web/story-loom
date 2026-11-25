@@ -9,6 +9,7 @@ import { HelpPopover } from "@/components/ui/HelpPopover";
 import { Select } from "@/components/ui/Select";
 import { IssueList } from "@/components/IssueList";
 import { setUnsaved } from "@/components/shell/unsaved";
+import { useReferenceProfileEditRequest } from "@/components/world/ReferenceProfileEditContext";
 import {
   AI_VISIBILITY,
   ARCHETYPE_LIBRARY,
@@ -309,11 +310,23 @@ export function CharacterDevelopmentPanel({
   };
 
   const startEdit = () => {
+    if (mode === "edit") return;
     setMessage(null);
     setIssues([]);
     setProfile(cloneProfile(JSON.parse(savedSnapshot) as CharacterDevelopment));
     setMode("edit");
   };
+
+  const profileEditRequest = useReferenceProfileEditRequest();
+  const lastProfileEditKey = useRef(0);
+  useEffect(() => {
+    const key = profileEditRequest?.requestKey ?? 0;
+    if (!key || key === lastProfileEditKey.current) return;
+    lastProfileEditKey.current = key;
+    startEdit();
+    // Intentionally keyed only on strip requests; startEdit closes over current mode/snapshot.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profileEditRequest?.requestKey]);
 
   const cancelEdit = () => {
     setMessage(null);

@@ -1383,6 +1383,8 @@ export const REFERENCE_FORM = {
   save: "Save changes",
   cancel: "Cancel",
   editReference: "Edit reference",
+  /** Identity strip on the Document tab (and other non-profile tabs). */
+  editDocument: "Edit document",
   editDetails: "Edit details",
   changeKind: "Change kind",
   addDetails: "Add details",
@@ -1579,7 +1581,7 @@ export const WORLD_PROFILE = {
   emptyDetails: "No profile details yet.",
   emptyDetailsHint:
     "Record optional structured facts for this reference—summary, definition fields, and subcategory details. They stay separate from the document text.",
-  editProfile: "Edit profile",
+  editProfile: "Edit Living World profile",
   addProfileDetails: "Add profile details",
   showEmptyFields: "Show empty fields",
   hideEmptyFields: "Hide empty fields",
@@ -3875,7 +3877,7 @@ export const CHARACTER_DEVELOPMENT = {
   saved: "Character profile saved.",
   saving: "Saving…",
   cancel: "Cancel",
-  editProfile: "Edit profile",
+  editProfile: "Edit character profile",
   addProfileDetails: "Add profile details",
   showEmptyFields: "Show empty fields",
   hideEmptyFields: "Hide empty fields",

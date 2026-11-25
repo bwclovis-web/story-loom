@@ -5,12 +5,16 @@ import { useRouter } from "next/navigation";
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { MoreHorizontal } from "lucide-react";
 import { CanonBadge, ProtectionStateBadge, SavedVersionBadge } from "@/components/Badges";
-import { ButtonLink } from "@/components/ui/Atoms/Button";
+import { Button, ButtonLink } from "@/components/ui/Atoms/Button";
 import { OpenableImage } from "@/components/ui/ImageLightbox";
 import { IconButton } from "@/components/ui/IconButton";
 import { MenuPopover } from "@/components/ui/MenuPopover";
+import {
+  ReferenceProfileEditProvider,
+  useReferenceProfileEditRequest,
+} from "@/components/world/ReferenceProfileEditContext";
 import type { AuthorityStatus } from "@/domain/statuses";
-import { REFERENCE_FORM, WORLD } from "@/ui/labels";
+import { CHARACTER_DEVELOPMENT, REFERENCE_FORM, WORLD, WORLD_PROFILE } from "@/ui/labels";
 import {
   referenceTabFromHash,
   referenceTabHref,
@@ -166,6 +170,81 @@ export function ReferenceWorkspace({
   };
 
   return (
+    <ReferenceProfileEditProvider>
+      <ReferenceWorkspaceBody
+        recordHref={recordHref}
+        editing={editing}
+        canvasPath={canvasPath}
+        visibility={visibility}
+        identity={identity}
+        editHref={editHref}
+        moreItems={moreItems}
+        idPrefix={idPrefix}
+        tabs={tabs}
+        labels={labels}
+        active={active}
+        selectTab={selectTab}
+        onTabKey={onTabKey}
+        panelFor={panelFor}
+      />
+    </ReferenceProfileEditProvider>
+  );
+}
+
+function ReferenceWorkspaceBody({
+  recordHref,
+  editing,
+  canvasPath,
+  identity,
+  editHref,
+  moreItems,
+  idPrefix,
+  tabs,
+  labels,
+  active,
+  selectTab,
+  onTabKey,
+  panelFor,
+  visibility,
+}: {
+  recordHref: string;
+  editing: boolean;
+  canvasPath: string | null;
+  identity: ReferenceIdentity;
+  editHref: string;
+  moreItems: Array<{ href: string; label: string }>;
+  idPrefix: string;
+  tabs: ReferenceTab[];
+  labels: Record<ReferenceTab, string>;
+  active: ReferenceTab;
+  selectTab: (tab: ReferenceTab) => void;
+  onTabKey: (event: KeyboardEvent<HTMLDivElement>) => void;
+  panelFor: (tab: ReferenceTab) => ReactNode;
+  visibility: ReferenceTabVisibility;
+}) {
+  const profileEdit = useReferenceProfileEditRequest();
+  const onProfileTab = active === "profile" && Boolean(visibility.profile);
+  const profileEditLabel =
+    visibility.profile === "character" ? CHARACTER_DEVELOPMENT.editProfile : WORLD_PROFILE.editProfile;
+
+  const primaryAction = onProfileTab ? (
+    <Button
+      type="button"
+      onClick={() => {
+        profileEdit?.requestEdit();
+      }}
+    >
+      {profileEditLabel}
+    </Button>
+  ) : editing ? (
+    <ButtonLink href={referenceTabHref(recordHref, "document", { canvasPath })} variant="secondary">
+      {WORLD.doneEditing}
+    </ButtonLink>
+  ) : (
+    <ButtonLink href={editHref}>{REFERENCE_FORM.editDocument}</ButtonLink>
+  );
+
+  return (
     <div className="reference-workspace">
       <div className="reference-identity" aria-label={REFERENCE_FORM.identityDetails}>
         {identity.thumbnailSrc ? (
@@ -201,13 +280,7 @@ export function ReferenceWorkspace({
           </ul>
         </div>
         <div className="reference-identity-actions">
-          {editing ? (
-            <ButtonLink href={referenceTabHref(recordHref, "document", { canvasPath })} variant="secondary">
-              {WORLD.doneEditing}
-            </ButtonLink>
-          ) : (
-            <ButtonLink href={editHref}>{REFERENCE_FORM.editReference}</ButtonLink>
-          )}
+          {primaryAction}
           <MenuPopover
             label={REFERENCE_FORM.moreActions}
             align="end"

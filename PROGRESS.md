@@ -1,5 +1,13 @@
 # Progress
 
+## Contextual Edit document / profile strip (Nov 25, 2026)
+
+Reference identity strip: **Edit document** on Document (and other non-profile tabs); on Character / Living World profile tabs the same slot becomes **Edit character profile** / **Edit Living World profile** and starts that panel’s draft (does not open Markdown edit). Working manuscript DB untouched.
+
+### Rollback
+
+Revert ReferenceWorkspace strip + ReferenceProfileEditContext, Character/World profile request listeners, labels, Help, PROGRESS.
+
 ## Codex peek opens reference rail (Nov 25, 2026)
 
 Editor name hover tip keeps its short peek and adds **Open beside editor**; Ctrl/Cmd-click on a matched name does the same. Opens Companion + References and loads the existing rail preview (`previewReferenceAction`). Working manuscript DB untouched.
