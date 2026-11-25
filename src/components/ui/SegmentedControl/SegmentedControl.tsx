@@ -15,12 +15,12 @@ export type SegmentedControlProps = HTMLAttributes<HTMLDivElement> &
     label: string;
   };
 
-export function SegmentedControl({ className, size, label, children, ...props }: SegmentedControlProps) {
+export function SegmentedControl({ className, size, tone, label, children, ...props }: SegmentedControlProps) {
   return (
     <div
       role="group"
       aria-label={label}
-      className={cn(segmentedControlVariants({ size }), className)}
+      className={cn(segmentedControlVariants({ size, tone }), className)}
       {...props}
     >
       {children}

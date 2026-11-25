@@ -24,9 +24,9 @@ export function desktopAssistantBridgePath(): string {
 
 export function loadDesktopAssistantBridge(): DesktopAssistantBridge | null {
   const file = bridgePath();
-  if (!existsSync(file)) return null;
+  if (!existsSync(/*turbopackIgnore: true*/ file)) return null;
   try {
-    const parsed = parseJsonObject(readFileSync(file, "utf8"));
+    const parsed = parseJsonObject(readFileSync(/*turbopackIgnore: true*/ file, "utf8"));
     const keySource =
       parsed.keySource === "os-encrypted" || parsed.keySource === "fallback-plaintext" ? parsed.keySource : null;
     const model = typeof parsed.model === "string" && parsed.model.trim() ? parsed.model.trim() : null;

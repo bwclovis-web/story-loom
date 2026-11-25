@@ -105,7 +105,7 @@ export function worldHubQueryFromCollectionFilter(filter: SmartCollectionFilter)
     status: status as AuthorityStatus | null,
     protected: protectedFilter,
     sort: filter.sort && (HUB_SORTS as readonly string[]).includes(filter.sort) ? filter.sort : "updated",
-    view: filter.view && (HUB_VIEWS as readonly string[]).includes(filter.view) ? filter.view : "list",
+    view: filter.view && (HUB_VIEWS as readonly string[]).includes(filter.view) ? filter.view : "cards",
   };
 }
 

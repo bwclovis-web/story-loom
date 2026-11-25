@@ -1,4 +1,5 @@
 import { Fragment, type ReactNode } from "react";
+import { MarkdownOpenableImage } from "@/components/MarkdownOpenableImage";
 import { XREF } from "@/ui/labels";
 import { isFlaggedStatus, linkSegments, type CrossRefIndex, type XrefTarget } from "@/writing/crossRefs";
 import type { Block, Inline, MarkdownDocument } from "@/writing/markdownParse";
@@ -61,10 +62,14 @@ function renderImage(node: Extract<Inline, { kind: "image" }>, images: AttachedI
   }
   const alt = node.alt || image.altText || image.caption;
   return (
-    <span key={key} className="md-image">
-      <img src={image.src} alt={alt} width={image.width} height={image.height} loading="lazy" decoding="async" />
-      {image.caption ? <span className="md-image-caption">{image.caption}</span> : null}
-    </span>
+    <MarkdownOpenableImage
+      key={key}
+      src={image.src}
+      alt={alt}
+      caption={image.caption || undefined}
+      width={image.width}
+      height={image.height}
+    />
   );
 }
 

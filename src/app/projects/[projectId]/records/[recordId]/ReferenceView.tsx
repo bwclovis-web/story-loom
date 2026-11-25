@@ -1,17 +1,18 @@
 import { LandingHeader } from "@/components/library/LandingHeader";
-import { ButtonAnchor, ButtonLink } from "@/components/ui/Atoms/Button";
 import { Breadcrumbs as BreadcrumbTrail } from "@/components/ui/Breadcrumbs";
 import Link from "next/link";
-import type { ReactNode } from "react";
+import { type ReactNode } from "react";
 import { findFieldTextDisagreements } from "@/assistant/fieldText";
-import { CanonBadge, ProtectionStateBadge, SavedVersionBadge, SectionTagBadge, StatusBadge } from "@/components/Badges";
+import { SavedVersionBadge, StatusBadge } from "@/components/Badges";
 import { ContextSection } from "@/components/ContextSection";
 import { CrossRefsPanel, xrefHref } from "@/components/CrossRefsPanel";
 import { MentionedByPanel } from "@/components/MentionedByPanel";
 import { MarkdownView, type AttachedImages } from "@/components/MarkdownView";
 import { TextAppearanceMenu } from "@/components/TextAppearanceMenu";
+import { ProjectOnboarding } from "@/components/shell/ProjectOnboarding";
+import { DocumentSectionNav } from "@/components/world/DocumentSectionNav";
+import { ReferenceWorkspace } from "@/components/world/ReferenceWorkspace";
 import type { ProofreadConfig } from "@/components/writing/Proofreader";
-import type { JsonValue } from "@/domain/json";
 import type { RecordView } from "@/domain/records";
 import { isLinkableReferenceType, RECORD_TYPE_LABELS } from "@/domain/recordTypes";
 import type { PendingRecordProposal } from "@/server/services/assistantProposalService";
@@ -21,30 +22,23 @@ import type { LinkingRecord } from "@/server/services/linkService";
 import type { RevisionWithSource } from "@/server/services/recordService";
 import type { DictionaryWord } from "@/spelling/dictionary";
 import type { MentionedByItem } from "@/server/services/mentionedByService";
-import { isWorldKindKey } from "@/world/referenceTemplates";
 import {
   WORLDBUILDING_KIND_OTHER,
   worldbuildingCustomKind,
   worldbuildingKindFromFields,
   worldKindDisplayFromFields,
-  worldKindLabel,
 } from "@/world/worldKinds";
 import { Banner } from "@/components/ui/Banner";
 import { CanvasReturnBanner } from "@/components/world/CanvasReturnBanner";
 import { RecordAccessTracker } from "@/components/world/RecordAccessTracker";
-import { CHARACTER_DEVELOPMENT_KEY } from "@/domain/characterDevelopment";
-import { DOSSIER_MARKDOWN_ARCHIVE_KEY } from "@/domain/characterDossierUpgrade";
-import { WORLD_PROFILE_KEY } from "@/domain/worldProfile";
-import { WORLD_MARKDOWN_ARCHIVE_KEY } from "@/domain/worldProfileUpgrade";
-import { MENTIONED_BY, RECORD, REFERENCE_FORM, SERIES, SHELL, TAXONOMY_FIELDS, WORLD, WORLD_KIND, XREF } from "@/ui/labels";
+import { MENTIONED_BY, RECORD, REFERENCE_FORM, SERIES, SHELL, TAXONOMY_FIELDS, WORLD, XREF } from "@/ui/labels";
 import { keepCanvas } from "@/world/canvasReturn";
 import { groupOfType } from "@/ui/navigation";
 import { categoryLabel, isWorldType, taxonomyPlacementLabel, worldHref } from "@/ui/world";
-import { resolveRecordTaxonomy, TAXONOMY_FIELD_KEY } from "@/world/taxonomy";
+import { resolveRecordTaxonomy } from "@/world/taxonomy";
 import { crossRefsFor, type CrossRefIndex } from "@/writing/crossRefs";
 import type { CodexEntry } from "@/writing/codexSuggest";
-import { parseMarkdown, type MarkdownDocument } from "@/writing/markdownParse";
-import { splitStatusTag, statusTagOf } from "@/writing/sections";
+import { parseMarkdown } from "@/writing/markdownParse";
 import type { SpellChecker, SpellingLanguage } from "@/writing/spelling";
 import { RecordEditor } from "./RecordForms";
 import { ImageGallery, type GalleryImage } from "./ImageGallery";
@@ -62,26 +56,28 @@ import type { EstablishedFactView } from "@/world/establishedFacts";
 import type { PlaceRelationView } from "@/world/placeRelations";
 import type { RecordRelationView } from "@/world/recordRelations";
 import type { ReadingPinView } from "@/server/services/readingPinService";
-import { type DraftChoice, type EvidenceSourceChoice, type SceneChoice } from "./EstablishedInRail";
-import { ReferenceInspector } from "@/components/world/ReferenceInspector";
+import {
+  EstablishedInRail,
+  type DraftChoice,
+  type EvidenceSourceChoice,
+  type SceneChoice,
+} from "./EstablishedInRail";
 import { PlaceEvents } from "@/app/projects/[projectId]/world/maps/PlaceEvents";
-import { buildReferenceInspectorModel, type RecordPlacement } from "@/world/inspectorModel";
+import { placementHref, type RecordPlacement } from "@/world/inspectorModel";
 import { OutlineReview } from "./OutlineReview";
 import { PlaceRelations } from "./PlaceRelations";
 import { RecordRelations } from "./RecordRelations";
-import { ReferenceInfobox } from "@/components/world/ReferenceInfobox";
 import type { ReferenceInfoboxModel } from "@/world/referenceInfobox";
 import { CharacterDevelopmentSection } from "./CharacterDevelopmentSection";
 import { WorldProfileSection } from "./WorldProfileSection";
-import { WorldContextAside, WorldContextProvider, WorldContextToggle } from "./WorldContextRail";
 import { WorldPins } from "./WorldPins";
+import { resolveReferenceTab, referenceTabVisibility } from "@/world/referenceTabs";
 
 /*
  * Reference documents (everything except manuscript chapters and scenes):
- * the saved text rendered as Markdown, with type, canon status, saved version
- * and protection shown separately. Editing uses the existing record form.
- * Context comes only from stored data: links, revisions, review items,
- * unapplied proposals and imported files. Nothing here is inferred.
+ * tabbed workspace — Document, Living World / Character profile, Images,
+ * Relationships, Established in. Editing uses the existing record form.
+ * Context comes only from stored data. Nothing here is inferred.
  */
 
 const RECENT = 5;
@@ -134,6 +130,7 @@ export interface ReferenceViewProps {
   manuscriptScenes: SceneChoice[];
   placements: RecordPlacement[];
   mentionedBy: MentionedByItem[];
+  /** Kept for wiki/series builders; not shown as a duplicate strip on this page. */
   infobox: ReferenceInfoboxModel | null;
   codexEntries: CodexEntry[];
   kindTemplates?: import("@/world/kindTemplates").KindTemplateView[];
@@ -147,25 +144,11 @@ export interface ReferenceViewProps {
     dictionaryWords: DictionaryWord[];
     proofread: ProofreadConfig;
   };
+  /** From `?tab=` so the workspace paints the correct panel on first load. */
+  initialTab?: string;
 }
 
 const when = (d: Date) => d.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
-
-function fieldLabel(key: string, recordType: RecordView["type"]): string {
-  if (key === "kind" && recordType === "worldbuilding") return WORLD_KIND.fieldKind;
-  return key;
-}
-
-function fieldValue(key: string, recordType: RecordView["type"], value: JsonValue): ReactNode {
-  if (key === "kind" && recordType === "worldbuilding" && typeof value === "string" && isWorldKindKey(value)) {
-    return worldKindLabel(value);
-  }
-  if (value === null) return <span className="muted">null</span>;
-  if (typeof value === "string") return value === "" ? <span className="muted">(empty)</span> : value;
-  if (typeof value === "number" || typeof value === "boolean") return String(value);
-  if (Array.isArray(value) && value.every((v) => typeof v === "string" || typeof v === "number")) return value.join(", ");
-  return <code>{JSON.stringify(value)}</code>;
-}
 
 function Breadcrumbs({ projectId, record, parent }: { projectId: string; record: RecordView; parent: ReferenceViewProps["parent"] }) {
   const base = `/projects/${encodeURIComponent(projectId)}`;
@@ -201,33 +184,6 @@ function Breadcrumbs({ projectId, record, parent }: { projectId: string; record:
   );
 }
 
-function ContentsList({ doc, label }: { doc: MarkdownDocument; label: string }) {
-  if (!doc.headings.length) return <p className="small muted">{WORLD.noHeadings}</p>;
-  const top = Math.min(...doc.headings.map((h) => h.level));
-  const tagged = doc.headings.some((h) => statusTagOf(h.text));
-  return (
-    <nav aria-label={label}>
-      {tagged ? <p className="small muted">{XREF.sectionTagsNote}</p> : null}
-      <ol className="doc-contents">
-        {doc.headings.map((h) => {
-          const { title, tag } = splitStatusTag(h.text);
-          return (
-            <li key={h.id} style={{ paddingLeft: `${(h.level - top) * 0.85}rem` }}>
-              <a href={`#${h.id}`}>{title || "(untitled heading)"}</a>
-              {tag ? (
-                <>
-                  {" "}
-                  <SectionTagBadge tag={tag} />
-                </>
-              ) : null}
-            </li>
-          );
-        })}
-      </ol>
-    </nav>
-  );
-}
-
 export function ReferenceView(props: ReferenceViewProps) {
   const { projectId, record, revisions, editing } = props;
   const base = `/projects/${encodeURIComponent(projectId)}`;
@@ -237,14 +193,6 @@ export function ReferenceView(props: ReferenceViewProps) {
   const current = revisions[0];
   const previous = revisions[1] ?? null;
   const disagreements = previous ? findFieldTextDisagreements(previous, record) : [];
-  const fieldEntries = Object.entries(record.fields).filter(
-    ([key]) =>
-      key !== CHARACTER_DEVELOPMENT_KEY &&
-      key !== DOSSIER_MARKDOWN_ARCHIVE_KEY &&
-      key !== TAXONOMY_FIELD_KEY &&
-      key !== WORLD_PROFILE_KEY &&
-      key !== WORLD_MARKDOWN_ARCHIVE_KEY,
-  );
   const worldKindDisplay = record.type === "worldbuilding" ? worldKindDisplayFromFields(record.fields) : null;
   const taxonomy = isWorldType(record.type) ? resolveRecordTaxonomy({ type: record.type, fields: record.fields }) : null;
   const linkable = isLinkableReferenceType(record.type);
@@ -263,64 +211,203 @@ export function ReferenceView(props: ReferenceViewProps) {
   const attached: AttachedImages = new Map(gallery.map((g) => [g.name, g]));
   const namesInText = imageNamesInText(record.body);
   const refs = crossRefsFor(props.crossRefs, record.id);
-  const inspector = buildReferenceInspectorModel({
-    id: record.id,
-    title: record.title,
-    type: record.type,
-    authorityStatus: record.authorityStatus,
-    revision: record.currentRevision,
-    protected: record.protected,
-    body: record.body,
-    fields: record.fields,
-    fieldKeys: Object.keys(record.fields),
-    images: gallery.map((image) => ({
-      id: image.id,
-      name: image.name,
-      altText: image.altText,
-      caption: image.caption,
-    })),
-    relations: [
-      ...(props.placeRelations?.outgoing ?? []).map((relation) => ({
-        id: `plr-out-${relation.id}`,
-        direction: "from" as const,
-        kindLabel: relation.kindLabel,
-        otherRecordId: relation.toRecordId,
-        otherTitle: relation.toTitle,
-        otherTypeLabel: relation.toTypeLabel,
-      })),
-      ...(props.placeRelations?.incoming ?? []).map((relation) => ({
-        id: `plr-in-${relation.id}`,
-        direction: "to" as const,
-        kindLabel: relation.kindLabel,
-        otherRecordId: relation.fromRecordId,
-        otherTitle: relation.fromTitle,
-        otherTypeLabel: relation.fromTypeLabel,
-      })),
-      ...(props.recordRelations?.outgoing ?? []).map((relation) => ({
-        id: `rrl-out-${relation.id}`,
-        direction: "from" as const,
-        kindLabel: relation.kindLabel,
-        otherRecordId: relation.toRecordId,
-        otherTitle: relation.toTitle,
-        otherTypeLabel: relation.toTypeLabel,
-      })),
-      ...(props.recordRelations?.incoming ?? []).map((relation) => ({
-        id: `rrl-in-${relation.id}`,
-        direction: "to" as const,
-        kindLabel: relation.kindLabel,
-        otherRecordId: relation.fromRecordId,
-        otherTitle: relation.fromTitle,
-        otherTypeLabel: relation.fromTypeLabel,
-      })),
-    ],
-    manuscriptLinks: props.linking.map((link) => ({
-      recordId: link.recordId,
-      title: link.title,
-      typeLabel: RECORD_TYPE_LABELS[link.type],
-      chapterTitle: link.chapterTitle,
-    })),
-    placements: props.placements,
+  const primaryImage = gallery.find((g) => g.isPrimary) ?? gallery[0] ?? null;
+  const visibility = referenceTabVisibility(record.type, {
+    hasEstablishedFacts: linkable && props.establishedFacts !== null,
   });
+  const initialTab = resolveReferenceTab(props.initialTab, visibility);
+
+  const editHref = keepCanvas(`${recordHref}?edit=1`, canvasPath);
+  const moreItems = [
+    { href: "#history", label: WORLD.history },
+    { href: "#record-status", label: WORLD.statusAndProtection },
+    { href: `${base}/import-markdown`, label: WORLD.importReferences },
+    { href: `${base}/export?record=${encodeURIComponent(record.id)}`, label: WORLD.exportForChatGpt },
+    {
+      href: `${base}/pdf?kind=references&record=${encodeURIComponent(record.id)}`,
+      label: WORLD.downloadPdf,
+    },
+    ...(props.importedFiles.length ? [{ href: "#imported-files", label: WORLD.importedFiles }] : []),
+  ];
+
+  const documentPanel = (
+    <div className="reference-document-panel">
+      <div className="doc-toolbar">
+        <div className="doc-toolbar-end">
+          <TextAppearanceMenu />
+        </div>
+      </div>
+
+      {disagreements.length ? (
+        <section className="disagreements" aria-labelledby="disagreements-heading">
+          <h2 id="disagreements-heading">{WORLD.disagreementsHeading}</h2>
+          <p className="small">{WORLD.disagreementsNote(record.currentRevision)}</p>
+          <ul>
+            {disagreements.map((d, i) => (
+              <li key={i}>{d.message}</li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+
+      {editing ? (
+        <section className="panel" aria-label={RECORD.editHeading} id="reference-editor">
+          <RecordEditor
+            key={`${record.id}:${record.currentRevision}`}
+            projectId={projectId}
+            recordId={record.id}
+            recordType={record.type}
+            revision={record.currentRevision}
+            title={record.title}
+            body={record.body}
+            fieldsJson={JSON.stringify(record.fields, null, 2)}
+            authorityStatus={record.authorityStatus}
+            isProtected={record.protected}
+            isChapter={false}
+            otherChaptersWords={null}
+            spellingLanguage={props.editor.spellingLanguage}
+            spellChecker={props.editor.spellChecker}
+            kindTemplates={props.kindTemplates}
+            dictionaryWords={props.editor.dictionaryWords}
+            proofread={props.editor.proofread}
+            images={gallery.map((g) => ({ name: g.name, label: g.caption || g.altText }))}
+            codexEntries={props.codexEntries}
+          />
+        </section>
+      ) : (
+        <div className="reference-document-layout">
+          <DocumentSectionNav headings={doc.headings} />
+          <article className="reference-doc" aria-label={record.title}>
+            {doc.blocks.length ? (
+              <MarkdownView
+                doc={doc}
+                className="document"
+                images={attached}
+                xrefs={{ index: props.crossRefs, href: (t) => xrefHref(projectId, record.id, t) }}
+              />
+            ) : (
+              <p className="muted">{WORLD.emptyDocument}</p>
+            )}
+          </article>
+        </div>
+      )}
+
+      {isWorldType(record.type) ? (
+        <OutlineReview
+          projectId={projectId}
+          recordId={record.id}
+          revision={record.currentRevision}
+          body={record.body}
+          fieldKeys={Object.keys(record.fields)}
+          isProtected={record.protected}
+          editing={editing}
+        />
+      ) : null}
+    </div>
+  );
+
+  const profilePanel: ReactNode =
+    visibility.profile === "world" ? (
+      <WorldProfileSection
+        projectId={projectId}
+        recordId={record.id}
+        recordType={record.type}
+        revision={record.currentRevision}
+        body={record.body}
+        fields={record.fields as import("@/domain/json").JsonObject}
+        editable
+        seriesHome={null}
+        isProtected={record.protected}
+        homeProjectId={projectId}
+        placeRelations={props.placeRelations}
+        placeChoices={props.placeChoices}
+      />
+    ) : visibility.profile === "character" ? (
+      <CharacterDevelopmentSection projectId={projectId} recordId={record.id} />
+    ) : null;
+
+  const relationshipsPanel = (
+    <div className="reference-relationships-panel">
+      {linkable && props.placeRelations ? (
+        <PlaceRelations
+          projectId={projectId}
+          recordId={record.id}
+          outgoing={props.placeRelations.outgoing}
+          incoming={props.placeRelations.incoming}
+          choices={props.placeChoices}
+          canShareSeries={props.canShareSeries}
+        />
+      ) : null}
+
+      {linkable && props.recordRelations ? (
+        <RecordRelations
+          projectId={projectId}
+          recordId={record.id}
+          outgoing={props.recordRelations.outgoing}
+          incoming={props.recordRelations.incoming}
+          choices={props.recordRelationChoices}
+          canShareSeries={props.canShareSeries}
+        />
+      ) : null}
+
+      {!linkable && !props.placeRelations && !props.recordRelations ? (
+        <p className="muted">{REFERENCE_FORM.noRelationshipsYet}</p>
+      ) : null}
+
+      <ContextSection title={XREF.heading} count={refs.defined.length + refs.files.length + refs.ids.length + refs.mentionedBy.length}>
+        <CrossRefsPanel projectId={projectId} recordId={record.id} refs={refs} />
+      </ContextSection>
+      <ContextSection title={MENTIONED_BY.heading} count={props.mentionedBy.length}>
+        <p className="small muted">{MENTIONED_BY.note}</p>
+        <MentionedByPanel items={props.mentionedBy} />
+      </ContextSection>
+
+      {linkable ? <PlaceEvents projectId={projectId} locationRecordId={record.id} /> : null}
+      <WorldPins
+        projectId={projectId}
+        recordId={record.id}
+        draftScopeId={props.draftScopeId}
+        initialPins={props.initialPins}
+        canPinCurrent={linkable}
+      />
+
+      {props.parent && !linkable ? (
+        <ContextSection title={WORLD.noteOn}>
+          <p className="small">
+            <Link href={`${base}/records/${encodeURIComponent(props.parent.id)}`}>{props.parent.title}</Link>
+          </p>
+          <p className="small muted">{WORLD.notLinkable}</p>
+        </ContextSection>
+      ) : null}
+
+      {props.placements.length ? (
+        <ContextSection title={WORLD.onBoardsAndMaps} count={props.placements.length}>
+          <ul className="context-links">
+            {props.placements.map((placement) => (
+              <li key={`${placement.surface}-${placement.surfaceId}-${placement.itemId}`}>
+                <Link href={placementHref(projectId, placement)}>{placement.surfaceTitle}</Link>
+              </li>
+            ))}
+          </ul>
+        </ContextSection>
+      ) : null}
+    </div>
+  );
+
+  const establishedPanel =
+    visibility.established && props.establishedFacts ? (
+      <EstablishedInRail
+        projectId={projectId}
+        subjectRecordId={record.id}
+        recordType={record.type}
+        initialFacts={props.establishedFacts}
+        evidenceSources={props.evidenceSources}
+        drafts={props.manuscriptDrafts}
+        scenes={props.manuscriptScenes}
+      />
+    ) : (
+      <p className="muted">{REFERENCE_FORM.noEstablishedYet}</p>
+    );
 
   return (
     <div className="reference-page">
@@ -344,396 +431,88 @@ export function ReferenceView(props: ReferenceViewProps) {
             : RECORD_TYPE_LABELS[record.type]
         }
         breadcrumbs={<Breadcrumbs projectId={projectId} record={record} parent={props.parent} />}
-        actions={
-          <div className="page-actions">
-            {editing ? null : (
-              <ButtonLink href={keepCanvas(`${recordHref}?edit=1`, canvasPath)}>{REFERENCE_FORM.editReference}</ButtonLink>
-            )}
-            <ButtonLink variant="secondary" href={`${base}/import-markdown`}>
-              {WORLD.importReferences}
-            </ButtonLink>
-            <ButtonLink variant="secondary" href={`${base}/export?record=${encodeURIComponent(record.id)}`}>
-              {WORLD.exportForChatGpt}
-            </ButtonLink>
-            <ButtonAnchor variant="secondary" href={`${base}/pdf?kind=references&record=${encodeURIComponent(record.id)}`} download>
-              {WORLD.downloadPdf}
-            </ButtonAnchor>
-          </div>
-        }
+        gettingStarted={<ProjectOnboarding projectId={projectId} quiet marked />}
       />
 
-      <ul className="reference-facts" aria-label="Record details">
-        <li>
-          <CanonBadge status={record.authorityStatus} />
-        </li>
-        <li>
-          <SavedVersionBadge revision={record.currentRevision} />
-          {current ? <span className="small muted"> {when(current.createdAt)}</span> : null}
-        </li>
-        <li>
-          <ProtectionStateBadge isProtected={record.protected} />
-        </li>
-        {taxonomy && taxonomy.primary ? (
-          <li className="small">
-            <span className="muted">
-              {taxonomy.usedLegacyFallback ? TAXONOMY_FIELDS.viewInferred : TAXONOMY_FIELDS.viewPrimary}:{" "}
-            </span>
-            <span className="badge">{taxonomyPlacementLabel(taxonomy.primary)}</span>
-          </li>
-        ) : null}
-        {taxonomy && taxonomy.secondary.length ? (
-          <li className="small">
-            <span className="muted">{TAXONOMY_FIELDS.viewSecondary}: </span>
-            {taxonomy.secondary.map((item) => (
-              <span key={`${item.category}\0${item.subcategory ?? ""}`} className="badge">
-                {taxonomyPlacementLabel(item)}
+      {(taxonomy && (taxonomy.primary || taxonomy.secondary.length || taxonomy.tags.length)) ||
+      props.supersededBy ||
+      record.supersededByRecordId ? (
+        <ul className="reference-facts reference-facts-compact" aria-label={REFERENCE_FORM.identityDetails}>
+          {taxonomy && taxonomy.primary ? (
+            <li className="small">
+              <span className="muted">
+                {taxonomy.usedLegacyFallback ? TAXONOMY_FIELDS.viewInferred : TAXONOMY_FIELDS.viewPrimary}:{" "}
               </span>
-            ))}
-          </li>
-        ) : null}
-        {taxonomy && taxonomy.tags.length ? (
-          <li className="small">
-            <span className="muted">{TAXONOMY_FIELDS.tags}: </span>
-            {taxonomy.tags.map((tag) => (
-              <span key={tag} className="badge">
-                {tag}
-              </span>
-            ))}
-          </li>
-        ) : null}
-        <li className="small muted">
-          ID <code>{record.id}</code>
-        </li>
-        {props.supersededBy ? (
-          <li className="small">
-            {WORLD.supersededBy}{" "}
-            <Link href={`${base}/records/${encodeURIComponent(props.supersededBy.id)}`}>{props.supersededBy.title}</Link>
-          </li>
-        ) : record.supersededByRecordId ? (
-          <li className="small">
-            {WORLD.supersededBy} <code>{record.supersededByRecordId}</code>
-          </li>
-        ) : null}
-      </ul>
-
-      {!editing && props.infobox?.rows.length ? <ReferenceInfobox model={props.infobox} factsOnly /> : null}
-      {!editing && !props.infobox?.rows.length ? (
-        <p className="reference-add-details">
-          <Link href={keepCanvas(`${recordHref}?edit=1#reference-editor`, canvasPath)}>{REFERENCE_FORM.addDetails}</Link>
-        </p>
+              <span className="badge">{taxonomyPlacementLabel(taxonomy.primary)}</span>
+            </li>
+          ) : null}
+          {taxonomy && taxonomy.secondary.length ? (
+            <li className="small">
+              <span className="muted">{TAXONOMY_FIELDS.viewSecondary}: </span>
+              {taxonomy.secondary.map((item) => (
+                <span key={`${item.category}\0${item.subcategory ?? ""}`} className="badge">
+                  {taxonomyPlacementLabel(item)}
+                </span>
+              ))}
+            </li>
+          ) : null}
+          {taxonomy && taxonomy.tags.length ? (
+            <li className="small">
+              <span className="muted">{TAXONOMY_FIELDS.tags}: </span>
+              {taxonomy.tags.map((tag) => (
+                <span key={tag} className="badge">
+                  {tag}
+                </span>
+              ))}
+            </li>
+          ) : null}
+          {props.supersededBy ? (
+            <li className="small">
+              {WORLD.supersededBy}{" "}
+              <Link href={`${base}/records/${encodeURIComponent(props.supersededBy.id)}`}>{props.supersededBy.title}</Link>
+            </li>
+          ) : record.supersededByRecordId ? (
+            <li className="small">
+              {WORLD.supersededBy} <code>{record.supersededByRecordId}</code>
+            </li>
+          ) : null}
+        </ul>
       ) : null}
 
-      <WorldContextProvider>
-      <div className="write-layout reference-write-layout">
-        <div className="reference-main write-main">
-          <div className="doc-toolbar">
-            {editing ? (
-              <ButtonLink href={keepCanvas(recordHref, canvasPath)} variant="secondary">
-                {WORLD.doneEditing}
-              </ButtonLink>
-            ) : null}
-            <ButtonAnchor variant="secondary" href="#history">
-              {WORLD.history}
-            </ButtonAnchor>
-            <ButtonAnchor variant="secondary" href="#record-status">
-              {WORLD.statusAndProtection}
-            </ButtonAnchor>
-            <div className="doc-toolbar-end">
-              <TextAppearanceMenu />
-              <WorldContextToggle />
-            </div>
-          </div>
-
-          {disagreements.length ? (
-            <section className="disagreements" aria-labelledby="disagreements-heading">
-              <h2 id="disagreements-heading">{WORLD.disagreementsHeading}</h2>
-              <p className="small">{WORLD.disagreementsNote(record.currentRevision)}</p>
-              <ul>
-                {disagreements.map((d, i) => (
-                  <li key={i}>{d.message}</li>
-                ))}
-              </ul>
-            </section>
-          ) : null}
-
-          {editing ? (
-            <section className="panel" aria-label={RECORD.editHeading}>
-              <RecordEditor
-                key={`${record.id}:${record.currentRevision}`}
-                projectId={projectId}
-                recordId={record.id}
-                recordType={record.type}
-                revision={record.currentRevision}
-                title={record.title}
-                body={record.body}
-                fieldsJson={JSON.stringify(record.fields, null, 2)}
-                authorityStatus={record.authorityStatus}
-                isProtected={record.protected}
-                isChapter={false}
-                otherChaptersWords={null}
-                spellingLanguage={props.editor.spellingLanguage}
-                spellChecker={props.editor.spellChecker}
-                kindTemplates={props.kindTemplates}
-                dictionaryWords={props.editor.dictionaryWords}
-                proofread={props.editor.proofread}
-                images={gallery.map((g) => ({ name: g.name, label: g.caption || g.altText }))}
-                codexEntries={props.codexEntries}
-              />
-            </section>
-          ) : (
-            <>
-              {doc.headings.length > 1 ? (
-                <details className="contents-inline">
-                  <summary>{WORLD.contents}</summary>
-                  <ContentsList doc={doc} label={`${WORLD.contents} (inline)`} />
-                </details>
-              ) : null}
-              <article className="reference-doc" aria-label={record.title}>
-                {doc.blocks.length ? (
-                  <MarkdownView
-                    doc={doc}
-                    className="document"
-                    images={attached}
-                    xrefs={{ index: props.crossRefs, href: (t) => xrefHref(projectId, record.id, t) }}
-                  />
-                ) : (
-                  <p className="muted">{WORLD.emptyDocument}</p>
-                )}
-              </article>
-
-              {fieldEntries.length || record.type === "worldbuilding" ? (
-                <section className="panel reference-fields" aria-labelledby="fields-heading">
-                  <h2 id="fields-heading">{WORLD.fieldsHeading}</h2>
-                  <p className="small muted">{WORLD.fieldsNote}</p>
-                  {record.type === "worldbuilding" ? <p className="small muted">{WORLD_KIND.historyNote}</p> : null}
-                  {fieldEntries.length ? (
-                    <div className="md-table-wrap" tabIndex={0} role="region" aria-label={WORLD.fieldsHeading}>
-                      <table>
-                        <tbody>
-                          {fieldEntries.map(([key, value]) => (
-                            <tr key={key}>
-                              <th scope="row">{fieldLabel(key, record.type)}</th>
-                              <td>{fieldValue(key, record.type, value)}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  ) : (
-                    <p className="small muted">{WORLD_KIND.readNoneHint}</p>
-                  )}
-                </section>
-              ) : null}
-            </>
-          )}
-
-          {isWorldType(record.type) ? (
-            <OutlineReview
+      <ReferenceWorkspace
+        recordHref={recordHref}
+        editing={editing}
+        canvasPath={canvasPath}
+        visibility={visibility}
+        initialTab={initialTab}
+        editHref={editHref}
+        moreItems={moreItems}
+        identity={{
+          thumbnailSrc: primaryImage?.src ?? null,
+          thumbnailAlt: primaryImage?.altText || primaryImage?.caption || record.title,
+          typeLabel: RECORD_TYPE_LABELS[record.type],
+          kindLabel: worldKindDisplay,
+          authorityStatus: record.authorityStatus,
+          isProtected: record.protected,
+          revision: record.currentRevision,
+        }}
+        panels={{
+          document: documentPanel,
+          profile: profilePanel ?? undefined,
+          images: (
+            <ImageGallery
               projectId={projectId}
               recordId={record.id}
-              revision={record.currentRevision}
-              body={record.body}
-              fieldKeys={Object.keys(record.fields)}
+              images={gallery}
+              namesInText={namesInText}
               isProtected={record.protected}
-              editing={editing}
+              unavailable={props.images === null}
             />
-          ) : null}
-
-          <ImageGallery
-            projectId={projectId}
-            recordId={record.id}
-            images={gallery}
-            namesInText={namesInText}
-            isProtected={record.protected}
-            unavailable={props.images === null}
-          />
-
-          {linkable && props.placeRelations ? (
-            <PlaceRelations
-              projectId={projectId}
-              recordId={record.id}
-              outgoing={props.placeRelations.outgoing}
-              incoming={props.placeRelations.incoming}
-              choices={props.placeChoices}
-              canShareSeries={props.canShareSeries}
-            />
-          ) : null}
-
-          {record.type === "character_dossier" ? (
-            <CharacterDevelopmentSection projectId={projectId} recordId={record.id} />
-          ) : null}
-
-          <WorldProfileSection
-            projectId={projectId}
-            recordId={record.id}
-            recordType={record.type}
-            revision={record.currentRevision}
-            body={record.body}
-            fields={record.fields as import("@/domain/json").JsonObject}
-            editable
-            seriesHome={null}
-            isProtected={record.protected}
-            homeProjectId={projectId}
-            placeRelations={props.placeRelations}
-            placeChoices={props.placeChoices}
-          />
-
-          {linkable && props.recordRelations ? (
-            <RecordRelations
-              projectId={projectId}
-              recordId={record.id}
-              outgoing={props.recordRelations.outgoing}
-              incoming={props.recordRelations.incoming}
-              choices={props.recordRelationChoices}
-              canShareSeries={props.canShareSeries}
-            />
-          ) : null}
-        </div>
-
-        <WorldContextAside>
-          {inspector ? (
-            <ReferenceInspector
-              projectId={projectId}
-              model={inspector}
-              linkMode="page"
-              context="page"
-              hasDetails={Boolean(props.infobox?.rows.length)}
-              editing={editing}
-              established={
-                linkable && props.establishedFacts
-                  ? {
-                      facts: props.establishedFacts,
-                      evidenceSources: props.evidenceSources,
-                      drafts: props.manuscriptDrafts,
-                      scenes: props.manuscriptScenes,
-                    }
-                  : null
-              }
-              relationshipsExtra={
-                <>
-                  <ContextSection title={XREF.heading} count={refs.defined.length + refs.files.length + refs.ids.length + refs.mentionedBy.length}>
-                    <CrossRefsPanel projectId={projectId} recordId={record.id} refs={refs} />
-                  </ContextSection>
-                  <ContextSection title={MENTIONED_BY.heading} count={props.mentionedBy.length}>
-                    <p className="small muted">{MENTIONED_BY.note}</p>
-                    <MentionedByPanel items={props.mentionedBy} />
-                  </ContextSection>
-                </>
-              }
-              overviewExtra={
-                <>
-                  {linkable ? <PlaceEvents projectId={projectId} locationRecordId={record.id} /> : null}
-                  <WorldPins
-                    projectId={projectId}
-                    recordId={record.id}
-                    draftScopeId={props.draftScopeId}
-                    initialPins={props.initialPins}
-                    canPinCurrent={linkable}
-                  />
-                  {props.parent && !linkable ? (
-                    <ContextSection title={WORLD.noteOn}>
-                      <p className="small">
-                        <Link href={`${base}/records/${encodeURIComponent(props.parent.id)}`}>{props.parent.title}</Link>
-                      </p>
-                      <p className="small muted">{WORLD.notLinkable}</p>
-                    </ContextSection>
-                  ) : null}
-                  <ContextSection title={WORLD.recentChanges} count={revisions.length}>
-            <ol className="context-links recent-changes">
-              {revisions.slice(0, RECENT).map((r) => (
-                <li key={r.id}>
-                  <Link href={`${recordHref}?from=${Math.max(1, r.revisionNumber - 1)}&to=${r.revisionNumber}#compare`}>
-                    {WORLD.revision(r.revisionNumber)}
-                  </Link>{" "}
-                  <StatusBadge status={r.authorityStatus} />
-                  <div className="small muted">
-                    {sourceSummary(r.source)}, {when(r.createdAt)}
-                  </div>
-                </li>
-              ))}
-            </ol>
-            <p className="small">
-              {revisions.length > RECENT ? <span className="muted">{WORLD.showingRevisions(RECENT, revisions.length)}. </span> : null}
-              <a href="#history">{WORLD.viewHistory}</a>
-            </p>
-          </ContextSection>
-
-          <ContextSection title={WORLD.openReview} count={props.reviewItems.length}>
-            {props.reviewItems.length ? (
-              <>
-                <ul className="context-links">
-                  {props.reviewItems.map((i) => (
-                    <li key={i.id}>
-                      <span className="small muted">{i.origin === "detected_mention" ? "Mention found by the app" : "Note from a change package"}: </span>
-                      {i.note}
-                    </li>
-                  ))}
-                </ul>
-                <p className="small">
-                  <Link href={`${base}/history`}>{WORLD.reviewAll}</Link>
-                </p>
-              </>
-            ) : (
-              <p className="small muted">{WORLD.noOpenReview}</p>
-            )}
-          </ContextSection>
-
-          <ContextSection title={WORLD.proposals} count={props.proposals.length} className="proposals-section">
-            {props.proposals.length ? (
-              <>
-                <p className="small muted">{WORLD.proposalNote}</p>
-                <ul className="context-links">
-                  {props.proposals.map((p) => (
-                    <li key={p.proposalId} className="proposal-item">
-                      <span className="badge proposed">{WORLD.proposedBadge}</span>
-                      <div>{WORLD.proposalFrom(p.conversationTitle)}</div>
-                      <div className="small">
-                        {WORLD.wouldChange}: {p.changes.join(", ") || "nothing listed"}
-                      </div>
-                      <div className="small muted">
-                        {WORLD.preparedAgainst(p.expectedRevision)}, {when(p.createdAt)}
-                      </div>
-                      {p.expectedRevision < record.currentRevision ? <div className="small warning-text">{WORLD.proposalStale}</div> : null}
-                      <Link className="small" href={`${base}/assistant/proposals/${encodeURIComponent(p.proposalId)}`}>
-                        {WORLD.reviewProposal}
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              </>
-            ) : (
-              <p className="small muted">{WORLD.noProposals}</p>
-            )}
-          </ContextSection>
-
-          <ContextSection title={WORLD.importedFiles} count={props.importedFiles.length}>
-            {props.importedFiles.length ? (
-              <>
-                <ul className="context-links">
-                  {props.importedFiles.map((f) => (
-                    <li key={f.id}>
-                      <code>{f.originalFilename}</code>
-                      <div className="small muted">
-                        {WORLD.importedAs(f.action, f.revisionNumber)}, {when(f.createdAt)}
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-                <p className="small">
-                  <a href="#imported-files">{WORLD.showOriginal}</a>
-                </p>
-              </>
-            ) : (
-              <p className="small muted">{WORLD.noImportedFiles}</p>
-            )}
-          </ContextSection>
-                </>
-              }
-            />
-          ) : null}
-        </WorldContextAside>
-      </div>
-      </WorldContextProvider>
+          ),
+          relationships: relationshipsPanel,
+          established: establishedPanel,
+        }}
+      />
 
       <section aria-label={RECORD.detailsLabel} className="record-details reference-details">
         <div className="grid2">
@@ -745,6 +524,85 @@ export function ReferenceView(props: ReferenceViewProps) {
         ) : null}
         <HistorySection projectId={projectId} record={record} revisions={revisions} />
         <CompareSection projectId={projectId} record={record} revisions={revisions} query={props.query} />
+
+        <ContextSection title={WORLD.recentChanges} count={revisions.length}>
+          <ol className="context-links recent-changes">
+            {revisions.slice(0, RECENT).map((r) => (
+              <li key={r.id}>
+                <Link href={`${recordHref}?from=${Math.max(1, r.revisionNumber - 1)}&to=${r.revisionNumber}#compare`}>
+                  {WORLD.revision(r.revisionNumber)}
+                </Link>{" "}
+                <StatusBadge status={r.authorityStatus} />
+                <div className="small muted">
+                  {sourceSummary(r.source)}, {when(r.createdAt)}
+                  {current && r.id === current.id ? (
+                    <>
+                      {" · "}
+                      <SavedVersionBadge revision={r.revisionNumber} />
+                    </>
+                  ) : null}
+                </div>
+              </li>
+            ))}
+          </ol>
+          <p className="small">
+            {revisions.length > RECENT ? <span className="muted">{WORLD.showingRevisions(RECENT, revisions.length)}. </span> : null}
+            <a href="#history">{WORLD.viewHistory}</a>
+          </p>
+        </ContextSection>
+
+        <ContextSection title={WORLD.openReview} count={props.reviewItems.length}>
+          {props.reviewItems.length ? (
+            <>
+              <ul className="context-links">
+                {props.reviewItems.map((i) => (
+                  <li key={i.id}>
+                    <span className="small muted">
+                      {i.origin === "detected_mention" ? "Mention found by the app" : "Note from a change package"}:{" "}
+                    </span>
+                    {i.note}
+                  </li>
+                ))}
+              </ul>
+              <p className="small">
+                <Link href={`${base}/history`}>{WORLD.reviewAll}</Link>
+              </p>
+            </>
+          ) : (
+            <p className="small muted">{WORLD.noOpenReview}</p>
+          )}
+        </ContextSection>
+
+        <ContextSection title={WORLD.proposals} count={props.proposals.length} className="proposals-section">
+          {props.proposals.length ? (
+            <>
+              <p className="small muted">{WORLD.proposalNote}</p>
+              <ul className="context-links">
+                {props.proposals.map((p) => (
+                  <li key={p.proposalId} className="proposal-item">
+                    <span className="badge proposed">{WORLD.proposedBadge}</span>
+                    <div>{WORLD.proposalFrom(p.conversationTitle)}</div>
+                    <div className="small">
+                      {WORLD.wouldChange}: {p.changes.join(", ") || "nothing listed"}
+                    </div>
+                    <div className="small muted">
+                      {WORLD.preparedAgainst(p.expectedRevision)}, {when(p.createdAt)}
+                    </div>
+                    {p.expectedRevision < record.currentRevision ? (
+                      <div className="small warning-text">{WORLD.proposalStale}</div>
+                    ) : null}
+                    <Link className="small" href={`${base}/assistant/proposals/${encodeURIComponent(p.proposalId)}`}>
+                      {WORLD.reviewProposal}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </>
+          ) : (
+            <p className="small muted">{WORLD.noProposals}</p>
+          )}
+        </ContextSection>
+
         {props.importedFiles.length ? (
           <section className="panel" id="imported-files">
             <h2>{WORLD.importedFiles}</h2>

@@ -1,13 +1,17 @@
 import { describe, expect, it } from "vitest";
 import {
   categoryBrowseCounts,
+  countWorldHubFilterChips,
   defaultRecordTypeForCategory,
   discoverWorldHubRecords,
+  explicitWorldHubView,
   filterWorldHubRecords,
   hubHasActiveFilters,
   listHubTags,
+  listWorldHubFilterChips,
   parseWorldHubQuery,
   projectWorldHubRecord,
+  resolveWorldHubView,
   sortWorldHubRecords,
   suggestedKindForCategory,
   worldHubHref,
@@ -84,6 +88,23 @@ const records: WorldHubRecord[] = [
   }),
 ];
 
+describe("resolveWorldHubView", () => {
+  it("prefers explicit URL, then cookie, then cards", () => {
+    expect(explicitWorldHubView({})).toBeNull();
+    expect(explicitWorldHubView({ view: "list" })).toBe("list");
+    expect(resolveWorldHubView("list", "cards")).toBe("list");
+    expect(resolveWorldHubView(null, "list")).toBe("list");
+    expect(resolveWorldHubView(null, undefined)).toBe("cards");
+    expect(resolveWorldHubView(null, "garbage")).toBe("cards");
+  });
+
+  it("counts filter chips without search or view", () => {
+    expect(countWorldHubFilterChips(parseWorldHubQuery({ list: "1" }))).toBe(0);
+    expect(countWorldHubFilterChips(parseWorldHubQuery({ category: "characters", status: "approved" }))).toBe(2);
+    expect(listWorldHubFilterChips(parseWorldHubQuery({ protected: "yes" }))[0]?.label).toMatch(/Protected/i);
+  });
+});
+
 describe("parseWorldHubQuery / worldHubHref", () => {
   it("keeps legacy type/kind/q/list and adds hub filters", () => {
     expect(parseWorldHubQuery({ type: "worldbuilding", kind: "place", list: "1", q: " salt " })).toMatchObject({
@@ -92,8 +113,11 @@ describe("parseWorldHubQuery / worldHubHref", () => {
       list: true,
       q: "salt",
       sort: "updated",
-      view: "list",
+      view: "cards",
     });
+    expect(parseWorldHubQuery({ list: "1", view: "list" }).view).toBe("list");
+    expect(worldHubHref("prj", { list: true, view: "cards" })).toBe("/projects/prj/world?list=1");
+    expect(worldHubHref("prj", { list: true, view: "list" })).toBe("/projects/prj/world?list=1&view=list");
     expect(
       parseWorldHubQuery({
         category: "magic",
@@ -120,7 +144,7 @@ describe("parseWorldHubQuery / worldHubHref", () => {
       customKind: "rite of salt",
     });
     expect(worldHubHref("prj", { category: "magic", list: true, view: "cards" })).toBe(
-      "/projects/prj/world?list=1&category=magic&view=cards",
+      "/projects/prj/world?list=1&category=magic",
     );
   });
 });

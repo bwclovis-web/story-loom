@@ -130,6 +130,7 @@ export const HELP_SECTIONS = [
       { id: "relationship-views", title: "Relationship graph and trees" },
       { id: "world-nav", title: "Finding references" },
       { id: "world-taxonomy", title: "World Hub categories" },
+      { id: "world-listing", title: "Reference listing cards" },
       { id: "world-collections", title: "Saved World collections" },
       { id: "world-organize", title: "Organize references" },
       { id: "world-kinds", title: "Worldbuilding kinds" },

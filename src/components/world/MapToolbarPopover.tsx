@@ -4,6 +4,8 @@ import { ChevronDown } from "lucide-react";
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/Atoms/Button";
+import { useDismissible } from "@/hooks/useDismissible";
+import { useFocusTrap } from "@/hooks/useFocusTrap";
 import { cn } from "@/ui/cn";
 
 type PanelAlign = "start" | "end";
@@ -72,23 +74,18 @@ export function MapToolbarPopover({
     };
   }, [open, updatePosition]);
 
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
-    };
-    const onPointer = (event: PointerEvent) => {
-      const target = event.target as Node;
-      if (triggerRef.current?.contains(target) || panelRef.current?.contains(target)) return;
-      setOpen(false);
-    };
-    document.addEventListener("keydown", onKey);
-    document.addEventListener("pointerdown", onPointer);
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      document.removeEventListener("pointerdown", onPointer);
-    };
-  }, [open]);
+  useDismissible({
+    active: open,
+    onDismiss: () => setOpen(false),
+    refs: [triggerRef, panelRef],
+    escape: false,
+  });
+
+  useFocusTrap(panelRef, {
+    active: open,
+    onEscape: () => setOpen(false),
+    restoreFocus: true,
+  });
 
   const panel =
     open && mounted ? (
@@ -99,12 +96,7 @@ export function MapToolbarPopover({
         style={panelStyle}
         role="dialog"
         aria-label={label}
-        onKeyDown={(event) => {
-          if (event.key === "Escape") {
-            event.preventDefault();
-            setOpen(false);
-          }
-        }}
+        tabIndex={-1}
       >
         {children}
       </div>

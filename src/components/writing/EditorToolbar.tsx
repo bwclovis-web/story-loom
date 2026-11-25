@@ -1,6 +1,16 @@
 "use client";
 
-import { useEffect, useId, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode, type RefObject } from "react";
+import {
+  forwardRef,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type MouseEvent,
+  type ReactNode,
+  type RefObject,
+} from "react";
 import {
   Bold,
   Ellipsis,
@@ -17,6 +27,7 @@ import {
   VolumeX,
 } from "lucide-react";
 import { Button } from "@/components/ui/Atoms/Button";
+import { MenuPopover } from "@/components/ui/MenuPopover";
 import { TextAppearanceMenu } from "@/components/TextAppearanceMenu";
 import { STYLE_CHECK, WRITE } from "@/ui/labels";
 import {
@@ -56,30 +67,27 @@ export function linkSeedFrom(editor: { value: string; selectionStart: number; se
 /** Keeps the text box focused, with its selection, when a toolbar button is clicked. */
 const keepSelection = (e: MouseEvent) => e.preventDefault();
 
-function ToolButton({
-  label,
-  shortcut,
-  ariaShortcut,
-  pressed,
-  expanded,
-  controls,
-  disabled,
-  onClick,
-  children,
-}: {
-  label: string;
-  shortcut?: string;
-  ariaShortcut?: string;
-  pressed?: boolean;
-  expanded?: boolean;
-  controls?: string;
-  disabled?: boolean;
-  onClick: () => void;
-  children: ReactNode;
-}) {
+const ToolButton = forwardRef<
+  HTMLButtonElement,
+  {
+    label: string;
+    shortcut?: string;
+    ariaShortcut?: string;
+    pressed?: boolean;
+    expanded?: boolean;
+    controls?: string;
+    disabled?: boolean;
+    onClick?: () => void;
+    children: ReactNode;
+  }
+>(function ToolButton(
+  { label, shortcut, ariaShortcut, pressed, expanded, controls, disabled, onClick, children },
+  ref,
+) {
   const tip = shortcut ? `${label} (${shortcut})` : label;
   return (
     <button
+      ref={ref}
       type="button"
       className="tool-button tip"
       aria-label={label}
@@ -95,7 +103,7 @@ function ToolButton({
       {children}
     </button>
   );
-}
+});
 
 /** Left and right arrow keys move between toolbar buttons, as in a desktop toolbar. */
 function onToolbarKey(e: KeyboardEvent<HTMLDivElement>) {
@@ -343,51 +351,42 @@ export function EditorToolbar({
             {readAloud.speaking ? WRITE.readAloudStop : WRITE.readAloud}
           </Button>
         ) : null}
-        <div className="tool-more">
-          <ToolButton
-            label={WRITE.moreFormatting}
-            expanded={moreOpen}
-            controls={`${idPrefix}-more`}
-            onClick={() => setMoreOpen((open) => !open)}
+        <MenuPopover
+          className="tool-more"
+          label={WRITE.moreFormatting}
+          open={moreOpen}
+          onOpenChange={setMoreOpen}
+          align="end"
+          role="group"
+          closeOnSelect
+          menuId={`${idPrefix}-more`}
+          restoreFocusRef={textareaRef}
+          trigger={
+            <ToolButton label={WRITE.moreFormatting} expanded={moreOpen} controls={`${idPrefix}-more`}>
+              <Ellipsis strokeWidth={1.75} />
+            </ToolButton>
+          }
+        >
+          <button
+            type="button"
+            className="menu-item"
+            aria-pressed={block.style === "quote"}
+            disabled={disabled}
+            onMouseDown={keepSelection}
+            onClick={() => runOnText((t, s) => setBlockStyle(t, s, block.style === "quote" ? "paragraph" : "quote"))}
           >
-            <Ellipsis strokeWidth={1.75} />
-          </ToolButton>
-          <div
-            id={`${idPrefix}-more`}
-            className="tool-menu"
-            role="group"
-            aria-label={WRITE.moreFormatting}
-            hidden={!moreOpen}
-            onKeyDown={(e) => {
-              if (e.key === "Escape") {
-                e.preventDefault();
-                e.stopPropagation();
-                setMoreOpen(false);
-                textareaRef.current?.focus();
-              }
-            }}
+            {WRITE.quote}
+          </button>
+          <button
+            type="button"
+            className="menu-item"
+            disabled={disabled}
+            onMouseDown={keepSelection}
+            onClick={() => runOnText(insertSceneBreak)}
           >
-            <button
-              type="button"
-              className="menu-item"
-              aria-pressed={block.style === "quote"}
-              disabled={disabled}
-              onMouseDown={keepSelection}
-              onClick={() => runOnText((t, s) => setBlockStyle(t, s, block.style === "quote" ? "paragraph" : "quote"))}
-            >
-              {WRITE.quote}
-            </button>
-            <button
-              type="button"
-              className="menu-item"
-              disabled={disabled}
-              onMouseDown={keepSelection}
-              onClick={() => runOnText(insertSceneBreak)}
-            >
-              {WRITE.sceneBreak}
-            </button>
-          </div>
-        </div>
+            {WRITE.sceneBreak}
+          </button>
+        </MenuPopover>
       </div>
       {disabled ? <p className="hint toolbar-hint">{WRITE.readOnlyToolbar}</p> : null}
       {link ? (

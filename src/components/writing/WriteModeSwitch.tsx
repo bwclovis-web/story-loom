@@ -31,7 +31,7 @@ export function WriteModeSwitch({ mode, onChange }: { mode: WriteMode; onChange:
       <div
         role="radiogroup"
         aria-label={WRITE.layoutGroup}
-        className="segmented-control write-mode-switch"
+        className="segmented-control segmented-control-accent write-mode-switch"
         onKeyDown={(e) => {
           if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
           e.preventDefault();

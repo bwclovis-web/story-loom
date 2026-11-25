@@ -1,6 +1,6 @@
 "use client";
 
-import type { ButtonHTMLAttributes, ReactNode } from "react";
+import { forwardRef, type ButtonHTMLAttributes, type ReactNode } from "react";
 import { cn } from "@/ui/cn";
 import { ButtonContent } from "./ButtonContent";
 import { buttonVariants, type ButtonVariantProps } from "./buttonVariants";
@@ -13,10 +13,13 @@ export type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> &
   };
 
 /** Interactive button. Prefer this for new UI; CSS `.secondary` / `.small-button` stay until migrated. */
-export function Button({ className, variant, size, type = "button", icon, children, ...props }: ButtonProps) {
+export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
+  { className, variant, size, type = "button", icon, children, ...props },
+  ref,
+) {
   return (
-    <button type={type} className={cn(buttonVariants({ variant, size }), className)} {...props}>
+    <button ref={ref} type={type} className={cn(buttonVariants({ variant, size }), className)} {...props}>
       <ButtonContent icon={icon}>{children}</ButtonContent>
     </button>
   );
-}
+});

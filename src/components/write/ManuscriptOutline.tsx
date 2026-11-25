@@ -1,7 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useId, useState, type KeyboardEvent, type ReactNode } from "react";
+import {
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type ReactNode,
+  type SyntheticEvent,
+} from "react";
 import { BookOpen, Download, Layers, Plus } from "lucide-react";
 import { LandingHeader } from "@/components/library/LandingHeader";
 import { ChevronRightIcon, SearchIcon } from "@/components/shell/icons";
@@ -11,6 +19,8 @@ import { Corkboard, type CorkboardCard, type CorkboardGroup } from "@/components
 import { Outliner, type OutlinerRow } from "@/components/write/Outliner";
 import { Button, ButtonLink } from "@/components/ui/Atoms/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { useDismissible } from "@/hooks/useDismissible";
+import { useFocusTrap } from "@/hooks/useFocusTrap";
 import { RECORD_TYPE_LABELS } from "@/domain/recordTypes";
 import { CONTINUE_WRITING, MANUSCRIPT_ANNOTATIONS, MANUSCRIPT_SEARCH, NAV, WRITE } from "@/ui/labels";
 
@@ -232,10 +242,7 @@ export function ManuscriptOutline({
             {NAV.readBook}
           </ButtonLink>
           <div className="outline-actions-end">
-            <details className="outline-more">
-              <summary>{WRITE.more}</summary>
-              <div className="outline-more-panel">{overflow}</div>
-            </details>
+            <OutlineMoreMenu>{overflow}</OutlineMoreMenu>
           </div>
         </div>
       </div>
@@ -588,6 +595,41 @@ function filterScenes(scenes: readonly OutlineScene[], parentTitle: string | nul
     const kept = keepScene(scene, parentTitle, query);
     return kept ? [kept.scene] : [];
   });
+}
+
+/** Write landing “More” disclosure: focus trap, Escape, and outside click to close. */
+function OutlineMoreMenu({ children }: { children: ReactNode }) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDetailsElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const summaryRef = useRef<HTMLElement>(null);
+
+  useDismissible({
+    active: open,
+    onDismiss: () => setOpen(false),
+    refs: [rootRef],
+    escape: false,
+  });
+
+  useFocusTrap(panelRef, {
+    active: open,
+    onEscape: () => setOpen(false),
+    restoreFocus: true,
+    restoreFocusTo: summaryRef,
+  });
+
+  const onToggle = (event: SyntheticEvent<HTMLDetailsElement>) => {
+    setOpen(event.currentTarget.open);
+  };
+
+  return (
+    <details ref={rootRef} className="outline-more" open={open} onToggle={onToggle}>
+      <summary ref={summaryRef}>{WRITE.more}</summary>
+      <div ref={panelRef} className="outline-more-panel" tabIndex={open ? -1 : undefined}>
+        {children}
+      </div>
+    </details>
+  );
 }
 
 function keepScene(scene: OutlineScene, parentTitle: string | null, query: string): { scene: OutlineScene; matches: number } | null {

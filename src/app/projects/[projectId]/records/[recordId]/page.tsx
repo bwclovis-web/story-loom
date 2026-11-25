@@ -80,7 +80,18 @@ export default async function RecordPage({
   searchParams,
 }: {
   params: Promise<{ projectId: string; recordId: string }>;
-  searchParams: Promise<{ from?: string; to?: string; edit?: string; find?: string; case?: string; styleStart?: string; styleEnd?: string; canvas?: string }>;
+  searchParams: Promise<{
+    from?: string;
+    to?: string;
+    edit?: string;
+    find?: string;
+    case?: string;
+    styleStart?: string;
+    styleEnd?: string;
+    canvas?: string;
+    /** Reference workspace tab: document | profile | images | relationships | established */
+    tab?: string;
+  }>;
 }) {
   const { projectId, recordId } = await params;
   const query = await searchParams;
@@ -489,6 +500,7 @@ export default async function RecordPage({
       }}
       record={record}
       editing={query.edit === "1"}
+      initialTab={query.tab}
       canvasBack={canvasBack}
       query={query}
       revisions={revisions}

@@ -697,6 +697,46 @@ export function worldProfileIsEmpty(profile: WorldProfile): boolean {
   return JSON.stringify(profile) === JSON.stringify(emptyWorldProfile());
 }
 
+/**
+ * True when a field has no author-entered value. `false` and `0` are meaningful
+ * and are not treated as empty.
+ */
+export function worldProfileFieldValueIsEmpty(value: WorldProfileFieldValue): boolean {
+  if (value === null || value === undefined) return true;
+  if (typeof value === "boolean") return false;
+  if (typeof value === "number") return !Number.isFinite(value);
+  if (typeof value === "string") return value.trim() === "";
+  if (Array.isArray(value)) return value.length === 0;
+  if ("amount" in value) {
+    const amount = (value as WorldProfileQuantity).amount;
+    return typeof amount !== "number" || !Number.isFinite(amount);
+  }
+  if ("recordId" in value && !("freeText" in value)) {
+    return !(value as WorldProfileRecordRef).recordId?.trim();
+  }
+  return formatWorldProfileFieldValue(value).trim() === "";
+}
+
+/** True when the profile has any summary, field, collection, or hold to show in view. */
+export function worldProfileHasDisplayContent(
+  profile: WorldProfile,
+  profileFieldKeys: readonly string[] = Object.keys(profile.values),
+): boolean {
+  if (profile.summary.trim()) return true;
+  if (profile.migrationHold.length) return true;
+  for (const items of Object.values(profile.collections)) {
+    if (items.length) return true;
+  }
+  for (const key of profileFieldKeys) {
+    if (!worldProfileFieldValueIsEmpty(profile.values[key] ?? null)) return true;
+  }
+  for (const [key, value] of Object.entries(profile.values)) {
+    if (profileFieldKeys.includes(key)) continue;
+    if (!worldProfileFieldValueIsEmpty(value)) return true;
+  }
+  return false;
+}
+
 /** Problems that block writing a worldProfile object from a change package or save. */
 export function worldProfileWriteProblems(value: unknown): WorldProfileProblem[] {
   if (value === undefined || value === null) return [];

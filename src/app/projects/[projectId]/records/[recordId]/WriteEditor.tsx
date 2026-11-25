@@ -28,6 +28,7 @@ import { WritingSprint } from "@/components/writing/WritingSprint";
 import { LabeledSwitch } from "@/components/ui/LabeledSwitch";
 import { TextField } from "@/components/ui/TextField";
 import { IconAnchor, IconButton } from "@/components/ui/IconButton";
+import { MenuPopover } from "@/components/ui/MenuPopover";
 import { HistoryIcon, MoreIcon } from "@/components/shell/icons";
 import { useLayout } from "@/components/shell/LayoutContext";
 import { setUnsaved } from "@/components/shell/unsaved";
@@ -617,6 +618,7 @@ export function WriteEditor(props: {
     const inText = !!surface && !!surface.containsElement?.(e.target);
     if (key === "s" && !e.shiftKey) {
       e.preventDefault();
+      if (!editable) return;
       formRef.current?.requestSubmit();
     } else if (key === "f" && e.shiftKey) {
       e.preventDefault();
@@ -704,7 +706,17 @@ export function WriteEditor(props: {
                 <p className={`save-status ${statusTone}`} role="status">
                   {saveStatus}
                 </p>
-                <Button type="submit" disabled={pending} aria-keyshortcuts="Control+S" title={`${WRITE.save} (${shortcutHint("S")})`} size="sm">
+                <Button
+                  type="submit"
+                  disabled={pending || !editable}
+                  aria-keyshortcuts="Control+S"
+                  title={
+                    !editable
+                      ? WRITE.protectedReadOnly
+                      : `${WRITE.save} (${shortcutHint("S")})`
+                  }
+                  size="sm"
+                >
                   {WRITE.save}
                 </Button>
                 <Button
@@ -720,159 +732,148 @@ export function WriteEditor(props: {
                 <IconAnchor tip="tip" href="#history" aria-label={WRITE.versionHistory}>
                   <HistoryIcon />
                 </IconAnchor>
-                <div className="menu-wrap">
-                  <IconButton
-                    tip="end"
-                    aria-label={WRITE.more}
-                    aria-expanded={menuOpen}
-                    aria-controls={`${idPrefix}-menu`}
-                    onClick={() => setMenuOpen((open) => !open)}
-                  >
-                    <MoreIcon />
-                  </IconButton>
-                  <ul
-                    id={`${idPrefix}-menu`}
-                    className="tool-menu right"
-                    hidden={!menuOpen}
-                    onClick={() => setMenuOpen(false)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Escape") {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        setMenuOpen(false);
-                      }
-                    }}
-                  >
-                    <li>
-                      <a className="menu-item" href="#record-status">
-                        {RECORD.statusHeading}
-                      </a>
-                    </li>
-                    <li>
-                      <a className="menu-item" href="#record-protection">
-                        {RECORD.protectionHeading}
-                      </a>
-                    </li>
-                    <li>
-                      <button type="button" className="menu-item" onClick={openSnapshotDialog}>
-                        {WRITE.takeSnapshot}
-                      </button>
-                    </li>
-                    <li>
-                      <a className="menu-item" href="#named-snapshots">
-                        {WRITE.openNamedSnapshots}
-                      </a>
-                    </li>
-                    <li>
-                      <a className="menu-item" href="#history">
-                        {RECORD.historyHeading}
-                      </a>
-                    </li>
-                    <li>
-                      <a className="menu-item" href="#compare">
-                        {RECORD.compareHeading}
-                      </a>
-                    </li>
-                    <li>
-                      <button type="button" className="menu-item" onClick={openNotesPanel}>
-                        {WRITE.openNotes}
-                      </button>
-                    </li>
-                    <li>
-                      <a className="menu-item" href="#margin-comments">
-                        {WRITE.openMarginComments}
-                      </a>
-                    </li>
-                    <li>
-                      <a
-                        className="menu-item"
-                        href={`/projects/${encodeURIComponent(props.projectId)}/write/replace`}
-                      >
-                        {MANUSCRIPT_SEARCH.replaceAcross}
-                      </a>
-                    </li>
-                    <li>
-                      <a className="menu-item" href={`#${idPrefix}-fields`}>
-                        {WRITE.structuredFields}
-                      </a>
-                    </li>
-                    <li>
-                      <button
-                        type="button"
-                        className="menu-item"
-                        disabled={!editable || splitPending}
-                        title={editable ? MANUSCRIPT_STRUCTURE.split : WRITE.protectedReadOnly}
-                        onClick={() => {
-                          if (dirty) {
-                            setLoadNote({ tone: "error", text: MANUSCRIPT_STRUCTURE.splitSaveFirst });
-                            return;
-                          }
-                          const body = bodyRef.current?.value ?? text;
-                          const at = selection.start;
-                          if (at <= 0 || at >= body.length) {
-                            setLoadNote({ tone: "error", text: MANUSCRIPT_STRUCTURE.splitEdge });
-                            return;
-                          }
-                          setSplitTitle("");
-                          setSplitError(null);
-                          splitDialogRef.current?.showModal();
-                        }}
-                      >
-                        {MANUSCRIPT_STRUCTURE.split}
-                      </button>
-                    </li>
-                    {props.kind === "chapter" ? (
-                      <li>
-                        <button
-                          type="button"
-                          className="menu-item"
-                          disabled={!editable || extractPending || selection.start >= selection.end}
-                          title={
-                            !editable
-                              ? WRITE.protectedReadOnly
-                              : selection.start >= selection.end
-                                ? MANUSCRIPT_STRUCTURE.extractSceneNeedSelection
-                                : MANUSCRIPT_STRUCTURE.extractScene
-                          }
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={openExtractDialog}
-                        >
-                          {MANUSCRIPT_STRUCTURE.extractScene}
-                        </button>
-                      </li>
-                    ) : null}
+                <MenuPopover
+                  label={WRITE.more}
+                  open={menuOpen}
+                  onOpenChange={setMenuOpen}
+                  align="end"
+                  as="ul"
+                  menuId={`${idPrefix}-menu`}
+                  trigger={
+                    <IconButton tip="end" aria-label={WRITE.more}>
+                      <MoreIcon />
+                    </IconButton>
+                  }
+                >
+                  <li>
+                    <a className="menu-item" href="#record-status">
+                      {RECORD.statusHeading}
+                    </a>
+                  </li>
+                  <li>
+                    <a className="menu-item" href="#record-protection">
+                      {RECORD.protectionHeading}
+                    </a>
+                  </li>
+                  <li>
+                    <button type="button" className="menu-item" onClick={openSnapshotDialog}>
+                      {WRITE.takeSnapshot}
+                    </button>
+                  </li>
+                  <li>
+                    <a className="menu-item" href="#named-snapshots">
+                      {WRITE.openNamedSnapshots}
+                    </a>
+                  </li>
+                  <li>
+                    <a className="menu-item" href="#history">
+                      {RECORD.historyHeading}
+                    </a>
+                  </li>
+                  <li>
+                    <a className="menu-item" href="#compare">
+                      {RECORD.compareHeading}
+                    </a>
+                  </li>
+                  <li>
+                    <button type="button" className="menu-item" onClick={openNotesPanel}>
+                      {WRITE.openNotes}
+                    </button>
+                  </li>
+                  <li>
+                    <a className="menu-item" href="#margin-comments">
+                      {WRITE.openMarginComments}
+                    </a>
+                  </li>
+                  <li>
+                    <a
+                      className="menu-item"
+                      href={`/projects/${encodeURIComponent(props.projectId)}/write/replace`}
+                    >
+                      {MANUSCRIPT_SEARCH.replaceAcross}
+                    </a>
+                  </li>
+                  <li>
+                    <a className="menu-item" href={`#${idPrefix}-fields`}>
+                      {WRITE.structuredFields}
+                    </a>
+                  </li>
+                  <li>
+                    <button
+                      type="button"
+                      className="menu-item"
+                      disabled={!editable || splitPending}
+                      title={editable ? MANUSCRIPT_STRUCTURE.split : WRITE.protectedReadOnly}
+                      onClick={() => {
+                        if (dirty) {
+                          setLoadNote({ tone: "error", text: MANUSCRIPT_STRUCTURE.splitSaveFirst });
+                          return;
+                        }
+                        const body = bodyRef.current?.value ?? text;
+                        const at = selection.start;
+                        if (at <= 0 || at >= body.length) {
+                          setLoadNote({ tone: "error", text: MANUSCRIPT_STRUCTURE.splitEdge });
+                          return;
+                        }
+                        setSplitTitle("");
+                        setSplitError(null);
+                        splitDialogRef.current?.showModal();
+                      }}
+                    >
+                      {MANUSCRIPT_STRUCTURE.split}
+                    </button>
+                  </li>
+                  {props.kind === "chapter" ? (
                     <li>
                       <button
                         type="button"
                         className="menu-item"
-                        disabled={!editable}
-                        title={editable ? undefined : WRITE.loadNotEditable}
-                        onClick={() => fileRef.current?.click()}
+                        disabled={!editable || extractPending || selection.start >= selection.end}
+                        title={
+                          !editable
+                            ? WRITE.protectedReadOnly
+                            : selection.start >= selection.end
+                              ? MANUSCRIPT_STRUCTURE.extractSceneNeedSelection
+                              : MANUSCRIPT_STRUCTURE.extractScene
+                        }
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={openExtractDialog}
                       >
-                        {WRITE.loadFromFile}
+                        {MANUSCRIPT_STRUCTURE.extractScene}
                       </button>
                     </li>
-                    <li>
-                      <button
-                        type="button"
-                        className="menu-item"
-                        disabled={!editable}
-                        title={editable ? undefined : WRITE.tidyNotEditable}
-                        onClick={tidy}
-                      >
-                        {WRITE.tidy}
-                      </button>
-                    </li>
-                  </ul>
-                  <input
-                    ref={fileRef}
-                    type="file"
-                    accept=".md,.markdown,.txt,text/markdown,text/plain"
-                    hidden
-                    aria-label={WRITE.loadFromFile}
-                    onChange={(e) => void loadFile(e)}
-                  />
-                </div>
+                  ) : null}
+                  <li>
+                    <button
+                      type="button"
+                      className="menu-item"
+                      disabled={!editable}
+                      title={editable ? undefined : WRITE.loadNotEditable}
+                      onClick={() => fileRef.current?.click()}
+                    >
+                      {WRITE.loadFromFile}
+                    </button>
+                  </li>
+                  <li>
+                    <button
+                      type="button"
+                      className="menu-item"
+                      disabled={!editable}
+                      title={editable ? undefined : WRITE.tidyNotEditable}
+                      onClick={tidy}
+                    >
+                      {WRITE.tidy}
+                    </button>
+                  </li>
+                </MenuPopover>
+                <input
+                  ref={fileRef}
+                  type="file"
+                  accept=".md,.markdown,.txt,text/markdown,text/plain"
+                  hidden
+                  aria-label={WRITE.loadFromFile}
+                  onChange={(e) => void loadFile(e)}
+                />
               </div>
             </div>
             <div className="write-chrome-inset" ref={insetRef}>

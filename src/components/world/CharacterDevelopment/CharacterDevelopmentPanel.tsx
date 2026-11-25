@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Banner } from "@/components/ui/Banner";
 import { Button, ButtonLink } from "@/components/ui/Atoms/Button";
 import { Checkbox } from "@/components/ui/Atoms/Checkbox";
@@ -42,6 +42,7 @@ import {
   VOICE_TEXT_KEYS,
   adjacentWings,
   buildCharacterTimeline,
+  characterProfileHasDisplayContent,
   characterProfileMarkdown,
   compareCharacterStates,
   developmentIsEmpty,
@@ -101,7 +102,15 @@ import {
   saveCharacterDevelopmentAction,
 } from "@/app/projects/[projectId]/records/[recordId]/characterDevelopmentActions";
 import { CharacterAnalysisWorkspace } from "./CharacterAnalysisWorkspace";
+import { CharacterProfileView } from "./CharacterProfileView";
 import { MigrationHoldArchivePanel } from "./MigrationHoldArchivePanel";
+import { cn } from "@/ui/cn";
+
+type ProfileMode = "view" | "edit";
+
+function cloneProfile(profile: CharacterDevelopment): CharacterDevelopment {
+  return JSON.parse(JSON.stringify(profile)) as CharacterDevelopment;
+}
 
 export interface DevelopmentChoice {
   id: string;
@@ -237,10 +246,14 @@ export function CharacterDevelopmentPanel({
   archive?: DossierMarkdownArchive;
   archiveProblems?: string[];
 }) {
-  const [profile, setProfile] = useState(initialProfile);
+  const headingId = useId();
+  const editButtonRef = useRef<HTMLButtonElement>(null);
+  const [mode, setMode] = useState<ProfileMode>("view");
+  const [profile, setProfile] = useState(() => cloneProfile(initialProfile));
   const [savedSnapshot, setSavedSnapshot] = useState(() => JSON.stringify(initialProfile));
   const [tab, setTab] = useState<TabId>("identity");
   const [showAllSections, setShowAllSections] = useState(false);
+  const [showEmpty, setShowEmpty] = useState(false);
   const [expectedRevision, setExpectedRevision] = useState(revision);
   const [unlock, setUnlock] = useState(false);
   const [allowRewrite, setAllowRewrite] = useState(false);
@@ -253,16 +266,18 @@ export function CharacterDevelopmentPanel({
   const [pickedNotes, setPickedNotes] = useState<number[]>([]);
   const [fillSuggestions, setFillSuggestions] = useState<ProfileFillSuggestion[]>([]);
   const [pickedFills, setPickedFills] = useState<string[]>([]);
+  const editing = mode === "edit";
   const freshness = profileFreshness(profile, expectedRevision);
   const forgotten = forgottenArcs(profile);
   const completeness = useMemo(() => profileCompleteness(profile), [profile]);
-  const dirty = JSON.stringify(profile) !== savedSnapshot;
+  const hasContent = characterProfileHasDisplayContent(profile);
+  const dirty = editing && JSON.stringify(profile) !== savedSnapshot;
   useEffect(() => {
-    if (revision === expectedRevision || dirty) return;
-    setProfile(initialProfile);
+    if (editing) return;
+    setProfile(cloneProfile(initialProfile));
     setSavedSnapshot(JSON.stringify(initialProfile));
     setExpectedRevision(revision);
-  }, [revision, expectedRevision, dirty, initialProfile]);
+  }, [editing, initialProfile, revision]);
   const unsavedKey = `character-development-${recordId}`;
   useEffect(() => {
     setUnsaved(unsavedKey, dirty);
@@ -293,8 +308,30 @@ export function CharacterDevelopmentPanel({
     return result;
   };
 
+  const startEdit = () => {
+    setMessage(null);
+    setIssues([]);
+    setProfile(cloneProfile(JSON.parse(savedSnapshot) as CharacterDevelopment));
+    setMode("edit");
+  };
+
+  const cancelEdit = () => {
+    setMessage(null);
+    setIssues([]);
+    setProfile(cloneProfile(JSON.parse(savedSnapshot) as CharacterDevelopment));
+    setUnlock(false);
+    setAllowRewrite(false);
+    setFillSuggestions([]);
+    setSuggestions([]);
+    setObservations([]);
+    setMode("view");
+    requestAnimationFrame(() => editButtonRef.current?.focus());
+  };
+
   const save = async () => {
     setPending(true);
+    setMessage(null);
+    setIssues([]);
     try {
       const result = applyResult(
         await saveCharacterDevelopmentAction(
@@ -306,7 +343,13 @@ export function CharacterDevelopmentPanel({
           allowRewrite,
         ),
       );
-      if (result.ok) setSavedSnapshot(JSON.stringify(profile));
+      if (result.ok) {
+        setSavedSnapshot(JSON.stringify(profile));
+        setUnlock(false);
+        setAllowRewrite(false);
+        setMode("view");
+        requestAnimationFrame(() => editButtonRef.current?.focus());
+      }
     } finally {
       setPending(false);
     }
@@ -392,26 +435,93 @@ export function CharacterDevelopmentPanel({
 
   const importanceValue = normalizeImportance(profile.importance) ?? profile.importance;
 
-  return (
-    <div className="stack">
-      <p className="small muted">{LABELS.lead}</p>
-      <p className="small muted">{LABELS.aid}</p>
-      <p className="small muted">{LABELS.separate}</p>
-      <p className="small muted">{LABELS.metaNotDuplicated}</p>
-      {importanceValue === "minor" || importanceValue === "background" ? (
-        <p className="small">{importanceValue === "background" ? LABELS.backgroundHint : LABELS.minorHint}</p>
+  const viewActions = (
+    <div className="row" style={{ flexWrap: "wrap", gap: "0.5rem" }}>
+      {hasContent ? (
+        <Button ref={editButtonRef} type="button" variant="secondary" onClick={startEdit}>
+          {LABELS.editProfile}
+        </Button>
       ) : null}
-      {dirty ? <Banner>{LABELS.unsavedHint}</Banner> : null}
-      {freshness === "stale" ? <Banner tone="error">{LABELS.staleProfile}</Banner> : null}
-      {freshness === "unchecked" ? <Banner>{LABELS.unchecked}</Banner> : null}
-      {forgotten.length ? (
-        <p className="small">
-          {forgotten.map((arc) => arc.title || "Untitled arc").join(", ")} has no milestone yet.
-        </p>
-      ) : null}
-      {message ? <Banner tone={issues.length ? "error" : "ok"}>{message}</Banner> : null}
-      <IssueList issues={issues} />
+      <ButtonLink
+        href={`/projects/${encodeURIComponent(projectId)}/records/${encodeURIComponent(recordId)}/upgrade`}
+        variant="secondary"
+      >
+        {CHARACTER_DOSSIER_UPGRADE.openUpgrade}
+      </ButtonLink>
+      <Button type="button" variant="secondary" onClick={() => download("redacted")}>
+        {LABELS.exportRedacted}
+      </Button>
+      <Button type="button" variant="secondary" onClick={() => download("full")}>
+        {LABELS.exportFull}
+      </Button>
+    </div>
+  );
 
+  const viewBody = !hasContent ? (
+    <div className="world-profile-empty">
+      <p>{LABELS.emptyDetails}</p>
+      <p className="small muted">{LABELS.emptyDetailsHint}</p>
+      <Button ref={editButtonRef} type="button" onClick={startEdit}>
+        {LABELS.addProfileDetails}
+      </Button>
+    </div>
+  ) : (
+    <CharacterProfileView
+      profile={profile}
+      showEmpty={showEmpty}
+      onToggleEmpty={() => setShowEmpty((open) => !open)}
+      catalog={catalog}
+      projectId={projectId}
+    />
+  );
+
+  return (
+    <div className={cn("stack character-profile-panel", editing && "is-editing")} aria-labelledby={headingId} aria-busy={pending || undefined}>
+      <div className="world-profile-header row" style={{ justifyContent: "space-between", flexWrap: "wrap", gap: "0.5rem" }}>
+        <div>
+          <h3 id={headingId} className="sr-only">
+            {LABELS.heading}
+            {dirty ? ` — ${LABELS.unsavedChanges}` : ""}
+          </h3>
+          {dirty ? (
+            <p className="world-profile-unsaved" aria-live="polite">
+              <span className="world-profile-unsaved-dot" aria-hidden="true" />
+              {LABELS.unsavedChanges}
+            </p>
+          ) : null}
+          <p className="small muted">{LABELS.lead}</p>
+          {!editing ? (
+            <>
+              <p className="small muted">{LABELS.aid}</p>
+              <p className="small muted">{LABELS.separate}</p>
+              <p className="small muted">{LABELS.metaNotDuplicated}</p>
+            </>
+          ) : (
+            <p className="small muted">{LABELS.saveDoesNotChangeDocument}</p>
+          )}
+          {!editing && (importanceValue === "minor" || importanceValue === "background") ? (
+            <p className="small">{importanceValue === "background" ? LABELS.backgroundHint : LABELS.minorHint}</p>
+          ) : null}
+        </div>
+        {!editing ? viewActions : null}
+      </div>
+
+      <div role="status" aria-live="polite" className="stack" style={{ gap: "0.35rem" }}>
+        {freshness === "stale" ? <Banner tone="error">{LABELS.staleProfile}</Banner> : null}
+        {freshness === "unchecked" && editing ? <Banner>{LABELS.unchecked}</Banner> : null}
+        {forgotten.length && editing ? (
+          <p className="small">
+            {forgotten.map((arc) => arc.title || "Untitled arc").join(", ")} has no milestone yet.
+          </p>
+        ) : null}
+        {message ? <Banner tone={issues.length ? "error" : "ok"}>{message}</Banner> : null}
+        <IssueList issues={issues} />
+      </div>
+
+      {!editing ? viewBody : null}
+
+      {editing ? (
+      <>
       <div className="grid2">
         <label>
           {LABELS.importance}
@@ -781,9 +891,6 @@ export function CharacterDevelopmentPanel({
       ) : null}
 
       <div className="row" style={{ flexWrap: "wrap", gap: "0.5rem" }}>
-        <Button type="button" disabled={pending} onClick={save}>
-          {LABELS.save}
-        </Button>
         <Button type="button" variant="secondary" disabled={pending || !catalog.assistantConfigured} onClick={() => ask("extract")}>
           {LABELS.extract}
         </Button>
@@ -835,10 +942,24 @@ export function CharacterDevelopmentPanel({
         books={catalog.books}
         assistantConfigured={catalog.assistantConfigured}
       />
-      {isProtected ? (
-        <Checkbox className="small" checked={unlock} onChange={(event) => setUnlock(event.target.checked)} label={LABELS.unlock} />
+
+      <div className="world-profile-edit-spacer" aria-hidden="true" />
+      <div className="world-profile-save-bar">
+        {isProtected ? (
+          <Checkbox className="small" checked={unlock} onChange={(event) => setUnlock(event.target.checked)} label={LABELS.unlock} />
+        ) : null}
+        <Checkbox className="small" checked={allowRewrite} onChange={(event) => setAllowRewrite(event.target.checked)} label={LABELS.confirmRewrite} />
+        <div className="row" style={{ flexWrap: "wrap", gap: "0.5rem" }}>
+          <Button type="button" disabled={pending || (isProtected && !unlock)} onClick={save}>
+            {pending ? LABELS.saving : LABELS.save}
+          </Button>
+          <Button type="button" variant="secondary" disabled={pending} onClick={cancelEdit}>
+            {LABELS.cancel}
+          </Button>
+        </div>
+      </div>
+      </>
       ) : null}
-      <Checkbox className="small" checked={allowRewrite} onChange={(event) => setAllowRewrite(event.target.checked)} label={LABELS.confirmRewrite} />
     </div>
   );
 }

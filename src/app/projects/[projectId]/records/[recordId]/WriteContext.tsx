@@ -22,6 +22,7 @@ import { BookOpen, FileText, Shield, Sparkles, StickyNote, Waypoints, X } from "
 import { Banner } from "@/components/ui/Banner";
 import { Button, ButtonLink } from "@/components/ui/Atoms/Button";
 import { Checkbox } from "@/components/ui/Atoms/Checkbox";
+import { OpenableImage, type LightboxImage } from "@/components/ui/ImageLightbox";
 import { readAssistantJobStream } from "@/assistant/jobStream";
 import { applyTextareaEdit } from "@/components/writing/textareaEdit";
 import { useLayout } from "@/components/shell/LayoutContext";
@@ -946,6 +947,40 @@ function SceneLocationAssign({
   );
 }
 
+function ReferencePreviewThumbs({
+  projectId,
+  images,
+}: {
+  projectId: string;
+  images: Array<{ id: string; name: string; altText: string; caption: string }>;
+}) {
+  const gallery: LightboxImage[] = images.map((entry) => ({
+    id: entry.id,
+    src: `/projects/${encodeURIComponent(projectId)}/images/${encodeURIComponent(entry.id)}`,
+    alt: entry.altText || entry.name,
+    caption: entry.caption || entry.name,
+  }));
+  return (
+    <div className="reference-thumbs" aria-label={WRITE.referenceImages}>
+      {images.map((img) => {
+        const src = `/projects/${encodeURIComponent(projectId)}/images/${encodeURIComponent(img.id)}`;
+        return (
+          <OpenableImage
+            key={img.id}
+            id={img.id}
+            src={src}
+            alt={img.altText || img.name}
+            caption={img.caption || img.name}
+            images={gallery}
+            width={72}
+            height={72}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
 function References({
   projectId,
   recordId,
@@ -1151,19 +1186,7 @@ function References({
                 </div>
               ) : null}
               {preview.images.length ? (
-                <div className="reference-thumbs" aria-label={WRITE.referenceImages}>
-                  {preview.images.map((img) => (
-                    // eslint-disable-next-line @next/next/no-img-element -- read-only rail thumbnails from project image route
-                    <img
-                      key={img.id}
-                      src={`/projects/${encodeURIComponent(projectId)}/images/${encodeURIComponent(img.id)}`}
-                      alt={img.altText || img.name}
-                      title={img.caption || img.name}
-                      width={72}
-                      height={72}
-                    />
-                  ))}
-                </div>
+                <ReferencePreviewThumbs projectId={projectId} images={preview.images} />
               ) : null}
               <div className="reference-text document" ref={bodyRef}>
                 {preview.body ? (

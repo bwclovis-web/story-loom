@@ -7,8 +7,10 @@ import {
   isWorldbuildingKindFilter,
   type WorldType,
   type WorldbuildingKindFilter,
+  WORLD_CATEGORY_LABELS,
   WORLD_TYPES,
 } from "@/ui/world";
+import { WORLD } from "@/ui/labels";
 import type { SeriesHomeRef } from "@/world/seriesHome";
 import { isWorldKindKey, type WorldKindKey } from "@/world/referenceTemplates";
 import type { CustomTaxonomyCategoryOption } from "@/world/customCategories";
@@ -20,6 +22,7 @@ import {
   WORLD_TAXONOMY_CATEGORIES,
   type TaxonomyNavSummary,
 } from "@/world/taxonomy";
+import { worldHubReadingExcerpt } from "@/world/worldHubExcerpt";
 
 /** Reverse map: taxonomy category → suggested built-in `fields.kind` (optional template). */
 export const CATEGORY_TO_LEGACY_KIND: Partial<Record<string, WorldKindKey>> = Object.fromEntries(
@@ -63,6 +66,8 @@ export interface WorldHubRecord {
   home: SeriesHomeRef | null;
   worldKind: string | null;
   customKind: string | null;
+  /** Plain-text card excerpt (summary or stripped body). Not persisted. */
+  excerpt: string;
 }
 
 const SORTS: readonly HubSort[] = ["title", "updated", "created"];
@@ -97,8 +102,23 @@ export function parseWorldHubQuery(input: Record<string, string | undefined>): W
     status: isAuthorityStatus(input.status ?? "") ? (input.status as AuthorityStatus) : null,
     protected: oneOf(input.protected, PROTECTED),
     sort: oneOf(input.sort, SORTS) ?? "updated",
-    view: oneOf(input.view, VIEWS) ?? "list",
+    // Cards is the Design 06 default when the URL does not name a view.
+    view: oneOf(input.view, VIEWS) ?? "cards",
   };
+}
+
+/** Explicit `view` query only — null when omitted so cookie/default can apply. */
+export function explicitWorldHubView(input: Record<string, string | undefined>): HubView | null {
+  return oneOf(input.view, VIEWS);
+}
+
+/** Resolve listing view: explicit URL → saved cookie → Cards default. */
+export function resolveWorldHubView(
+  explicit: HubView | null,
+  cookieValue: string | undefined,
+): HubView {
+  if (explicit) return explicit;
+  return cookieValue === "list" ? "list" : "cards";
 }
 
 export function worldHubHref(
@@ -119,7 +139,8 @@ export function worldHubHref(
   if (params.status) search.set("status", params.status);
   if (params.protected) search.set("protected", params.protected);
   if (params.sort && params.sort !== "updated") search.set("sort", params.sort);
-  if (params.view && params.view !== "list") search.set("view", params.view);
+  // Omit the product default (cards) so category links stay clean; list stays explicit.
+  if (params.view && params.view !== "cards") search.set("view", params.view);
   if (params.collection?.trim()) search.set("collection", params.collection.trim());
   const qs = search.toString();
   return `/projects/${encodeURIComponent(projectId)}/world${qs ? `?${qs}` : ""}`;
@@ -137,6 +158,7 @@ export function projectWorldHubRecord(input: {
   updatedAt: Date | string;
   fields: Readonly<Record<string, unknown>>;
   home?: SeriesHomeRef | null;
+  body?: string;
 }): WorldHubRecord {
   const resolved = resolveRecordTaxonomy({ type: input.type, fields: input.fields });
   const summary = taxonomyNavSummary(resolved);
@@ -153,6 +175,7 @@ export function projectWorldHubRecord(input: {
     fields: input.fields,
     taxonomy: summary,
     home: input.home ?? null,
+    excerpt: worldHubReadingExcerpt(input.fields, input.body ?? ""),
     worldKind: resolved.usedLegacyFallback && resolved.primary
       ? CATEGORY_TO_LEGACY_KIND[resolved.primary.category] ?? null
       : typeof input.fields.kind === "string" && isWorldKindKey(input.fields.kind)
@@ -253,6 +276,110 @@ export function hubHasActiveFilters(query: WorldHubQuery): boolean {
       query.status ||
       query.protected,
   );
+}
+
+/** Filter dimensions shown as chips / counted on the Filters control (not search, sort, or view). */
+export type WorldHubFilterChipKey =
+  | "category"
+  | "subcategory"
+  | "type"
+  | "kind"
+  | "tag"
+  | "customKind"
+  | "unclassified"
+  | "scope"
+  | "status"
+  | "protected";
+
+export interface WorldHubFilterChip {
+  key: WorldHubFilterChipKey;
+  label: string;
+  /** Query patch that clears this chip while keeping the rest. */
+  clear: Partial<WorldHubQuery>;
+}
+
+export function countWorldHubFilterChips(query: WorldHubQuery): number {
+  return listWorldHubFilterChips(query).length;
+}
+
+export function listWorldHubFilterChips(query: WorldHubQuery): WorldHubFilterChip[] {
+  const chips: WorldHubFilterChip[] = [];
+  if (query.category) {
+    const cat = getTaxonomyCategory(query.category);
+    chips.push({
+      key: "category",
+      label: cat?.label ?? query.category,
+      clear: { category: null, subcategory: null },
+    });
+  }
+  if (query.subcategory && query.category) {
+    const cat = getTaxonomyCategory(query.category);
+    const sub = cat?.subcategories.find((item) => item.id === query.subcategory);
+    chips.push({
+      key: "subcategory",
+      label: sub?.label ?? query.subcategory,
+      clear: { subcategory: null },
+    });
+  }
+  if (query.type) {
+    chips.push({
+      key: "type",
+      label: WORLD_CATEGORY_LABELS[query.type] ?? query.type,
+      clear: { type: null, kind: null },
+    });
+  }
+  if (query.kind) {
+    chips.push({
+      key: "kind",
+      label: query.kind,
+      clear: { kind: null },
+    });
+  }
+  if (query.tag) {
+    chips.push({
+      key: "tag",
+      label: query.tag,
+      clear: { tag: null },
+    });
+  }
+  if (query.customKind) {
+    chips.push({
+      key: "customKind",
+      label: query.customKind,
+      clear: { customKind: null },
+    });
+  }
+  if (query.unclassified) {
+    chips.push({
+      key: "unclassified",
+      label: WORLD.uncategorized,
+      clear: { unclassified: false },
+    });
+  }
+  if (query.scope) {
+    const scopeLabel =
+      query.scope === "book" ? WORLD.scopeBook : query.scope === "series" ? WORLD.scopeSeries : WORLD.scopeUnset;
+    chips.push({
+      key: "scope",
+      label: scopeLabel,
+      clear: { scope: null },
+    });
+  }
+  if (query.status) {
+    chips.push({
+      key: "status",
+      label: query.status,
+      clear: { status: null },
+    });
+  }
+  if (query.protected) {
+    chips.push({
+      key: "protected",
+      label: query.protected === "yes" ? WORLD.protectedYes : WORLD.protectedNo,
+      clear: { protected: null },
+    });
+  }
+  return chips;
 }
 
 export function defaultRecordTypeForCategory(category: string | null): WorldType {

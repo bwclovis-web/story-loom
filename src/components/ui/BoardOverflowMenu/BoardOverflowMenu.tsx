@@ -1,5 +1,9 @@
+"use client";
+
 import { ChevronDown } from "lucide-react";
-import type { ReactNode } from "react";
+import { useRef, useState, type ReactNode, type SyntheticEvent } from "react";
+import { useDismissible } from "@/hooks/useDismissible";
+import { useFocusTrap } from "@/hooks/useFocusTrap";
 import { cn } from "@/ui/cn";
 import { SHELL } from "@/ui/labels";
 
@@ -20,13 +24,38 @@ export function BoardOverflowMenu({
 }) {
   const accessible =
     summaryLabel ?? (typeof summary === "string" ? summary : SHELL.moreActions);
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDetailsElement>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const summaryRef = useRef<HTMLElement>(null);
+
+  useDismissible({
+    active: open,
+    onDismiss: () => setOpen(false),
+    refs: [rootRef],
+    escape: false,
+  });
+
+  useFocusTrap(bodyRef, {
+    active: open,
+    onEscape: () => setOpen(false),
+    restoreFocus: true,
+    restoreFocusTo: summaryRef,
+  });
+
+  const onToggle = (event: SyntheticEvent<HTMLDetailsElement>) => {
+    setOpen(event.currentTarget.open);
+  };
+
   return (
-    <details className={cn("board-overflow", className)}>
-      <summary aria-label={accessible}>
+    <details ref={rootRef} className={cn("board-overflow", className)} open={open} onToggle={onToggle}>
+      <summary ref={summaryRef} aria-label={accessible}>
         <span className="board-overflow-summary-text">{summary}</span>
         {showChevron ? <ChevronDown className="board-overflow-chevron" strokeWidth={2} aria-hidden="true" /> : null}
       </summary>
-      <div className="board-overflow-body">{children}</div>
+      <div ref={bodyRef} className="board-overflow-body" tabIndex={open ? -1 : undefined}>
+        {children}
+      </div>
     </details>
   );
 }

@@ -68,9 +68,9 @@ export function assistantSecretsPath(): string {
 
 export function loadAssistantSecretsFromFile(): AssistantSecrets {
   const file = assistantSecretsPath();
-  if (!existsSync(file)) return emptySecrets();
+  if (!existsSync(/*turbopackIgnore: true*/ file)) return emptySecrets();
   try {
-    const parsed = parseJsonObject(readFileSync(file, "utf8"));
+    const parsed = parseJsonObject(readFileSync(/*turbopackIgnore: true*/ file, "utf8"));
     const providerRaw = typeof parsed.provider === "string" ? parsed.provider : null;
     const provider = providerRaw ? parseAssistantProvider(providerRaw, []) : null;
     const model = typeof parsed.model === "string" && parsed.model.trim() ? parsed.model.trim() : null;

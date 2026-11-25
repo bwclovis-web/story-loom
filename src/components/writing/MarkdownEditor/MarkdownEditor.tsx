@@ -166,8 +166,9 @@ function createSurface(view: EditorView, host: HTMLElement): EditorSurface {
       view.dispatch({ selection: { anchor: from, head: to }, scrollIntoView: true });
     },
     focus(options) {
-      if (options?.preventScroll) view.contentDOM.focus({ preventScroll: true });
-      else view.focus();
+      // Always preventScroll: cm-content is as tall as the doc, and a plain
+      // focus() scrolls the outer write column to the chapter start.
+      view.contentDOM.focus({ preventScroll: options?.preventScroll !== false });
     },
     blur() {
       view.contentDOM.blur();

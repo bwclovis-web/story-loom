@@ -885,6 +885,7 @@ export function BoardCanvas({
                     imageId={card.imageId}
                     alt={card.imageAlt || card.imageName || card.label}
                     className="board-card-thumb"
+                    openable={false}
                   />
                 ) : null}
                 <strong className="board-card-title">{card.label}</strong>

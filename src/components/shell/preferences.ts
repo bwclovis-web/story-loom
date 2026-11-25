@@ -20,6 +20,16 @@ export function parseMapsViewPreference(value: string | undefined): MapsViewPref
   return value === "list" ? "list" : "grid";
 }
 
+/** World Hub reference listing cards vs list preference for this browser. */
+export const WORLD_HUB_VIEW_COOKIE = "wordly-hub-view";
+
+export type WorldHubViewPreference = "cards" | "list";
+
+/** Cards is the product default when the author has not chosen explicitly. */
+export function parseWorldHubViewPreference(value: string | undefined): WorldHubViewPreference {
+  return value === "list" ? "list" : "cards";
+}
+
 /**
  * Optional guided walkthrough. Cookie values (this browser only):
  * - missing / empty → checklist open at task 0

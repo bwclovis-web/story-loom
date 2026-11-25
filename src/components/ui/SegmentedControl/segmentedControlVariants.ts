@@ -7,9 +7,18 @@ export const segmentedControlVariants = cva("segmented-control", {
       md: "",
       sm: "segmented-control-sm",
     },
+    /**
+     * Selected fill. `accent` matches Maps / Write (brass fill on selected).
+     * `default` keeps the quieter inset surface used on denser toolbars.
+     */
+    tone: {
+      default: "",
+      accent: "segmented-control-accent",
+    },
   },
   defaultVariants: {
     size: "md",
+    tone: "default",
   },
 });
 

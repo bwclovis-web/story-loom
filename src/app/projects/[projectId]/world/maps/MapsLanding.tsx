@@ -126,7 +126,7 @@ export function MapsLanding({
             <option value="name-asc">{WORLD.mapsSortNameAsc}</option>
             <option value="name-desc">{WORLD.mapsSortNameDesc}</option>
           </Select>
-          <SegmentedControl label={WORLD.toolbarView} size="sm" className="map-library-view-toggle">
+          <SegmentedControl label={WORLD.toolbarView} size="sm" tone="accent" className="map-library-view-toggle">
             <SegmentedOption
               selected={view === "grid"}
               aria-label={WORLD.mapsViewGridHint}

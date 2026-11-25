@@ -1,15 +1,18 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState, useTransition, type ReactNode } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useId, useMemo, useRef, useState, useTransition, type ReactNode } from "react";
 import { Banner } from "@/components/ui/Banner";
 import { HelpPopover } from "@/components/ui/HelpPopover";
 import { Button, ButtonLink } from "@/components/ui/Atoms/Button";
 import { TextField } from "@/components/ui/TextField";
+import { setUnsaved } from "@/components/shell/unsaved";
 import type {
   WorldProfile,
   WorldProfileFieldValue,
   WorldProfileQuantity,
+  WorldProfileRecordRef,
   WorldQuantityQualifier,
 } from "@/domain/worldProfile";
 import {
@@ -17,6 +20,8 @@ import {
   formatWorldProfileFieldValue,
   WORLD_QUANTITY_QUALIFIERS,
   worldFieldMetaOf,
+  worldProfileFieldValueIsEmpty,
+  worldProfileHasDisplayContent,
 } from "@/domain/worldProfile";
 import { SERIES, WORLD_PROFILE } from "@/ui/labels";
 import type {
@@ -37,6 +42,37 @@ import {
   type WorldHistoryCatalog,
 } from "@/components/world/WorldProfileHistorySection";
 import { saveWorldProfileAction } from "@/app/projects/[projectId]/records/[recordId]/world-upgrade/actions";
+import { DocumentSectionNav } from "@/components/world/DocumentSectionNav";
+import { cn } from "@/ui/cn";
+
+function cloneProfile(profile: WorldProfile): WorldProfile {
+  return JSON.parse(JSON.stringify(profile)) as WorldProfile;
+}
+
+function profilesEqual(a: WorldProfile, b: WorldProfile): boolean {
+  return JSON.stringify(a) === JSON.stringify(b);
+}
+
+function isLongDisplayValue(field: WorldProfileFieldDef, text: string): boolean {
+  return (
+    field.type === "long_text" ||
+    field.multiline === true ||
+    field.type === "glossed_lines" ||
+    field.type === "ordered_list" ||
+    field.type === "multi_select" ||
+    field.type === "record_refs" ||
+    text.includes("\n") ||
+    text.length > 80
+  );
+}
+
+function recordIdOf(value: WorldProfileFieldValue): string | null {
+  if (value && typeof value === "object" && !Array.isArray(value) && "recordId" in value && !("freeText" in value)) {
+    const id = (value as WorldProfileRecordRef).recordId?.trim();
+    return id || null;
+  }
+  return null;
+}
 
 function listTextValue(value: WorldProfileFieldValue): string {
   if (Array.isArray(value)) return value.join("\n");
@@ -313,6 +349,10 @@ function ProfileFieldRow({
   );
 }
 
+type ProfileMode = "view" | "edit";
+
+type ProfileNavGroup = { id: string; label: string };
+
 export function WorldProfilePanel({
   projectId,
   recordId,
@@ -346,13 +386,39 @@ export function WorldProfilePanel({
   isProtected: boolean;
   historyCatalog: WorldHistoryCatalog;
 }) {
-  const [profile, setProfile] = useState<WorldProfile>(initialProfile ?? emptyWorldProfile());
+  const router = useRouter();
+  const headingId = useId();
+  const statusId = useId();
+  const editButtonRef = useRef<HTMLButtonElement>(null);
+  const [saved, setSaved] = useState<WorldProfile>(() => cloneProfile(initialProfile ?? emptyWorldProfile()));
+  const [profile, setProfile] = useState<WorldProfile>(() => cloneProfile(initialProfile ?? emptyWorldProfile()));
+  const [mode, setMode] = useState<ProfileMode>("view");
+  const [showEmpty, setShowEmpty] = useState(false);
+  const [expectedRevision, setExpectedRevision] = useState(revision);
   const [unlockProtected, setUnlockProtected] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [bodyOpen, setBodyOpen] = useState(false);
   const [addSectionId, setAddSectionId] = useState("");
+
+  const editing = mode === "edit" && editable;
+  const dirty = editing && !profilesEqual(profile, saved);
+  const unsavedKey = `world-profile:${projectId}:${recordId}`;
+
+  useEffect(() => {
+    setUnsaved(unsavedKey, dirty);
+    return () => setUnsaved(unsavedKey, false);
+  }, [dirty, unsavedKey]);
+
+  // Sync from server when not editing (refresh after save / navigation).
+  useEffect(() => {
+    if (editing) return;
+    const next = cloneProfile(initialProfile ?? emptyWorldProfile());
+    setSaved(next);
+    setProfile(next);
+    setExpectedRevision(revision);
+  }, [editing, initialProfile, revision]);
 
   const activeDefinition = useMemo(() => {
     if (profile.definitionId) {
@@ -412,11 +478,31 @@ export function WorldProfilePanel({
     [placeRelations],
   );
 
+  const titleById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const choice of placeChoices) map.set(choice.id, choice.title);
+    for (const rel of placeRelations?.outgoing ?? []) map.set(rel.toRecordId, rel.toTitle);
+    for (const rel of placeRelations?.incoming ?? []) map.set(rel.fromRecordId, rel.fromTitle);
+    return map;
+  }, [placeChoices, placeRelations]);
+
   const upgradeHref = `/projects/${encodeURIComponent(projectId)}/records/${encodeURIComponent(recordId)}/world-upgrade`;
-  const placeRelationsHref = `/projects/${encodeURIComponent(projectId)}/records/${encodeURIComponent(recordId)}#place-relations`;
+  const placeRelationsHref = `/projects/${encodeURIComponent(projectId)}/records/${encodeURIComponent(recordId)}?tab=relationships#place-relations`;
   const homeHref = seriesHome
     ? `/projects/${encodeURIComponent(seriesHome.projectId)}/records/${encodeURIComponent(recordId)}`
     : null;
+  const recordHref = (id: string) =>
+    `/projects/${encodeURIComponent(projectId)}/records/${encodeURIComponent(id)}`;
+
+  const fieldKeysForDisplay = useMemo(() => {
+    const keys = new Set(profileFields.map((f) => f.key));
+    for (const section of activeSections) {
+      for (const field of section.fields) keys.add(field.key);
+    }
+    return [...keys];
+  }, [activeSections, profileFields]);
+
+  const hasContent = worldProfileHasDisplayContent(profile, fieldKeysForDisplay);
 
   const setFieldValue = (key: string, next: WorldProfileFieldValue) => {
     setProfile((current) => ({
@@ -446,12 +532,28 @@ export function WorldProfilePanel({
     setFieldValue("outlet", { recordId: rel.toRecordId });
   };
 
+  const startEdit = () => {
+    setError(null);
+    setMessage(null);
+    setProfile(cloneProfile(saved));
+    setMode("edit");
+  };
+
+  const cancelEdit = () => {
+    setError(null);
+    setMessage(null);
+    setProfile(cloneProfile(saved));
+    setUnlockProtected(false);
+    setMode("view");
+    requestAnimationFrame(() => editButtonRef.current?.focus());
+  };
+
   const save = () =>
     startTransition(async () => {
       setError(null);
       setMessage(null);
       const result = await saveWorldProfileAction(projectId, recordId, {
-        expectedRevision: revision,
+        expectedRevision,
         profile,
         unlockProtected,
       });
@@ -459,7 +561,15 @@ export function WorldProfilePanel({
         setError(result.message);
         return;
       }
+      const next = cloneProfile(profile);
+      setSaved(next);
+      setProfile(next);
+      setExpectedRevision(result.revision);
+      setUnlockProtected(false);
+      setMode("view");
       setMessage(WORLD_PROFILE.saved);
+      router.refresh();
+      requestAnimationFrame(() => editButtonRef.current?.focus());
     });
 
   const renderFieldMeta = (fieldKey: string) => {
@@ -470,6 +580,78 @@ export function WorldProfilePanel({
       </span>
     );
   };
+
+  const renderDisplayValue = (field: WorldProfileFieldDef, value: WorldProfileFieldValue) => {
+    if (worldProfileFieldValueIsEmpty(value)) {
+      return <span className="muted">{WORLD_PROFILE.notSet}</span>;
+    }
+    const refId = recordIdOf(value);
+    if (refId || field.type === "record_ref") {
+      const id = refId ?? (typeof value === "string" ? value.trim() : "");
+      if (!id) return <span className="muted">{WORLD_PROFILE.notSet}</span>;
+      const title = titleById.get(id) ?? id;
+      return <Link href={recordHref(id)}>{title}</Link>;
+    }
+    if (field.type === "record_refs" && Array.isArray(value)) {
+      const ids = value.filter((item): item is string => typeof item === "string" && item.trim() !== "");
+      if (!ids.length) return <span className="muted">{WORLD_PROFILE.notSet}</span>;
+      return (
+        <ul className="world-profile-ref-list">
+          {ids.map((id) => (
+            <li key={id}>
+              <Link href={recordHref(id)}>{titleById.get(id) ?? id}</Link>
+            </li>
+          ))}
+        </ul>
+      );
+    }
+    if (field.type === "boolean") {
+      return value === true ? "Yes" : value === false ? "No" : WORLD_PROFILE.notSet;
+    }
+    const text = formatWorldProfileFieldValue(value);
+    if (isLongDisplayValue(field, text)) {
+      return <div className="world-profile-long-value">{text}</div>;
+    }
+    return text;
+  };
+
+  const renderViewField = (field: WorldProfileFieldDef) => {
+    const value = profile.values[field.key] ?? null;
+    const empty = worldProfileFieldValueIsEmpty(value);
+    if (empty && !showEmpty) return null;
+    return (
+      <div
+        key={field.key}
+        className={cn(
+          "world-profile-fact",
+          isLongDisplayValue(field, formatWorldProfileFieldValue(value)) && "world-profile-fact-long",
+        )}
+      >
+        <dt>{field.label}</dt>
+        <dd>{renderDisplayValue(field, value)}</dd>
+      </div>
+    );
+  };
+
+  const sectionHasVisibleFields = (fields: readonly WorldProfileFieldDef[]) =>
+    showEmpty || fields.some((field) => !worldProfileFieldValueIsEmpty(profile.values[field.key] ?? null));
+
+  const navGroups: ProfileNavGroup[] = [];
+  if (profile.summary.trim() || (showEmpty && editing === false)) {
+    navGroups.push({ id: "world-profile-summary", label: WORLD_PROFILE.summary });
+  }
+  if (profileFields.length && sectionHasVisibleFields(profileFields)) {
+    navGroups.push({ id: "world-profile-values", label: WORLD_PROFILE.values });
+  }
+  for (const section of activeSections) {
+    if (sectionHasVisibleFields(section.fields)) {
+      navGroups.push({ id: `world-profile-section-${section.id}`, label: section.label });
+    }
+  }
+  if (activeDefinition?.collections.some((c) => (profile.collections[c.key] ?? []).length > 0 || showEmpty)) {
+    navGroups.push({ id: "world-profile-collections", label: WORLD_PROFILE.collections });
+  }
+  const showSectionNav = !editing && navGroups.length >= 2;
 
   const renderSectionField = (field: WorldProfileFieldDef) => {
     const raw = profile.values[field.key] ?? null;
@@ -486,7 +668,7 @@ export function WorldProfilePanel({
             placeholder: isOutlet ? WORLD_PROFILE.outletTextFallback : field.placeholder,
           }}
           value={isOutlet ? ((typeof outletText === "string" ? outletText : null) as WorldProfileFieldValue) : raw}
-          editable={editable}
+          editable={editing}
           pending={pending}
           onValueChange={(next) => {
             if (isOutlet) {
@@ -505,7 +687,7 @@ export function WorldProfilePanel({
               flowsIntoOutgoing.map((rel) => (
                 <div key={rel.id} className="row" style={{ flexWrap: "wrap", gap: "0.5rem", alignItems: "center" }}>
                   <span className="small muted">{WORLD_PROFILE.outletFromFlowsInto(rel.toTitle)}</span>
-                  {editable ? (
+                  {editing ? (
                     <Button type="button" variant="secondary" disabled={pending} onClick={() => useFlowsIntoOutlet(rel)}>
                       {WORLD_PROFILE.useFlowsInto}
                     </Button>
@@ -516,10 +698,10 @@ export function WorldProfilePanel({
               <p className="small muted">
                 No <code>flows_into</code> place relationship yet.{" "}
                 <Link href={placeRelationsHref}>{WORLD_PROFILE.editPlaceRelations}</Link>
-                {placeChoices.length && editable ? " or pick a known place below." : "."}
+                {placeChoices.length && editing ? " or pick a known place below." : "."}
               </p>
             )}
-            {editable && placeChoices.length ? (
+            {editing && placeChoices.length ? (
               <label className="small">
                 Add outlet via place record
                 <select
@@ -551,41 +733,117 @@ export function WorldProfilePanel({
     );
   };
 
-  return (
-    <section className="panel stack" id="world-profile" aria-labelledby="world-profile-heading">
-      <div className="row" style={{ justifyContent: "space-between", flexWrap: "wrap", gap: "0.5rem" }}>
-        <div>
-          <h2 id="world-profile-heading">{WORLD_PROFILE.heading}</h2>
-          <p className="small muted">{WORLD_PROFILE.lead}</p>
-        </div>
-        <div className="row" style={{ gap: "0.5rem", flexWrap: "wrap" }}>
-          {editable ? (
-            <ButtonLink href={upgradeHref} variant="secondary">
-              {WORLD_PROFILE.openUpgrade}
-            </ButtonLink>
-          ) : homeHref ? (
-            <ButtonLink href={`${homeHref}/world-upgrade`} variant="secondary">
-              {WORLD_PROFILE.editInHome(seriesBookLabel(seriesHome!))}
-            </ButtonLink>
-          ) : null}
-        </div>
-      </div>
-
-      {seriesHome ? (
-        <p className="small muted">
-          {SERIES.sharedFrom(seriesBookLabel(seriesHome))}
-          {editable ? null : ` ${WORLD_PROFILE.editInHome(seriesBookLabel(seriesHome))}`}
-        </p>
+  const viewBody = !hasContent ? (
+    <div className="world-profile-empty">
+      <p>{WORLD_PROFILE.emptyDetails}</p>
+      <p className="small muted">{WORLD_PROFILE.emptyDetailsHint}</p>
+      {editable ? (
+        <Button ref={editButtonRef} type="button" onClick={startEdit}>
+          {WORLD_PROFILE.addProfileDetails}
+        </Button>
       ) : null}
+    </div>
+  ) : (
+    <div className={cn("world-profile-view-layout", showSectionNav && "has-nav")}>
+      {showSectionNav ? (
+        <DocumentSectionNav
+          title={WORLD_PROFILE.sectionsNav}
+          headings={navGroups.map((group) => ({ id: group.id, level: 2, text: group.label }))}
+        />
+      ) : null}
+      <div className="world-profile-view-body stack">
+        {(profile.summary.trim() || showEmpty) && (
+          <section className="world-profile-group" aria-labelledby="world-profile-summary">
+            <h3 id="world-profile-summary" tabIndex={-1}>
+              {WORLD_PROFILE.summary}
+            </h3>
+            <div className="world-profile-facts">
+              <div className={cn("world-profile-fact", "world-profile-fact-long")}>
+                <dt className="sr-only">{WORLD_PROFILE.summary}</dt>
+                <dd>
+                  {profile.summary.trim() ? (
+                    <div className="world-profile-long-value">{profile.summary}</div>
+                  ) : (
+                    <span className="muted">{WORLD_PROFILE.notSet}</span>
+                  )}
+                </dd>
+              </div>
+            </div>
+          </section>
+        )}
 
-      <p className="small muted">
-        {WORLD_PROFILE.optionalNote}{" "}
-        {approvedCount ? WORLD_PROFILE.approvedCount(approvedCount) : null}
-        {profile.migrationHold.length ? ` · ${WORLD_PROFILE.holdCount(profile.migrationHold.length)}` : null}
-      </p>
+        {profileFields.length && sectionHasVisibleFields(profileFields) ? (
+          <section className="world-profile-group" aria-labelledby="world-profile-values">
+            <h3 id="world-profile-values" tabIndex={-1}>
+              {WORLD_PROFILE.values}
+            </h3>
+            <dl className="world-profile-facts">{profileFields.map((field) => renderViewField(field))}</dl>
+          </section>
+        ) : null}
 
-      {message ? <Banner tone="ok">{message}</Banner> : null}
-      {error ? <Banner tone="error">{error}</Banner> : null}
+        {activeSections.map((section) => {
+          if (!sectionHasVisibleFields(section.fields)) return null;
+          return (
+            <section
+              key={section.id}
+              className="world-profile-group"
+              aria-labelledby={`world-profile-section-${section.id}`}
+            >
+              <h3 id={`world-profile-section-${section.id}`} tabIndex={-1}>
+                {section.label}
+              </h3>
+              <dl className="world-profile-facts">{section.fields.map((field) => renderViewField(field))}</dl>
+            </section>
+          );
+        })}
+
+        {activeDefinition?.collections.length &&
+        (showEmpty || activeDefinition.collections.some((c) => (profile.collections[c.key] ?? []).length > 0)) ? (
+          <section className="world-profile-group" aria-labelledby="world-profile-collections">
+            <h3 id="world-profile-collections" tabIndex={-1}>
+              {WORLD_PROFILE.collections}
+            </h3>
+            {activeDefinition.collections.map((collection) => {
+              const items = profile.collections[collection.key] ?? [];
+              if (!items.length && !showEmpty) return null;
+              return (
+                <div key={collection.key} className="stack">
+                  <strong className="small">{collection.label}</strong>
+                  {items.length ? (
+                    <ul>
+                      {items.map((item) => (
+                        <li key={item.id} className="small">
+                          {Object.entries(item.fields)
+                            .map(([key, entry]) => `${key}: ${formatWorldProfileFieldValue(entry)}`)
+                            .join("; ") || "(empty)"}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="small muted">{WORLD_PROFILE.notSet}</p>
+                  )}
+                </div>
+              );
+            })}
+          </section>
+        ) : null}
+
+        <button
+          type="button"
+          className="world-profile-empty-toggle"
+          aria-expanded={showEmpty}
+          onClick={() => setShowEmpty((open) => !open)}
+        >
+          {showEmpty ? WORLD_PROFILE.hideEmptyFields : WORLD_PROFILE.showEmptyFields}
+        </button>
+        <p className="small muted world-profile-footnote">{WORLD_PROFILE.profileSeparateNote}</p>
+      </div>
+    </div>
+  );
+
+  const editBody = (
+    <>
+      <p className="small muted">{WORLD_PROFILE.saveDoesNotChangeDocument}</p>
       {needsChoice ? <Banner>{WORLD_PROFILE.chooseDefinition}</Banner> : null}
 
       <label>
@@ -593,7 +851,7 @@ export function WorldProfilePanel({
         <HelpPopover label={WORLD_PROFILE.definitionExplain}>{WORLD_PROFILE.definitionHelp}</HelpPopover>
         <select
           value={profile.definitionId ?? ""}
-          disabled={!editable || pending}
+          disabled={pending}
           onChange={(event) =>
             setProfile((current) => ({
               ...current,
@@ -636,14 +894,13 @@ export function WorldProfilePanel({
       <TextField
         label={WORLD_PROFILE.summary}
         value={profile.summary}
-        disabled={!editable || pending}
+        disabled={pending}
         onChange={(event) => setProfile((current) => ({ ...current, summary: event.target.value }))}
       />
 
       {flatNoteFields.length ? (
         <p className="small muted">
-          {WORLD_PROFILE.flatFieldsNote}{" "}
-          {flatNoteFields.map((field) => field.label).join(", ")}.
+          {WORLD_PROFILE.flatFieldsNote} {flatNoteFields.map((field) => field.label).join(", ")}.
         </p>
       ) : null}
 
@@ -655,7 +912,7 @@ export function WorldProfilePanel({
               <ProfileFieldRow
                 field={field}
                 value={profile.values[field.key] ?? null}
-                editable={editable}
+                editable
                 pending={pending}
                 onValueChange={(next) => setFieldValue(field.key, next)}
                 extra={renderFieldMeta(field.key)}
@@ -679,7 +936,7 @@ export function WorldProfilePanel({
                 key={section.id}
                 type="button"
                 variant="secondary"
-                disabled={!editable || pending}
+                disabled={pending}
                 onClick={() => enableSection(section.id)}
               >
                 {WORLD_PROFILE.subcategoryEnable(section.label)}
@@ -688,15 +945,11 @@ export function WorldProfilePanel({
           </div>
         ) : null}
 
-        {editable && addableSections.length ? (
+        {addableSections.length ? (
           <div className="row" style={{ flexWrap: "wrap", gap: "0.5rem", alignItems: "end" }}>
             <label className="small">
               {WORLD_PROFILE.subcategoryAdd}
-              <select
-                value={addSectionId}
-                disabled={pending}
-                onChange={(event) => setAddSectionId(event.target.value)}
-              >
+              <select value={addSectionId} disabled={pending} onChange={(event) => setAddSectionId(event.target.value)}>
                 <option value="">—</option>
                 {addableSections.map((section) => (
                   <option key={section.id} value={section.id}>
@@ -738,24 +991,25 @@ export function WorldProfilePanel({
                         {section.description}
                       </p>
                     </div>
-                    {editable ? (
-                      enabled ? (
-                        <Button type="button" variant="secondary" disabled={pending} onClick={() => hideSection(section.id)}>
-                          {WORLD_PROFILE.subcategoryHide}
-                        </Button>
-                      ) : (
-                        <Button type="button" variant="secondary" disabled={pending} onClick={() => enableSection(section.id)}>
-                          {WORLD_PROFILE.subcategoryEnable(section.label)}
-                        </Button>
-                      )
-                    ) : null}
+                    {enabled ? (
+                      <Button type="button" variant="secondary" disabled={pending} onClick={() => hideSection(section.id)}>
+                        {WORLD_PROFILE.subcategoryHide}
+                      </Button>
+                    ) : (
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        disabled={pending}
+                        onClick={() => enableSection(section.id)}
+                      >
+                        {WORLD_PROFILE.subcategoryEnable(section.label)}
+                      </Button>
+                    )}
                   </div>
                   {enabled || listSubcategorySectionsWithStoredValues(profile).some((s) => s.id === section.id) ? (
                     <div className="stack">{section.fields.map((field) => renderSectionField(field))}</div>
                   ) : null}
-                  {editable && enabled ? (
-                    <p className="small muted">{WORLD_PROFILE.subcategoryHideNote}</p>
-                  ) : null}
+                  {enabled ? <p className="small muted">{WORLD_PROFILE.subcategoryHideNote}</p> : null}
                 </div>
               );
             })}
@@ -812,7 +1066,7 @@ export function WorldProfilePanel({
         enabledSectionIds={profile.enabledSections}
         catalog={historyCatalog}
         projectId={projectId}
-        editable={editable}
+        editable
         pending={pending}
         onProfileChange={setProfile}
       />
@@ -825,25 +1079,122 @@ export function WorldProfilePanel({
         </pre>
       </details>
 
-      {editable ? (
-        <div className="row" style={{ flexWrap: "wrap", gap: "0.75rem", alignItems: "center" }}>
-          {isProtected ? (
-            <label className="inline">
-              <input
-                type="checkbox"
-                checked={unlockProtected}
-                onChange={(event) => setUnlockProtected(event.target.checked)}
-              />{" "}
-              Unlock protected reference for this save
-            </label>
-          ) : null}
+      <div className="world-profile-edit-spacer" aria-hidden="true" />
+      <div className="world-profile-save-bar">
+        {isProtected ? (
+          <label className="inline">
+            <input
+              type="checkbox"
+              checked={unlockProtected}
+              onChange={(event) => setUnlockProtected(event.target.checked)}
+            />{" "}
+            Unlock protected reference for this save
+          </label>
+        ) : null}
+        <div className="row" style={{ flexWrap: "wrap", gap: "0.5rem" }}>
           <Button type="button" disabled={pending || (isProtected && !unlockProtected)} onClick={save}>
-            {WORLD_PROFILE.save}
+            {pending ? WORLD_PROFILE.saving : WORLD_PROFILE.save}
+          </Button>
+          <Button type="button" variant="secondary" disabled={pending} onClick={cancelEdit}>
+            {WORLD_PROFILE.cancel}
           </Button>
           <ButtonLink href={upgradeHref} variant="secondary">
             {WORLD_PROFILE.openUpgrade}
           </ButtonLink>
         </div>
+      </div>
+    </>
+  );
+
+  return (
+    <section
+      className={cn("panel stack world-profile-panel", editing && "is-editing")}
+      id="world-profile"
+      aria-labelledby={headingId}
+      aria-busy={pending || undefined}
+    >
+      <div className="world-profile-header row" style={{ justifyContent: "space-between", flexWrap: "wrap", gap: "0.5rem" }}>
+        <div>
+          <h2 id={headingId}>
+            {WORLD_PROFILE.heading}
+            {dirty ? (
+              <span className="world-profile-unsaved" id={statusId}>
+                <span className="world-profile-unsaved-dot" aria-hidden="true" />
+                {WORLD_PROFILE.unsavedChanges}
+              </span>
+            ) : null}
+          </h2>
+          <p className="small muted">{WORLD_PROFILE.lead}</p>
+          {!editing ? (
+            <p className="small muted">
+              {WORLD_PROFILE.optionalNote}{" "}
+              {approvedCount ? WORLD_PROFILE.approvedCount(approvedCount) : null}
+              {profile.migrationHold.length ? ` · ${WORLD_PROFILE.holdCount(profile.migrationHold.length)}` : null}
+            </p>
+          ) : null}
+        </div>
+        <div className="row" style={{ gap: "0.5rem", flexWrap: "wrap", alignItems: "center" }}>
+          {!editing && editable && hasContent ? (
+            <Button ref={editButtonRef} type="button" variant="secondary" onClick={startEdit}>
+              {WORLD_PROFILE.editProfile}
+            </Button>
+          ) : null}
+          {!editing ? (
+            editable ? (
+              <ButtonLink href={upgradeHref} variant="secondary">
+                {WORLD_PROFILE.openUpgrade}
+              </ButtonLink>
+            ) : homeHref ? (
+              <ButtonLink href={`${homeHref}/world-upgrade`} variant="secondary">
+                {WORLD_PROFILE.editInHome(seriesBookLabel(seriesHome!))}
+              </ButtonLink>
+            ) : null
+          ) : null}
+        </div>
+      </div>
+
+      {seriesHome ? (
+        <p className="small muted">
+          {SERIES.sharedFrom(seriesBookLabel(seriesHome))}
+          {editable ? null : ` ${WORLD_PROFILE.editInHome(seriesBookLabel(seriesHome))}`}
+        </p>
+      ) : null}
+
+      <div role="status" aria-live="polite" className="stack" style={{ gap: "0.35rem" }}>
+        {message ? <Banner tone="ok">{message}</Banner> : null}
+        {error ? <Banner tone="error">{error}</Banner> : null}
+      </div>
+
+      {editing ? editBody : viewBody}
+
+      {!editing && hasContent ? (
+        <>
+          <details>
+            <summary>{WORLD_PROFILE.holds}</summary>
+            {profile.migrationHold.length ? (
+              <ul>
+                {profile.migrationHold.map((hold) => (
+                  <li key={hold.id} className="small">
+                    <strong>{hold.heading || hold.kind}</strong>: {hold.text.slice(0, 200)}
+                    {hold.text.length > 200 ? "…" : ""}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="small muted">{WORLD_PROFILE.holdsEmpty}</p>
+            )}
+          </details>
+          <WorldProfileHistorySection
+            profile={profile}
+            definition={activeDefinition}
+            enabledSectionIds={profile.enabledSections}
+            catalog={historyCatalog}
+            projectId={projectId}
+            editable={false}
+            pending={false}
+            onProfileChange={setProfile}
+          />
+        </>
       ) : null}
 
       {homeHref ? (

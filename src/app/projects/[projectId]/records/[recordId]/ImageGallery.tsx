@@ -8,6 +8,7 @@ import { Banner } from "@/components/ui/Banner";
 import { Button } from "@/components/ui/Atoms/Button";
 import { Checkbox } from "@/components/ui/Atoms/Checkbox";
 import { FileInput } from "@/components/ui/FileInput";
+import { ImageLightbox, type LightboxImage } from "@/components/ui/ImageLightbox";
 import {
   formatBytes,
   IMAGE_ACCEPT,
@@ -81,12 +82,14 @@ function ImageCard({
   image,
   inText,
   isProtected,
+  onOpen,
 }: {
   projectId: string;
   recordId: string;
   image: GalleryImage;
   inText: boolean;
   isProtected: boolean;
+  onOpen: (id: string) => void;
 }) {
   const [saveState, save, saving] = useActionState<FormResult, FormData>(updateImageAction.bind(null, projectId, recordId, image.id), {
     ok: true,
@@ -104,9 +107,21 @@ function ImageCard({
   );
   return (
     <li className="image-card">
-      <a href={image.src} target="_blank" rel="noopener" className="image-thumb" aria-label={IMAGES.open(image.name)}>
-        <img src={image.src} alt={image.altText || image.caption || ""} width={image.width} height={image.height} loading="lazy" decoding="async" />
-      </a>
+      <button
+        type="button"
+        className="image-thumb image-open-trigger image-open-framed"
+        aria-label={IMAGES.open(image.name)}
+        onClick={() => onOpen(image.id)}
+      >
+        <img
+          src={image.src}
+          alt={image.altText || image.caption || ""}
+          width={image.width}
+          height={image.height}
+          loading="lazy"
+          decoding="async"
+        />
+      </button>
       <div className="image-meta">
         <div className="row">
           <code>{image.name}</code>
@@ -199,8 +214,15 @@ export function ImageGallery({
   /** The database has not been migrated to include images yet. */
   unavailable: boolean;
 }) {
+  const [openId, setOpenId] = useState<string | null>(null);
   const attached = new Set(images.map((i) => i.name));
   const missing = namesInText.filter((n) => !attached.has(n));
+  const lightboxImages: LightboxImage[] = images.map((image) => ({
+    id: image.id,
+    src: image.src,
+    alt: image.altText || image.caption || image.name,
+    caption: image.caption || image.name,
+  }));
   return (
     <section className="panel reference-images" id="images" aria-labelledby="images-heading">
       <h2 id="images-heading">
@@ -223,6 +245,7 @@ export function ImageGallery({
                   image={image}
                   inText={namesInText.includes(image.name)}
                   isProtected={isProtected}
+                  onOpen={setOpenId}
                 />
               ))}
             </ul>
@@ -243,6 +266,12 @@ export function ImageGallery({
             </div>
           ) : null}
           <AddImages projectId={projectId} recordId={recordId} isProtected={isProtected} />
+          <ImageLightbox
+            images={lightboxImages}
+            openId={openId}
+            onOpenId={setOpenId}
+            onClose={() => setOpenId(null)}
+          />
         </>
       )}
     </section>

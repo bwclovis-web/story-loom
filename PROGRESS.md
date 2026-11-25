@@ -1,5 +1,71 @@
 # Progress
 
+## Image lightbox with zoom (Nov 25, 2026)
+
+Attached and preview images open in a shared lightbox with zoom (buttons, scroll wheel, drag when zoomed), previous/next in galleries, and Escape to close. Wired on reading cards, reference preview, identity thumb, Images gallery, Markdown body images, Write context thumbs, inspector Images tab, and board rail/summary images. Map canvas / library navigation and decorative covers stay as before. Working manuscript DB untouched.
+
+### Rollback
+
+Revert `ImageLightbox` / `OpenableImage` zoom and call sites, `MarkdownOpenableImage`, CSS, Help, labels, PROGRESS.
+
+## World Hub reading cards (Design 06) (Nov 25, 2026)
+
+Reference-category listing pages use Design 06 reading cards below the existing header (header/nav/Getting started unchanged).
+
+- **Cards default:** Cards when URL and cookie omit view; explicit `view=list` and the `wordly-hub-view` cookie win; old implicit List default removed. Segmented Cards/List preserves search, filters, sort, and collection.
+- **Reading cards:** Two-column grid (one column when narrow); left thumb (primary image or document icon); title link; status/protection; Series + subcategory; excerpt; Open reference + Preview. Preview opens a right-hand panel (Escape / Close) from listing data only.
+- **Toolbar:** Single compact row — search, Filters popover, labeled Sort, Cards/List with icons, Collections, Save current filters; result count + removable chips. Category nav uses a disclosure on narrow widths.
+- **Verify:** unit hubDiscovery + worldHubExcerpt (+ collections); typecheck. Working manuscript DB untouched.
+
+### Rollback
+
+Revert hubDiscovery/worldHubExcerpt/preferences, WorldReadingCard, WorldReadingResults, WorldReferencePreview, WorldHubListingToolbar, WorldHubFilterForm, WorldHubCollectionsMenu, world page, globals CSS, labels, Help, PROGRESS, and related tests.
+
+## Character profile view / edit (Nov 25, 2026)
+
+Character profile tab matches Living World: read-only view, Edit/Add draft, sticky Save/Cancel, Show/Hide empty fields, unsaved leave warning. Markdown body unchanged. Working manuscript DB untouched.
+
+### Rollback
+
+Revert CharacterDevelopmentPanel, CharacterProfileView, characterProfileHasDisplayContent, labels, Help, globals CSS, PROGRESS.
+
+## Living World profile view / edit (Nov 25, 2026)
+
+Living World Profile tab opens in a read-only view; Edit profile / Add profile details enter a local draft with Save / Cancel.
+
+- **View:** Label/value rows; hide empty optional fields (false/0 kept); Show empty fields; empty state without a wall of blanks; linked refs resolve to titles when known.
+- **Edit:** Draft from saved data; unsaved indicator; sticky Save / Cancel; protection unlock; failed save keeps the draft; `setUnsaved` for leave confirmation. Markdown body unchanged.
+- **Verify:** `pnpm typecheck` OK; `vitest` world-profile + reference-tabs (27) OK; `pnpm build` OK. Browser on demo Salt Guild: empty view → Add → draft/Unsaved → Save → read-only with Show/Hide empty; Markdown body unchanged (revision 2 profile-only). Dark + light checked. Working manuscript DB untouched aside from demo Salt Guild profile summary.
+
+### Rollback
+
+Revert WorldProfilePanel, worldProfile empty helpers + unit tests, labels, globals CSS, PROGRESS.
+
+## Reference tabbed workspace (Nov 25, 2026)
+
+Reference detail pages use Design 02 tabs and Design 04 “On this page” section navigation.
+
+- **Tabs:** Document, Living World profile (or Character profile on dossiers), Images, Relationships, Established in (when linkable). URL `?tab=`; Back/Forward restore; legacy hashes map into tabs.
+- **Document:** Sticky section nav from rendered Markdown headings (`doc-*` anchors); narrow disclosure; no right-hand section inspector.
+- **Scope:** Page inspector rail / top infobox strip removed from the full reference page. Maps/boards keep compact summaries and shared inspector model loaders.
+- **Verify:** `pnpm typecheck`; unit `reference-tabs`; browser widths ~1440/1024/768/360 dark+light when available. Working DB untouched.
+
+### Rollback
+
+Revert `referenceTabs`, ReferenceWorkspace, DocumentSectionNav, ReferenceView, globals CSS, labels, Help, PROGRESS, page searchParams typing, and the unit test.
+
+## Menu popovers and focus trap (Nov 25, 2026)
+
+More menus dismiss like popovers: focus stays inside while open; Escape or a click outside closes them.
+
+- **Hooks:** `useFocusTrap` (Tab cycle + Escape) and `useDismissible` (outside pointer) under `src/hooks/`.
+- **UI:** Shared `MenuPopover` (`.menu-wrap` / `.tool-menu`) wires Write More, more formatting, and text appearance. Board / map overflow and outline More use the same hooks on their disclosures.
+- **Verify:** `pnpm typecheck`. Manual: open Write More, Tab within items, Escape restores the trigger; click outside closes. Working DB untouched.
+
+### Rollback
+
+Revert hooks, `MenuPopover`, WriteEditor / EditorToolbar / TextAppearanceMenu / BoardOverflowMenu / MapToolbarPopover / ManuscriptOutline / Button forwardRef / Help / PROGRESS.
+
 ## Write performance (Nov 24, 2026)
 
 Lightens Write landing and chapter editing without changing saved manuscript text.

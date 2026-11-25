@@ -1511,7 +1511,7 @@ export function HelpContent() {
               <L>{RECORD.historyHeading}</L>, <L>{RECORD.compareHeading}</L> and <L>{WRITE.structuredFields}</L>, and
               offers <L>{MANUSCRIPT_STRUCTURE.split}</L>, <L>{WRITE.loadFromFile}</L> (see <See anchor="load-from-file" />) and <L>{WRITE.tidy}</L> (see{" "}
               <See anchor="tidy-text" />
-              ).
+              ). The menu traps keyboard focus; <kbd>Escape</kbd> or a click outside closes it.
             </li>
           </ul>
           <p>
@@ -1575,7 +1575,7 @@ export function HelpContent() {
             </li>
             <li>
               <L>{WRITE.moreFormatting}</L>: <L>{WRITE.quote}</L> and <L>{WRITE.sceneBreak}</L> (a line with{" "}
-              <code>* * *</code>).
+              <code>* * *</code>). Same focus trap and dismiss as <L>{WRITE.more}</L>.
             </li>
           </ul>
           <p>
@@ -2011,8 +2011,9 @@ export function HelpContent() {
         <p>
           <L>{SHELL.world}</L> holds the project&apos;s reference documents of these types:{" "}
           {WORLD_TYPES.map((t) => RECORD_TYPE_LABELS[t]).join(", ")}. The World page is a hub: thematic categories
-          (see <See anchor="world-taxonomy" />), search, recently opened and recently updated references, list or card
-          discovery, <L>{SMART_COLLECTIONS.worldHeading}</L> (see <See anchor="world-collections" />), and{" "}
+          (see <See anchor="world-taxonomy" />), search, recently opened and recently updated references, Cards or List
+          discovery (see <See anchor="world-listing" />), <L>{WORLD.collectionsMenu}</L> (see{" "}
+          <See anchor="world-collections" />), and{" "}
           <L>{WORLD.toolsAndSpaces}</L> for maps, boards, timeline, calendar, relationships, and the name
           generator. Opening a page does not change records. <L>{WORLD.organizeReferences}</L> opens an author-reviewed
           bulk classifier (see <See anchor="world-organize" />).           <L>{WORLD.newReference}</L> opens one form: title, any
@@ -2103,8 +2104,8 @@ export function HelpContent() {
 
         <Sub id="established-in">
           <p>
-            On a reference page, the inspector&apos;s <L>{WORLD.establishedIn}</L> tab links facts to exact manuscript or
-            plan passages at a saved revision. Planned material, zero-draft evidence, and author-rewrite evidence stay
+            On a reference page, the <L>{REFERENCE_FORM.tabEstablished}</L> tab links facts to exact manuscript or plan
+            passages at a saved revision. Planned material, zero-draft evidence, and author-rewrite evidence stay
             distinct. Offering extracted facts creates pending items you can accept or dismiss — nothing is accepted
             until you review it.
           </p>
@@ -2374,7 +2375,11 @@ export function HelpContent() {
           <p>
             On a character dossier, <L>{CHARACTER_DEVELOPMENT.heading}</L> adds optional structured notes beside the
             Markdown body you already have. Name, aliases, images, and relationship edges stay on their existing panels;
-            the profile does not replace them. Leaving the profile blank changes nothing.{" "}
+            the profile does not replace them. Leaving the profile blank changes nothing. The Character profile tab opens
+            as a readable view of saved notes (optional empties hidden until you choose{" "}
+            <L>{CHARACTER_DEVELOPMENT.showEmptyFields}</L>). Use <L>{CHARACTER_DEVELOPMENT.editProfile}</L> or{" "}
+            <L>{CHARACTER_DEVELOPMENT.addProfileDetails}</L> for a draft form, then <L>{CHARACTER_DEVELOPMENT.save}</L> or{" "}
+            <L>{CHARACTER_DEVELOPMENT.cancel}</L>. Saving the profile does not change dossier Markdown.{" "}
             <L>{CHARACTER_DEVELOPMENT.importance}</L> suggests which sections to open first (
             <L>{CHARACTER_DEVELOPMENT.importanceLevels.protagonist}</L>,{" "}
             <L>{CHARACTER_DEVELOPMENT.importanceLevels.major}</L>,{" "}
@@ -2463,8 +2468,12 @@ export function HelpContent() {
         <Sub id="world-profile">
           <p>
             Worldbuilding, rules and glossary, research, canon decision, continuity, and reference notes can carry an
-            optional <L>{WORLD_PROFILE.heading}</L> panel. It stores structured fields and collections beside the
-            Markdown body; nothing in it is required, and the body is never discarded. Pick a{" "}
+            optional <L>{WORLD_PROFILE.heading}</L> on the reference page&apos;s profile tab. It stores structured
+            fields and collections beside the Markdown body; nothing in it is required, and the body is never
+            discarded. The tab opens as a readable view of saved values (optional empties hidden until you choose{" "}
+            <L>{WORLD_PROFILE.showEmptyFields}</L>). Use <L>{WORLD_PROFILE.editProfile}</L> or{" "}
+            <L>{WORLD_PROFILE.addProfileDetails}</L> for a draft form, then <L>{WORLD_PROFILE.save}</L> or{" "}
+            <L>{WORLD_PROFILE.cancel}</L>. Saving the profile does not change document text. Pick a{" "}
             <L>{WORLD_PROFILE.definition}</L> if one fits (kind builtins, the 13 non-character Hub category
             definitions, plus any you remembered with a kind template), or leave it as{" "}
             <L>{WORLD_PROFILE.definitionNone}</L>. When more than one definition fits, the panel lists{" "}
@@ -2598,18 +2607,31 @@ export function HelpContent() {
           </p>
         </Sub>
 
+        <Sub id="world-listing">
+          <p>
+            Reference category pages open in a Cards reading layout by default: left thumbnail (author image or a
+            document icon), title, Series and subcategory, a short excerpt from the saved summary or Markdown body
+            (plain text only), and the real canon status and protection. <L>{WORLD.previewReference}</L> opens a
+            right-hand panel from the same listing data; <L>{WORLD.openReference}</L> goes to the full record. Choose{" "}
+            <L>{WORLD.viewList}</L> for the table. Your Cards or List choice is remembered in this browser and kept when
+            you move between categories; an explicit <code>view</code> in the URL still wins. Search, Filters (popover),
+            Sort, and the view control sit in one compact toolbar; active filters show as removable chips under the
+            result count.
+          </p>
+        </Sub>
+
         <Sub id="world-collections">
           <p>
-            <L>{SMART_COLLECTIONS.worldHeading}</L> on <L>{SHELL.world}</L> save the active Hub filters for this book as a
-            named smart collection (scope World). Opening one restores the filter controls and lists matching references
-            from the current Hub index, including series-shared ones that belong through primary or secondary membership.
-            Matches are always evaluated live and deduplicated by record id; map pins and board cards are not duplicated
-            into the collection.
+            <L>{WORLD.collectionsMenu}</L> on <L>{SHELL.world}</L> opens saved Hub filters for this book (scope World).
+            <L>{WORLD.saveCurrentFilters}</L> names a new collection from the filters you have open. Opening one restores
+            those controls and lists matching references from the current Hub index, including series-shared ones that
+            belong through primary or secondary membership. Matches are always evaluated live and deduplicated by record
+            id; map pins and board cards are not duplicated into the collection.
           </p>
           <p>
             Saved filters use stable identifiers for category, subcategory, tag, custom kind, uncategorized, document type,
             worldbuilding kind, Book/Series scope, canon status, protection, search text, sort, and list/cards view. The
-            save panel shows a readable summary of what will be stored. After you open a collection you can change filters
+            save dialog shows a readable summary of what will be stored. After you open a collection you can change filters
             freely; choose <L>{SMART_COLLECTIONS.worldUpdate}</L> only when you want those changes kept. A collection with
             zero current matches stays available so you can adjust filters or return to all references. Deleting a
             collection removes only the saved filter — references and placements stay. Manuscript smart collections are
@@ -2758,15 +2780,16 @@ export function HelpContent() {
             shown as plain text.
           </p>
           <p>
-            On linkable references (not while editing), <L>{INFOBOX.heading}</L> at the top summarizes kind fields,
-            aliases, accepted established facts, relationships, map pins, and the first manuscript appearance from saved
-            name matches. Pending or dismissed facts are omitted. Open questions still come from an{" "}
+            Identity (type, kind, canon status, protection) sits above the tabs. Structured Living World fields live under{" "}
+            <L>{REFERENCE_FORM.tabProfile}</L>; accepted manuscript evidence under <L>{REFERENCE_FORM.tabEstablished}</L>;
+            relationships and pins under <L>{REFERENCE_FORM.tabRelationships}</L>. Wiki and series exports may still
+            include an <L>{INFOBOX.heading}</L> summary. Open questions still come from an{" "}
             <L>{INFOBOX.openQuestions}</L> heading in the text. See <See anchor="mentioned-by" /> for backlinks.
           </p>
           <p>
-            <L>{WORLD.contents}</L> lists the document&apos;s own headings. Choose one to jump to it. Structured fields, if
-            the document has any, are shown in a table below the text. They are stored separately: editing the text does
-            not change them, and editing them does not change the text.
+            On the <L>{REFERENCE_FORM.tabDocument}</L> tab, <L>{REFERENCE_FORM.onThisPage}</L> lists the document&apos;s
+            own headings when any exist. Choose one to jump to it. Living World Profile fields stay on their own tab:
+            editing the text does not change them, and editing them does not change the text.
           </p>
           <p>
             If your last save changed a field but the text still contains its old value, the page shows{" "}
@@ -2775,7 +2798,8 @@ export function HelpContent() {
           <h4>Editing</h4>
           <ol>
             <li>
-              Choose <L>{WORLD.edit}</L>. The editor described in <See anchor="editing" /> opens in place of the formatted
+              Choose <L>{REFERENCE_FORM.editReference}</L> (or <L>{WORLD.edit}</L>). The editor described in{" "}
+              <See anchor="editing" /> opens on the <L>{REFERENCE_FORM.tabDocument}</L> tab in place of the formatted
               text.
             </li>
             <li>
@@ -2795,7 +2819,8 @@ export function HelpContent() {
             Copy your text, reload the page, and make the change again on the current version.
           </p>
           <p>
-            <L>{WORLD.history}</L> and <L>{WORLD.statusAndProtection}</L> jump to the boxes below the document:{" "}
+            <L>{REFERENCE_FORM.moreActions}</L> (and the older <L>{WORLD.history}</L> /{" "}
+            <L>{WORLD.statusAndProtection}</L> labels) jump to the boxes below the tabs:{" "}
             <L>{RECORD.statusHeading}</L>, <L>{RECORD.protectionHeading}</L>, <L>{RECORD.historyHeading}</L>,{" "}
             <L>{RECORD.compareHeading}</L>, and <L>{WORLD.importedFiles}</L>. See <See anchor="saved-versions" />.
           </p>
@@ -2803,53 +2828,45 @@ export function HelpContent() {
 
         <Sub id="reference-context">
           <p>
-            The context rail beside the document uses the same collapse, resize, and narrow-screen overlay as Write
-            (<L>{WRITE.showContext}</L> / <L>{WRITE.hideContext}</L>). Arrow keys move between the inspector tabs. The
-            same tabs open when you select a board card or a map pin. The inspector shows the saved document, so unsaved
-            text stays in the editor until you save.
+            A reference page is a tabbed workspace. Type, kind, canon status, saved version, and protection appear in the
+            identity strip. <L>{REFERENCE_FORM.editReference}</L> opens the Markdown editor on the{" "}
+            <L>{REFERENCE_FORM.tabDocument}</L> tab. <L>{REFERENCE_FORM.moreActions}</L> reaches history, status,
+            import, export, and PDF. Arrow keys move between tabs. The <code>tab</code> query in the address bar records
+            the active tab so Back and Forward restore it. Legacy hashes such as <code>#images</code> and{" "}
+            <code>#world-profile</code> still open the matching tab. Unsaved document or profile drafts stay mounted when
+            you change tabs; leaving the page still asks when something is unsaved.
           </p>
           <ul>
             <li>
-              <L>{WORLD.inspectorOverview}</L>: type, canon status, saved version, protection, a short lead, structured
-              field names, and the boards and maps that contain this record. It also includes{" "}
-              <L>{WRITE.pinnedReferences}</L> for the active draft (or the whole project when there are no drafts). Pin
-              and unpin never link or unlink manuscript scenes.
+              <L>{REFERENCE_FORM.tabDocument}</L>: the saved Markdown. When the document has headings,{" "}
+              <L>{REFERENCE_FORM.onThisPage}</L> lists them (sticky beside the prose on a wide window; a disclosure on a
+              narrow one). Choose a heading to scroll to it; the current section is highlighted as you read. See{" "}
+              <See anchor="section-status" />.
             </li>
             <li>
-              <L>{WORLD.inspectorSections}</L>: the document&apos;s headings, with any status tags shown word for word.
-              Choose one to jump to it. See <See anchor="section-status" />.
+              <L>{REFERENCE_FORM.tabProfile}</L> when this record type supports a Living World Profile, or{" "}
+              <L>{REFERENCE_FORM.tabCharacterProfile}</L> on a character dossier. Types without a profile omit the tab.
+              Both profile tabs open as a readable view of saved fields (empty optional fields hidden; Show empty fields
+              reveals them). Edit profile or Add profile details opens a draft form with Save profile and Cancel. Saving
+              the profile never rewrites the Markdown body, and editing the document never changes the profile.
             </li>
             <li>
-              <L>{WORLD.inspectorImages}</L>: images attached to this record. Choose one to open it larger; arrow keys move
-              between images, and Escape closes the view. See <See anchor="images" />.
+              <L>{REFERENCE_FORM.tabImages}</L>: images attached to this record. See <See anchor="images" />.
             </li>
             <li>
-              <L>{WORLD.inspectorRelationships}</L>: place and record relationships when the reference supports them,{" "}
-              <L>{WORLD.linkedManuscript}</L> from a chapter or scene&apos;s <L>{WRITE.references}</L> tab,{" "}
-              <L>{XREF.heading}</L>, and <L>{MENTIONED_BY.heading}</L>. A scene note shows <L>{WORLD.noteOn}</L> instead
-              of linked chapters. See <See anchor="place-relations" />, <See anchor="record-relations" />,{" "}
-              <See anchor="cross-references" />, and <See anchor="mentioned-by" />.
+              <L>{REFERENCE_FORM.tabRelationships}</L>: place and record relationships when the reference supports them,{" "}
+              <L>{XREF.heading}</L>, <L>{MENTIONED_BY.heading}</L>, <L>{WRITE.pinnedReferences}</L>, and boards or maps
+              that contain this record. A scene note shows <L>{WORLD.noteOn}</L> instead of linked chapters. See{" "}
+              <See anchor="place-relations" />, <See anchor="record-relations" />, <See anchor="cross-references" />, and{" "}
+              <See anchor="mentioned-by" />.
             </li>
             <li>
-              <L>{WORLD.establishedIn}</L> when the record can have it. See <See anchor="established-in" />.
+              <L>{REFERENCE_FORM.tabEstablished}</L> when the record can have it. See <See anchor="established-in" />.
             </li>
             <li>
-              <L>{WORLD.recentChanges}</L>: the latest five saved versions, with their status and where they came from.
-              Choose one to see what changed. <L>{WORLD.viewHistory}</L> jumps to the full list.
-            </li>
-            <li>
-              <L>{WORLD.openReview}</L>: items in <L>{HISTORY.openReviewItems}</L> about this document. Resolve them on{" "}
-              <L>{NAV.history}</L>. See <See anchor="review-items" />.
-            </li>
-            <li>
-              <L>{WORLD.proposals}</L>: assistant proposals that would change this document and have not been applied.
-              They are marked <em>{WORLD.proposedBadge}</em> and are not part of the text shown. <L>{WORLD.reviewProposal}</L>{" "}
-              opens the proposal&apos;s review page, where you can read the exact changes and apply them. See{" "}
-              <See anchor="change-review" />.
-            </li>
-            <li>
-              <L>{WORLD.importedFiles}</L>: Markdown files imported into this document. <L>{WORLD.showOriginal}</L> shows
-              the file exactly as it was imported. Later edits change the document, not this copy.
+              Below the tabs: <L>{WORLD.recentChanges}</L>, <L>{WORLD.openReview}</L>, <L>{WORLD.proposals}</L>, and{" "}
+              <L>{WORLD.importedFiles}</L>, plus status, protection, history, and compare. Maps and boards still open a
+              compact saved summary for a selected pin or card; they do not replace this page.
             </li>
           </ul>
           <p>
@@ -2957,7 +2974,10 @@ export function HelpContent() {
             shows the image: remove the line from the text and save first. Older saved versions that showed a removed
             image say it is not found.
           </p>
-          <p>Choose an image to open it at full size in a new tab.</p>
+          <p>
+            Choose an image to open it in a lightbox. Use zoom in, zoom out, reset, or the scroll wheel; drag when zoomed.
+            Escape closes. Galleries with more than one image offer previous and next.
+          </p>
         </Sub>
       </Section>
 

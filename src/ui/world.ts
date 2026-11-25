@@ -128,7 +128,8 @@ export function worldHref(
   if (params.status) search.set("status", params.status);
   if (params.protected) search.set("protected", params.protected);
   if (params.sort && params.sort !== "updated") search.set("sort", params.sort);
-  if (params.view && params.view !== "list") search.set("view", params.view);
+  // Cards is the product default; only persist list (and any non-default) in the URL.
+  if (params.view && params.view !== "cards") search.set("view", params.view);
   if (params.collection?.trim()) search.set("collection", params.collection.trim());
   const qs = search.toString();
   return `/projects/${encodeURIComponent(projectId)}/world${qs ? `?${qs}` : ""}`;

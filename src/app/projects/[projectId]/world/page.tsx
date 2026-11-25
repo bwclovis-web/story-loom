@@ -1,9 +1,11 @@
 import Link from "next/link";
+import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 import { CanonBadge } from "@/components/Badges";
 import { LandingHeader } from "@/components/library/LandingHeader";
 import { OverflowDisclosure } from "@/components/shell/OverflowDisclosure";
 import { ProjectOnboarding } from "@/components/shell/ProjectOnboarding";
+import { WORLD_HUB_VIEW_COOKIE } from "@/components/shell/preferences";
 import { Breadcrumbs } from "@/components/ui/Breadcrumbs";
 import { ButtonLink } from "@/components/ui/Atoms/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -11,8 +13,9 @@ import { WorldRecordTableRow } from "@/components/ui/RecordRow";
 import { SearchPanel } from "@/components/ui/SearchPanel";
 import { WorldCategoryNav } from "@/components/world/WorldCategoryNav";
 import { WorldDirectory } from "@/components/world/WorldDirectory";
-import { WorldHubCollections } from "@/components/world/WorldHubCollections";
-import { WorldHubFilters } from "@/components/world/WorldHubFilters";
+import { WorldHubCollectionsMenu } from "@/components/world/WorldHubCollectionsMenu";
+import { WorldHubListingToolbar } from "@/components/world/WorldHubListingToolbar";
+import { WorldReadingResults } from "@/components/world/WorldReadingResults";
 import { WorldRecentAccessed } from "@/components/world/WorldRecentAccessed";
 import { WorldRecordIcon } from "@/components/world/WorldDestinationIcon";
 import { Plus } from "lucide-react";
@@ -20,6 +23,10 @@ import { WorldKindBrowse } from "@/components/world/WorldReferenceFilters";
 import { stableStringify } from "@/domain/json";
 import { getDb } from "@/server/db";
 import { listProjectCoverHashes } from "@/server/services/coverService";
+import {
+  primaryRecordImagesByRecordId,
+  recordImagePublicPath,
+} from "@/server/services/imageService";
 import { findProject } from "@/server/services/projectService";
 import { listWorldIndex } from "@/server/services/recordService";
 import { searchProjectRecords, type SearchHit } from "@/server/services/searchService";
@@ -56,10 +63,12 @@ import {
   categoryBrowseCounts,
   categoryLabelOrCustom,
   discoverWorldHubRecords,
+  explicitWorldHubView,
   hubHasActiveFilters,
   listHubTags,
   parseWorldHubQuery,
   projectWorldHubRecord,
+  resolveWorldHubView,
   worldHubHref,
   type WorldHubRecord,
 } from "@/world/hubDiscovery";
@@ -136,6 +145,7 @@ export default async function WorldPage({
   const collectionId = flat.collection?.trim() || null;
   const db = getDb();
   const base = `/projects/${encodeURIComponent(projectId)}`;
+  const cookieStore = await cookies();
   const [project, worldRecords, hits, coverHashes, availableCategories, worldCollections] = await Promise.all([
     findProject(db, projectId),
     listWorldIndex(db, projectId),
@@ -165,8 +175,20 @@ export default async function WorldPage({
   }
   // Bare ?collection=id (or list-only) restores saved controls when no discovery filters are present.
   const discoveryActive = hubHasActiveFilters({ ...query, list: false });
+  const urlView = explicitWorldHubView(flat);
+  let restoredCollectionView = false;
   if (activeCollection && !discoveryActive && !query.q) {
     query = worldHubQueryFromCollectionFilter(activeCollection.filter);
+    restoredCollectionView = Boolean(activeCollection.filter.view);
+  }
+  // Explicit URL view wins; then a collection’s saved view; then cookie; then Cards.
+  if (urlView) {
+    query = { ...query, view: urlView };
+  } else if (!restoredCollectionView) {
+    query = {
+      ...query,
+      view: resolveWorldHubView(null, cookieStore.get(WORLD_HUB_VIEW_COOKIE)?.value),
+    };
   }
 
   const customCategories: CustomTaxonomyCategoryOption[] = availableCategories.map((row) => ({
@@ -191,12 +213,28 @@ export default async function WorldPage({
       updatedAt: record.updatedAt,
       fields: record.fields,
       home,
+      body: record.body,
     }),
   );
   const browse = categoryBrowseCounts(hubRecords, customCategories);
   const tags = listHubTags(hubRecords);
   const discovered = discoverWorldHubRecords(hubRecords, query);
   const showHub = !hubHasActiveFilters(query) && !activeCollection;
+  /** Profile images (RecordImage.isPrimary), keyed by record; shared refs load from their home book. */
+  const primaryImages = new Map<string, string>();
+  if (!showHub && query.view === "cards" && !query.q && discovered.length) {
+    const byHome = new Map<string, string[]>();
+    for (const record of discovered) {
+      const homeId = record.home?.projectId ?? projectId;
+      byHome.set(homeId, [...(byHome.get(homeId) ?? []), record.id]);
+    }
+    for (const [homeId, ids] of byHome) {
+      const found = await primaryRecordImagesByRecordId(db, homeId, ids);
+      for (const [recordId, imageId] of found) {
+        primaryImages.set(recordId, imageId);
+      }
+    }
+  }
   const recentUpdated = [...hubRecords]
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt) || a.title.localeCompare(b.title))
     .slice(0, 8);
@@ -271,8 +309,17 @@ export default async function WorldPage({
     />
   );
 
-  const collectionsPanel = (
-    <WorldHubCollections
+  const categoryAside = (
+    <aside className="world-hub-aside">
+      <div className="world-hub-aside-desktop">{categoryNav}</div>
+      <OverflowDisclosure summary={WORLD.categoryNavDisclosure} className="world-hub-aside-mobile">
+        {categoryNav}
+      </OverflowDisclosure>
+    </aside>
+  );
+
+  const collectionsMenu = (
+    <WorldHubCollectionsMenu
       key={activeCollection?.id ?? "world-collections"}
       projectId={projectId}
       query={query}
@@ -322,42 +369,20 @@ export default async function WorldPage({
     </table>
   );
 
+  // Viewing-project image URLs resolve local and series-shared profile images.
+  const imageByRecordId: Record<string, string> = {};
+  for (const [recordId, imageId] of primaryImages) {
+    imageByRecordId[recordId] = recordImagePublicPath(projectId, imageId);
+  }
+
   const renderRecordCards = (rows: WorldHubRecord[]) => (
-    <ul className="world-card-grid">
-      {rows.map((record) => {
-        const book = record.home ? seriesBookLabel(record.home) : null;
-        const kind = record.type === "worldbuilding" ? worldbuildingKindFromFields(record.fields) : null;
-        return (
-          <li key={record.id} className="world-card panel">
-            <div className="world-card-head">
-              <WorldRecordIcon type={record.type} kind={kind} />
-              <Link href={`${base}/records/${encodeURIComponent(record.id)}`} className="world-card-title">
-                {record.title}
-              </Link>
-            </div>
-            <p className="small muted">
-              {categoryLabel(record.type)}
-              {taxonomyPrimaryLabel(record) ? ` · ${taxonomyPrimaryLabel(record)}` : ""}
-              {scopeBadge(record) ? ` · ${scopeBadge(record)}` : ""}
-            </p>
-            <div className="row" style={{ flexWrap: "wrap", gap: "0.35rem" }}>
-              <CanonBadge status={record.authorityStatus} />
-              {secondaryLabels(record, customCategories).map((label) => (
-                <span key={label} className="badge badge-muted">
-                  + {label}
-                </span>
-              ))}
-              {book && record.home ? (
-                <span className="small">
-                  {SERIES.homeBadge(book)}{" "}
-                  <Link href={seriesRecordHref(record.home.projectId, record.id)}>{SERIES.editIn(book)}</Link>
-                </span>
-              ) : null}
-            </div>
-          </li>
-        );
-      })}
-    </ul>
+    <WorldReadingResults
+      projectId={projectId}
+      records={rows}
+      imageByRecordId={imageByRecordId}
+      seriesName={project.seriesName}
+      customCategories={customCategories}
+    />
   );
 
   const discoveryEmpty =
@@ -435,7 +460,7 @@ export default async function WorldPage({
 
       {showHub ? (
         <div className="world-hub-layout world-hub-with-nav pt-10">
-          <aside className="world-hub-aside">{categoryNav}</aside>
+          {categoryAside}
           <div className="world-hub-main">
             <SearchPanel
               action={worldHref(projectId)}
@@ -455,8 +480,8 @@ export default async function WorldPage({
               <ButtonLink href={worldHref(projectId, { list: true })} variant="secondary">
                 {WORLD.viewAllReferences}
               </ButtonLink>
+              {collectionsMenu}
             </div>
-            {collectionsPanel}
             <WorldCategoryManager projectId={projectId} categories={customCategories} />
             <WorldRecentAccessed projectId={projectId} knownIds={knownIds} />
             <section aria-labelledby="world-updated-heading">
@@ -516,26 +541,19 @@ export default async function WorldPage({
         </div>
       ) : (
         <div className="world-hub-layout world-hub-with-nav pt-10">
-          <aside className="world-hub-aside">{categoryNav}</aside>
+          {categoryAside}
           <div className="world-hub-main">
-            <SearchPanel
-              action={worldHref(projectId)}
-              label={WORLD.searchReferences}
-              inputId="world-hub-q"
-              submitLabel={WORLD.search}
-              hint={WORLD.hubSearchHint}
-              defaultValue={query.q}
-              className="world-hub-search"
-            >
-              {searchHiddenCollection}
-            </SearchPanel>
-            <WorldHubFilters
+            <WorldHubListingToolbar
               projectId={projectId}
               query={query}
               tags={tags}
+              resultCount={query.q ? (hits?.length ?? 0) : discovered.length}
               collectionId={activeCollection?.id ?? null}
+              collections={worldCollections}
+              activeCollection={activeCollection}
+              matchCount={discovered.length}
+              customCategories={customCategories}
             />
-            {collectionsPanel}
             {query.type === "worldbuilding" || query.kind ? (
               <WorldKindBrowse
                 projectId={projectId}
@@ -546,7 +564,6 @@ export default async function WorldPage({
               />
             ) : null}
             <div className="row" style={{ flexWrap: "wrap", gap: "0.5rem" }}>
-              <Link href={worldHref(projectId)}>{query.q ? WORLD.clearSearch : WORLD.clearFilters}</Link>
               {categoryForCreate ? (
                 <Link href={newHref}>{WORLD.newInCategory(categoryForCreate.label)}</Link>
               ) : null}
@@ -612,19 +629,10 @@ export default async function WorldPage({
             ) : null}
 
             {!query.q ? (
-              <section className="panel" aria-labelledby="world-list-heading">
-                <div className="world-section-head">
-                  <h2 id="world-list-heading">{listTitle}</h2>
-                  <Link
-                    href={worldHubHref(projectId, {
-                      ...query,
-                      view: query.view === "cards" ? "list" : "cards",
-                      collection: activeCollection?.id ?? null,
-                    })}
-                  >
-                    {query.view === "cards" ? WORLD.viewList : WORLD.viewCards}
-                  </Link>
-                </div>
+              <section aria-labelledby="world-list-heading">
+                <h2 id="world-list-heading" className="sr-only">
+                  {listTitle}
+                </h2>
                 {discovered.length === 0
                   ? discoveryEmpty
                   : query.view === "cards"

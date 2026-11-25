@@ -8,6 +8,8 @@ import {
   withWorldProfile,
   withoutWorldProfile,
   worldFieldMetaOf,
+  worldProfileFieldValueIsEmpty,
+  worldProfileHasDisplayContent,
   worldProfileIsEmpty,
   worldProfileOnUnsupportedTypeProblems,
   worldProfileWriteProblems,
@@ -119,5 +121,32 @@ describe("world profile overlay", () => {
     ]);
     expect(available.some((d) => d.id === "custom:harbor_league")).toBe(true);
     expect(available.some((d) => d.id === "builtin:place")).toBe(true);
+  });
+
+  it("treats false and 0 as displayable values, not empty", () => {
+    expect(worldProfileFieldValueIsEmpty(false)).toBe(false);
+    expect(worldProfileFieldValueIsEmpty(0)).toBe(false);
+    expect(worldProfileFieldValueIsEmpty({ amount: 0, unit: "mi" })).toBe(false);
+    expect(worldProfileFieldValueIsEmpty(null)).toBe(true);
+    expect(worldProfileFieldValueIsEmpty("")).toBe(true);
+    expect(worldProfileFieldValueIsEmpty([])).toBe(true);
+    expect(formatWorldProfileFieldValue(false)).toBe("false");
+    expect(formatWorldProfileFieldValue(0)).toBe("0");
+  });
+
+  it("detects display content for view mode", () => {
+    expect(worldProfileHasDisplayContent(emptyWorldProfile())).toBe(false);
+    expect(
+      worldProfileHasDisplayContent({
+        ...emptyWorldProfile(),
+        values: { known: false },
+      }),
+    ).toBe(true);
+    expect(
+      worldProfileHasDisplayContent({
+        ...emptyWorldProfile(),
+        summary: "A ridge line",
+      }),
+    ).toBe(true);
   });
 });

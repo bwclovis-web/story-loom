@@ -9,6 +9,23 @@ const nextConfig: NextConfig = {
   distDir: process.env.WORDLY_DIST_DIR || ".next",
   // PDFKit reads its font metric files from its own folder at run time.
   serverExternalPackages: ["better-sqlite3", "@prisma/adapter-better-sqlite3", "pdfkit"],
+  // Local SQLite snapshots and author content must not be hashed into the NFT
+  // graph (Turbopack can OOM / hit OS error 1450 on large backups/*.db files).
+  outputFileTracingExcludes: {
+    "/*": [
+      "./backups/**/*",
+      "./exports/**/*",
+      "./uploads/**/*",
+      "./imports/**/*",
+      "./private/**/*",
+      "./manuscripts/**/*",
+      "./references/**/*",
+      "./recovery/**/*",
+      "./local/**/*",
+      "./prisma/*.db",
+      "./prisma/*.db-*",
+    ],
+  },
   experimental: {
     // Keep "security" only while an intentional Next.js upgrade agent run is active;
     // otherwise `next dev` exits under Cursor with the upgrade nudge.

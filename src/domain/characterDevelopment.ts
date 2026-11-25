@@ -1788,6 +1788,11 @@ export function developmentIsEmpty(profile: CharacterDevelopment): boolean {
   return JSON.stringify(profile) === JSON.stringify(blank);
 }
 
+/** True when the view has at least one section with readable notes (importance alone does not count). */
+export function characterProfileHasDisplayContent(profile: CharacterDevelopment): boolean {
+  return PROFILE_SECTIONS.some((section) => !sectionIsEmpty(section, profile));
+}
+
 export type ProfileFreshness = "current" | "unchecked" | "stale";
 
 export function profileFreshness(profile: CharacterDevelopment, revision: number, bodyHash?: string | null): ProfileFreshness {

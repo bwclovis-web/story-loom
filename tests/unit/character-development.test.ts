@@ -28,6 +28,7 @@ import {
   normalizeImportance,
   profileCompleteness,
   visibleProfileSections,
+  characterProfileHasDisplayContent,
   wingIsValid,
   withCharacterDevelopment,
   type CharacterDevelopment,
@@ -514,6 +515,18 @@ describe("character development", () => {
     expect(partial.suggestedWithNotes).toEqual(expect.arrayContaining(["identity", "voice"]));
     expect(partial.suggestedFilledCount).toBe(2);
     expect(partial.suggestedEmpty).not.toContain("identity");
+  });
+
+  it("treats importance alone as no display content for view mode", () => {
+    const blank = emptyCharacterDevelopment();
+    expect(characterProfileHasDisplayContent(blank)).toBe(false);
+    blank.importance = "major";
+    expect(characterProfileHasDisplayContent(blank)).toBe(false);
+    blank.foundation.appearance = "Salt-stained coat";
+    expect(characterProfileHasDisplayContent(blank)).toBe(true);
+    blank.foundation.appearance = "";
+    blank.narrativeRole = "protagonist";
+    expect(characterProfileHasDisplayContent(blank)).toBe(true);
   });
 
   it("loads legacy psychology without new keys and keeps optional psychology fields", () => {
